@@ -1,7 +1,25 @@
-import { View, Image } from "react-native";
+import { View, Image, Text } from "react-native";
 import Map from "@/components/Map/Map";
+import { useEffect, useState } from "react";
+import * as Font from "expo-font";
 
 export default function HomeScreen() {
+  const [fontLoaded, setFontLoaded] = useState(false);
+
+  useEffect(() => {
+    async function loadFont() {
+      await Font.loadAsync({
+        "Oi-Regular": require("@/assets/fonts/Oi-Regular.ttf"),
+      });
+      setFontLoaded(true);
+    }
+    loadFont();
+  }, []);
+
+  if (!fontLoaded) {
+    return null; // Or a loading indicator
+  }
+
   return (
     <View className="flex-1">
       {/* Background Image */}
@@ -13,10 +31,13 @@ export default function HomeScreen() {
 
       {/* Map Container */}
       <View className="h-screen grid place-content-center">
-        <div className="px-32 pb-16 bg-white/90 rounded-3xl font-family-[Oi-Regular]">
-          <h1 className="text-3xl font-bold py-8 text-center">Polytopia</h1>
+        <View className="px-32 pb-16 bg-white/90 rounded-5xl">
+          <Text className="text-2xl py-8 text-center font-oi">
+            The Battle Of <br />
+            <span className="text-4xl">Polytopia</span>
+          </Text>
           <Map />
-        </div>
+        </View>
       </View>
     </View>
   );
