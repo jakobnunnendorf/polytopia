@@ -18,12 +18,15 @@ export default function Map() {
         const x = index % size;
         const y = Math.floor(index / size);
         const isCapital = capitals.some((pos) => pos.x === x && pos.y === y);
-        const isTerritory = capitals.some(
-          (pos) => Math.abs(pos.x - x) <= 1 && Math.abs(pos.y - y) <= 1
-        );
 
         return (
-          <Tile key={index} isCapital={isCapital} isTerritory={isTerritory} />
+          <Tile
+            key={index}
+            x={x}
+            y={y}
+            isCapital={isCapital}
+            capitals={capitals}
+          />
         );
       })}
     </div>
