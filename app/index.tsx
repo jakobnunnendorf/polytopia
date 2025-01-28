@@ -1,11 +1,10 @@
-import { View, Text } from "react-native";
+import Map from "@/components/Map/Map";
+import { View } from "react-native";
 
 export default function HomeScreen() {
   return (
-    <View className="h-screen bg-[#37bef8] grid place-content-center">
-      <Text className="text-white font-bold text-3xl">
-        Tailwind CSS succesfully installed!
-      </Text>
+    <View className="h-screen grid place-content-center">
+      <Map />
     </View>
   );
 }
