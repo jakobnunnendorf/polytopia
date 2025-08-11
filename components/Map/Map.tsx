@@ -3,6 +3,7 @@ import Tile from "./Tile";
 import { spawnCapitals } from "@/logic/spawn";
 import { useContext } from "react";
 import { SettingsContext } from "@/context/SettingsContext";
+import { View } from "react-native";
 
 export default function Map() {
   const settings = useContext(SettingsContext);
@@ -17,7 +18,8 @@ export default function Map() {
   }, [settings.numberOfPlayers, settings.mapSize]);
 
   return (
-    <div
+    <View
+      testID="map-component"
       style={{
         gridTemplateColumns: `repeat(${settings.mapSize}, minmax(0, 1fr))`,
       }}
@@ -38,6 +40,6 @@ export default function Map() {
           />
         );
       })}
-    </div>
+    </View>
   );
 }

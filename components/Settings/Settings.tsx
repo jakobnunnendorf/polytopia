@@ -21,7 +21,7 @@ export default function Settings() {
   ];
   const gameModes = ["perfection", "domination"];
   return (
-    <View className="mt-4 ">
+    <View className="mt-4 " testID='settings-component'>
       <Text>Select Map Size:</Text>
       <Picker
         selectedValue={settings.mapSize}

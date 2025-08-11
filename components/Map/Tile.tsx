@@ -1,6 +1,5 @@
 import React from "react";
 import Capital from "./Capital";
-import "./Tile.css"; // Import the custom CSS file
 
 export default function Tile({
   isCapital,
@@ -33,10 +32,10 @@ export default function Tile({
   return (
     <div
       className={`relative w-8 h-8 bg-green-500 border border-gray-300 
-        ${hasTopBorder ? "border-top-dashed" : ""} 
-        ${hasRightBorder ? "border-right-dashed" : ""} 
-        ${hasBottomBorder ? "border-bottom-dashed" : ""} 
-        ${hasLeftBorder ? "border-left-dashed" : ""}`}
+        ${hasTopBorder ? "border-t-2 border-0 border-dashed border-black" : ""} 
+        ${hasRightBorder ? "border-r-2 border-0 border-dashed border-black" : ""} 
+        ${hasBottomBorder ? "border-b-2 border-0 border-dashed border-black" : ""} 
+        ${hasLeftBorder ? "border-l-2 border-0 border-dashed border-black" : ""}`}
     >
       {isCapital && <Capital />}
     </div>
