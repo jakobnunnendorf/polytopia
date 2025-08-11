@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react-native";
 import { Text } from "react-native";
-import HomeScreen from "../app/index";
+import HomeScreen from "../../app/index";
 
 jest.mock("expo-font", () => ({
   loadAsync: jest.fn(() => Promise.resolve()),
