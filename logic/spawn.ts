@@ -1,10 +1,12 @@
+import { useContext } from 'react';
+
 export function spawnCapitals({
   players,
   mapSize,
 }: {
   players: number;
   mapSize: number;
-}): { x: number; y: number }[] {
+  }): { x: number; y: number }[] {
   const center = Math.floor(mapSize / 2);
   const positions: { x: number; y: number }[] = [];
 

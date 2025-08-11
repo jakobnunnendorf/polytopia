@@ -1,7 +1,9 @@
-import { View, Image, Text } from "react-native";
+import { View, ImageBackground, Text } from "react-native";
 import Map from "@/components/Map/Map";
+import Settings from "@/components/Settings/Settings";
 import { useEffect, useState } from "react";
 import * as Font from "expo-font";
+import { SettingsProvider } from "@/context/SettingsContext";
 
 export default function HomeScreen() {
   const [fontLoaded, setFontLoaded] = useState(false);
@@ -21,24 +23,23 @@ export default function HomeScreen() {
   }
 
   return (
-    <View className="flex-1">
-      {/* Background Image */}
-      <Image
-        source={require("@/assets/images/menu-background.webp")}
-        className="absolute top-0 left-0 w-full h-full"
-        resizeMode="cover"
-      />
-
-      {/* Map Container */}
-      <View className="h-screen grid place-content-center">
-        <View className="px-32 pb-16 bg-white/90 rounded-5xl">
-          <Text className="text-2xl py-8 text-center font-oi">
-            The Battle Of <br />
-            <span className="text-4xl">Polytopia</span>
-          </Text>
-          <Map />
+    <ImageBackground
+      source={require("@/assets/images/menu-background.webp")}
+      resizeMode="cover"
+      className="w-full h-full gborder"
+    >
+      <SettingsProvider>
+        <View className="flex items-center justify-center w-full h-full bborder">
+          <View className="max-w-3xl px-32 mx-auto pb-28 rounded-3xl bg-white/90">
+            <Text className="py-8 text-2xl text-center font-oi">
+              The Battle Of <br />
+              <span className="text-4xl">Polytopia</span>
+            </Text>
+            <Map />
+            <Settings />
+          </View>
         </View>
-      </View>
-    </View>
+      </SettingsProvider>
+    </ImageBackground>
   );
 }
