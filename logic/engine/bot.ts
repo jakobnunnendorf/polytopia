@@ -1,7 +1,8 @@
 /**
  * A simple greedy bot. It only picks from legalActions(), scoring each action
  * by a hand-written heuristic, and ends its turn when nothing scores above 0.
- * Useful as an opponent for humans and as a baseline for RL agents.
+ * Every number in the heuristic is a named weight, so different versions of
+ * this bot can be saved as models (models/<name>/model.json) and rated by Elo.
  */
 import { applyAction, legalActions } from "./actions";
 import { computeDamageRounded } from "./combat";
@@ -10,6 +11,72 @@ import { dist, idx } from "./grid";
 import { reachable } from "./movement";
 import { capitalOf, cityById, techCost } from "./state";
 import type { Action, Coord, GameState, Unit } from "./types";
+
+export type GreedyWeights = {
+  capture: number;
+  examine: number;
+  promote: number;
+  harvestStarfish: number;
+  monument: number;
+  /** score of a killing blow, plus the victim's cost */
+  kill: number;
+  /** base score of a non-lethal hit, plus damage minus retaliation */
+  hit: number;
+  /** attack with a 0-attack unit (convert, etc.) */
+  special: number;
+  /** pop-giving build: base + perPop * pop - cost */
+  growBase: number;
+  growPerPop: number;
+  /** other buildings when shards > richAt */
+  otherBuild: number;
+  richAt: number;
+  /** research: base - cost - tier, only if 2 shards remain afterwards */
+  research: number;
+  /** train: base + strength - cost/2, while units <= cities * unitsPerCity */
+  train: number;
+  unitsPerCity: number;
+  /** move: base + distance gained toward the unit's goal */
+  move: number;
+  recover: number;
+  healOthers: number;
+  upgrade: number;
+  /** random tie-break spread */
+  noise: number;
+  rewards: Record<string, number>;
+};
+
+export const DEFAULT_WEIGHTS: GreedyWeights = {
+  capture: 100,
+  examine: 60,
+  promote: 90,
+  harvestStarfish: 40,
+  monument: 70,
+  kill: 80,
+  hit: 20,
+  special: 30,
+  growBase: 25,
+  growPerPop: 6,
+  otherBuild: 8,
+  richAt: 10,
+  research: 18,
+  train: 12,
+  unitsPerCity: 3,
+  move: 10,
+  recover: 15,
+  healOthers: 15,
+  upgrade: 6,
+  noise: 1,
+  rewards: {
+    workshop: 5,
+    explorer: 3,
+    resources: 5,
+    cityWall: 2,
+    populationGrowth: 5,
+    borderGrowth: 3,
+    superUnit: 6,
+    park: 4,
+  },
+};
 
 /** deterministic small noise so bots don't all behave identically */
 function noise(s: GameState, k: number): number {
@@ -50,82 +117,77 @@ function goal(s: GameState, u: Unit): Coord | null {
   return best;
 }
 
-function scoreAction(s: GameState, a: Action): number {
+export function scoreAction(s: GameState, a: Action, w: GreedyWeights = DEFAULT_WEIGHTS): number {
   const p = s.current;
   const pl = s.players[p];
   switch (a.type) {
-    case "reward": {
-      const prefs: Record<string, number> = {
-        workshop: 5, explorer: 3, resources: 5, cityWall: 2, populationGrowth: 5,
-        borderGrowth: 3, superUnit: 6, park: 4,
-      };
-      return prefs[a.reward] ?? 1;
-    }
+    case "reward":
+      return w.rewards[a.reward] ?? 1;
     case "capture":
-      return 100;
+      return w.capture;
     case "examine":
-      return 60;
+      return w.examine;
     case "promote":
-      return 90;
+      return w.promote;
     case "harvestStarfish":
-      return 40;
+      return w.harvestStarfish;
     case "attack": {
       const u = s.units.find((x) => x.id === a.unitId)!;
       const t = s.units.find((x) => x.id === a.targetId)!;
-      if (UNITS[u.type].attack === 0) return 30;
+      if (UNITS[u.type].attack === 0) return w.special;
       const r = computeDamageRounded(s, u, t);
-      return r.damage >= t.hp ? 80 + UNITS[t.type].cost : 20 + r.damage - r.retaliation;
+      return r.damage >= t.hp ? w.kill + UNITS[t.type].cost : w.hit + r.damage - r.retaliation;
     }
     case "build": {
       const def = BUILDS[a.building];
-      if (def.kind === "monument") return 70;
+      if (def.kind === "monument") return w.monument;
       if (def.kind === "destroy" || a.building === "growForest" || a.building === "burnForest") return -1;
       if (def.kind === "road" || def.kind === "bridge" || def.kind === "embassy") return pl.stars > 15 ? 3 : -1;
       if (def.kind === "temple") return pl.stars > 30 ? 4 : -1;
       if (a.building === "clearForest") return -1;
-      if (def.pop > 0) return 25 + 6 * def.pop - def.cost + noise(s, a.at.x * 31 + a.at.y);
-      return pl.stars > 10 ? 8 : -1;
+      if (def.pop > 0) return w.growBase + w.growPerPop * def.pop - def.cost + w.noise * noise(s, a.at.x * 31 + a.at.y);
+      return pl.stars > w.richAt ? w.otherBuild : -1;
     }
     case "research": {
       const cost = techCost(s, p, a.tech);
       const tier = TECH_BY_ID[a.tech].tier;
-      return pl.stars - cost >= 2 ? 18 - cost - tier + noise(s, a.tech.length) * 4 : -1;
+      return pl.stars - cost >= 2 ? w.research - cost - tier + w.noise * noise(s, a.tech.length) * 4 : -1;
     }
     case "train": {
       const def = UNITS[a.unit];
       const units = s.units.filter((x) => x.owner === p).length;
       const cities = s.cities.filter((c) => c.owner === p).length;
-      if (units > cities * 3) return -1;
+      if (units > cities * w.unitsPerCity) return -1;
       const strength = def.attack + def.defence + (def.hp ?? 10) / 5;
-      return 12 + strength - def.cost / 2 + noise(s, a.cityId + a.unit.length);
+      return w.train + strength - def.cost / 2 + w.noise * noise(s, a.cityId + a.unit.length);
     }
     case "move": {
       const u = s.units.find((x) => x.id === a.unitId)!;
       const g = goal(s, u);
       if (!g) return -1;
       const gain = dist(u, g) - dist(a.to, g);
-      return gain > 0 ? 10 + gain + noise(s, u.id * 13 + a.to.x + a.to.y) : -1;
+      return gain > 0 ? w.move + gain + w.noise * noise(s, u.id * 13 + a.to.x + a.to.y) : -1;
     }
     case "recover": {
       const u = s.units.find((x) => x.id === a.unitId)!;
-      return u.hp < u.maxHp / 2 ? 15 : -1;
+      return u.hp < u.maxHp / 2 ? w.recover : -1;
     }
     case "healOthers":
-      return 15;
+      return w.healOthers;
     case "upgrade":
-      return pl.stars > 20 ? 6 : -1;
+      return pl.stars > 20 ? w.upgrade : -1;
     default:
       return -1;
   }
 }
 
-export function botStep(s: GameState): Action {
+export function botStep(s: GameState, w: GreedyWeights = DEFAULT_WEIGHTS): Action {
   const actions = legalActions(s);
   let best: Action = { type: "endTurn" };
   let bestScore = 0;
   for (const a of actions) {
     if (a.type === "endTurn") continue;
-    const sc = scoreAction(s, a);
+    const sc = scoreAction(s, a, w);
     if (sc > bestScore) {
       bestScore = sc;
       best = a;
@@ -137,11 +199,11 @@ export function botStep(s: GameState): Action {
 }
 
 /** play the current player's whole turn with the bot policy */
-export function playBotTurn(s: GameState, maxActions = 300): GameState {
+export function playBotTurn(s: GameState, maxActions = 300, w: GreedyWeights = DEFAULT_WEIGHTS): GameState {
   const p = s.current;
   let cur = s;
   for (let i = 0; i < maxActions && !cur.over && cur.current === p; i++) {
-    cur = applyAction(cur, botStep(cur));
+    cur = applyAction(cur, botStep(cur, w));
   }
   if (!cur.over && cur.current === p) cur = applyAction(cur, { type: "endTurn" });
   return cur;

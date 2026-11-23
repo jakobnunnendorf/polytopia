@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import HomeScreen from "../../app/index";
 
 jest.mock("expo-font", () => ({
@@ -7,26 +7,29 @@ jest.mock("expo-font", () => ({
 }));
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: jest.fn() }),
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
 }));
 
-describe("Renders all elements", () => {
-  it("should render the header", async () => {
+// no arena server in tests: every call fails soft
+beforeAll(() => {
+  global.fetch = jest.fn(() => Promise.reject(new Error("offline"))) as unknown as typeof fetch;
+});
+
+describe("Main menu", () => {
+  it("shows the title and the three entries", async () => {
     render(<HomeScreen />);
-    await waitFor(() => {
-      expect(screen.getByText(/Shardlands/)).toBeTruthy();
-    });
+    await waitFor(() => expect(screen.getByText(/Shardlands/)).toBeTruthy());
+    expect(screen.getByTestId("new-game")).toBeTruthy();
+    expect(screen.getByTestId("resume-game")).toBeTruthy();
+    expect(screen.getByTestId("analyse-games")).toBeTruthy();
   });
-  it("should render the Settings Component", async () => {
+  it("opens the game setup with seats and a start button", async () => {
     render(<HomeScreen />);
-    await waitFor(() => {
-      expect(screen.getByTestId("settings-component")).toBeTruthy();
-    });
-  });
-  it("should render the start button", async () => {
-    render(<HomeScreen />);
-    await waitFor(() => {
-      expect(screen.getByTestId("start-button")).toBeTruthy();
-    });
+    await waitFor(() => expect(screen.getByTestId("new-game")).toBeTruthy());
+    fireEvent.press(screen.getByTestId("new-game"));
+    expect(screen.getByTestId("settings-component")).toBeTruthy();
+    expect(screen.getByTestId("seat-0")).toBeTruthy();
+    expect(screen.getByTestId("seat-1")).toBeTruthy();
+    expect(screen.getByTestId("start-button")).toBeTruthy();
   });
 });

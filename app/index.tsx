@@ -1,11 +1,14 @@
 import { View, ImageBackground, Text, Pressable, ScrollView } from "react-native";
 import Settings from "@/components/Settings/Settings";
+import GameList from "@/components/game/GameList";
 import { useContext, useEffect, useState } from "react";
 import * as Font from "expo-font";
 import { useRouter } from "expo-router";
 import { SettingsContext } from "@/context/SettingsContext";
 import { ShardIcon } from "@/components/art/Art";
 import { UI } from "@/components/game/theme";
+
+type Page = "home" | "new" | "resume";
 
 function StartButton() {
   const router = useRouter();
@@ -19,14 +22,15 @@ function StartButton() {
           pathname: "/game",
           params: {
             mapSize: String(settings.mapSize),
-            players: String(settings.numberOfPlayers),
+            players: String(settings.seats.length),
+            seats: JSON.stringify(settings.seats),
             mode: settings.gameMode,
             seed: String(Math.floor(Math.random() * 2 ** 31)),
           },
         })
       }
       style={({ pressed }) => ({
-        marginTop: 24,
+        marginTop: 20,
         paddingVertical: 15,
         borderRadius: 14,
         backgroundColor: UI.gold,
@@ -34,13 +38,56 @@ function StartButton() {
         alignItems: "center",
       })}
     >
-      <Text style={{ color: UI.goldInk, fontSize: 17, fontWeight: "800" }}>Start a game</Text>
+      <Text style={{ color: UI.goldInk, fontSize: 17, fontWeight: "800" }}>Start the game</Text>
+    </Pressable>
+  );
+}
+
+function MenuButton({
+  label,
+  hint,
+  onPress,
+  primary,
+  testID,
+}: {
+  label: string;
+  hint: string;
+  onPress: () => void;
+  primary?: boolean;
+  testID?: string;
+}) {
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => ({
+        marginTop: 10,
+        paddingVertical: 14,
+        paddingHorizontal: 18,
+        borderRadius: 14,
+        backgroundColor: primary ? UI.gold : UI.panelHi,
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <Text style={{ color: primary ? UI.goldInk : UI.mist, fontSize: 17, fontWeight: "800" }}>{label}</Text>
+      <Text style={{ color: primary ? UI.goldInk : UI.muted, fontSize: 13, marginTop: 2, opacity: primary ? 0.75 : 1 }}>{hint}</Text>
+    </Pressable>
+  );
+}
+
+function Back({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={{ paddingVertical: 6, marginTop: 10 }}>
+      <Text style={{ color: UI.muted, fontSize: 15, fontWeight: "700" }}>‹ Back</Text>
     </Pressable>
   );
 }
 
 export default function HomeScreen() {
   const [fontLoaded, setFontLoaded] = useState(false);
+  const [page, setPage] = useState<Page>("home");
+  const router = useRouter();
 
   useEffect(() => {
     async function loadFont() {
@@ -63,7 +110,7 @@ export default function HomeScreen() {
       style={{ flex: 1, backgroundColor: UI.dusk }}
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end", alignItems: "center", padding: 16 }}>
-        {/* the landscape stays visible above; logo and settings share one dusk panel */}
+        {/* the landscape stays visible above; logo and menu share one dusk panel */}
         <View
           style={{
             width: "100%",
@@ -82,8 +129,27 @@ export default function HomeScreen() {
           <Text style={{ color: UI.muted, fontSize: 15, marginTop: 6 }}>
             Build a clan from one city. Outgrow your rivals.
           </Text>
-          <Settings />
-          <StartButton />
+
+          {page === "home" && (
+            <View style={{ marginTop: 10 }}>
+              <MenuButton primary testID="new-game" label="New game" hint="Choose the map, the players and their models" onPress={() => setPage("new")} />
+              <MenuButton testID="resume-game" label="Resume game" hint="Continue a game you left" onPress={() => setPage("resume")} />
+              <MenuButton testID="analyse-games" label="Analyse games" hint="Replay finished games move by move" onPress={() => router.push("/analyse" as never)} />
+            </View>
+          )}
+          {page === "new" && (
+            <>
+              <Back onPress={() => setPage("home")} />
+              <Settings />
+              <StartButton />
+            </>
+          )}
+          {page === "resume" && (
+            <>
+              <Back onPress={() => setPage("home")} />
+              <GameList finished={false} onPick={(g) => router.push({ pathname: "/game", params: { resume: g.id } })} />
+            </>
+          )}
         </View>
       </ScrollView>
     </ImageBackground>

@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Svg, { Path } from "react-native-svg";
 import { ImageBackground, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import * as Font from "expo-font";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -10,7 +11,6 @@ import {
   createGame,
   income,
   legalActions,
-  playBotTurn,
   scoreOf,
   techCost,
 } from "@/logic/engine";
@@ -18,8 +18,11 @@ import TechTree from "@/components/game/TechTree";
 import { actionLabel, name } from "@/logic/engine/names";
 import type { Action, GameMode, GameState } from "@/logic/engine/types";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
+import { arena, serverChat } from "@/components/game/arenaClient";
+import { BUILTIN_MODELS, DEFAULT_MODEL, createAgent } from "@/logic/agents/registry";
+import type { ModelSpec } from "@/logic/agents/types";
+import { finishRecord, recordStep, replayStates, startRecord, type GameRecord, type Seat } from "@/logic/arena/record";
 
-const HUMAN = 0;
 const clanColor = (p: number) => PLAYER_COLORS[p % PLAYER_COLORS.length];
 
 type Selection = { x: number; y: number } | null;
@@ -76,6 +79,65 @@ function Shards({ n, size = 18 }: { n: number; size?: number }) {
   );
 }
 
+/** low-poly open book: the Lore wheel */
+function BookIcon({ size = 26, ink = UI.mist }: { size?: number; ink?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      <Path d="M50 30 L14 22 L14 76 L50 84 Z" fill={UI.sky} />
+      <Path d="M50 30 L86 22 L86 76 L50 84 Z" fill={ink} />
+      <Path d="M50 30 L50 84 L46 83 L46 31 Z" fill={UI.dusk} opacity={0.35} />
+      <Path d="M22 36 L42 40 M22 48 L42 52 M58 40 L78 36 M58 52 L78 48" stroke={UI.dusk} strokeWidth={4} strokeLinecap="round" opacity={0.45} />
+    </Svg>
+  );
+}
+
+/** low-poly house: back to the menu */
+function HomeIcon({ size = 26, ink = UI.mist }: { size?: number; ink?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      <Path d="M50 16 L12 50 L50 50 Z" fill={UI.coral} />
+      <Path d="M50 16 L88 50 L50 50 Z" fill="#c95c45" />
+      <Path d="M22 50 L78 50 L78 86 L22 86 Z" fill={ink} />
+      <Path d="M42 62 L58 62 L58 86 L42 86 Z" fill={UI.dusk} opacity={0.6} />
+    </Svg>
+  );
+}
+
+function IconButton({
+  label,
+  onPress,
+  testID,
+  children,
+}: {
+  label: string;
+  onPress: () => void;
+  testID?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Pressable
+      testID={testID}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => ({
+        width: 48,
+        height: 46,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: UI.line,
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 8,
+        marginTop: 8,
+        opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
 function HpBar({ hp, max, color }: { hp: number; max: number; color: string }) {
   return (
     <View style={{ width: 64, height: 6, borderRadius: 3, backgroundColor: UI.dusk, marginLeft: 8 }}>
@@ -91,15 +153,30 @@ function HpBar({ hp, max, color }: { hp: number; max: number; color: string }) {
   );
 }
 
-export default function GameScreen() {
+function parseSeats(raw: string | undefined, players: number, watch: boolean): Seat[] {
+  try {
+    const s = raw ? (JSON.parse(raw) as Seat[]) : null;
+    if (Array.isArray(s) && s.length >= 2) return watch ? s.map(() => ({ kind: "model", modelId: DEFAULT_MODEL })) : s;
+  } catch {
+    // fall through to the classic setup
+  }
+  return Array.from({ length: players }, (_, i) =>
+    i === 0 && !watch ? { kind: "human", profileId: "guest", name: "Guest" } : { kind: "model", modelId: DEFAULT_MODEL },
+  ) as Seat[];
+}
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   const params = useLocalSearchParams<{
     mapSize?: string;
     players?: string;
     mode?: string;
     seed?: string;
     watch?: string;
+    seats?: string;
   }>();
-  // ?watch=1: a bot plays your clan too, so you can watch a whole game unfold
+  // ?watch=1: models play every clan, so you can watch a whole game unfold
   const watch = params.watch === "1";
   const router = useRouter();
 
@@ -107,31 +184,138 @@ export default function GameScreen() {
     Font.loadAsync({ "Oi-Regular": require("@/assets/fonts/Oi-Regular.ttf") }).catch(() => {});
   }, []);
 
+  const seats = useMemo(
+    () => resumed?.seats ?? parseSeats(params.seats, Math.max(2, Number(params.players ?? 2)), watch),
+    [resumed, params.seats, params.players, watch],
+  );
+  const humanSeats = useMemo(() => seats.flatMap((s, i) => (s.kind === "human" ? [i] : [])), [seats]);
+
   const [state, setState] = useState<GameState>(() =>
-    createGame({
+    resumed ? replayStates(resumed).pop()! : createGame({
       mapSize: Number(params.mapSize ?? 11),
-      players: Math.max(2, Number(params.players ?? 2)),
+      players: seats.length,
       mode: (params.mode as GameMode) ?? "perfection",
       seed: Number(params.seed ?? 1),
-      humans: watch ? [] : [HUMAN],
+      humans: humanSeats,
     }),
   );
+  // the record of every action, saved to the repo through the arena server
+  const stateRef = useRef(state);
+  const recRef = useRef<GameRecord>(
+    resumed ? { ...resumed, endedAt: null, result: null } : startRecord(state, seats, humanSeats.length ? "play" : "arena"),
+  );
+  const savedRef = useRef(false);
+  const [saved, setSaved] = useState<{ file: string; deltas: number[] } | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  /** apply one action: the only way the game state changes */
+  const commit = useCallback((a: Action) => {
+    const before = stateRef.current;
+    const next = applyAction(before, a);
+    recordStep(recRef.current, before, a, next);
+    stateRef.current = next;
+    return next;
+  }, []);
+
+  // opponent models: built-in specs, replaced by models/<id>/model.json from the arena server
+  const [models, setModels] = useState<ModelSpec[]>(BUILTIN_MODELS);
+  useEffect(() => {
+    arena
+      .models()
+      .then((m) => m.length && setModels(m.filter((x) => x.kind !== "external")))
+      .catch(() => {});
+  }, []);
+  const agents = useMemo(
+    () =>
+      seats.map((seat) => {
+        if (seat.kind !== "model") return null;
+        const spec = models.find((m) => m.id === seat.modelId) ?? models.find((m) => m.id === DEFAULT_MODEL)!;
+        return createAgent(spec, serverChat, models);
+      }),
+    [seats, models],
+  );
+  const [thinking, setThinking] = useState<string | null>(null);
+
+  // hot-seat: whose eyes the map is drawn for. With several humans, the next one
+  // has to tap "I'm here" first so nobody sees another player's fog.
+  const [viewer, setViewer] = useState<number>(humanSeats[0] ?? 0);
+  const handoff =
+    !state.over && !watch && humanSeats.length > 1 && seats[state.current]?.kind === "human" && viewer !== state.current;
+  useEffect(() => {
+    if (humanSeats.length === 1) setViewer(humanSeats[0]);
+  }, [humanSeats]);
+
   const [selected, setSelected] = useState<Selection>(null);
   const [techOpen, setTechOpen] = useState(false);
 
-  const myTurn = state.current === HUMAN && !state.over && !watch;
+  const myTurn = state.current === viewer && seats[viewer]?.kind === "human" && !state.over && !watch && !handoff;
   const actions = useMemo(() => (myTurn ? legalActions(state) : []), [state, myTurn]);
 
-  // let the bots play, one turn per timer tick so the map redraws in between
+  // models play their turns; slow models (the LLM) redraw after every move
   useEffect(() => {
-    if (state.over || !(watch || state.players[state.current].bot)) return;
-    const t = setTimeout(() => setState((s) => playBotTurn(s)), watch ? 120 : 250);
-    return () => clearTimeout(t);
-  }, [state, watch]);
+    const agent = agents[state.current];
+    if (state.over || !agent) return;
+    let cancelled = false;
+    const p = state.current;
+    const slow = agent.spec.kind === "llm";
+    (async () => {
+      await wait(watch ? 120 : 250);
+      if (slow) setThinking(agent.spec.name);
+      let n = 0;
+      while (!cancelled && !stateRef.current.over && stateRef.current.current === p) {
+        const a = n++ > 300 ? ({ type: "endTurn" } as Action) : await agent.act(stateRef.current);
+        if (cancelled) return;
+        const next = commit(a);
+        if (slow) setState(next);
+      }
+      if (!cancelled) {
+        setThinking(null);
+        setState(stateRef.current);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.current, state.turn, state.over, agents, watch, commit]);
 
-  const act = useCallback((a: Action) => {
-    setState((s) => applyAction(s, a));
+  const act = useCallback(
+    (a: Action) => {
+      setState(commit(a));
+    },
+    [commit],
+  );
+
+  // save the record when the game ends (rated) or when the player leaves early (unrated)
+  const saveRecord = useCallback(() => {
+    if (savedRef.current || recRef.current.steps.length === 0) return;
+    savedRef.current = true;
+    const rec = finishRecord(recRef.current, stateRef.current);
+    arena
+      .saveGame(rec)
+      .then((r) => setSaved({ file: r.file, deltas: r.deltas }))
+      .catch(() => {
+        savedRef.current = false;
+        setSaveError("Not recorded: the arena server is not running (npm run arena-server).");
+      });
   }, []);
+  useEffect(() => {
+    if (state.over) saveRecord();
+  }, [state.over, saveRecord]);
+  // autosave at the start of every round, so an unfinished game can be resumed from the menu
+  useEffect(() => {
+    if (state.over || recRef.current.steps.length === 0) return;
+    arena.saveGame({ ...recRef.current, endedAt: null, result: null }).catch(() => {});
+  }, [state.turn, state.over]);
+  const leave = () => {
+    saveRecord();
+    router.replace("/");
+  };
+
+  const seatName = (i: number) => {
+    const s = seats[i];
+    if (!s) return "";
+    return s.kind === "human" ? s.name : (models.find((m) => m.id === s.modelId)?.name ?? s.modelId);
+  };
 
   const unitAtSel = selected
     ? (state.units.find((u) => u.x === selected.x && u.y === selected.y) ?? null)
@@ -146,7 +330,7 @@ export default function GameScreen() {
   const highlights = useMemo(() => {
     const h: Record<string, Highlight> = {};
     if (selected) h[`${selected.x},${selected.y}`] = "selected";
-    if (unitAtSel && unitAtSel.owner === HUMAN) {
+    if (unitAtSel && unitAtSel.owner === viewer) {
       for (const a of actions) {
         if (a.type === "move" && a.unitId === unitAtSel.id) h[`${a.to.x},${a.to.y}`] = "move";
         if (a.type === "attack" && a.unitId === unitAtSel.id) {
@@ -160,7 +344,7 @@ export default function GameScreen() {
 
   const onTilePress = useCallback(
     (x: number, y: number) => {
-      if (unitAtSel && unitAtSel.owner === HUMAN && myTurn) {
+      if (unitAtSel && unitAtSel.owner === viewer && myTurn) {
         const target = state.units.find((u) => u.x === x && u.y === y);
         const attack = target
           ? actions.find(
@@ -216,7 +400,7 @@ export default function GameScreen() {
     rewardActions.length > 0
       ? state.cities.find((c) => c.id === (rewardActions[0] as { cityId: number }).cityId)
       : undefined;
-  const me = state.players[HUMAN];
+  const me = state.players[viewer];
   const researchable = new Set(
     actions.filter((a) => a.type === "research").map((a) => (a as { tech: string }).tech),
   );
@@ -262,7 +446,7 @@ export default function GameScreen() {
         <View testID="hud-shards">
           <Shards n={me.stars} size={22} />
           <Text style={{ color: UI.gold, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
-            +{income(state, HUMAN)} next turn
+            +{income(state, viewer)} next turn
           </Text>
         </View>
         <View style={{ alignItems: "center" }}>
@@ -270,19 +454,19 @@ export default function GameScreen() {
             Turn {state.turn}
             {state.mode === "perfection" ? ` of ${state.maxTurns}` : ""}
           </Text>
-          <Text style={{ color: clanColor(HUMAN), fontSize: 12, fontWeight: "700", marginTop: 2 }}>
+          <Text style={{ color: clanColor(viewer), fontSize: 12, fontWeight: "700", marginTop: 2 }}>
             {name("clan", me.clan)}
           </Text>
         </View>
         <View style={{ alignItems: "flex-end" }}>
           <Text style={{ color: UI.mist, fontSize: 16, fontWeight: "800" }}>
-            {scoreOf(state, HUMAN).toLocaleString("en")}
+            {scoreOf(state, viewer).toLocaleString("en")}
           </Text>
           <Text style={{ color: UI.muted, fontSize: 12, marginTop: 2 }}>score</Text>
         </View>
       </View>
 
-      <Map state={state} viewer={HUMAN} highlights={highlights} onTilePress={onTilePress} />
+      <Map state={state} viewer={viewer} highlights={highlights} onTilePress={onTilePress} />
 
       {/* selection card + action tray */}
       <View
@@ -344,7 +528,7 @@ export default function GameScreen() {
           ) : selected ? (
             <Text style={{ color: UI.muted, fontSize: 14 }}>Nobody from your clan has been here yet.</Text>
           ) : watch ? (
-            <Text style={{ color: UI.muted, fontSize: 14 }}>Watching the bots play every clan.</Text>
+            <Text style={{ color: UI.muted, fontSize: 14 }}>Watching the models play every clan.</Text>
           ) : (
             <Text style={{ color: UI.muted, fontSize: 14, lineHeight: 20 }}>
               Tap one of your units to see where it can go. Blue tiles are moves, coral tiles are attacks.
@@ -352,11 +536,16 @@ export default function GameScreen() {
           )}
         </View>
         <View style={{ flexDirection: "row" }}>
-          <Button label="Lore" kind="ghost" testID="tech-button" onPress={() => setTechOpen(true)} />
+          <IconButton label="Back to the menu" testID="menu-button" onPress={leave}>
+            <HomeIcon />
+          </IconButton>
+          <IconButton label="Lore" testID="tech-button" onPress={() => setTechOpen(true)}>
+            <BookIcon />
+          </IconButton>
           <Button
             grow
             kind="primary"
-            label={myTurn ? "End turn" : "Rivals are moving"}
+            label={myTurn ? "End turn" : thinking ? `${thinking} is thinking` : `${seatName(state.current)} is moving`}
             testID="end-turn"
             disabled={!myTurn || rewardActions.length > 0}
             onPress={() => {
@@ -372,9 +561,9 @@ export default function GameScreen() {
         <TechTree
           known={me.techs}
           researchable={researchable}
-          costOf={(t) => techCost(state, HUMAN, t)}
+          costOf={(t) => techCost(state, viewer, t)}
           stars={me.stars}
-          clanColor={clanColor(HUMAN)}
+          clanColor={clanColor(viewer)}
           clanName={name("clan", me.clan)}
           onLearn={(t) => act({ type: "research", tech: t })}
           onClose={() => setTechOpen(false)}
@@ -402,6 +591,20 @@ export default function GameScreen() {
         </View>
       </Modal>
 
+      {/* hot-seat hand-off: hide the map until the next player is at the device */}
+      <Modal visible={handoff} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: UI.dusk, alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: clanColor(state.current), marginBottom: 12 }} />
+          <Text style={{ color: UI.mist, fontSize: 34, fontFamily: UI.display, textAlign: "center" }}>
+            {seatName(state.current)}, your turn
+          </Text>
+          <Text style={{ color: UI.muted, fontSize: 15, textAlign: "center", marginTop: 8, marginBottom: 20 }}>
+            Pass the device to {seatName(state.current)}. The map stays hidden until they tap below.
+          </Text>
+          <Button kind="primary" testID="handoff-ready" label={`I'm ${seatName(state.current)}, show my map`} onPress={() => setViewer(state.current)} />
+        </View>
+      </Modal>
+
       {/* game over */}
       <Modal visible={state.over} transparent animationType="fade">
         <View
@@ -410,14 +613,14 @@ export default function GameScreen() {
           <View style={{ backgroundColor: UI.panel, padding: 24, borderRadius: 20, width: "100%", maxWidth: 420 }}>
             <Text
               style={{
-                color: state.winner === HUMAN ? UI.gold : UI.coral,
+                color: humanSeats.length !== 1 || state.winner === viewer ? UI.gold : UI.coral,
                 fontSize: 44,
                 fontFamily: UI.display,
                 textAlign: "center",
               }}
               testID="game-over"
             >
-              {state.winner === HUMAN ? "Victory" : "Defeat"}
+              {humanSeats.length !== 1 ? `${seatName(state.winner ?? 0)} wins` : state.winner === viewer ? "Victory" : "Defeat"}
             </Text>
             <Text style={{ color: UI.muted, fontSize: 14, textAlign: "center", marginTop: 4, marginBottom: 14 }}>
               The {winnerClan} hold the Shardlands.
@@ -437,16 +640,28 @@ export default function GameScreen() {
                   style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: clanColor(p.id), marginRight: 10 }}
                 />
                 <Text style={{ color: p.alive ? UI.mist : UI.muted, fontSize: 15, fontWeight: "700", flex: 1 }}>
-                  {name("clan", p.clan)}
-                  {p.id === HUMAN && !watch ? " (you)" : ""}
-                  {p.alive ? "" : ", fallen"}
+                  {seatName(p.id)}
+                  <Text style={{ color: UI.muted, fontWeight: "400" }}>
+                    {" "}
+                    {name("clan", p.clan)}
+                    {p.alive ? "" : ", fallen"}
+                  </Text>
                 </Text>
+                {saved && (
+                  <Text style={{ color: saved.deltas[p.id] >= 0 ? UI.sky : UI.coral, fontSize: 13, marginRight: 10 }}>
+                    {saved.deltas[p.id] >= 0 ? "+" : ""}
+                    {saved.deltas[p.id]} Elo
+                  </Text>
+                )}
                 <Text style={{ color: UI.mist, fontSize: 15, fontWeight: "800" }}>{score.toLocaleString("en")}</Text>
               </View>
             ))}
             <View style={{ flexDirection: "row", marginTop: 6 }}>
-              <Button grow kind="primary" label="Back to the menu" onPress={() => router.replace("/")} />
+              <Button grow kind="primary" label="Back to the menu" onPress={leave} />
             </View>
+            <Text style={{ color: UI.muted, fontSize: 12, marginTop: 8, textAlign: "center" }}>
+              {saved ? `Recorded in ${saved.file}` : (saveError ?? "Recording the game")}
+            </Text>
           </View>
         </View>
       </Modal>

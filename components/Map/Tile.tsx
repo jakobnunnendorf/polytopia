@@ -1,8 +1,8 @@
 import React, { memo } from "react";
 import { Pressable, Text, View } from "react-native";
-import { BuildingArt, CityArt, ResourceArt, TerrainArt, UnitArt, VillageArt } from "@/components/art/Art";
+import { BuildingArt, CityArt, CloudArt, ResourceArt, TerrainArt, UnitArt, VillageArt } from "@/components/art/Art";
 import type { City, Tile as TileData, Unit } from "@/logic/engine/types";
-import { FOG, PLAYER_COLORS, TERRAIN_COLOR, TILE as TILE_BASE, UI } from "@/components/game/theme";
+import { PLAYER_COLORS, TERRAIN_COLOR, TILE as TILE_BASE, UI } from "@/components/game/theme";
 
 export type Highlight = "selected" | "move" | "attack" | "action" | null;
 
@@ -49,7 +49,7 @@ function Tile({
 }) {
   const TILE = size ?? TILE_BASE;
   if (!explored) {
-    // unexplored land is dusk sea: no grid lines, so the known world reads as an island
+    // undiscovered land sits under clouds; they are drawn above the known tiles so they spill over the coast
     return (
       <Pressable
         onPress={() => onPress(x, y)}
@@ -59,9 +59,11 @@ function Tile({
           top: y * TILE,
           width: TILE,
           height: TILE,
-          backgroundColor: FOG,
+          zIndex: 2,
         }}
-      />
+      >
+        <CloudArt x={x} y={y} size={TILE} />
+      </Pressable>
     );
   }
   const ownerColor =
@@ -126,21 +128,25 @@ function Tile({
       {tile.village && !city && <VillageArt size={TILE} />}
       {city && (
         <>
-          <CityArt
-            color={PLAYER_COLORS[city.owner % PLAYER_COLORS.length]}
-            level={city.level}
-            capital={city.capital}
-            walls={city.walls}
-            size={TILE}
-          />
+          {/* the city art is drawn in the lower half of its box, so draw it 1.3x and lift it */}
+          <View pointerEvents="none" style={{ position: "absolute", left: -TILE * 0.15, top: -TILE * 0.26, width: TILE * 1.3, height: TILE * 1.3 }}>
+            <CityArt
+              color={PLAYER_COLORS[city.owner % PLAYER_COLORS.length]}
+              level={city.level}
+              capital={city.capital}
+              walls={city.walls}
+              size={TILE * 1.3}
+            />
+          </View>
           <Text
             style={{
               position: "absolute",
               left: 2,
               top: 1,
-              fontSize: 9,
+              fontSize: Math.max(9, Math.round(TILE * 0.16)),
               fontWeight: "800",
               color: "white",
+              zIndex: 1,
               backgroundColor: PLAYER_COLORS[city.owner % PLAYER_COLORS.length],
               paddingHorizontal: 3,
               borderRadius: 4,
@@ -157,33 +163,34 @@ function Tile({
           pointerEvents="none"
           style={{
             position: "absolute",
-            left: city ? TILE * 0.42 : TILE * 0.12,
-            top: city ? TILE * 0.4 : TILE * 0.08,
-            width: (city ? 0.6 : 0.88) * TILE,
-            height: (city ? 0.6 : 0.88) * TILE,
+            // figures only fill the middle of their art box, so the box is larger than the tile
+            left: city ? TILE * 0.22 : -TILE * 0.08,
+            top: city ? TILE * 0.12 : -TILE * 0.2,
+            width: (city ? 0.96 : 1.16) * TILE,
+            height: (city ? 0.96 : 1.16) * TILE,
             opacity: unit.canMove || unit.canAttack ? 1 : 0.6,
           }}
         >
           <View
             style={{
               position: "absolute",
-              left: TILE * 0.14,
-              bottom: TILE * 0.02,
-              width: TILE * 0.6,
-              height: TILE * 0.16,
+              left: (city ? 0.96 : 1.16) * TILE * 0.22,
+              bottom: (city ? 0.96 : 1.16) * TILE * 0.08,
+              width: (city ? 0.96 : 1.16) * TILE * 0.56,
+              height: (city ? 0.96 : 1.16) * TILE * 0.14,
               borderRadius: TILE,
               backgroundColor: "#0004",
               borderWidth: 2,
               borderColor: unit.veteran ? "#ffd43b" : PLAYER_COLORS[unit.owner % PLAYER_COLORS.length],
             }}
           />
-          <UnitArt type={unit.type} color={PLAYER_COLORS[unit.owner % PLAYER_COLORS.length]} size={(city ? 0.6 : 0.88) * TILE} />
+          <UnitArt type={unit.type} color={PLAYER_COLORS[unit.owner % PLAYER_COLORS.length]} size={(city ? 0.96 : 1.16) * TILE} />
           <Text
             style={{
               position: "absolute",
-              right: 0,
-              bottom: 0,
-              fontSize: 9,
+              right: city ? TILE * 0.02 : TILE * 0.1,
+              bottom: city ? TILE * 0.06 : TILE * 0.22,
+              fontSize: Math.max(9, Math.round(TILE * 0.16)),
               fontWeight: "800",
               color: "white",
               backgroundColor: "#000a",

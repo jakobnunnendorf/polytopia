@@ -1,0 +1,62 @@
+/**
+ * Talks to the local arena server (scripts/arena-server.ts, port 8091) on the
+ * same host that serves the app, so it works from the phone over Wi-Fi too.
+ * Every call fails soft: without the server the game still plays, it just
+ * cannot record games, keep profiles or reach the local LLM.
+ */
+import { Platform } from "react-native";
+import type { ChatFn, ModelSpec } from "@/logic/agents/types";
+import type { GameRecord } from "@/logic/arena/record";
+import type { Ratings } from "@/logic/arena/elo";
+
+export type Profile = { id: string; name: string; created: string };
+
+export type GameSummary = {
+  id: string;
+  file: string;
+  source: "play" | "arena";
+  startedAt: string;
+  endedAt: string | null;
+  mapSize: number;
+  mode: string;
+  seats: GameRecord["seats"];
+  turn: number;
+  steps: number;
+  over: boolean;
+  winner: number | null;
+  scores: number[] | null;
+};
+
+export function arenaBase(): string {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:8091`;
+  }
+  return "http://localhost:8091";
+}
+
+async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${arenaBase()}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+  });
+  if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
+  return (await res.json()) as T;
+}
+
+export const arena = {
+  health: () => call<{ ok: boolean }>("/api/health"),
+  models: () => call<ModelSpec[]>("/api/models"),
+  profiles: () => call<Profile[]>("/api/profiles"),
+  createProfile: (name: string) => call<Profile>("/api/profiles", { method: "POST", body: JSON.stringify({ name }) }),
+  ratings: () => call<Ratings>("/api/ratings"),
+  games: () => call<GameSummary[]>("/api/games"),
+  game: (id: string) => call<GameRecord>(`/api/games/${encodeURIComponent(id)}`),
+  saveGame: (rec: GameRecord) =>
+    call<{ file: string; deltas: number[]; ratings: Ratings }>("/api/games", { method: "POST", body: JSON.stringify(rec) }),
+};
+
+/** LLM calls go through the arena server, which can reach LM Studio on the Mac */
+export const serverChat: ChatFn = async (req) => {
+  const out = await call<{ content: string }>("/api/chat", { method: "POST", body: JSON.stringify(req) });
+  return out.content;
+};

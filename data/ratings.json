@@ -1,0 +1,14 @@
+{
+  "model:greedy-v1": {
+    "rating": 1255.8,
+    "games": 4,
+    "wins": 4,
+    "updated": "2026-11-23T17:13:50.599Z"
+  },
+  "model:random-v1": {
+    "rating": 1144.2,
+    "games": 4,
+    "wins": 0,
+    "updated": "2026-11-23T17:13:50.599Z"
+  }
+}

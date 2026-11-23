@@ -641,3 +641,55 @@ export function ShardIcon({ size, color = "#f6c453" }: { size: number; color?: s
     </Svg>
   );
 }
+
+// ---------- clouds over undiscovered land ----------
+export const CLOUD = { base: "#e6e1ef", lit: "#ffffff", blush: "#f4d6dd", shade: "#c8c2dc" };
+
+/** a faceted puff: lower facets in shade, upper facets lit, one blush facet catching the dusk */
+function Puff({ cx, cy, r, seed }: { cx: number; cy: number; r: number; seed: number }) {
+  const k = 8;
+  const p = Array.from({ length: k }, (_, i) => {
+    const a = (i / k) * Math.PI * 2 + seed;
+    const rr = r * (0.86 + 0.14 * Math.sin(seed * 7 + i * 2.3));
+    return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.82];
+  });
+  const fan = (i: number) => pts([cx, cy, ...p[i], ...p[(i + 1) % k]]);
+  return (
+    <G>
+      <Polygon points={pts(p.flat())} fill={CLOUD.shade} />
+      {p.map((_, i) => {
+        const mid = Math.sin(((i + 0.5) / k) * Math.PI * 2 + seed);
+        // sin < 0 is the upper half (SVG y grows down)
+        const fill = mid < -0.55 ? CLOUD.lit : mid < 0 ? (i % 3 === 0 ? CLOUD.blush : CLOUD.base) : mid < 0.5 ? CLOUD.base : CLOUD.shade;
+        return <Polygon key={i} points={fan(i)} fill={fill} />;
+      })}
+    </G>
+  );
+}
+
+export function CloudArt({ x, y, size }: { x: number; y: number; size: number }) {
+  // two or three big puffs per tile; the cloud colour itself is the board's background,
+  // so neighbouring tiles merge into one continuous cloud bank without seams
+  const n = 2 + Math.floor(hash(x, y, 40) * 2);
+  const puffs = Array.from({ length: n }, (_, i) => ({
+    cx: 18 + hash(x, y, 41 + i) * 64,
+    cy: 20 + hash(x, y, 51 + i) * 60,
+    r: 30 + hash(x, y, 61 + i) * 12,
+    seed: hash(x, y, 71 + i) * 6.28,
+  })).sort((a, b) => a.cy - b.cy);
+  // drawn 36% larger than the tile so puffs spill over the coast of the known world
+  const big = size * 1.36;
+  return (
+    <Svg
+      width={big}
+      height={big}
+      viewBox="-18 -18 136 136"
+      pointerEvents="none"
+      style={{ position: "absolute", left: -size * 0.18, top: -size * 0.18 }}
+    >
+      {puffs.map((pf, i) => (
+        <Puff key={i} {...pf} />
+      ))}
+    </Svg>
+  );
+}
