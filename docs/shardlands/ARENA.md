@@ -62,3 +62,27 @@ npm run play -- move --game <id> <n>
 ```
 
 For the LLM model, LM Studio must be running with the model loaded: `~/.lmstudio/bin/lms load qwen3-coder-30b-a3b-instruct-mlx`.
+
+## Learning bots: hill climbing (`scripts/train-hill.ts`)
+
+The simplest learning model. It keeps the greedy bot's code and learns its ~20
+scoring weights from self-play, with nothing but final scores as feedback:
+
+1. The champion starts as greedy-v1's weights.
+2. Each round, a challenger nudges 3 random weights (each × e^(0.5·N(0,1))).
+3. They play 60 games on fresh 11×11 maps, swapping seats on every map.
+4. The challenger becomes champion if it took ≥ 52% of all points and won at least half the games.
+5. After 60 rounds, the champion plays 100 games on maps it never trained on, and is saved as `models/<id>/model.json` (kind `greedy`).
+
+```bash
+npm run train-hill                                          # ~2-3 minutes, saves models/greedy-hill-v1
+npm run train-hill -- --id greedy-hill-v2 --rounds 200 --games 100 --pick 2 --sigma 0.4 --accept 0.52
+npm run arena -- --models greedy-hill-v2,greedy-v1 --games 40   # rate it on the Elo table
+```
+
+Training games are not recorded and do not change Elo; only the arena run afterwards does.
+Points share instead of win/loss is the key choice: with win/loss only and 20
+games a round, the climber kept lucky challengers and drifted (48% against
+greedy-v1 after 100 rounds). `greedy-hill-v1` (2026-11-23): 6 of 60 challengers
+kept, 58% of 100 unseen games and 52.6% of the points against greedy-v1, then 24
+of 40 recorded arena games (Elo 1292).

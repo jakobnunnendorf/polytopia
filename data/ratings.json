@@ -1,9 +1,9 @@
 {
   "model:greedy-v1": {
-    "rating": 1261,
-    "games": 7,
-    "wins": 6,
-    "updated": "2026-11-23T18:05:18.321Z"
+    "rating": 1169.3,
+    "games": 47,
+    "wins": 22,
+    "updated": "2026-11-23T18:40:12.259Z"
   },
   "model:random-v1": {
     "rating": 1142.5,
@@ -28,5 +28,11 @@
     "games": 1,
     "wins": 1,
     "updated": "2026-11-23T17:52:28.306Z"
+  },
+  "model:greedy-hill-v1": {
+    "rating": 1291.7,
+    "games": 40,
+    "wins": 24,
+    "updated": "2026-11-23T18:40:12.259Z"
   }
 }
