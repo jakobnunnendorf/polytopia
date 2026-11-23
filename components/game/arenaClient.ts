@@ -7,7 +7,7 @@
 import { Platform } from "react-native";
 import type { ChatFn, ModelSpec } from "@/logic/agents/types";
 import type { GameRecord } from "@/logic/arena/record";
-import type { Ratings } from "@/logic/arena/elo";
+import type { RatingFilter, Ratings } from "@/logic/arena/elo";
 
 export type Profile = { id: string; name: string; created: string };
 
@@ -50,7 +50,16 @@ export const arena = {
   models: () => call<ModelSpec[]>("/api/models"),
   profiles: () => call<Profile[]>("/api/profiles"),
   createProfile: (name: string) => call<Profile>("/api/profiles", { method: "POST", body: JSON.stringify({ name }) }),
-  ratings: () => call<Ratings>("/api/ratings"),
+  /** the overall table, or the fit on only the games matching the filter */
+  ratings: (f: RatingFilter = {}) => {
+    const q = Object.entries(f)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+      .join("&");
+    return call<Ratings>(`/api/ratings${q ? `?${q}` : ""}`);
+  },
+  ratingFacets: () =>
+    call<{ mode: Record<string, number>; players: Record<string, number>; size: Record<string, number>; mapType: Record<string, number> }>("/api/ratings/facets"),
   games: () => call<GameSummary[]>("/api/games"),
   startMatch: (m: { mapSize: number; mode: string; seed: number; seats: GameRecord["seats"] }) =>
     call<{ id: string }>("/api/matches", { method: "POST", body: JSON.stringify(m) }),

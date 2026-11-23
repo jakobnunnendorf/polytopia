@@ -34,6 +34,7 @@ export function Pop({
   drop = 0,
   style,
   force = false,
+  pointerEvents = "box-none",
 }: {
   children: React.ReactNode;
   delay?: number;
@@ -42,6 +43,8 @@ export function Pop({
   style?: StyleProp<ViewStyle>;
   /** animate even during the screen's first render */
   force?: boolean;
+  /** "none" for decoration that must never take a tap (on web, box-none lets the children take it) */
+  pointerEvents?: "box-none" | "none";
 }) {
   const animateNew = useContext(AnimateNew);
   const skip = reduced || (!animateNew && !force);
@@ -52,7 +55,7 @@ export function Pop({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Animated.View
-      pointerEvents="box-none"
+      pointerEvents={pointerEvents}
       style={[
         style,
         {

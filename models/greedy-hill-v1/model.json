@@ -1,0 +1,51 @@
+{
+  "id": "greedy-hill-v1",
+  "name": "Hill climber v1",
+  "kind": "greedy",
+  "description": "The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts): 60 rounds of 60 self-play games on 11x11 maps, 6 challengers kept. Won 58% against greedy-v1 on unseen maps at save time.",
+  "created": "2026-11-23",
+  "weights": {
+    "capture": 87.31,
+    "examine": 73.72,
+    "promote": 90,
+    "harvestStarfish": 34.75,
+    "monument": 70,
+    "kill": 214.17,
+    "hit": 5.88,
+    "special": 10.19,
+    "growBase": 25,
+    "growPerPop": 19.23,
+    "otherBuild": 5.94,
+    "richAt": 7,
+    "research": 18,
+    "train": 12,
+    "unitsPerCity": 6,
+    "move": 12.62,
+    "recover": 6.42,
+    "healOthers": 15,
+    "upgrade": 6,
+    "noise": 1,
+    "rewards": {
+      "workshop": 5,
+      "explorer": 3,
+      "resources": 5,
+      "cityWall": 2,
+      "populationGrowth": 5,
+      "borderGrowth": 3,
+      "superUnit": 6,
+      "park": 4
+    }
+  },
+  "training": {
+    "method": "hill-climbing",
+    "rounds": 60,
+    "gamesPerRound": 60,
+    "sigma": 0.5,
+    "weightsPerNudge": 3,
+    "acceptPointShare": 0.52,
+    "mapSize": 11,
+    "accepted": 6,
+    "finalWinRateVsGreedyV1": 0.58,
+    "finalPointShareVsGreedyV1": 0.526
+  }
+}

@@ -2,7 +2,7 @@ import { applyAction } from "../../logic/engine/actions";
 import { createGame } from "../../logic/engine/state";
 import { botStep } from "../../logic/engine/bot";
 import { finishRecord, recordStep, replayStates, startRecord, type GameRecord } from "../../logic/arena/record";
-import { applyGame, rebuild, START_RATING } from "../../logic/arena/elo";
+import { facets, matchesFilter, rate, rebuild, resultRow, START_RATING, type ResultRow } from "../../logic/arena/elo";
 import { BUILTIN_MODELS, createAgent } from "../../logic/agents/registry";
 import { candidates, parseChoice } from "../../logic/agents/llm";
 
@@ -53,23 +53,54 @@ describe("Elo", () => {
       result: { over: true, winner, turns: 30, scores, alive: seats.map(() => true) },
     }) as GameRecord;
 
-  it("is zero-sum and rewards the winner", () => {
-    const r = {};
-    const d = applyGame(r, finished(0, [100, 50]));
-    expect(d[0]).toBeGreaterThan(0);
-    expect(d[0] + d[1]).toBeCloseTo(0);
-    expect((r as Record<string, { rating: number }>)["model:a"].rating).toBeGreaterThan(START_RATING);
+  const many = (aWins: number, bWins: number) => [
+    ...Array.from({ length: aWins }, () => finished(0, [2, 1])),
+    ...Array.from({ length: bWins }, () => finished(1, [1, 2])),
+  ];
+
+  it("rates the player who won more head-to-head games higher", () => {
+    const r = rebuild(many(44, 36), 0);
+    expect(r["model:a"].rating).toBeGreaterThan(r["model:b"].rating);
+    expect(r["model:a"].games).toBe(80);
+    expect(r["model:a"].wins).toBe(44);
+  });
+  it("does not depend on the order games were played in", () => {
+    const g = many(10, 6);
+    const a = rebuild(g, 0);
+    const b = rebuild([...g].reverse(), 0);
+    expect(a["model:a"].rating).toBeCloseTo(b["model:a"].rating, 6);
+  });
+  it("keeps a player with one game near the start (the prior)", () => {
+    const r = rebuild([finished(0, [2, 1])], 0);
+    expect(r["model:a"].rating).toBeGreaterThan(START_RATING);
+    expect(r["model:a"].rating).toBeLessThan(START_RATING + 150);
+  });
+  it("gives a 95% interval around the rating, narrower with more games", () => {
+    const few = rebuild(many(6, 4), 200)["model:a"];
+    const lots = rebuild(many(60, 40), 200)["model:a"];
+    expect(few.lo!).toBeLessThanOrEqual(few.rating);
+    expect(few.hi!).toBeGreaterThanOrEqual(few.rating);
+    expect(lots.hi! - lots.lo!).toBeLessThan(few.hi! - few.lo!);
+  });
+  it("rates each kind of game separately when filtered", () => {
+    // a wins every perfection game, b wins every domination game
+    const games = [...many(10, 0), ...many(0, 10).map((g) => ({ ...g, options: { ...g.options, mode: "domination" as const } }))];
+    const rows = games.map(resultRow).filter((r): r is ResultRow => r !== null);
+    expect(facets(rows).mode).toEqual({ perfection: 10, domination: 10 });
+    const perf = rate(rows.filter((r) => matchesFilter(r, { mode: "perfection" })), 0);
+    const dom = rate(rows.filter((r) => matchesFilter(r, { mode: "domination" })), 0);
+    const all = rate(rows, 0);
+    expect(perf["model:a"].rating).toBeGreaterThan(perf["model:b"].rating);
+    expect(dom["model:b"].rating).toBeGreaterThan(dom["model:a"].rating);
+    expect(all["model:a"].rating).toBeCloseTo(all["model:b"].rating, 6);
+    expect(rows.filter((r) => matchesFilter(r, { players: 2, size: 11 }))).toHaveLength(20);
+    expect(rows.filter((r) => matchesFilter(r, { players: 4 }))).toHaveLength(0);
   });
   it("ignores unfinished games and self-play pairs", () => {
-    const r = {};
     const g = finished(0, [1, 0]);
     g.result!.over = false;
-    expect(applyGame(r, g)).toEqual([0, 0]);
-    expect(applyGame(r, finished(0, [1, 0], ["a", "a"]))).toEqual([0, 0]);
-  });
-  it("rebuild orders games by end time", () => {
-    const r = rebuild([finished(0, [2, 1]), finished(1, [1, 2])]);
-    expect(r["model:a"].games).toBe(2);
+    expect(rebuild([g], 0)).toEqual({});
+    expect(rebuild([finished(0, [1, 0], ["a", "a"])], 0)["model:a"].rating).toBeCloseTo(START_RATING, 6);
   });
 });
 

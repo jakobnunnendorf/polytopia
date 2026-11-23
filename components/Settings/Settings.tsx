@@ -73,6 +73,7 @@ function SeatRow({
   profiles,
   models,
   ratings,
+  overall,
   onChange,
   onRemove,
   onNewProfile,
@@ -82,13 +83,17 @@ function SeatRow({
   profiles: Profile[];
   models: ModelSpec[];
   ratings: Ratings;
+  /** the overall table, used when a player has no games with the chosen settings */
+  overall: Ratings;
   onChange: (s: Seat) => void;
   onRemove?: () => void;
   onNewProfile: (name: string) => Promise<Profile | null>;
 }) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
-  const elo = (key: string) => (ratings[key] ? String(Math.round(ratings[key].rating)) : undefined);
+  // the rating for the chosen mode, player count and map size; else the overall one, marked as such
+  const elo = (key: string) =>
+    ratings[key] ? String(Math.round(ratings[key].rating)) : overall[key] ? `${Math.round(overall[key].rating)} overall` : undefined;
   return (
     <View style={{ paddingVertical: 10, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: UI.line }} testID={`seat-${i}`}>
       <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
@@ -179,6 +184,7 @@ export default function Settings() {
   const [models, setModels] = useState<ModelSpec[]>(BUILTIN_MODELS);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [ratings, setRatings] = useState<Ratings>({});
+  const [overall, setOverall] = useState<Ratings>({});
   const [online, setOnline] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -188,7 +194,7 @@ export default function Settings() {
         if (!live) return;
         if (m.length) setModels(m.filter((x) => x.kind !== "external"));
         setProfiles(p);
-        setRatings(r);
+        setOverall(r);
         setOnline(true);
       })
       .catch(() => live && setOnline(false));
@@ -198,6 +204,17 @@ export default function Settings() {
   }, []);
 
   const seats = settings.seats;
+  // ratings fitted on games with exactly these settings, refetched when they change
+  useEffect(() => {
+    let live = true;
+    arena
+      .ratings({ mode: mode.id, players: seats.length, size: settings.mapSize })
+      .then((r) => live && setRatings(r))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [mode.id, seats.length, settings.mapSize]);
   const setSeat = (i: number, s: Seat) => settings.setSeats(seats.map((x, j) => (j === i ? s : x)));
   const newProfile = async (name: string) => {
     if (!name.trim()) return null;
@@ -236,6 +253,7 @@ export default function Settings() {
           profiles={profiles}
           models={models}
           ratings={ratings}
+          overall={overall}
           onChange={(s) => setSeat(i, s)}
           onRemove={seats.length > 2 ? () => settings.setSeats(seats.filter((_, j) => j !== i)) : undefined}
           onNewProfile={newProfile}
