@@ -290,14 +290,14 @@ async function main() {
 
   // the best curve point so far (early stopping keeps its champion)
   let points = 0;
-  let best = { mean: -1, point: 0, champ, round: 0, trainingGames: 0 };
+  let best = { mean: -1, point: 0, champ, round: 0, trainingGames: 0, kept: 0 };
   let converged = false;
 
   const curvePoint = async () => {
     const vs = await panelTest(panel, champ, CURVE_GAMES, CURVE_SEED);
     const mean = meanWin(vs);
     const improved = mean > best.mean + MIN_GAIN || best.mean < 0;
-    if (improved) best = { mean, point: points, champ, round: rounds, trainingGames: trainGames };
+    if (improved) best = { mean, point: points, champ, round: rounds, trainingGames: trainGames, kept: accepted };
     const since = points - best.point;
     const row = { trainingGames: trainGames, round: rounds, kept: accepted, seconds: secs(), meanWinRate: Math.round(mean * 1000) / 1000, best: improved, vs };
     fs.appendFileSync(curvePath, JSON.stringify(row) + "\n");
@@ -355,6 +355,8 @@ async function main() {
     kind: "greedy",
     description:
       `The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts): ${how} on ${SIZE}x${SIZE} maps, ${accepted} challengers kept.` +
+      // early stopping may save an earlier champion than the last one: say which
+      (best.round !== rounds ? ` Saved the champion of the best learning-curve point (round ${best.round}, ${count(best.trainingGames)} games, ${best.kept} kept).` : "") +
       (final["greedy-v1"] ? ` Won ${pct(final["greedy-v1"].winRate)} against greedy-v1` : "") +
       (strongest && strongest !== "greedy-v1" ? ` and ${pct(final[strongest].winRate)} against ${strongest}` : "") +
       " on unseen maps at save time.",
@@ -374,7 +376,7 @@ async function main() {
       accepted,
       capped: TEST === "sprt" ? capped : undefined,
       curve: "curve.jsonl",
-      earlyStop: { patience: PATIENCE, minGain: MIN_GAIN, converged, savedRound: best.round, savedAtTrainingGames: best.trainingGames, savedCurveMean: Math.round(best.mean * 1000) / 1000 },
+      earlyStop: { patience: PATIENCE, minGain: MIN_GAIN, converged, savedRound: best.round, savedAtTrainingGames: best.trainingGames, savedKept: best.kept, savedCurveMean: Math.round(best.mean * 1000) / 1000 },
       final,
       finalWinRateVsGreedyV1: final["greedy-v1"]?.winRate,
     },
