@@ -7,6 +7,7 @@
  * replayStates(record) returns the full state after every single action.
  */
 import { applyAction } from "../engine/actions";
+import { cloneState } from "../engine/grid";
 import { createGame, scoreOf } from "../engine/state";
 import type { Action, GameMode, GameState } from "../engine/types";
 import type { MapType } from "../engine/mapgen";
@@ -94,8 +95,9 @@ export function finishRecord(rec: GameRecord, s: GameState): GameRecord {
   return rec;
 }
 
-/** rebuild the initial state of a record */
+/** rebuild the initial state of a record (uses the stored turn-0 snapshot when present so replays stay valid across tribe/mapgen additions) */
 export function initialState(rec: GameRecord): GameState {
+  if (rec.turnStates && rec.turnStates.length > 0) return cloneState(rec.turnStates[0]);
   const o = rec.options;
   return createGame({
     mapSize: o.mapSize,
@@ -103,7 +105,7 @@ export function initialState(rec: GameRecord): GameState {
     mode: o.mode,
     seed: o.seed,
     mapType: o.mapType,
-    clans: o.explicitClans as never,
+    clans: (o.explicitClans ?? (o.clans?.length ? o.clans : undefined)) as never,
     humans: rec.seats.flatMap((s, i) => (s.kind === "human" ? [i] : [])),
   });
 }

@@ -580,7 +580,11 @@ function doCapture(s: GameState, u: Unit) {
     if (!has(u, "independent")) u.homeCity = c.id;
     log(s, `captured village -> ${c.name}`);
   } else {
-    const c = cityById(s, t.cityId)!;
+    const c = cityById(s, t.cityId);
+    if (!c) {
+      endUnit(u);
+      return;
+    }
     const old = c.owner;
     c.owner = p;
     c.capital = false;
