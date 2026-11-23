@@ -86,3 +86,10 @@ games a round, the climber kept lucky challengers and drifted (48% against
 greedy-v1 after 100 rounds). `greedy-hill-v1` (2026-11-23): 6 of 60 challengers
 kept, 58% of 100 unseen games and 52.6% of the points against greedy-v1, then 24
 of 40 recorded arena games (Elo 1292).
+
+`greedy-hill-v2` (2026-11-23, trained 10× longer: 600 rounds of 60 games, from
+greedy-v1's weights, ~20 minutes): 15 of 600 challengers kept, 72% of 100 unseen
+games and 57.9% of the points against greedy-v1. In 40 recorded arena games per
+pairing: 22–18 against greedy-hill-v1, 27–13 against greedy-v1, 40–0 against
+random-v1. It plays differently from v1: monuments 70→162 and healing others
+15→89, plain hits 20→1.5 and ruins 60→11.
