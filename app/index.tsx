@@ -134,7 +134,7 @@ export default function HomeScreen() {
             <View style={{ marginTop: 10 }}>
               <MenuButton primary testID="new-game" label="New game" hint="Choose the map, the players and their models" onPress={() => setPage("new")} />
               <MenuButton testID="resume-game" label="Resume game" hint="Continue a game you left" onPress={() => setPage("resume")} />
-              <MenuButton testID="analyse-games" label="Analyse games" hint="Replay finished games move by move" onPress={() => router.push("/analyse" as never)} />
+              <MenuButton testID="analyse-games" label="Analyse" hint="Rankings, replays of finished games, live games" onPress={() => router.push("/analyse" as never)} />
             </View>
           )}
           {page === "new" && (

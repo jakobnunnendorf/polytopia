@@ -10,5 +10,17 @@
     "games": 4,
     "wins": 0,
     "updated": "2026-11-23T17:13:50.599Z"
+  },
+  "model:claude-sonnet-agent": {
+    "rating": 1216,
+    "games": 1,
+    "wins": 1,
+    "updated": "2026-11-23T17:31:38.740Z"
+  },
+  "model:qwen3-coder-lmstudio": {
+    "rating": 1184,
+    "games": 1,
+    "wins": 0,
+    "updated": "2026-11-23T17:31:38.740Z"
   }
 }

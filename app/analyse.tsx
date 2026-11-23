@@ -3,6 +3,8 @@ import { ImageBackground, Pressable, ScrollView, Text, View } from "react-native
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Map from "@/components/Map/Map";
 import GameList, { seatLabel } from "@/components/game/GameList";
+import RankingsTable from "@/components/game/RankingsTable";
+import * as Font from "expo-font";
 import { arena } from "@/components/game/arenaClient";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
 import { replayStates, type GameRecord } from "@/logic/arena/record";
@@ -128,6 +130,9 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
 export default function AnalyseScreen() {
   const { id, live: liveParam } = useLocalSearchParams<{ id?: string; live?: string }>();
   const live = liveParam === "1";
+  useEffect(() => {
+    Font.loadAsync({ "Oi-Regular": require("@/assets/fonts/Oi-Regular.ttf") }).catch(() => {});
+  }, []);
   const router = useRouter();
   const [rec, setRec] = useState<GameRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -162,16 +167,18 @@ export default function AnalyseScreen() {
         <ScrollView contentContainerStyle={{ padding: 16, alignItems: "center" }}>
           <View style={{ width: "100%", maxWidth: 520, backgroundColor: "#1b2846f2", borderRadius: 24, padding: 20 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={{ fontFamily: UI.display, fontSize: 32, color: UI.mist }}>Analyse games</Text>
+              <Text style={{ fontFamily: UI.display, fontSize: 32, color: UI.mist }}>Analyse</Text>
               <Btn label="Menu" onPress={() => router.replace("/")} />
             </View>
             {id ? (
               <Text style={{ color: error ? UI.coral : UI.muted, fontSize: 14, marginTop: 12 }}>{error ?? "Loading the game"}</Text>
             ) : (
               <>
-                <Text style={{ color: UI.muted, fontSize: 14, marginTop: 4 }}>Pick a finished game to replay it move by move.</Text>
+                <RankingsTable />
+                <Text style={{ color: UI.mist, fontSize: 17, fontWeight: "800", marginTop: 22 }}>Finished games</Text>
+                <Text style={{ color: UI.muted, fontSize: 14, marginTop: 2 }}>Pick one to replay it move by move.</Text>
                 <GameList finished onPick={(g) => router.push({ pathname: "/analyse", params: { id: g.id } } as never)} />
-                <Text style={{ color: UI.mist, fontSize: 16, fontWeight: "800", marginTop: 20 }}>Games in progress</Text>
+                <Text style={{ color: UI.mist, fontSize: 17, fontWeight: "800", marginTop: 22 }}>Games in progress</Text>
                 <Text style={{ color: UI.muted, fontSize: 14, marginTop: 4 }}>Watch them live; the map follows each new move.</Text>
                 <GameList finished={false} anySource onPick={(g) => router.push({ pathname: "/analyse", params: { id: g.id, live: "1" } } as never)} />
               </>

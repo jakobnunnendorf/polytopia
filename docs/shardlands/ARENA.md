@@ -38,7 +38,7 @@ A record (`logic/arena/record.ts`) holds:
 
 The engine is deterministic, so `replayStates(record)` rebuilds the exact state after every single action. That keeps files small: about 15 KB gzipped per game.
 
-The app autosaves every round. That is what powers **Resume game**; **Analyse games** replays finished games move by move.
+The app autosaves every round. That is what powers **Resume game**. The **Analyse** page shows the Elo rankings, replays finished games move by move, and watches games in progress live (mover's view, any player's view, or the whole map).
 
 ## Elo (`data/ratings.json`)
 

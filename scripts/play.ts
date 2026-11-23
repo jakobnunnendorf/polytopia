@@ -10,7 +10,7 @@
  * The game lives in data/games/ like every other recording and is Elo-rated when it ends.
  */
 import { applyAction, legalActions } from "../logic/engine/actions";
-import { createGame } from "../logic/engine/state";
+import { createGame, scoreOf } from "../logic/engine/state";
 import type { GameMode } from "../logic/engine/types";
 import type { MapType } from "../logic/engine/mapgen";
 import { createAgent, directChat } from "../logic/agents/registry";
@@ -31,9 +31,9 @@ function menu(s: ReturnType<typeof createGame>) {
 function printState(rec: GameRecord, me: number) {
   const s = replayStates(rec).pop()!;
   if (s.over || rec.result?.over) {
-    const scores = s.players.map((p) => p.id);
+    const scores = s.players.map((p) => `seat ${p.id} ${scoreOf(s, p.id)}`).join(", ");
     console.log(`GAME OVER after turn ${s.turn}. Winner: seat ${s.winner} (${s.winner === me ? "you" : "opponent"}).`);
-    void scores;
+    console.log(`Final scores: ${scores}`);
     return;
   }
   if (s.current !== me) {
