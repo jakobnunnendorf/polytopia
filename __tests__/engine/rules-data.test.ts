@@ -2,12 +2,18 @@ import { computeDamage } from "@/logic/engine/combat";
 import { TECHS, UNITS, techCostFor } from "@/logic/engine/data";
 
 describe("damage formula (wiki Combat page)", () => {
-  it("warrior vs full-health warrior on open ground: 5 damage, then 3 back", () => {
+  it("warrior vs full-health warrior on open ground: 5 damage, 5 back (RULES §3.1)", () => {
+    // retaliation uses the forces computed BEFORE the damage is applied
     const hit = computeDamage(2, 10, 10, 2, 10, 10, 1);
     expect(hit.damage).toBe(5);
-    // retaliation is computed with the defender's HP after the hit
-    const back = computeDamage(2, 10, 10, 2, 5, 10, 1);
-    expect(back.retaliation).toBe(3);
+    expect(hit.retaliation).toBe(5);
+  });
+
+  it("rounds halves up", () => {
+    // knight 3.5 vs warrior: 3.5/(3.5+2)*3.5*4.5 = 10.02 -> 10
+    expect(computeDamage(3.5, 10, 10, 2, 10, 10, 1).damage).toBe(10);
+    // archer vs defender in forest with archery: 2/(2+4.5)*2*4.5 = 2.77 -> 3
+    expect(computeDamage(2, 10, 10, 3, 15, 15, 1.5).damage).toBe(3);
   });
 
   it("defence bonus multiplies defence force, not the retaliation stat", () => {
@@ -40,7 +46,7 @@ describe("unit stats (wiki infoboxes)", () => {
     ["catapult", 8, 10, 4, 0, 1, 3],
     ["knight", 8, 10, 3.5, 1, 3, 1],
     ["mindBender", 5, 10, 0, 1, 1, 1],
-    ["cloak", 8, 5, 2, 0.5, 2, 1],
+    ["cloak", 8, 5, 0, 0.5, 2, 1],
   ])("%s costs %i, hp %i, atk %d, def %d, move %i, range %i", (id, cost, hp, atk, def, mv, rng) => {
     const u = UNITS[id as string];
     expect([u.cost, u.hp, u.attack, u.defence, u.movement, u.range]).toEqual([

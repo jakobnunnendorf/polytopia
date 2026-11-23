@@ -4,6 +4,7 @@
  * changing a name here never changes a rule.
  */
 import type { Action, GameState } from "./types";
+import { BUILDS } from "./data";
 
 type Kind = "tech" | "unit" | "building" | "terrain" | "resource" | "clan" | "reward" | "ability";
 
@@ -80,6 +81,20 @@ const NAMES: Record<Kind, Record<string, string>> = {
     road: "Road",
     bridge: "Bridge",
     park: "Garden",
+    destroy: "Demolish",
+    harvestFruit: "Gather berries",
+    hunt: "Hunt deer",
+    fish: "Catch fish",
+    clearForest: "Clear woods (+1 ◆)",
+    burnForest: "Burn woods",
+    growForest: "Grow woods",
+    altarOfPeace: "Stone of Calm",
+    towerOfWisdom: "Lore Spire",
+    emperorsTomb: "Gilded Vault",
+    gateOfPower: "Warden Arch",
+    parkOfFortune: "Garden of Plenty",
+    grandBazaar: "Crossroads Fair",
+    eyeOfGod: "Beacon Crown",
   },
   terrain: {
     field: "Meadow",
@@ -97,22 +112,18 @@ const NAMES: Record<Kind, Record<string, string>> = {
     starfish: "Sea shard",
   },
   clan: {
-    ember: "Ember Clan",
-    tide: "Tidefolk",
-    crag: "Cragborn",
-    thorn: "Thornwood",
-    dune: "Dunewalkers",
-    frost: "Frostmark",
-    moss: "Mossguard",
-    sun: "Sunreach",
-    ash: "Ashen",
-    reed: "Reedfolk",
-    gale: "Galeborn",
-    stone: "Stonehold",
-    briar: "Briarkin",
-    cinder: "Cinderfolk",
-    hollow: "Hollowmere",
-    vale: "Valewardens",
+    inca: "Inca",
+    romans: "Romans",
+    norse: "Norse",
+    mongols: "Mongols",
+    polynesians: "Polynesians",
+    welsh: "Welsh",
+    lydians: "Lydians",
+    hittites: "Hittites",
+    sumerians: "Sumerians",
+    tibetans: "Tibetans",
+    spartans: "Spartans",
+    persians: "Persians",
   },
   reward: {
     workshop: "Workshop (+1 ◆ per turn)",
@@ -161,12 +172,21 @@ export function actionLabel(_s: GameState, a: Action): string {
       return "Disband";
     case "upgrade":
       return `Refit: ${name("unit", a.to)}`;
-    case "unitAbility":
-      return humanize(a.ability);
+    case "promote":
+      return "Promote (veteran)";
+    case "healOthers":
+      return "Mend allies";
+    case "harvestStarfish":
+      return "Gather sea shard (+8 ◆)";
+    case "infiltrate":
+      return "Infiltrate";
     case "train":
       return `Train ${name("unit", a.unit)}`;
-    case "build":
-      return `Build ${name("building", a.building)}`;
+    case "build": {
+      const kind = BUILDS[a.building]?.kind;
+      const verb = kind === "harvest" || kind === "destroy" ? "" : "Build ";
+      return `${verb}${name("building", a.building)}`;
+    }
     case "reward":
       return name("reward", a.reward);
   }

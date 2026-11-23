@@ -38,12 +38,17 @@ export function cloneState(s: GameState): GameState {
   return {
     ...s,
     tiles: s.tiles.map((t) => ({ ...t })),
-    units: s.units.map((u) => ({ ...u, extra: u.extra ? { ...u.extra } : undefined })),
+    units: s.units.map((u) => ({ ...u, lastDir: u.lastDir ? { ...u.lastDir } : null })),
     cities: s.cities.map((c) => ({ ...c, pendingRewards: c.pendingRewards.slice() })),
     players: s.players.map((p) => ({
       ...p,
       techs: p.techs.slice(),
       explored: p.explored.slice(),
+      met: p.met.slice(),
+      tasks: p.tasks.slice(),
+      monuments: p.monuments.slice(),
+      lighthouses: p.lighthouses.slice(),
+      embassies: p.embassies.slice(),
     })),
     log: s.log.slice(-50),
   };

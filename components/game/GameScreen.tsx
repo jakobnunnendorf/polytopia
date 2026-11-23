@@ -150,7 +150,10 @@ export default function GameScreen() {
         case "examine":
         case "disband":
         case "upgrade":
-        case "unitAbility":
+        case "promote":
+        case "healOthers":
+        case "harvestStarfish":
+        case "infiltrate":
           return unitAtSel !== null && a.unitId === unitAtSel.id;
         case "train":
           return citySel !== null && a.cityId === citySel.id;

@@ -8,38 +8,36 @@
 
 export type Terrain = "field" | "forest" | "mountain" | "water" | "ocean";
 
-export type ResourceId =
-  | "fruit"
-  | "crop"
-  | "animal"
-  | "fish"
-  | "metal"
-  | "starfish";
+export type ResourceId = "fruit" | "crop" | "animal" | "fish" | "metal" | "starfish";
 
 export type Coord = { x: number; y: number };
 
 export type Tile = {
   terrain: Terrain;
   resource: ResourceId | null;
-  /** improvement / building id from data.IMPROVEMENTS */
+  /** building id from data.BUILDS (farm, port, temple, monument ids, ...) */
   building: string | null;
-  /** level of a leveling building (temples, forge, windmill, ...) */
+  /** level of a leveling building (windmill, sawmill, forge) */
   buildingLevel: number;
+  /** turn the building was built (temples level up from it) */
+  builtTurn: number;
   road: boolean;
-  /** city or village standing on this tile */
+  /** city standing on this tile */
   cityId: number | null;
   /** neutral, uncaptured village */
   village: boolean;
   ruin: boolean;
+  lighthouse: boolean;
   /** id of the city whose territory this tile belongs to */
   territory: number | null;
-  /** player who built the building (temples score for their owner) */
-  buildingOwner: number | null;
 };
 
 export type Unit = {
   id: number;
+  /** unit type; for boats the boat type */
   type: string;
+  /** passenger type when this is a boat, else null */
+  carried: string | null;
   owner: number;
   x: number;
   y: number;
@@ -51,16 +49,18 @@ export type Unit = {
   homeCity: number | null;
   canMove: boolean;
   canAttack: boolean;
-  /** has spent its turn on a non-move/attack action, or was just trained */
-  done: boolean;
-  /** has moved this turn (needed for capture / recover rules) */
+  /** has moved this turn */
   moved: boolean;
   /** has attacked this turn */
   attacked: boolean;
-  /** land unit type carried by a boat; null for land units */
-  carried: string | null;
-  /** remaining explorer steps etc. (unused by most units) */
-  extra?: Record<string, number>;
+  /** turn over for this unit (trained, captured, recovered, embarked, ...) */
+  done: boolean;
+  /** did nothing at all this turn (for the automatic end-of-turn heal) */
+  idle: boolean;
+  /** hide skill: invisible to enemies that are not adjacent */
+  hidden: boolean;
+  /** direction of the last move/attack, for forced pushes */
+  lastDir: Coord | null;
 };
 
 export type City = {
@@ -70,15 +70,18 @@ export type City = {
   x: number;
   y: number;
   level: number;
-  /** population toward the next level (can be negative after losses) */
+  /** population toward the next level; can be negative */
   pop: number;
   capital: boolean;
+  /** player whose starting capital this was (embassies, capital vision) */
+  originalCapitalOf: number | null;
   walls: boolean;
   workshop: boolean;
   parks: number;
-  borderGrown: boolean;
   connected: boolean;
-  /** level-up rewards waiting for a choice */
+  /** infiltrated: produces nothing on its owner's next turn */
+  riot: boolean;
+  /** level-up rewards waiting for a choice (the new levels) */
   pendingRewards: number[];
 };
 
@@ -92,8 +95,22 @@ export type Player = {
   alive: boolean;
   bot: boolean;
   kills: number;
-  /** score accumulated by one-off events (e.g. parks, monuments) */
-  bonusScore: number;
+  losses: number;
+  /** other players this player has met */
+  met: number[];
+  /** completed tasks (pacifist, genius, ...) */
+  tasks: string[];
+  /** monuments built (ids) */
+  monuments: string[];
+  /** consecutive own turns without attacking (counted while Meditation is owned) */
+  pacifistTurns: number;
+  attackedThisTurn: boolean;
+  /** lighthouses discovered, as tile indices */
+  lighthouses: number[];
+  /** hosts this player built an embassy with */
+  embassies: number[];
+  /** the city this player started with */
+  capitalId: number;
 };
 
 export type GameMode = "perfection" | "domination";
@@ -127,7 +144,10 @@ export type Action =
   | { type: "examine"; unitId: number }
   | { type: "disband"; unitId: number }
   | { type: "upgrade"; unitId: number; to: string }
-  | { type: "unitAbility"; unitId: number; ability: string; target?: Coord }
+  | { type: "promote"; unitId: number }
+  | { type: "healOthers"; unitId: number }
+  | { type: "harvestStarfish"; unitId: number }
+  | { type: "infiltrate"; unitId: number; cityId: number }
   | { type: "train"; cityId: number; unit: string }
   | { type: "build"; at: Coord; building: string }
   | { type: "reward"; cityId: number; reward: string };

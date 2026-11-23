@@ -73,12 +73,13 @@ function emptyTile(terrain: Terrain): Tile {
     resource: null,
     building: null,
     buildingLevel: 0,
+    builtTurn: 0,
     road: false,
     cityId: null,
     village: false,
     ruin: false,
+    lighthouse: false,
     territory: null,
-    buildingOwner: null,
   };
 }
 
@@ -116,6 +117,8 @@ export function generateMap(
   n: number,
   players: number,
   mapType: MapType = "drylands",
+  /** per-player spawn modifiers (§6.3), applied in the area nearest each capital */
+  mods: Partial<Record<string, number>>[] = [],
 ): GeneratedMap {
   // 1. capitals in distinct domains
   const domains = domainsFor(players);
@@ -177,12 +180,35 @@ export function generateMap(
     rng,
     tiles.map((_, i) => i).filter((i) => land[i] && !settlement.has(i)),
   );
-  const total = landIdx.length + settlement.size;
-  const mountains = Math.round(total * LAND_SHARE.mountain);
-  const forests = Math.round(total * LAND_SHARE.forest);
-  landIdx.forEach((i, k) => {
-    tiles[i].terrain = k < mountains ? "mountain" : k < mountains + forests ? "forest" : "field";
-  });
+  // each land tile belongs to the area of its nearest capital (ties: lower index)
+  const areaOf = (i: number) => {
+    const p = { x: i % n, y: Math.floor(i / n) };
+    let best = 0;
+    for (let k = 1; k < capitals.length; k++)
+      if (dist(capitals[k], p) < dist(capitals[best], p)) best = k;
+    return best;
+  };
+  const modOf = (area: number, key: string) => mods[area]?.[key] ?? 1;
+  const byArea = new Map<number, number[]>();
+  for (const i of landIdx) {
+    const a = areaOf(i);
+    if (!byArea.has(a)) byArea.set(a, []);
+    byArea.get(a)!.push(i);
+  }
+  for (const [a, idxs] of byArea) {
+    // §6.3: mountain modifier rescales forest and field; then forest takes from field
+    let mShare = LAND_SHARE.mountain * modOf(a, "mountain");
+    const rest = 1 - mShare;
+    let fShare = (LAND_SHARE.forest / (1 - LAND_SHARE.mountain)) * rest * modOf(a, "forest");
+    if (mShare + fShare > 1) fShare = 1 - mShare;
+    mShare = Math.max(0, mShare);
+    const total = idxs.length;
+    const mountains = Math.round(total * mShare);
+    const forests = Math.round(total * fShare);
+    idxs.forEach((i, k) => {
+      tiles[i].terrain = k < mountains ? "mountain" : k < mountains + forests ? "forest" : "field";
+    });
+  }
   // water next to land is shallow, the rest is deep ocean
   for (let i = 0; i < tiles.length; i++) {
     if (land[i]) continue;
@@ -201,24 +227,33 @@ export function generateMap(
     if (d > 2) continue;
     const r = d === 1 ? RESOURCE_RATES.inner : RESOURCE_RATES.outer;
     const t = tiles[i];
+    const a = areaOf(i);
+    const m = (k: string) => modOf(a, k);
     const roll = rng.next();
     if (t.terrain === "field") {
       const share = LAND_SHARE.field;
-      if (roll < r.fruit / share) t.resource = "fruit";
-      else if (roll < (r.fruit + r.crop) / share) t.resource = "crop";
+      const fruit = (r.fruit * m("fruit")) / share;
+      const crop = (r.crop * m("crop")) / share;
+      if (roll < fruit) t.resource = "fruit";
+      else if (roll < fruit + crop) t.resource = "crop";
     } else if (t.terrain === "forest") {
-      if (roll < r.animal / LAND_SHARE.forest) t.resource = "animal";
+      if (roll < (r.animal * m("animal")) / LAND_SHARE.forest) t.resource = "animal";
     } else if (t.terrain === "mountain") {
-      if (roll < r.metal / LAND_SHARE.mountain) t.resource = "metal";
+      if (roll < (r.metal * m("metal")) / LAND_SHARE.mountain) t.resource = "metal";
     } else if (t.terrain === "water") {
-      if (roll < FISH_RATE) t.resource = "fish";
+      if (roll < FISH_RATE * m("fish")) t.resource = "fish";
     }
+  }
+
+  // lighthouses in the four corners (§6.4)
+  for (const [x, y] of [[0, 0], [n - 1, 0], [0, n - 1], [n - 1, n - 1]]) {
+    tiles[idx(n, x, y)].lighthouse = true;
   }
 
   // 6. ruins: land or deep ocean, not next to a village/ruin/settlement
   const ruinSpots = shuffle(rng, tiles.map((_, i) => i)).filter((i) => {
     const t = tiles[i];
-    return t.terrain !== "water" && !settlement.has(i) && t.resource === null;
+    return t.terrain !== "water" && !settlement.has(i) && t.resource === null && !t.lighthouse;
   });
   let ruins = ruinCount(n);
   const ruinCoords: Coord[] = [];
@@ -235,7 +270,7 @@ export function generateMap(
   // starfish: ~1 per 25 water tiles, not adjacent to another starfish or a settlement
   const waterIdx = shuffle(
     rng,
-    tiles.map((_, i) => i).filter((i) => !land[i] && !tiles[i].ruin && tiles[i].resource === null),
+    tiles.map((_, i) => i).filter((i) => !land[i] && !tiles[i].ruin && !tiles[i].lighthouse && tiles[i].resource === null),
   );
   let starfish = Math.floor((n * n - land.filter(Boolean).length) / WATER_TILES_PER_STARFISH);
   const starCoords: Coord[] = [];
