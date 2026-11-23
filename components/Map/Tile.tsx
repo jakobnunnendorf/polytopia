@@ -213,24 +213,56 @@ function Tile({
               size={TILE * 1.3}
             />
           </Pop>
-          <Text
+          {/* Polytopia-style city level + population progress bar */}
+          <View
+            pointerEvents="none"
             style={{
               position: "absolute",
               left: 2,
-              top: 1,
-              fontSize: Math.max(9, Math.round(TILE * 0.16)),
-              fontWeight: "800",
-              color: "white",
-              zIndex: 1,
-              backgroundColor: PLAYER_COLORS[city.owner % PLAYER_COLORS.length],
-              paddingHorizontal: 3,
-              borderRadius: 4,
-              overflow: "hidden",
+              right: 2,
+              bottom: 1,
+              zIndex: 2,
+              alignItems: "center",
             }}
           >
-            {city.capital ? "♛" : ""}
-            {city.level}
-          </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: "#0e1a30dd",
+                borderRadius: 4,
+                paddingHorizontal: 3,
+                paddingVertical: 1,
+                borderWidth: 1,
+                borderColor: PLAYER_COLORS[city.owner % PLAYER_COLORS.length],
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: Math.max(8, Math.round(TILE * 0.15)),
+                  fontWeight: "800",
+                  color: city.capital ? "#ffd23f" : "#ffffff",
+                  marginRight: 3,
+                }}
+              >
+                {city.capital ? "♛" : ""}{city.level}
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                {Array.from({ length: Math.min(6, city.level + 1) }, (_, k) => (
+                  <View
+                    key={k}
+                    style={{
+                      width: Math.max(3, Math.round(TILE * 0.08)),
+                      height: Math.max(3, Math.round(TILE * 0.08)),
+                      borderRadius: 1,
+                      marginLeft: 1,
+                      backgroundColor: k < city.pop ? "#38bdf8" : "#334155",
+                    }}
+                  />
+                ))}
+              </View>
+            </View>
+          </View>
         </>
       )}
       {watchers && watchers.length === 0 && (

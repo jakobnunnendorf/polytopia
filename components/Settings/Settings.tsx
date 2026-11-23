@@ -9,6 +9,7 @@ import type { Ratings } from "@/logic/arena/elo";
 import type { Seat } from "@/logic/arena/record";
 import { CLANS } from "@/logic/engine/data";
 import { name as displayName } from "@/logic/engine/names";
+import { TribeEmblem } from "@/components/art/Art";
 
 const MAP_SIZES = [
   { title: "Tiny", size: 11 },
@@ -182,15 +183,35 @@ function SeatRow({
           on={!seat.clan}
           onPress={() => onChange({ ...seat, clan: undefined })}
         />
-        {CLANS.map((c) => (
-          <Chip
-            key={c.id}
-            testID={`seat-${i}-tribe-${c.id}`}
-            label={`${c.special ? "★ " : ""}${displayName("clan", c.id)}`}
-            on={seat.clan === c.id}
-            onPress={() => onChange({ ...seat, clan: c.id })}
-          />
-        ))}
+        {CLANS.map((c) => {
+          const active = seat.clan === c.id;
+          return (
+            <Pressable
+              key={c.id}
+              testID={`seat-${i}-tribe-${c.id}`}
+              onPress={() => onChange({ ...seat, clan: c.id })}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 999,
+                marginRight: 8,
+                marginBottom: 8,
+                backgroundColor: active ? UI.mist : "#142442",
+                borderWidth: 1.5,
+                borderColor: active ? UI.gold : c.special ? "#ffd23f88" : UI.line,
+              }}
+            >
+              <TribeEmblem clan={c.id} size={20} />
+              <Text style={{ color: active ? UI.dusk : UI.mist, fontWeight: "700", fontSize: 13, marginLeft: 6 }}>
+                {c.special ? "★ " : ""}{displayName("clan", c.id)}
+              </Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
     </View>
   );

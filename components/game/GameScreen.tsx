@@ -8,7 +8,8 @@ import GameOverCard from "@/components/game/GameOverCard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Map from "@/components/Map/Map";
 import type { Highlight } from "@/components/Map/Tile";
-import { ShardIcon } from "@/components/art/Art";
+import { CityArt, ShardIcon, TribeEmblem, UnitArt } from "@/components/art/Art";
+import { BUILDS, UNITS } from "@/logic/engine/data";
 import {
   applyAction,
   createGame,
@@ -460,45 +461,48 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     >
       {/* a dusk veil calms the busy landscape so the map stays the focus */}
       <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#16213a66" }} />
-      {/* HUD */}
+      {/* Polytopia-style Top HUD: Score (left) · Stars (+income) (center) · Turn + Tribe (right) */}
       <View
         style={{
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
           paddingHorizontal: 16,
-          paddingVertical: 10,
+          paddingVertical: 9,
           marginTop: 10,
           width: "94%",
           maxWidth: 640,
           alignSelf: "center",
           borderRadius: 16,
-          backgroundColor: "#1b2846e0",
+          backgroundColor: "#0e1a30e8",
+          borderWidth: 1,
+          borderColor: "#36589488",
         }}
       >
-        <View testID="hud-shards">
+        <View style={{ alignItems: "flex-start", minWidth: 84 }}>
+          <Text style={{ color: UI.muted, fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 }}>Score</Text>
+          <Ticker value={scoreOf(state, viewer)} float={false} format={(n) => n.toLocaleString("en")} style={{ color: UI.mist, fontSize: 19, fontWeight: "800" }} />
+        </View>
+        <View testID="hud-shards" style={{ alignItems: "center" }}>
+          <Text style={{ color: UI.muted, fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 }}>Stars</Text>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <ShardIcon size={22} />
-            <Ticker value={me.stars} style={{ color: UI.mist, fontWeight: "800", fontSize: 22, marginLeft: 4 }} />
+            <ShardIcon size={20} />
+            <Ticker value={me.stars} style={{ color: UI.mist, fontWeight: "800", fontSize: 21, marginLeft: 4 }} />
+            <Text style={{ color: UI.gold, fontSize: 13, fontWeight: "800", marginLeft: 4 }}>
+              (+{income(state, viewer)})
+            </Text>
           </View>
-          <Text style={{ color: UI.gold, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
-            +{income(state, viewer)} next turn
-          </Text>
         </View>
-        <View style={{ alignItems: "center" }}>
-          <Text style={{ color: UI.mist, fontSize: 16, fontWeight: "800" }}>
-            Turn {state.turn}
-            {state.mode === "perfection" ? ` of ${state.maxTurns}` : ""}
+        <View style={{ alignItems: "flex-end", minWidth: 96 }}>
+          <Text style={{ color: UI.muted, fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 }}>
+            Turn {state.turn}{state.mode === "perfection" ? `/${state.maxTurns}` : ""}
           </Text>
-          <Text style={{ color: clanColor(viewer), fontSize: 12, fontWeight: "700", marginTop: 2 }}>
-            {name("clan", me.clan)}
-          </Text>
-        </View>
-        <View style={{ alignItems: "flex-end" }}>
-          <Text style={{ color: UI.mist, fontSize: 16, fontWeight: "800" }}>
-            <Ticker value={scoreOf(state, viewer)} float={false} format={(n) => n.toLocaleString("en")} style={{ color: UI.mist, fontSize: 16, fontWeight: "800" }} />
-          </Text>
-          <Text style={{ color: UI.muted, fontSize: 12, marginTop: 2 }}>score</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 1 }}>
+            <TribeEmblem clan={me.clan} size={20} />
+            <Text style={{ color: clanColor(viewer), fontSize: 13, fontWeight: "800", marginLeft: 4 }}>
+              {name("clan", me.clan)}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -514,15 +518,17 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
       )}
       <Map state={state} viewer={viewer} highlights={highlights} onTilePress={onTilePress} />
 
-      {/* selection card + action tray */}
+      {/* Polytopia-style selection card + circular action tray */}
       <View
         style={{
-          backgroundColor: "#223154f2",
+          backgroundColor: "#0e1a30f2",
+          borderTopWidth: 1,
+          borderTopColor: "#36589488",
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
           paddingHorizontal: 16,
-          paddingTop: 14,
-          paddingBottom: 18,
+          paddingTop: 12,
+          paddingBottom: 16,
           width: "100%",
           maxWidth: 640,
           alignSelf: "center",
@@ -531,43 +537,50 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         <View style={{ minHeight: 64 }}>
           {selected && seen && tileSel ? (
             <>
-              <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap" }}>
-                <Text style={{ color: UI.mist, fontSize: 17, fontWeight: "800", marginRight: 8 }}>
-                  {citySel ? citySel.name : name("terrain", tileSel.terrain)}
-                </Text>
-                <Text style={{ color: UI.muted, fontSize: 14 }}>
-                  {citySel
-                    ? `Level ${citySel.level}${citySel.capital ? " Capital" : ""} · ${citySel.pop}/${citySel.level + 1} population`
-                    : tileWords.join(", ")}
-                </Text>
-              </View>
-              {unitAtSel && (
-                <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
-                  <View
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: 5,
-                      backgroundColor: clanColor(unitAtSel.owner),
-                      marginRight: 6,
-                    }}
-                  />
-                  <Text style={{ color: UI.mist, fontSize: 14, fontWeight: "700" }}>
-                    {name("unit", unitAtSel.type)}
-                    {unitAtSel.carried ? ` carrying ${name("unit", unitAtSel.carried)}` : ""}
-                    {unitAtSel.veteran ? ", veteran" : ""}
-                  </Text>
-                  <HpBar hp={unitAtSel.hp} max={unitAtSel.maxHp} color={clanColor(unitAtSel.owner)} />
-                  <Text style={{ color: UI.muted, fontSize: 12, marginLeft: 6 }}>
-                    {Math.ceil(unitAtSel.hp)}/{unitAtSel.maxHp}
-                  </Text>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                {(unitAtSel || citySel) && (
+                  <View style={{ width: 44, height: 44, marginRight: 10, borderRadius: 10, backgroundColor: "#1c3158", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    {unitAtSel ? (
+                      <UnitArt type={unitAtSel.type} color={clanColor(unitAtSel.owner)} size={42} />
+                    ) : citySel ? (
+                      <CityArt color={clanColor(citySel.owner)} level={citySel.level} capital={citySel.capital} walls={citySel.walls} size={42} />
+                    ) : null}
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap" }}>
+                    <Text style={{ color: UI.mist, fontSize: 17, fontWeight: "800", marginRight: 8 }}>
+                      {unitAtSel ? name("unit", unitAtSel.type) : citySel ? citySel.name : name("terrain", tileSel.terrain)}
+                    </Text>
+                    <Text style={{ color: UI.muted, fontSize: 13 }}>
+                      {citySel
+                        ? `Lv ${citySel.level}${citySel.capital ? " Capital" : ""} · ${citySel.pop}/${citySel.level + 1} pop`
+                        : tileWords.join(", ")}
+                    </Text>
+                  </View>
+                  {unitAtSel && (
+                    <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, flexWrap: "wrap" }}>
+                      <HpBar hp={unitAtSel.hp} max={unitAtSel.maxHp} color={clanColor(unitAtSel.owner)} />
+                      <Text style={{ color: UI.mist, fontSize: 12, fontWeight: "700", marginLeft: 6 }}>
+                        {Math.ceil(unitAtSel.hp)}/{unitAtSel.maxHp} HP
+                      </Text>
+                      <Text style={{ color: UI.muted, fontSize: 11, marginLeft: 8 }}>
+                        {UNITS[unitAtSel.type].attack} ATK · {UNITS[unitAtSel.type].defence} DEF · {UNITS[unitAtSel.type].movement} MOV · {UNITS[unitAtSel.type].range} RNG
+                      </Text>
+                    </View>
+                  )}
                 </View>
-              )}
+              </View>
               {selActions.length > 0 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {selActions.map((a, i) => (
-                    <Button key={i} label={actionLabel(state, a)} onPress={() => act(a)} />
-                  ))}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+                  {selActions.map((a, i) => {
+                    const cost =
+                      a.type === "train" ? UNITS[a.unit]?.cost :
+                      a.type === "build" ? BUILDS[a.building]?.cost :
+                      a.type === "upgrade" ? UNITS[a.to]?.cost : 0;
+                    const label = cost && cost > 0 ? `${actionLabel(state, a)} (${cost}★)` : actionLabel(state, a);
+                    return <Button key={i} label={label} onPress={() => act(a)} />;
+                  })}
                 </ScrollView>
               )}
             </>
@@ -577,22 +590,41 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
             <Text style={{ color: UI.muted, fontSize: 14 }}>Watching the models play every tribe.</Text>
           ) : (
             <Text style={{ color: UI.muted, fontSize: 14, lineHeight: 20 }}>
-              Tap one of your units to see where it can go. Blue tiles are moves, red tiles are attacks.
+              Tap a unit or city to act. Blue tiles are moves, red tiles are attacks.
             </Text>
           )}
         </View>
-        <View style={{ flexDirection: "row" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
           <IconButton label="Back to the menu" testID="menu-button" onPress={leave}>
             <HomeIcon />
           </IconButton>
-          <IconButton label="Tech Tree" testID="tech-button" onPress={() => setTechOpen(true)}>
-            <BookIcon />
-          </IconButton>
+          <Pressable
+            testID="tech-button"
+            onPress={() => setTechOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Tech Tree"
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "#1d63b8",
+              borderWidth: 1,
+              borderColor: "#38bdf8",
+              paddingHorizontal: 14,
+              paddingVertical: 11,
+              borderRadius: 12,
+              marginRight: 8,
+              marginTop: 8,
+              opacity: pressed ? 0.8 : 1,
+            })}
+          >
+            <BookIcon size={20} ink="#ffffff" />
+            <Text style={{ color: "#ffffff", fontWeight: "800", fontSize: 14, marginLeft: 6 }}>Tech Tree</Text>
+          </Pressable>
           <Pulse on={nothingLeft} amount={0.03} period={1400} style={{ flexGrow: 1 }}>
             <Button
               grow
               kind="primary"
-              label={myTurn ? "End turn" : thinking ? `${thinking} is thinking${dots}` : `${seatName(state.current)} is moving${dots}`}
+              label={myTurn ? "End Turn" : thinking ? `${thinking} is thinking${dots}` : `${seatName(state.current)} is moving${dots}`}
               testID="end-turn"
               disabled={!myTurn || rewardActions.length > 0}
               onPress={() => {
