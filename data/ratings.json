@@ -1,58 +1,66 @@
 {
   "human:jakob": {
-    "rating": 1421.3,
+    "rating": 1406,
     "games": 2,
     "wins": 2,
     "updated": "2026-11-23T19:24:36.917Z",
-    "lo": 1277,
-    "hi": 1559
+    "lo": 1262,
+    "hi": 1563
   },
   "model:claude-sonnet-agent": {
-    "rating": 1230.6,
+    "rating": 1220.3,
     "games": 1,
     "wins": 1,
     "updated": "2026-11-23T17:31:38.740Z",
-    "lo": 1214,
-    "hi": 1310
+    "lo": 1208,
+    "hi": 1273
   },
   "model:greedy-hill-v1": {
-    "rating": 1330.6,
-    "games": 160,
-    "wins": 102,
-    "updated": "2026-11-23T19:04:44.805Z",
-    "lo": 1273,
-    "hi": 1425
+    "rating": 1279.3,
+    "games": 285,
+    "wins": 154,
+    "updated": "2026-11-23T19:44:22.603Z",
+    "lo": 1233,
+    "hi": 1357
   },
   "model:greedy-hill-v2": {
-    "rating": 1383.1,
-    "games": 121,
-    "wins": 89,
-    "updated": "2026-11-23T19:24:36.917Z",
-    "lo": 1302,
-    "hi": 1493
+    "rating": 1362.4,
+    "games": 252,
+    "wins": 167,
+    "updated": "2026-11-23T19:44:24.906Z",
+    "lo": 1312,
+    "hi": 1440
+  },
+  "model:greedy-hill-v3": {
+    "rating": 1402,
+    "games": 132,
+    "wins": 87,
+    "updated": "2026-11-23T19:44:24.906Z",
+    "lo": 1346,
+    "hi": 1484
   },
   "model:greedy-v1": {
-    "rating": 1284.9,
-    "games": 172,
-    "wins": 100,
-    "updated": "2026-11-23T19:09:28.833Z",
-    "lo": 1229,
-    "hi": 1381
+    "rating": 1221.9,
+    "games": 308,
+    "wins": 145,
+    "updated": "2026-11-23T19:44:24.906Z",
+    "lo": 1172,
+    "hi": 1297
   },
   "model:qwen3-coder-lmstudio": {
-    "rating": 824,
+    "rating": 737.6,
     "games": 13,
     "wins": 3,
     "updated": "2026-11-23T19:09:28.833Z",
-    "lo": 648,
-    "hi": 983
+    "lo": 549,
+    "hi": 931
   },
   "model:random-v1": {
-    "rating": 599.8,
-    "games": 132,
+    "rating": 483.2,
+    "games": 220,
     "wins": 1,
-    "updated": "2026-11-23T19:07:53.321Z",
-    "lo": 455,
-    "hi": 684
+    "updated": "2026-11-23T19:44:05.720Z",
+    "lo": 316,
+    "hi": 577
   }
 }
