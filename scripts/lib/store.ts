@@ -2,13 +2,14 @@
  * File storage for the arena (Node only). Everything lives in the repo:
  *   data/games/<YYYY-MM-DD>/<id>.json.gz   one gzipped GameRecord per game
  *   data/profiles.json                      human player profiles
- *   data/ratings.json                       Elo per "model:<id>" / "human:<profileId>"
+ *   data/ratings.json                       Elo per "model:<id>" / "human:<profileId>" (fitted, see logic/arena/elo.ts)
+ *   data/results.jsonl                      one line per rated game: who played and how they placed
  *   models/<id>/model.json                  model specs
  */
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
-import { applyGame, rebuild, type Ratings } from "../../logic/arena/elo";
+import { START_RATING, rate, resultRow, type Ratings, type ResultRow } from "../../logic/arena/elo";
 import type { GameRecord } from "../../logic/arena/record";
 import type { ModelSpec } from "../../logic/agents/types";
 
@@ -18,6 +19,7 @@ export const GAMES = path.join(DATA, "games");
 export const MODELS = path.join(ROOT, "models");
 const PROFILES = path.join(DATA, "profiles.json");
 const RATINGS = path.join(DATA, "ratings.json");
+const RESULTS = path.join(DATA, "results.jsonl");
 
 export type Profile = { id: string; name: string; created: string };
 
@@ -69,7 +71,24 @@ export function gamePath(rec: GameRecord): string {
   return path.join(GAMES, rec.startedAt.slice(0, 10), `${rec.id}.json.gz`);
 }
 
-/** save a record; if it is finished, update the Elo table. Returns the rating change per seat. */
+/** the rated games, oldest first; built from data/games/ the first time */
+export function readResults(): ResultRow[] {
+  if (!fs.existsSync(RESULTS)) return writeResults(listGameFiles().map(readGame).map(resultRow).filter((r): r is ResultRow => r !== null));
+  return fs
+    .readFileSync(RESULTS, "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as ResultRow);
+}
+
+function writeResults(rows: ResultRow[]): ResultRow[] {
+  const sorted = [...rows].sort((a, b) => a.endedAt.localeCompare(b.endedAt));
+  fs.mkdirSync(DATA, { recursive: true });
+  fs.writeFileSync(RESULTS, sorted.map((r) => JSON.stringify(r)).join("\n") + (sorted.length ? "\n" : ""));
+  return sorted;
+}
+
+/** save a record; if it just finished, add it to the results and refit the ratings. Returns the rating change per seat. */
 export function saveGame(rec: GameRecord): { file: string; deltas: number[]; ratings: Ratings } {
   const file = gamePath(rec);
   // a game is rated once: autosaves and re-saves of an already finished game do not touch Elo
@@ -85,9 +104,14 @@ export function saveGame(rec: GameRecord): { file: string; deltas: number[]; rat
   fs.writeFileSync(file, zlib.gzipSync(JSON.stringify(rec)));
   const ratings = readRatings();
   if (ratedBefore || !rec.result?.over) return { file: path.relative(ROOT, file), deltas: rec.seats.map(() => 0), ratings };
-  const deltas = applyGame(ratings, rec);
-  writeJson(RATINGS, ratings);
-  return { file: path.relative(ROOT, file), deltas, ratings };
+  const row = resultRow(rec)!;
+  const rows = readResults().filter((r) => r.id !== row.id);
+  rows.push(row);
+  writeResults(rows);
+  const next = rate(rows);
+  writeJson(RATINGS, next);
+  const deltas = row.keys.map((k) => Math.round(((next[k]?.rating ?? START_RATING) - (ratings[k]?.rating ?? START_RATING)) * 10) / 10);
+  return { file: path.relative(ROOT, file), deltas, ratings: next };
 }
 
 export function readGame(file: string): GameRecord {
@@ -105,9 +129,10 @@ export function listGameFiles(): string[] {
   return out;
 }
 
-/** recompute data/ratings.json from every recorded game */
+/** rebuild data/results.jsonl from every recorded game and refit data/ratings.json */
 export function rebuildRatings(): Ratings {
-  const ratings = rebuild(listGameFiles().map(readGame));
+  const rows = writeResults(listGameFiles().map(readGame).map(resultRow).filter((r): r is ResultRow => r !== null));
+  const ratings = rate(rows);
   writeJson(RATINGS, ratings);
   return ratings;
 }

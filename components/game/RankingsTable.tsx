@@ -5,7 +5,7 @@ import { UI } from "@/components/game/theme";
 import { START_RATING, type Ratings } from "@/logic/arena/elo";
 import type { ModelSpec } from "@/logic/agents/types";
 
-type Row = { key: string; name: string; kind: string; rating: number; games: number; wins: number };
+type Row = { key: string; name: string; kind: string; rating: number; games: number; wins: number; lo?: number; hi?: number };
 
 /** the Elo leaderboard: every model and every player profile that has finished a rated game */
 export default function RankingsTable() {
@@ -25,7 +25,7 @@ export default function RankingsTable() {
         };
         setRows(
           Object.entries(ratings)
-            .map(([key, r]) => ({ key, ...label(key), rating: r.rating, games: r.games, wins: r.wins }))
+            .map(([key, r]) => ({ key, ...label(key), rating: r.rating, games: r.games, wins: r.wins, lo: r.lo, hi: r.hi }))
             .sort((a, b) => b.rating - a.rating),
         );
       })
@@ -39,7 +39,7 @@ export default function RankingsTable() {
     <View>
       <Text style={{ color: UI.mist, fontSize: 17, fontWeight: "800", marginTop: 14 }}>Rankings</Text>
       <Text style={{ color: UI.muted, fontSize: 13, lineHeight: 18, marginTop: 2 }}>
-        Elo from every finished game. Everyone starts at {START_RATING}; beating a stronger rival gains more.
+        Ratings fitted to every finished game at once, on the Elo scale (a 200-point gap means the stronger side wins about 3 games in 4). Below each rating: the range it lies in with 95% certainty. Few games, wide range; new players start near {START_RATING}.
       </Text>
       {error && (
         <Text style={{ color: UI.coral, fontSize: 14, marginTop: 10 }}>
@@ -55,7 +55,7 @@ export default function RankingsTable() {
           <View style={{ flexDirection: "row", paddingBottom: 6 }}>
             <Text style={[head, { width: 26, textAlign: "left" }]}>#</Text>
             <Text style={[head, { flex: 1, textAlign: "left" }]}>Name</Text>
-            <Text style={[head, { width: 54 }]}>Elo</Text>
+            <Text style={[head, { width: 70 }]}>Elo</Text>
             <Text style={[head, { width: 48 }]}>Games</Text>
             <Text style={[head, { width: 44 }]}>Wins</Text>
             <Text style={[head, { width: 46 }]}>Win %</Text>
@@ -69,7 +69,14 @@ export default function RankingsTable() {
                 </Text>
                 <Text style={{ color: UI.muted, fontSize: 11 }}>{r.kind}</Text>
               </View>
-              <Text style={[cell, { width: 54, fontSize: 16, fontWeight: "800" }]}>{Math.round(r.rating)}</Text>
+              <View style={{ width: 70, alignItems: "flex-end" }}>
+                <Text style={[cell, { fontSize: 16, fontWeight: "800" }]}>{Math.round(r.rating)}</Text>
+                {r.lo !== undefined && (
+                  <Text style={{ color: UI.muted, fontSize: 10 }}>
+                    {r.lo}–{r.hi}
+                  </Text>
+                )}
+              </View>
               <Text style={[cell, { width: 48 }]}>{r.games}</Text>
               <Text style={[cell, { width: 44 }]}>{r.wins}</Text>
               <Text style={[cell, { width: 46, color: UI.muted }]}>{r.games ? Math.round((100 * r.wins) / r.games) : 0}</Text>

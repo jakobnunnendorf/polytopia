@@ -40,14 +40,20 @@ The engine is deterministic, so `replayStates(record)` rebuilds the exact state 
 
 The app autosaves every round. That is what powers **Resume game**. The **Analyse** page shows the Elo rankings, replays finished games move by move, and watches games in progress live (mover's view, any player's view, or the whole map).
 
-## Elo (`data/ratings.json`)
+## Elo (`data/ratings.json`, `data/results.jsonl`)
 
-Each finished game is rated once:
-- Seats are ranked winner first, then by score.
-- Every pair of seats counts as one match.
-- K = 32 / (players − 1).
+Ratings are a Bradley–Terry fit, the method behind LMArena's leaderboard and
+BayesElo in computer chess (`logic/arena/elo.ts`):
+- Every finished game adds one line to `data/results.jsonl`: who sat where and how they placed (winner first, then by score).
+- Every pair of seats in a game counts as one match, weighted 1/(players − 1); equal placing is a draw.
+- The ratings are the strengths that best explain all games at once, so the order games were played in does not matter. (The old step-by-step Elo, K = 32, let recent games dominate: greedy-v1 sat above greedy-hill-v1 despite losing to it 36–44.)
+- Prior: everyone also drew one virtual game against a fixed 1200 player, so players with a single game stay near 1200.
+- `lo`–`hi`: the 95% interval from 200 refits on games resampled with replacement. Overlapping intervals mean the order between those two is not settled yet.
+- Elo scale: a 200-point gap means the stronger side wins about 3 games in 4.
 
-Keys are `model:<id>` and `human:<profileId>`. Unfinished games and a model playing itself don't count.
+The fit reruns after every finished game (about 0.35 s for 300 games). `npm run elo -- --rebuild`
+rebuilds the results file from all recordings and refits. Keys are `model:<id>` and
+`human:<profileId>`. Unfinished games and a model playing itself don't count.
 
 ## Commands
 

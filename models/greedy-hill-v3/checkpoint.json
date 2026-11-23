@@ -1,0 +1,37 @@
+{
+  "round": 1300,
+  "accepted": 22,
+  "seed": 69000,
+  "weights": {
+    "capture": 23.66,
+    "examine": 147.84,
+    "promote": 113.69,
+    "harvestStarfish": 79.66,
+    "monument": 70,
+    "kill": 444.78,
+    "hit": 1.88,
+    "special": 17.76,
+    "growBase": 132.05,
+    "growPerPop": 1.94,
+    "otherBuild": 8,
+    "richAt": 4,
+    "research": 33.86,
+    "train": 49.97,
+    "unitsPerCity": 3,
+    "move": 4.75,
+    "recover": 4.28,
+    "healOthers": 17.19,
+    "upgrade": 6,
+    "noise": 1,
+    "rewards": {
+      "workshop": 5,
+      "explorer": 3,
+      "resources": 5,
+      "cityWall": 2,
+      "populationGrowth": 5,
+      "borderGrowth": 3,
+      "superUnit": 6,
+      "park": 4
+    }
+  }
+}
