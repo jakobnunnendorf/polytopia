@@ -113,6 +113,13 @@ function canBuild(s: GameState, p: number, b: string, x: number, y: number): boo
     return (land(0, -1) && land(0, 1)) || (land(-1, 0) && land(1, 0));
   }
   if (!own) return false;
+  // Aquarion flooded tiles (rules doc, Tribes > Aquarion): Flood, Landfill, Fertilize, ports on flooded land
+  if (b === "flood" || b === "landfill") {
+    const dryLand = !isWater(t) && t.terrain !== "mountain";
+    return dryLand && !t.building && (b === "flood" ? !t.flooded : !!t.flooded);
+  }
+  if (b === "fertilize") return t.terrain === "field" && !!t.flooded && !t.building && !t.resource;
+  if (b === "port" && t.flooded && !isWater(t)) return t.terrain !== "mountain" && !t.building && !t.resource;
   if (def.kind === "destroy") return t.building !== null;
   if (t.building) return false;
   if (!def.terrain.includes(t.terrain as never)) return false;
@@ -425,10 +432,48 @@ function doMove(s: GameState, u: Unit, to: Coord) {
   else if (kind === "disembark") disembark(u);
   if (has(u, "stomp")) stomp(s, u);
   if (has(u, "autoFreeze")) freezeSurrounding(s, u);
+  aquarionAfterMove(s, u);
   // Cymanti Fungi poisons enemy units stepping onto it
   const destTile = tileAt(s, u.x, u.y);
   if (destTile.building === "fungi" && territoryOwner(s, destTile) !== u.owner) {
     u.poisoned = true;
+  }
+}
+
+/* ---------- Aquarion: flooding, Bubbles, Tentacles ---------- */
+
+/** flood a land tile (fields and forests; mountains and water stay as they are) */
+function floodTile(s: GameState, x: number, y: number) {
+  const t = tileAt(s, x, y);
+  if (!isWater(t) && t.terrain !== "mountain") t.flooded = true;
+}
+
+/**
+ * After a move: Auto Flood floods the tile moved onto; an Aquarion amphibious
+ * unit with Waterways gets a Bubble (+1 movement) on a flooded tile and loses
+ * it on dry land; Tentacles hit enemies next to a moving Jelly, and a unit
+ * that moves next to an enemy Jelly. Tentacle damage is not published; the
+ * engine uses the Jelly's normal attack damage, without retaliation.
+ */
+function aquarionAfterMove(s: GameState, u: Unit) {
+  if (!s.units.includes(u)) return;
+  if (has(u, "autoFlood")) floodTile(s, u.x, u.y);
+  const t = tileAt(s, u.x, u.y);
+  if (has(u, "amphibious")) {
+    if (!isWater(t) && t.flooded) {
+      if (s.players[u.owner].clan === "aquarion" && s.players[u.owner].techs.includes("roads")) u.bubble = true;
+    } else if (!isWater(t)) u.bubble = false;
+  }
+  if (has(u, "tentacles") && !u.frozen) {
+    for (const e of s.units.slice()) {
+      if (e.owner === u.owner || dist(e, u) !== 1) continue;
+      damage(s, e, computeDamageRounded(s, u, e).damage, u);
+    }
+  }
+  for (const j of s.units.slice()) {
+    if (!s.units.includes(u)) break;
+    if (j.owner === u.owner || dist(j, u) !== 1 || j.frozen || !has(j, "tentacles")) continue;
+    damage(s, u, computeDamageRounded(s, j, u).damage, j);
   }
 }
 
@@ -519,6 +564,9 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
   const from = { x: target.x, y: target.y };
   const prevPos = { x: u.x, y: u.y };
   const killed = damage(s, target, r.damage, u);
+  // Aquarion: Drench floods the attacked tile; being attacked pops a Bubble
+  if (has(u, "drench")) floodTile(s, from.x, from.y);
+  target.bubble = false;
   // special on-hit effects: freeze (Ice Archer) & poison (Phychi, Exida, Kiton)
   if (!killed && has(u, "freeze")) target.frozen = true;
   if (!killed && has(u, "poison")) target.poisoned = true;
@@ -575,6 +623,12 @@ function doCapture(s: GameState, u: Unit) {
   u.hidden = false;
   if (t.village) {
     const c = newCity(s, u, p);
+    if (t.lostCity) {
+      // Aquarion Lost City: a level-3 city with a wall
+      c.level = 3;
+      c.walls = true;
+      t.lostCity = false;
+    }
     claimTerritory(s, c, 1);
     explore(s, p, c, 1);
     if (!has(u, "independent")) u.homeCity = c.id;
@@ -619,6 +673,7 @@ function doExamine(s: GameState, u: Unit) {
   if (capitalOf(s, p)) options.push("population");
   const fogNear = around(s.mapSize, u, 2).some((q) => pl.explored[idx(s.mapSize, q.x, q.y)] !== 1);
   if (t.terrain !== "mountain" && fogNear) options.push("explorer");
+  if (pl.clan === "aquarion" && t.terrain === "ocean") options.push("lostCity");
   const pick = withRng(s, (r) => r.pick(options));
   switch (pick) {
     case "resources":
@@ -634,6 +689,9 @@ function doExamine(s: GameState, u: Unit) {
       break;
     case "explorer":
       runExplorer(s, p, u);
+      break;
+    case "lostCity":
+      raiseLostCity(s, u);
       break;
     case "newFriends": {
       const water = isWater(t);
@@ -657,6 +715,29 @@ function doExamine(s: GameState, u: Unit) {
     }
   }
   log(s, `ruin: ${pick}`);
+}
+
+/**
+ * Aquarion Lost City (rules doc, Ruins): the ocean ruin becomes a city with 4
+ * shallow-water tiles around it. It stands as a village any tribe can capture;
+ * capturing it gives a level-3 city with a wall (see doCapture).
+ */
+function raiseLostCity(s: GameState, u: Unit) {
+  const at = { x: u.x, y: u.y };
+  const t = tileAt(s, at.x, at.y);
+  t.terrain = "field";
+  t.resource = null;
+  t.village = true;
+  t.lostCity = true;
+  for (const d of [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }]) {
+    const x = at.x + d.x;
+    const y = at.y + d.y;
+    if (x < 0 || y < 0 || x >= s.mapSize || y >= s.mapSize) continue;
+    const q = tileAt(s, x, y);
+    if (q.terrain === "ocean") q.terrain = "water";
+  }
+  // a water-only unit can't stand on the new land
+  if (UNITS[u.type].naval && !has(u, "carry")) pushUnit(s, u);
 }
 
 /** Explorer walker (§5.12): 12 steps toward the most unexplored surroundings */
@@ -719,8 +800,9 @@ function doInfiltrate(s: GameState, u: Unit, c: City) {
   for (const sp of spots) {
     if (made >= count) break;
     if (occupant(s, sp.x, sp.y)) continue;
-    const nu = makeUnit(s, isWater(sp.t) ? "pirate" : "dagger", p, sp, null);
-    if (isWater(sp.t)) nu.carried = "dagger";
+    const aqua = s.players[p].clan === "aquarion"; // Scuba: amphibious Mermaid Daggers
+    const nu = makeUnit(s, aqua ? "mermaidDagger" : isWater(sp.t) ? "pirate" : "dagger", p, sp, null);
+    if (isWater(sp.t) && !aqua) nu.carried = "dagger";
     made++;
   }
   log(s, `infiltrated ${c.name}`);
@@ -737,6 +819,11 @@ function doBuild(s: GameState, p: number, b: string, at: Coord) {
   const city = cityById(s, t.territory);
   switch (def.kind) {
     case "harvest":
+      if (b === "flood" || b === "landfill" || b === "fertilize") {
+        if (b === "fertilize") t.resource = "crop";
+        else t.flooded = b === "flood";
+        break;
+      }
       if (b === "enchantAnimal") {
         t.resource = null;
         const occ = occupant(s, at.x, at.y);

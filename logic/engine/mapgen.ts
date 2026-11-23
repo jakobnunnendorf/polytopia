@@ -124,8 +124,14 @@ export const EXTRA_ISLAND_VILLAGES: Record<number, number> = { 11: 0, 14: 1, 16:
 export const EARLY_VILLAGE_COEF: Partial<Record<MapType, number>> = { lakes: 0.3, archipelago: 0.3, waterworld: 0.1 };
 
 export type MapOptions = {
-  /** per player: the capital gets 2 water tiles with fish on Drylands (Kickoo, Aquarion) */
+  /** per player: the capital gets 2 water tiles with fish next to it (Kickoo, Aquarion), on every map type */
   waterStart?: boolean[];
+  /** per player: the land of its area is flooded (Aquarion) */
+  flooded?: boolean[];
+  /** per player: spores instead of crops in its area, at least 2 next to the capital (Cymanti) */
+  spores?: boolean[];
+  /** Aqua Crops on shallow water (only when an Aquarion plays; only Aquarion sees them) */
+  aquaCrops?: boolean;
 };
 
 export function generateMap(
@@ -222,7 +228,40 @@ export function generateMap(
     // reserve the forced land first so the water share still comes out exact
     for (const i of forcedLand()) height[i] += 10;
     const waterCount = Math.round(wetness * n * n);
-    if (waterCount > 0) {
+    const waterMods = capitals.map((_, k) => mods[k]?.water ?? 1);
+    if (!capitalsFromVillages && waterMods.some((w) => w !== 1)) {
+      // tribe water multipliers: each capital's area gets wetness × its multiplier,
+      // scaled down together if the map total would leave the map type's range
+      const areaAt = (i: number) => {
+        let best = 0;
+        for (let k = 1; k < capitals.length; k++)
+          if (dist(capitals[k], allCoords[i]) < dist(capitals[best], allCoords[i])) best = k;
+        return best;
+      };
+      const areas = capitals.map(() => [] as number[]);
+      for (let i = 0; i < n * n; i++) areas[areaAt(i)].push(i);
+      const want = (c: number) => areas.map((a, k) => Math.min(a.length, Math.round(c * wetness * waterMods[k] * a.length)));
+      const sum = (c: number) => want(c).reduce((x, y) => x + y, 0);
+      const lo = Math.round(wLo * n * n);
+      const hi = Math.round(wHi * n * n);
+      let c = 1;
+      if (sum(1) > hi || sum(1) < lo) {
+        const target = sum(1) > hi ? hi : lo;
+        let a = sum(1) > hi ? 0 : 1;
+        let b = sum(1) > hi ? 1 : 1 / Math.max(wetness, 1e-6);
+        for (let it = 0; it < 40; it++) {
+          const mid = (a + b) / 2;
+          if (sum(mid) > target) b = mid;
+          else a = mid;
+        }
+        c = a;
+      }
+      const counts = want(c);
+      areas.forEach((a, k) => {
+        const order = a.map((i) => [height[i], i] as const).sort((x, y) => x[0] - y[0]);
+        for (let j = 0; j < counts[k]; j++) land[order[j][1]] = false;
+      });
+    } else if (waterCount > 0) {
       const order = height.map((h, i) => [h, i] as const).sort((a, b) => a[0] - b[0]);
       for (let k = 0; k < waterCount; k++) land[order[k][1]] = false;
     }
@@ -306,9 +345,9 @@ export function generateMap(
       tiles[i].terrain = k < mountains ? "mountain" : k < mountains + forests ? "forest" : "field";
     });
   }
-  // Drylands: Kickoo and Aquarion capitals still get 2 water tiles with fish
+  // Kickoo and Aquarion capitals get 2 water tiles with fish next to them (even on Drylands)
   const forcedFish = new Set<number>();
-  if (mapType === "drylands") {
+  {
     capitals.forEach((c, p) => {
       if (!opts.waterStart?.[p]) return;
       const ring = shuffle(rng, around(n, c, 1)).map((q) => idx(n, q.x, q.y));
@@ -329,6 +368,13 @@ export function generateMap(
     tiles[i].terrain = nearLand ? "water" : "ocean";
   }
   for (const v of villages) tiles[idx(n, v.x, v.y)].village = true;
+  // Aquarion: the land of its area is flooded (fields and forests; not settlements)
+  if (opts.flooded?.some(Boolean)) {
+    for (let i = 0; i < tiles.length; i++) {
+      if (!land[i] || settlement.has(i) || tiles[i].terrain === "mountain") continue;
+      if (opts.flooded[areaOf(i)]) tiles[i].flooded = true;
+    }
+  }
 
   // 5. resources only within 2 tiles of a city or village
   const nearest = (p: Coord) => Math.min(...centres().map((c) => dist(c, p)));
@@ -350,7 +396,7 @@ export function generateMap(
       const fruit = (r.fruit * m("fruit")) / share;
       const crop = (r.crop * m("crop")) / share;
       if (roll < fruit) t.resource = "fruit";
-      else if (roll < fruit + crop) t.resource = "crop";
+      else if (roll < fruit + crop) t.resource = opts.spores?.[a] ? "spores" : "crop";
     } else if (t.terrain === "forest") {
       if (roll < (r.animal * m("animal")) / LAND_SHARE.forest) t.resource = "animal";
     } else if (t.terrain === "mountain") {
@@ -358,8 +404,24 @@ export function generateMap(
     } else {
       // fish on half the shallow water, and on ocean too since 2.8
       if (roll < FISH_RATE * m("fish")) t.resource = "fish";
+      // Aqua Crops on shallow water without fish, at the crop rate (engine choice)
+      else if (opts.aquaCrops && t.terrain === "water" && rng.next() < r.crop / LAND_SHARE.field) t.resource = "aquaCrop";
     }
   }
+  // Cymanti: at least 2 spores next to the capital
+  capitals.forEach((c, p) => {
+    if (!opts.spores?.[p]) return;
+    const ring = around(n, c, 1).map((q) => idx(n, q.x, q.y)).filter((i) => land[i] && !settlement.has(i));
+    let have = ring.filter((i) => tiles[i].resource === "spores").length;
+    const rank = (i: number) => (tiles[i].terrain === "field" ? 0 : 2) + (tiles[i].resource ? 1 : 0);
+    for (const i of ring.slice().sort((x, y) => rank(x) - rank(y))) {
+      if (have >= 2) break;
+      if (tiles[i].resource === "spores") continue;
+      tiles[i].terrain = "field";
+      tiles[i].resource = "spores";
+      have++;
+    }
+  });
 
   // lighthouses in the four corners (§6.4)
   const lighthouses: Coord[] = [

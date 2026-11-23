@@ -8,7 +8,17 @@
 
 export type Terrain = "field" | "forest" | "mountain" | "water" | "ocean";
 
-export type ResourceId = "fruit" | "crop" | "animal" | "fish" | "metal" | "starfish";
+export type ResourceId =
+  | "fruit"
+  | "crop"
+  | "animal"
+  | "fish"
+  | "metal"
+  | "starfish"
+  /** Aquarion: crop on water, seen only by Aquarion (Aqua Farm) */
+  | "aquaCrop"
+  /** Cymanti: replaces crops in Cymanti areas */
+  | "spores";
 
 export type Coord = { x: number; y: number };
 
@@ -34,6 +44,10 @@ export type Tile = {
   ice?: boolean;
   /** Cymanti: walkable algae on water */
   algae?: boolean;
+  /** Aquarion: flooded land tile (land and water units move on it; ships stop on it) */
+  flooded?: boolean;
+  /** Aquarion Lost City: this village becomes a level-3 walled city when captured */
+  lostCity?: boolean;
 };
 
 export type Unit = {
@@ -71,6 +85,8 @@ export type Unit = {
   poisoned?: boolean;
   /** Cymanti: boosted by Shaman (+0.5 atk, +1 mov) */
   boosted?: boolean;
+  /** Aquarion Bubbles: +1 movement after entering a flooded tile; lost when attacked or on dry land */
+  bubble?: boolean;
   /** Elyrion: turns lived (for Dragon Egg -> Baby Dragon -> Fire Dragon) */
   age?: number;
 };
