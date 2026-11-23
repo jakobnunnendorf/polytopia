@@ -6,12 +6,14 @@
  */
 import { TECHS, UNITS } from "./data";
 import { canSee } from "./movement";
+import { hasOffer, relation } from "./diplomacy";
 import { cityById, income, resourceVisible, scoreOf, techCost } from "./state";
 import type { GameState } from "./types";
 
 const TERRAINS = ["field", "forest", "mountain", "water", "ocean"] as const;
 const RESOURCES = ["fruit", "crop", "animal", "fish", "metal", "starfish"] as const;
 export const UNIT_TYPES = Object.keys(UNITS);
+const RELATION_CODE = { self: 0, peace: 1, neutral: 0, war: -1, hostile: -2 } as const;
 
 export const CHANNELS = [
   "explored",
@@ -48,6 +50,10 @@ export type Observation = {
     techs: number[];
     techCosts: number[];
     opponentsAlive: number;
+    /** per player id: 1 peace, 0 neutral or self, -1 war, -2 hostile (cease-fire after a broken treaty) */
+    relations: number[];
+    /** per player id: 1 if that player's peace offer to p awaits an answer */
+    peaceOffers: number[];
   };
 };
 
@@ -102,6 +108,8 @@ export function observe(s: GameState, p: number): Observation {
       techs: TECHS.map((t) => (pl.techs.includes(t.id) ? 1 : 0)),
       techCosts: TECHS.map((t) => techCost(s, p, t.id)),
       opponentsAlive: s.players.filter((o) => o.alive && o.id !== p).length,
+      relations: s.players.map((o) => RELATION_CODE[relation(s, p, o.id)]),
+      peaceOffers: s.players.map((o) => (hasOffer(s, o.id, p) ? 1 : 0)),
     },
   };
 }

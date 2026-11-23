@@ -9,6 +9,8 @@ import { computeDamageRounded } from "./combat";
 import { BUILDS, TECH_BY_ID, UNITS } from "./data";
 import { dist, idx } from "./grid";
 import { reachable } from "./movement";
+import { atPeace } from "./diplomacy";
+import { opinionOf } from "./opinion";
 import { capitalOf, cityById, techCost } from "./state";
 import type { Action, Coord, GameState, Unit } from "./types";
 
@@ -103,10 +105,11 @@ function goal(s: GameState, u: Unit): Coord | null {
     const c = { x: i % n, y: Math.floor(i / n) };
     if (t.village) consider(c, 0);
     if (t.ruin) consider(c, 1);
-    if (t.cityId !== null && cityById(s, t.cityId)?.owner !== u.owner) consider(c, 1);
+    const cityOwner = t.cityId !== null ? cityById(s, t.cityId)?.owner : undefined;
+    if (cityOwner !== undefined && cityOwner !== u.owner && !atPeace(s, u.owner, cityOwner)) consider(c, 1);
   });
   for (const e of s.units) {
-    if (e.owner !== u.owner && pl.explored[idx(n, e.x, e.y)] === 1) consider(e, 2);
+    if (e.owner !== u.owner && !atPeace(s, u.owner, e.owner) && pl.explored[idx(n, e.x, e.y)] === 1) consider(e, 2);
   }
   if (best) return best;
   // frontier: an explored tile next to fog
@@ -186,6 +189,16 @@ export function scoreAction(s: GameState, a: Action, w: GreedyWeights = DEFAULT_
     }
     case "upgrade":
       return pl.stars > 20 ? w.upgrade : -1;
+    // diplomacy (rules doc, What bots think of you): accept and offer peace only at a great
+    // opinion; answer every offer first; never break a treaty (not found in any source)
+    case "acceptPeace":
+      return opinionOf(s, p, a.player) === "great" ? 1000 : -1;
+    case "declinePeace":
+      return opinionOf(s, p, a.player) === "great" ? -1 : 1000;
+    case "offerPeace":
+      return opinionOf(s, p, a.player) === "great" ? 50 : -1;
+    case "breakPeace":
+      return -1;
     default:
       return -1;
   }

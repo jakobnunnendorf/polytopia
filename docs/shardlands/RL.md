@@ -53,6 +53,7 @@ Episode end: `s.over === true`; `s.winner` is the winning player id
 { type: "infiltrate", unitId, cityId }
 { type: "upgrade", unitId, to }            // raft -> scout | rammer | bomber
 { type: "reward", cityId, reward }         // level-up choice
+{ type: "offerPeace" | "acceptPeace" | "declinePeace" | "breakPeace", player }  // diplomacy (logic/engine/diplomacy.ts)
 ```
 
 The action set is variable-sized and state-dependent. Two common ways to feed it
@@ -81,7 +82,7 @@ to a policy network:
   - own/enemy city level
   - own/enemy unit, HP fraction, can-act
   - unit type (one-hot)
-- `scalars`: turn, max turns, stars, income, score, cities, owned techs (25 flags), tech costs (25), opponents alive.
+- `scalars`: turn, max turns, stars, income, score, cities, owned techs (25 flags), tech costs (25), opponents alive, relations per player (1 peace, 0 neutral/self, -1 war, -2 hostile), pending peace offers to you per player.
 
 Unexplored tiles are zero except for the `explored` plane. Hidden enemy units
 (cloaks) appear only when they are adjacent to one of `p`'s units. This makes

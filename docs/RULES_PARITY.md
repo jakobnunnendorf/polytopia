@@ -43,6 +43,28 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 - Ruin rewards: an even draw among the eligible rewards.
 - A unit on a mountain sees 5×5.
 - No star cap, no unit upkeep.
+- War: an attack (or conversion) either way in this turn number or the
+  previous one. Splash, stomp and infiltration don't start a war.
+- Hostile: shown during the cease-fire after a broken treaty; neutral or war
+  after it.
+- Peace offers: one pending offer per sender and receiver; an offer the
+  receiver doesn't answer on its turn lapses. Offering is allowed at war and
+  during a cease-fire.
+- Peace partners: their units don't besiege each other's cities, can be
+  passed through (not stopped on), and splash and stomp damage skip them.
+  Polaris freezing, Cymanti explosions and Fungi poison are not changed here.
+- A unit stopped by a hidden enemy ends on the last free tile of its planned
+  path before that tile; its move is spent.
+- Daggers: city, then forest or mountain (mountain only with Climbing), then
+  other land in the city's borders, then water as Pirates.
+- Bot opinions: each factor of the doc's table counts +1 or -1 (horrible ≤ -3,
+  poor -2..-1, indifferent 0, decent 1..2, great ≥ 3). Peaceful = no attack on
+  the bot for 3 turns, Violent otherwise; Threatening = a unit inside or next
+  to the bot's land; Annoying on Hard and Crazy; Charming by a fixed roll per
+  game (50/30/15/5% for Easy/Normal/Hard/Crazy); Dominating = at least half of
+  all cities (4 or more cities on the map); Brave = at war with the
+  highest-scoring other tribe. Bots accept and send peace offers only at
+  great and never break a treaty.
 
 ## Kept on purpose
 

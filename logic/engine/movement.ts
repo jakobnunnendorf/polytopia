@@ -8,6 +8,7 @@
  */
 import { UNITS } from "./data";
 import { around, idx, inBounds, isWater, tileAt } from "./grid";
+import { atPeace, friendly } from "./diplomacy";
 import type { Coord, GameState, Tile, Unit } from "./types";
 
 export const has = (u: Unit, skill: string) => (UNITS[u.type].skills as string[]).includes(skill);
@@ -24,21 +25,24 @@ export function unitAt(s: GameState, x: number, y: number): Unit | undefined {
   return s.units.find((u) => u.x === x && u.y === y);
 }
 
-/** can `player` see unit `u` (explored tile, and not hidden unless adjacent to one of player's units) */
+/**
+ * can `player` see unit `u` (explored tile, and not hidden unless adjacent to one of player's units;
+ * peace partners see each other's Cloaks)
+ */
 export function canSee(s: GameState, player: number, u: Unit): boolean {
   if (u.owner === player) return true;
   if (s.players[player].explored[idx(s.mapSize, u.x, u.y)] !== 1) return false;
-  if (!u.hidden) return true;
+  if (!u.hidden || atPeace(s, player, u.owner)) return true;
   return s.units.some(
     (o) => o.owner === player && Math.max(Math.abs(o.x - u.x), Math.abs(o.y - u.y)) <= 1,
   );
 }
 
-/** road-network tile for a player (§4.4): road, bridge, village, city; not in enemy territory */
+/** road-network tile for a player (§4.4): road, bridge, village, city; in own, neutral or allied territory */
 function roadNode(s: GameState, t: Tile, player: number): boolean {
   if (!(t.road || t.building === "bridge" || t.village || t.cityId !== null)) return false;
   const o = territoryOwner(s, t);
-  return o === null || o === player;
+  return o === null || friendly(s, player, o);
 }
 
 export type StepKind = "normal" | "embark" | "disembark";
@@ -67,7 +71,8 @@ export function enterKind(s: GameState, u: Unit, t: Tile): StepKind | null {
       if (t.terrain === "ocean" && !techOf(s, p, "sailing")) return null;
       return "normal";
     }
-    if (t.building === "port" && territoryOwner(s, t) === p && techOf(s, p, "fishing")) return "embark";
+    // land units board at their own port or a peace partner's port
+    if (t.building === "port" && friendly(s, p, territoryOwner(s, t)) && techOf(s, p, "fishing")) return "embark";
     return null;
   }
   if (t.terrain === "mountain" && !techOf(s, p, "climbing")) return null;
@@ -78,7 +83,32 @@ export type MoveTarget = Coord & { kind: StepKind };
 
 /** All tiles unit u can end its move on this turn. */
 export function reachable(s: GameState, u: Unit): MoveTarget[] {
-  if (u.frozen) return [];
+  return search(s, u).targets;
+}
+
+/**
+ * The path unit u takes to `to` (tiles after its start, ending at `to`), as the
+ * mover plans it: hidden enemies it cannot see count as empty tiles, so the
+ * planned path may run into one (rules doc, Cloak: the mover is stopped).
+ */
+export function pathTo(s: GameState, u: Unit, to: Coord): Coord[] {
+  const { parent } = search(s, u);
+  const n = s.mapSize;
+  const start = idx(n, u.x, u.y);
+  const out: Coord[] = [];
+  let cur = idx(n, to.x, to.y);
+  for (let guard = 0; cur !== start && guard < n * n; guard++) {
+    out.push({ x: cur % n, y: Math.floor(cur / n) });
+    const p = parent.get(cur);
+    if (p === undefined) return [to];
+    cur = p;
+  }
+  return out.reverse();
+}
+
+function search(s: GameState, u: Unit): { targets: MoveTarget[]; parent: Map<number, number> } {
+  const parent = new Map<number, number>();
+  if (u.frozen) return { targets: [], parent };
   const n = s.mapSize;
   const explored = s.players[u.owner].explored;
   const rawMov = UNITS[u.type].movement + (u.boosted ? 1 : 0) - (u.poisoned ? 1 : 0);
@@ -91,12 +121,14 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
   const noRoad = creep || fly;
   const skate = has(u, "skate");
   const ignoresZoc = has(u, "hide") || has(u, "sneak");
+  // units the mover knows about: hidden enemies it cannot see are planned through as empty tiles
   const occupied = new Map<number, Unit>();
-  for (const o of s.units) occupied.set(idx(n, o.x, o.y), o);
+  for (const o of s.units) if (!o.hidden || canSee(s, u.owner, o)) occupied.set(idx(n, o.x, o.y), o);
+  // zone of control: not from hidden units or peace partners
   const enemyAdjacent = (x: number, y: number) =>
     around(n, { x, y }, 1).some((c) => {
       const o = occupied.get(idx(n, c.x, c.y));
-      return o !== undefined && o.owner !== u.owner && !o.hidden;
+      return o !== undefined && o.owner !== u.owner && !o.hidden && !atPeace(s, u.owner, o.owner);
     });
 
   // spent[i] = cheapest half-steps to reach tile i with the ability to continue
@@ -128,8 +160,8 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
         const kind = enterKind(s, u, t);
         if (!kind) continue;
         const occ = occupied.get(i);
-        // enemy units block (hidden movers may pass through), friendly units can be passed
-        if (occ && occ.owner !== u.owner && !has(u, "hide")) continue;
+        // enemy units block (hidden movers may pass through); own and allied units can be passed
+        if (occ && !friendly(s, u.owner, occ.owner) && !has(u, "hide")) continue;
         const road =
           !noRoad && !UNITS[u.type].naval && roadNode(s, from, u.owner) && roadNode(s, t, u.owner);
         const iceGlide = skate && !!t.ice;
@@ -139,17 +171,21 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
         if (!fly && t.terrain === "mountain") stop = true;
         if (!creep && !fly && t.terrain === "forest" && !road) stop = true;
         if (!ignoresZoc && enemyAdjacent(x, y)) stop = true;
-        if (!occ && !ends.has(i)) ends.set(i, kind);
+        if (!occ && !ends.has(i)) {
+          ends.set(i, kind);
+          if (!parent.has(i)) parent.set(i, cur);
+        }
         if (stop) continue;
         if (best.get(i) === undefined || total < best.get(i)!) {
           best.set(i, total);
+          parent.set(i, cur);
           queue.push(i);
         }
       }
     }
   }
   ends.delete(start);
-  return [...ends.entries()].map(([i, kind]) => ({ x: i % n, y: Math.floor(i / n), kind }));
+  return { targets: [...ends.entries()].map(([i, kind]) => ({ x: i % n, y: Math.floor(i / n), kind })), parent };
 }
 
 /** Tiles explored around a coord for a unit (scout or mountain: radius 2). */
