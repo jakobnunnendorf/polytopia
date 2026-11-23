@@ -9,6 +9,8 @@ import { arena } from "@/components/game/arenaClient";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
 import { replayStates, type GameRecord } from "@/logic/arena/record";
 import { scoreOf } from "@/logic/engine";
+import GameOverCard from "@/components/game/GameOverCard";
+import { Pulse } from "@/components/anim";
 import { actionLabel, name } from "@/logic/engine/names";
 
 const color = (p: number) => PLAYER_COLORS[p % PLAYER_COLORS.length];
@@ -46,9 +48,13 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
   const [k, setK] = useState(live ? states.length - 1 : 0);
   // live: stay on the newest move while new moves arrive, unless the viewer stepped back
   const [follow, setFollow] = useState(live);
+  // following: step through new moves one at a time at an even pace; catch up faster when far behind
   useEffect(() => {
-    if (follow) setK(states.length - 1);
-  }, [follow, states.length]);
+    if (!follow || k >= states.length - 1) return;
+    const behind = states.length - 1 - k;
+    const t = setTimeout(() => setK((x) => Math.min(states.length - 1, x + (behind > 40 ? behind : 1))), behind > 8 ? 120 : 480);
+    return () => clearTimeout(t);
+  }, [follow, k, states.length]);
   // "mover": the map as the player who is moving right now sees it (switches every turn)
   const [view, setView] = useState<number | "all" | "mover">(live ? "mover" : "all");
   const [playing, setPlaying] = useState(false);
@@ -58,12 +64,15 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
       setPlaying(false);
       return;
     }
-    const t = setTimeout(() => setK((x) => Math.min(states.length - 1, x + 1)), 90);
+    const t = setTimeout(() => setK((x) => Math.min(states.length - 1, x + 1)), 420);
     return () => clearTimeout(t);
   }, [playing, k, states.length]);
 
   const s = states[k];
   const step = k > 0 ? rec.steps[k - 1] : null;
+  // the winner card shows on the last move of a finished game, until closed
+  const [closedEnd, setClosedEnd] = useState(false);
+  const atEnd = s.over && k === states.length - 1 && !closedEnd;
   const prevTurn = [...turnStarts].reverse().find((i) => i < k) ?? 0;
   const nextTurn = turnStarts.find((i) => i > k) ?? states.length - 1;
 
@@ -72,9 +81,16 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
       <View style={{ paddingHorizontal: 16, paddingTop: 12, width: "100%", maxWidth: 640, alignSelf: "center" }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Btn label="Games" onPress={() => router.replace("/analyse" as never)} />
-          <Text style={{ color: UI.mist, fontSize: 16, fontWeight: "800" }}>
-            {live && !rec.result?.over ? "LIVE  " : ""}Turn {s.turn}, move {k} of {states.length - 1}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            {live && !rec.result?.over && (
+              <Pulse amount={0.5} period={1200} style={{ marginRight: 8 }}>
+                <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: UI.coral }} />
+              </Pulse>
+            )}
+            <Text style={{ color: UI.mist, fontSize: 16, fontWeight: "800" }}>
+              {live && !rec.result?.over ? "LIVE  " : ""}Turn {s.turn}, move {k} of {states.length - 1}
+            </Text>
+          </View>
         </View>
         <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 6 }}>
           {s.players.map((p) => (
@@ -105,6 +121,24 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
         highlights={{}}
         onTilePress={() => {}}
       />
+      {atEnd && (
+        <View style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#0a1020cc", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 30 }}>
+          <GameOverCard
+            title={`${seatLabel(rec.seats[s.winner ?? 0])} wins`}
+            good
+            subtitle={`The ${name("clan", s.players[s.winner ?? 0].clan)} hold the Shardlands after ${s.turn} turns.`}
+            standings={[...s.players]
+              .sort((a, b) => (b.id === s.winner ? 1 : 0) - (a.id === s.winner ? 1 : 0) || scoreOf(s, b.id) - scoreOf(s, a.id))
+              .map((p) => ({ id: p.id, name: seatLabel(rec.seats[p.id]), clan: name("clan", p.clan), score: scoreOf(s, p.id), alive: p.alive }))}
+          >
+            <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8 }}>
+              <Btn label="See the final map" onPress={() => setClosedEnd(true)} testID="close-result" />
+              <Btn label="Watch from the start" onPress={() => { setClosedEnd(true); setFollow(false); setK(0); }} />
+              <Btn label="Games" onPress={() => router.replace("/analyse" as never)} />
+            </View>
+          </GameOverCard>
+        </View>
+      )}
       <View style={{ backgroundColor: "#223154f2", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 14, width: "100%", maxWidth: 640, alignSelf: "center" }}>
         <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
           <Btn label="⏮ Turn" onPress={() => { setFollow(false); setK(prevTurn); }} disabled={k === 0} />
@@ -153,7 +187,7 @@ export default function AnalyseScreen() {
     // a model-only game left behind by a closed tab continues on the server
     if (live) arena.resumeMatch(id).catch(() => {});
     // live: poll the recording, which the players save after every move
-    const t = live ? setInterval(load, 2000) : null;
+    const t = live ? setInterval(load, 700) : null;
     return () => {
       stop = true;
       if (t) clearInterval(t);

@@ -8,6 +8,7 @@ import { SettingsContext } from "@/context/SettingsContext";
 import { ShardIcon } from "@/components/art/Art";
 import { UI } from "@/components/game/theme";
 import { arena } from "@/components/game/arenaClient";
+import { Pop, pressScale } from "@/components/anim";
 
 type Page = "home" | "new" | "resume";
 
@@ -80,6 +81,7 @@ function MenuButton({
         borderRadius: 14,
         backgroundColor: primary ? UI.gold : UI.panelHi,
         opacity: pressed ? 0.85 : 1,
+        transform: pressScale(pressed),
       })}
     >
       <Text style={{ color: primary ? UI.goldInk : UI.mist, fontSize: 17, fontWeight: "800" }}>{label}</Text>
@@ -144,9 +146,15 @@ export default function HomeScreen() {
 
           {page === "home" && (
             <View style={{ marginTop: 10 }}>
-              <MenuButton primary testID="new-game" label="New game" hint="Choose the map, the players and their models" onPress={() => setPage("new")} />
-              <MenuButton testID="resume-game" label="Resume game" hint="Continue a game you left" onPress={() => setPage("resume")} />
-              <MenuButton testID="analyse-games" label="Analyse" hint="Rankings, replays of finished games, live games" onPress={() => router.push("/analyse" as never)} />
+              <Pop force drop={-18} from={0.96}>
+                <MenuButton primary testID="new-game" label="New game" hint="Choose the map, the players and their models" onPress={() => setPage("new")} />
+              </Pop>
+              <Pop force drop={-18} from={0.96} delay={90}>
+                <MenuButton testID="resume-game" label="Resume game" hint="Continue a game you left" onPress={() => setPage("resume")} />
+              </Pop>
+              <Pop force drop={-18} from={0.96} delay={180}>
+                <MenuButton testID="analyse-games" label="Analyse" hint="Rankings, replays of finished games, live games" onPress={() => router.push("/analyse" as never)} />
+              </Pop>
             </View>
           )}
           {page === "new" && (

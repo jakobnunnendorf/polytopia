@@ -1,8 +1,8 @@
 /**
  * Model-only games run here, on the arena server, not in a browser tab:
  * a tab that is closed or navigated away would silently stop the game.
- * The match saves after every move (at most once a second, always at the end
- * of a turn), so the live view in the app follows it smoothly.
+ * Moves are paced (PACE_MS each) and saved one by one, so the live view in the
+ * app shows them at an even, watchable rhythm.
  */
 import { applyAction } from "../../logic/engine/actions";
 import { createGame } from "../../logic/engine/state";
@@ -13,6 +13,10 @@ import { finishRecord, recordStep, replayStates, startRecord, type GameRecord, t
 import { findGame, listModels, saveGame } from "./store";
 
 const running = new Set<string>();
+
+/** every move takes at least this long, so fast bots and a thinking LLM look the same to a watcher */
+export const PACE_MS = Number(process.env.SHARDLANDS_PACE_MS ?? 550);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function isRunning(id: string): boolean {
   return running.has(id);
@@ -30,19 +34,19 @@ async function run(rec: GameRecord): Promise<void> {
       return createAgent(spec, directChat, all);
     });
     let s = replayStates(rec).pop()!;
-    let lastSave = 0;
     let perTurn = 0;
     while (!s.over) {
+      const t0 = Date.now();
       const a = perTurn++ > 300 ? { type: "endTurn" as const } : await agents[s.current].act(s);
+      await sleep(Math.max(0, PACE_MS - (Date.now() - t0)));
       const next = applyAction(s, a);
       recordStep(rec, s, a, next);
       const turnEnded = next.current !== s.current || next.turn !== s.turn;
       if (turnEnded) perTurn = 0;
       s = next;
-      if (turnEnded || Date.now() - lastSave > 1000) {
-        saveGame({ ...rec, endedAt: null, result: null });
-        lastSave = Date.now();
-      }
+      // saved after every move: the live view reads this file
+      saveGame({ ...rec, endedAt: null, result: null });
+      void turnEnded;
     }
     const out = saveGame(finishRecord(rec, s));
     console.log(`match ${rec.id} finished: winner seat ${s.winner}, Elo ${out.deltas.join(", ")}`);

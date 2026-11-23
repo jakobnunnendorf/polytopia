@@ -1,7 +1,8 @@
-import React, { memo } from "react";
-import { Pressable, Text, View } from "react-native";
-import { BuildingArt, CityArt, CloudArt, ResourceArt, TerrainArt, UnitArt, VillageArt } from "@/components/art/Art";
-import type { City, Tile as TileData, Unit } from "@/logic/engine/types";
+import React, { memo, useEffect, useRef } from "react";
+import { Animated, Easing, Platform, Pressable, Text, View } from "react-native";
+import { Pop, Pulse, reduceMotion } from "@/components/anim";
+import { BuildingArt, CityArt, CloudArt, ResourceArt, TerrainArt, VillageArt } from "@/components/art/Art";
+import type { City, Tile as TileData } from "@/logic/engine/types";
 import { PLAYER_COLORS, TERRAIN_COLOR, TILE as TILE_BASE, UI } from "@/components/game/theme";
 
 export type Highlight = "selected" | "move" | "attack" | "action" | null;
@@ -22,12 +23,38 @@ const HIGHLIGHT_RING: Record<Exclude<Highlight, null>, string> = {
   action: "#f6c453",
 };
 
+/** the cloud over a newly explored tile puffs up and fades away */
+function CloudFade({ x, y, TILE }: { x: number; y: number; TILE: number }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(v, { toValue: 1, duration: 650, easing: Easing.out(Easing.quad), useNativeDriver: Platform.OS !== "web" }).start();
+  }, [v]);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: TILE,
+        height: TILE,
+        zIndex: 4,
+        opacity: v.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+        transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] }) }],
+      }}
+    >
+      <CloudArt x={x} y={y} size={TILE} />
+    </Animated.View>
+  );
+}
+
+const fill = { position: "absolute" as const, left: 0, top: 0, right: 0, bottom: 0 };
+
 function Tile({
   x,
   y,
   tile,
   explored,
-  unit,
   city,
   territoryOwner,
   borders,
@@ -35,12 +62,12 @@ function Tile({
   onPress,
   size,
   watchers,
+  animateReveal = false,
 }: {
   x: number;
   y: number;
   tile: TileData;
   explored: boolean;
-  unit: Unit | null;
   city: City | null;
   territoryOwner: number | null;
   borders: Borders;
@@ -49,8 +76,16 @@ function Tile({
   size?: number;
   /** analysis: ids of the players who have explored this tile (dots), none = dimmed */
   watchers?: number[];
+  /** play the clouds-clearing animation when this tile becomes explored */
+  animateReveal?: boolean;
 }) {
   const TILE = size ?? TILE_BASE;
+  // remember when this tile was revealed, so the clearing clouds survive quick re-renders
+  const hiddenBefore = useRef(!explored);
+  const revealAt = useRef(0);
+  if (explored && hiddenBefore.current && animateReveal && !reduceMotion()) revealAt.current = Date.now();
+  hiddenBefore.current = !explored;
+  const clearing = Date.now() - revealAt.current < 700;
   if (!explored) {
     // undiscovered land sits under clouds; they are drawn above the known tiles so they spill over the coast
     return (
@@ -97,6 +132,7 @@ function Tile({
     >
       <TerrainArt terrain={tile.terrain} x={x} y={y} size={TILE} />
       {ownerColor && (
+        <Pop key={`t${territoryOwner}`} from={0.92} style={fill}>
         <View
           style={{
             position: "absolute",
@@ -113,6 +149,7 @@ function Tile({
             borderLeftWidth: edge(borders.left),
           }}
         />
+        </Pop>
       )}
       {tile.road && (
         <View
@@ -127,12 +164,16 @@ function Tile({
           }}
         />
       )}
-      {!city && overlay}
+      {!city && overlay && (
+        <Pop key={tile.building ?? (tile.ruin ? "ruin" : (tile.resource ?? ""))} style={fill}>
+          {overlay}
+        </Pop>
+      )}
       {tile.village && !city && <VillageArt size={TILE} />}
       {city && (
         <>
           {/* the city art is drawn in the lower half of its box, so draw it 1.3x and lift it */}
-          <View pointerEvents="none" style={{ position: "absolute", left: -TILE * 0.15, top: -TILE * 0.26, width: TILE * 1.3, height: TILE * 1.3 }}>
+          <Pop key={`${city.owner}-${city.level}`} from={0.6} style={{ position: "absolute", left: -TILE * 0.15, top: -TILE * 0.26, width: TILE * 1.3, height: TILE * 1.3 }}>
             <CityArt
               color={PLAYER_COLORS[city.owner % PLAYER_COLORS.length]}
               level={city.level}
@@ -140,7 +181,7 @@ function Tile({
               walls={city.walls}
               size={TILE * 1.3}
             />
-          </View>
+          </Pop>
           <Text
             style={{
               position: "absolute",
@@ -160,51 +201,6 @@ function Tile({
             {city.level}
           </Text>
         </>
-      )}
-      {unit && (
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            // figures only fill the middle of their art box, so the box is larger than the tile
-            left: city ? TILE * 0.22 : -TILE * 0.08,
-            top: city ? TILE * 0.12 : -TILE * 0.2,
-            width: (city ? 0.96 : 1.16) * TILE,
-            height: (city ? 0.96 : 1.16) * TILE,
-            opacity: unit.canMove || unit.canAttack ? 1 : 0.6,
-          }}
-        >
-          <View
-            style={{
-              position: "absolute",
-              left: (city ? 0.96 : 1.16) * TILE * 0.22,
-              bottom: (city ? 0.96 : 1.16) * TILE * 0.08,
-              width: (city ? 0.96 : 1.16) * TILE * 0.56,
-              height: (city ? 0.96 : 1.16) * TILE * 0.14,
-              borderRadius: TILE,
-              backgroundColor: "#0004",
-              borderWidth: 2,
-              borderColor: unit.veteran ? "#ffd43b" : PLAYER_COLORS[unit.owner % PLAYER_COLORS.length],
-            }}
-          />
-          <UnitArt type={unit.type} color={PLAYER_COLORS[unit.owner % PLAYER_COLORS.length]} size={(city ? 0.96 : 1.16) * TILE} />
-          <Text
-            style={{
-              position: "absolute",
-              right: city ? TILE * 0.02 : TILE * 0.1,
-              bottom: city ? TILE * 0.06 : TILE * 0.22,
-              fontSize: Math.max(9, Math.round(TILE * 0.16)),
-              fontWeight: "800",
-              color: "white",
-              backgroundColor: "#000a",
-              paddingHorizontal: 2,
-              borderRadius: 3,
-              overflow: "hidden",
-            }}
-          >
-            {Math.ceil(unit.hp)}
-          </Text>
-        </View>
       )}
       {watchers && watchers.length === 0 && (
         <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#e6e1efb0" }} />
@@ -245,6 +241,7 @@ function Tile({
           }}
         >
           {highlight === "move" && (
+            <Pulse amount={0.18} period={1000}>
             <View
               style={{
                 width: TILE * 0.24,
@@ -255,9 +252,11 @@ function Tile({
                 borderColor: UI.sky,
               }}
             />
+            </Pulse>
           )}
         </View>
       )}
+      {clearing && <CloudFade x={x} y={y} TILE={TILE} />}
     </Pressable>
   );
 }

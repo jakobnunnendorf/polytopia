@@ -4,6 +4,7 @@ import Svg, { Circle, Line } from "react-native-svg";
 import { ShardIcon } from "@/components/art/Art";
 import { TechIcon } from "@/components/art/TechIcons";
 import { UI } from "@/components/game/theme";
+import { Pop } from "@/components/anim";
 import { TECHS } from "@/logic/engine/data";
 import { name } from "@/logic/engine/names";
 
@@ -144,6 +145,8 @@ export default function TechTree({
                 onPress={() => setPicked(on ? null : n.id)}
                 style={{ position: "absolute", left: n.x - 40, top: n.y - node / 2, width: 80, alignItems: "center" }}
               >
+                {/* nodes grow in ring by ring; a newly learned one pops again in its new colour */}
+                <Pop force key={st} delay={n.tier * 90} from={0.3}>
                 <View
                   style={{
                     width: node,
@@ -162,6 +165,7 @@ export default function TechTree({
                     ink={st === "known" ? UI.dusk : st === "open" ? UI.goldInk : UI.muted}
                   />
                 </View>
+                </Pop>
                 <Text
                   numberOfLines={1}
                   style={{

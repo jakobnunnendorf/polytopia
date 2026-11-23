@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Svg, { Path } from "react-native-svg";
-import { ImageBackground, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { ImageBackground, Modal, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import * as Font from "expo-font";
+import * as Haptics from "expo-haptics";
+import { Banner, Pop, Pulse, Ticker, pressScale, useDots } from "@/components/anim";
+import GameOverCard from "@/components/game/GameOverCard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Map from "@/components/Map/Map";
 import type { Highlight } from "@/components/Map/Tile";
@@ -54,7 +57,8 @@ function Button({
       style={({ pressed }) => ({
         flexGrow: grow ? 1 : 0,
         backgroundColor: bg,
-        opacity: pressed ? 0.8 : 1,
+        opacity: pressed ? 0.85 : 1,
+        transform: pressScale(pressed),
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderRadius: 12,
@@ -257,16 +261,19 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     if (state.over || !agent) return;
     let cancelled = false;
     const p = state.current;
-    const slow = agent.spec.kind === "llm";
+    // every bot move takes the same time (thinking included), so it is pleasant to follow
+    const PACE = 480;
     (async () => {
-      await wait(watch ? 120 : 250);
-      if (slow) setThinking(agent.spec.name);
+      await wait(300);
+      if (agent.spec.kind === "llm") setThinking(agent.spec.name);
       let n = 0;
       while (!cancelled && !stateRef.current.over && stateRef.current.current === p) {
+        const t0 = Date.now();
         const a = n++ > 300 ? ({ type: "endTurn" } as Action) : await agent.act(stateRef.current);
         if (cancelled) return;
-        const next = commit(a);
-        if (slow) setState(next);
+        await wait(Math.max(0, PACE - (Date.now() - t0)));
+        if (cancelled) return;
+        setState(commit(a));
       }
       if (!cancelled) {
         setThinking(null);
@@ -280,6 +287,10 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
 
   const act = useCallback(
     (a: Action) => {
+      if (Platform.OS !== "web") {
+        const heavy = a.type === "attack" || a.type === "endTurn" || a.type === "capture";
+        Haptics.impactAsync(heavy ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      }
       setState(commit(a));
     },
     [commit],
@@ -404,6 +415,11 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   }, [actions, selected, unitAtSel, citySel]);
 
   const rewardActions = actions.filter((a) => a.type === "reward");
+  // nothing left that moves a unit or spends shards wisely: nudge toward End turn
+  const nothingLeft = myTurn && rewardActions.length === 0 && !actions.some((a) => a.type === "move" || a.type === "attack" || a.type === "capture");
+  const dots = useDots(!myTurn && !state.over);
+  // "Turn N" banner whenever a human turn starts
+  const bannerKey = myTurn ? `${state.turn}-${state.current}` : null;
   const rewardCity =
     rewardActions.length > 0
       ? state.cities.find((c) => c.id === (rewardActions[0] as { cityId: number }).cityId)
@@ -452,7 +468,10 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         }}
       >
         <View testID="hud-shards">
-          <Shards n={me.stars} size={22} />
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <ShardIcon size={22} />
+            <Ticker value={me.stars} style={{ color: UI.mist, fontWeight: "800", fontSize: 22, marginLeft: 4 }} />
+          </View>
           <Text style={{ color: UI.gold, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
             +{income(state, viewer)} next turn
           </Text>
@@ -468,12 +487,22 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         </View>
         <View style={{ alignItems: "flex-end" }}>
           <Text style={{ color: UI.mist, fontSize: 16, fontWeight: "800" }}>
-            {scoreOf(state, viewer).toLocaleString("en")}
+            <Ticker value={scoreOf(state, viewer)} float={false} format={(n) => n.toLocaleString("en")} style={{ color: UI.mist, fontSize: 16, fontWeight: "800" }} />
           </Text>
           <Text style={{ color: UI.muted, fontSize: 12, marginTop: 2 }}>score</Text>
         </View>
       </View>
 
+      {bannerKey && (
+        <Banner key={bannerKey} style={{ position: "absolute", top: 86, left: 0, right: 0, alignItems: "center", zIndex: 20 }}>
+          <View style={{ backgroundColor: "#1b2846ee", paddingHorizontal: 22, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: clanColor(viewer) }}>
+            <Text style={{ color: UI.mist, fontFamily: UI.display, fontSize: 26, textAlign: "center" }}>Turn {state.turn}</Text>
+            <Text style={{ color: clanColor(viewer), fontSize: 13, fontWeight: "700", textAlign: "center" }}>
+              {seatName(viewer)}, your move
+            </Text>
+          </View>
+        </Banner>
+      )}
       <Map state={state} viewer={viewer} highlights={highlights} onTilePress={onTilePress} />
 
       {/* selection card + action tray */}
@@ -550,17 +579,19 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           <IconButton label="Lore" testID="tech-button" onPress={() => setTechOpen(true)}>
             <BookIcon />
           </IconButton>
-          <Button
-            grow
-            kind="primary"
-            label={myTurn ? "End turn" : thinking ? `${thinking} is thinking` : `${seatName(state.current)} is moving`}
-            testID="end-turn"
-            disabled={!myTurn || rewardActions.length > 0}
-            onPress={() => {
-              setSelected(null);
-              act({ type: "endTurn" });
-            }}
-          />
+          <Pulse on={nothingLeft} amount={0.03} period={1400} style={{ flexGrow: 1 }}>
+            <Button
+              grow
+              kind="primary"
+              label={myTurn ? "End turn" : thinking ? `${thinking} is thinking${dots}` : `${seatName(state.current)} is moving${dots}`}
+              testID="end-turn"
+              disabled={!myTurn || rewardActions.length > 0}
+              onPress={() => {
+                setSelected(null);
+                act({ type: "endTurn" });
+              }}
+            />
+          </Pulse>
         </View>
       </View>
 
@@ -583,7 +614,8 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         <View
           style={{ flex: 1, backgroundColor: "#0a1020bb", alignItems: "center", justifyContent: "center", padding: 16 }}
         >
-          <View style={{ backgroundColor: UI.panel, padding: 20, borderRadius: 20, width: "100%", maxWidth: 420 }}>
+          <Pop force from={0.85} style={{ width: "100%", maxWidth: 420 }}>
+          <View style={{ backgroundColor: UI.panel, padding: 20, borderRadius: 20, width: "100%" }}>
             <Text style={{ color: UI.mist, fontSize: 26, fontFamily: UI.display }}>
               {rewardCity ? `${rewardCity.name} grew` : "A city grew"}
             </Text>
@@ -591,11 +623,14 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
               It reached level {rewardCity?.level ?? ""}. Choose one boon for it.
             </Text>
             {rewardActions.map((a, i) => (
-              <View key={i} style={{ flexDirection: "row" }}>
-                <Button grow testID={`reward-${i}`} label={actionLabel(state, a)} onPress={() => act(a)} />
-              </View>
+              <Pop force key={i} delay={180 + i * 90} from={0.8}>
+                <View style={{ flexDirection: "row" }}>
+                  <Button grow testID={`reward-${i}`} label={actionLabel(state, a)} onPress={() => act(a)} />
+                </View>
+              </Pop>
             ))}
           </View>
+          </Pop>
         </View>
       </Modal>
 
@@ -618,59 +653,24 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         <View
           style={{ flex: 1, backgroundColor: "#0a1020dd", alignItems: "center", justifyContent: "center", padding: 16 }}
         >
-          <View style={{ backgroundColor: UI.panel, padding: 24, borderRadius: 20, width: "100%", maxWidth: 420 }}>
-            <Text
-              style={{
-                color: humanSeats.length !== 1 || state.winner === viewer ? UI.gold : UI.coral,
-                fontSize: 44,
-                fontFamily: UI.display,
-                textAlign: "center",
-              }}
-              testID="game-over"
-            >
-              {humanSeats.length !== 1 ? `${seatName(state.winner ?? 0)} wins` : state.winner === viewer ? "Victory" : "Defeat"}
-            </Text>
-            <Text style={{ color: UI.muted, fontSize: 14, textAlign: "center", marginTop: 4, marginBottom: 14 }}>
-              The {winnerClan} hold the Shardlands.
-            </Text>
-            {ranking.map(({ p, score }) => (
-              <View
-                key={p.id}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: 9,
-                  borderTopWidth: 1,
-                  borderTopColor: UI.line,
-                }}
-              >
-                <View
-                  style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: clanColor(p.id), marginRight: 10 }}
-                />
-                <Text style={{ color: p.alive ? UI.mist : UI.muted, fontSize: 15, fontWeight: "700", flex: 1 }}>
-                  {seatName(p.id)}
-                  <Text style={{ color: UI.muted, fontWeight: "400" }}>
-                    {" "}
-                    {name("clan", p.clan)}
-                    {p.alive ? "" : ", fallen"}
-                  </Text>
-                </Text>
-                {saved && (
-                  <Text style={{ color: saved.deltas[p.id] >= 0 ? UI.sky : UI.coral, fontSize: 13, marginRight: 10 }}>
-                    {saved.deltas[p.id] >= 0 ? "+" : ""}
-                    {saved.deltas[p.id]} Elo
-                  </Text>
-                )}
-                <Text style={{ color: UI.mist, fontSize: 15, fontWeight: "800" }}>{score.toLocaleString("en")}</Text>
-              </View>
-            ))}
+          <GameOverCard
+            title={humanSeats.length !== 1 ? `${seatName(state.winner ?? 0)} wins` : state.winner === viewer ? "Victory" : "Defeat"}
+            good={humanSeats.length !== 1 || state.winner === viewer}
+            subtitle={`The ${winnerClan} hold the Shardlands.`}
+            standings={ranking.map(({ p, score }) => ({
+              id: p.id,
+              name: seatName(p.id),
+              clan: name("clan", p.clan),
+              score,
+              alive: p.alive,
+              elo: saved ? saved.deltas[p.id] : undefined,
+            }))}
+            footer={saved ? `Recorded in ${saved.file}` : (saveError ?? "Recording the game")}
+          >
             <View style={{ flexDirection: "row", marginTop: 6 }}>
               <Button grow kind="primary" label="Back to the menu" onPress={leave} />
             </View>
-            <Text style={{ color: UI.muted, fontSize: 12, marginTop: 8, textAlign: "center" }}>
-              {saved ? `Recorded in ${saved.file}` : (saveError ?? "Recording the game")}
-            </Text>
-          </View>
+          </GameOverCard>
         </View>
       </Modal>
     </ImageBackground>

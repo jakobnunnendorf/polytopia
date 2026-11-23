@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { UI } from "@/components/game/theme";
 import { CLOUD } from "@/components/art/Art";
 import Tile, { type Highlight } from "./Tile";
+import { FxLayer, UnitSprite, diffEvents, type Fx, type Lunge } from "./Units";
+import { AnimateNew, useMountedOnce } from "@/components/anim";
 import type { City, GameState, Unit } from "@/logic/engine/types";
 
 /**
@@ -48,6 +50,35 @@ export default function Map({
     return { unitAt, cityById, ownerOfTile };
   }, [state, n]);
 
+  // animations: compare with the previous state seen by the same viewer
+  const ready = useMountedOnce();
+  const prev = useRef<{ state: GameState; viewer: number; reveal: boolean } | null>(null);
+  const [fx, setFx] = useState<Fx[]>([]);
+  const [lunges, setLunges] = useState<Record<number, Lunge>>({});
+  const sameView = !!prev.current && prev.current.viewer === viewer && prev.current.reveal === reveal;
+  const outer = useRef<ScrollView>(null);
+  const inner = useRef<ScrollView>(null);
+  useEffect(() => {
+    const p = prev.current;
+    prev.current = { state, viewer, reveal };
+    if (!p || p.state === state || p.viewer !== viewer || p.reveal !== reveal) return;
+    // a big jump (replay scrubbing, resume) is not animated
+    if (Math.abs(state.log.length - p.state.log.length) > 3 && state.turn !== p.state.turn) return;
+    const visible = (i: number) => reveal || state.players[viewer].explored[i] === 1;
+    const ev = diffEvents(p.state, state, visible);
+    if (ev.fx.length) {
+      setFx((cur) => [...cur.slice(-24), ...ev.fx]);
+      const ids = new Set(ev.fx.map((f) => f.id));
+      setTimeout(() => setFx((cur) => cur.filter((f) => !ids.has(f.id))), 1200);
+    }
+    if (Object.keys(ev.lunges).length) setLunges((cur) => ({ ...cur, ...ev.lunges }));
+    // camera: when zoomed in, pan to where the action is
+    if (ev.focus && zoom > 0 && p.state.current !== viewer) {
+      outer.current?.scrollTo({ y: Math.max(0, ev.focus.y * TILE - 120), animated: true });
+      inner.current?.scrollTo({ x: Math.max(0, ev.focus.x * TILE - 120), animated: true });
+    }
+  }, [state, viewer, reveal]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const owner = (x: number, y: number) =>
     x < 0 || y < 0 || x >= n || y >= n ? null : ownerOfTile[y * n + x];
 
@@ -74,12 +105,14 @@ export default function Map({
 
   return (
     <View style={{ flex: 1 }} onLayout={(e) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+    <AnimateNew.Provider value={ready && sameView}>
     <ScrollView
+      ref={outer}
       testID="map-component"
       style={{ flex: 1 }}
       contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 12 }}
     >
-      <ScrollView horizontal contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}>
+      <ScrollView ref={inner} horizontal contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}>
         <View
           style={{
             width: n * TILE,
@@ -104,7 +137,6 @@ export default function Map({
                 y={y}
                 tile={tile}
                 explored={seen}
-                unit={seen ? (unitAt.get(i) ?? null) : null}
                 city={tile.cityId !== null ? (cityById.get(tile.cityId) ?? null) : null}
                 territoryOwner={o}
                 borders={{
@@ -117,12 +149,30 @@ export default function Map({
                 onPress={onTilePress}
                 size={TILE}
                 watchers={watchers}
+                animateReveal={ready && sameView}
               />
             );
           })}
+          {/* units above the tiles, below the clouds (zIndex 2), so they can slide */}
+          <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 1 }}>
+            {state.units
+              .filter((u) => reveal || explored[u.y * n + u.x] === 1)
+              .map((u) => (
+                <UnitSprite
+                  key={u.id}
+                  unit={u}
+                  inCity={state.tiles[u.y * n + u.x].cityId !== null}
+                  TILE={TILE}
+                  selected={highlights[`${u.x},${u.y}`] === "selected"}
+                  lunge={lunges[u.id]}
+                />
+              ))}
+          </View>
+          <FxLayer fx={fx} TILE={TILE} />
         </View>
       </ScrollView>
     </ScrollView>
+    </AnimateNew.Provider>
       <View style={{ position: "absolute", right: 12, top: 12 }}>
         {zoomButton("+", 1, TILE < 96)}
         {zoomButton("−", -1, zoom > 0)}
