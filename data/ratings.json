@@ -1,0 +1,32 @@
+{
+  "model:greedy-v1": {
+    "rating": 1261,
+    "games": 7,
+    "wins": 6,
+    "updated": "2026-11-23T18:05:18.321Z"
+  },
+  "model:random-v1": {
+    "rating": 1142.5,
+    "games": 7,
+    "wins": 0,
+    "updated": "2026-11-23T18:05:18.321Z"
+  },
+  "model:claude-sonnet-agent": {
+    "rating": 1216,
+    "games": 1,
+    "wins": 1,
+    "updated": "2026-11-23T17:31:38.740Z"
+  },
+  "model:qwen3-coder-lmstudio": {
+    "rating": 1164.7,
+    "games": 4,
+    "wins": 0,
+    "updated": "2026-11-23T18:05:18.321Z"
+  },
+  "human:jakob": {
+    "rating": 1215.8,
+    "games": 1,
+    "wins": 1,
+    "updated": "2026-11-23T17:52:28.306Z"
+  }
+}

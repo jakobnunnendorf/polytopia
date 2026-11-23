@@ -1,0 +1,7 @@
+{
+  "id": "random-v1",
+  "name": "Random v1",
+  "kind": "random",
+  "description": "Uniformly random legal moves, ending the turn only about 10% of the time. The floor every learned model should beat; seeded per game step, so games replay exactly.",
+  "created": "2026-11-23"
+}

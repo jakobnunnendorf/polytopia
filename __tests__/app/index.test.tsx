@@ -1,5 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react-native";
-import { Text } from "react-native";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import HomeScreen from "../../app/index";
 
 jest.mock("expo-font", () => ({
@@ -7,26 +6,30 @@ jest.mock("expo-font", () => ({
   isLoaded: jest.fn(() => true),
 }));
 
-describe("Renders all elements", () => {
-  it("should render the header", async () => {
+jest.mock("expo-router", () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+}));
+
+// no arena server in tests: every call fails soft
+beforeAll(() => {
+  global.fetch = jest.fn(() => Promise.reject(new Error("offline"))) as unknown as typeof fetch;
+});
+
+describe("Main menu", () => {
+  it("shows the title and the three entries", async () => {
     render(<HomeScreen />);
-    await waitFor(() => {
-      const header = screen.getByText("The Battle Of Polytopia");
-      expect(header).toBeTruthy();
-    });
+    await waitFor(() => expect(screen.getByText(/Shardlands/)).toBeTruthy());
+    expect(screen.getByTestId("new-game")).toBeTruthy();
+    expect(screen.getByTestId("resume-game")).toBeTruthy();
+    expect(screen.getByTestId("analyse-games")).toBeTruthy();
   });
-  it("should render the Map Component", async () => {
+  it("opens the game setup with seats and a start button", async () => {
     render(<HomeScreen />);
-    await waitFor(() => {
-      const mapComponent = screen.getByTestId("map-component");
-      expect(mapComponent).toBeTruthy();
-    });
-  });
-  it("should render the Settings Component", async () => {
-    render(<HomeScreen />);
-    await waitFor(() => {
-      const settingsComponent = screen.getByTestId("settings-component");
-      expect(settingsComponent).toBeTruthy();
-    });
+    await waitFor(() => expect(screen.getByTestId("new-game")).toBeTruthy());
+    fireEvent.press(screen.getByTestId("new-game"));
+    expect(screen.getByTestId("settings-component")).toBeTruthy();
+    expect(screen.getByTestId("seat-0")).toBeTruthy();
+    expect(screen.getByTestId("seat-1")).toBeTruthy();
+    expect(screen.getByTestId("start-button")).toBeTruthy();
   });
 });
