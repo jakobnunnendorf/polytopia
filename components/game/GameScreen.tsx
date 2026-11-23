@@ -306,6 +306,14 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     if (state.over || recRef.current.steps.length === 0) return;
     arena.saveGame({ ...recRef.current, endedAt: null, result: null }).catch(() => {});
   }, [state.turn, state.over]);
+  useEffect(
+    () => () => {
+      if (!savedRef.current && recRef.current.steps.length > 0 && !stateRef.current.over) {
+        arena.saveGame({ ...recRef.current, endedAt: null, result: null }).catch(() => {});
+      }
+    },
+    [],
+  );
   const leave = () => {
     saveRecord();
     router.replace("/");

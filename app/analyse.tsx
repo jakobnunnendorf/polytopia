@@ -150,6 +150,8 @@ export default function AnalyseScreen() {
         })
         .catch(() => !stop && setError("This game could not be loaded. Is the arena server running?"));
     load();
+    // a model-only game left behind by a closed tab continues on the server
+    if (live) arena.resumeMatch(id).catch(() => {});
     // live: poll the recording, which the players save after every move
     const t = live ? setInterval(load, 2000) : null;
     return () => {

@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import { SettingsContext } from "@/context/SettingsContext";
 import { ShardIcon } from "@/components/art/Art";
 import { UI } from "@/components/game/theme";
+import { arena } from "@/components/game/arenaClient";
 
 type Page = "home" | "new" | "resume";
 
@@ -17,7 +18,18 @@ function StartButton() {
     <Pressable
       testID="start-button"
       accessibilityRole="button"
-      onPress={() =>
+      onPress={async () => {
+        const seed = Math.floor(Math.random() * 2 ** 31);
+        // models only: the server plays the game, the app watches it live
+        if (settings.seats.every((s) => s.kind === "model")) {
+          try {
+            const { id } = await arena.startMatch({ mapSize: settings.mapSize, mode: settings.gameMode, seed, seats: settings.seats });
+            router.push({ pathname: "/analyse", params: { id, live: "1" } } as never);
+            return;
+          } catch {
+            // no server: play it in this tab instead
+          }
+        }
         router.push({
           pathname: "/game",
           params: {
@@ -25,10 +37,10 @@ function StartButton() {
             players: String(settings.seats.length),
             seats: JSON.stringify(settings.seats),
             mode: settings.gameMode,
-            seed: String(Math.floor(Math.random() * 2 ** 31)),
+            seed: String(seed),
           },
-        })
-      }
+        });
+      }}
       style={({ pressed }) => ({
         marginTop: 20,
         paddingVertical: 15,

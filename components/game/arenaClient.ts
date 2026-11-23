@@ -25,6 +25,8 @@ export type GameSummary = {
   over: boolean;
   winner: number | null;
   scores: number[] | null;
+  /** a model-only game the server is playing right now */
+  running?: boolean;
 };
 
 export function arenaBase(): string {
@@ -50,6 +52,10 @@ export const arena = {
   createProfile: (name: string) => call<Profile>("/api/profiles", { method: "POST", body: JSON.stringify({ name }) }),
   ratings: () => call<Ratings>("/api/ratings"),
   games: () => call<GameSummary[]>("/api/games"),
+  startMatch: (m: { mapSize: number; mode: string; seed: number; seats: GameRecord["seats"] }) =>
+    call<{ id: string }>("/api/matches", { method: "POST", body: JSON.stringify(m) }),
+  resumeMatch: (id: string) =>
+    call<{ ok: boolean; reason?: string }>(`/api/matches/${encodeURIComponent(id)}/resume`, { method: "POST" }),
   game: (id: string) => call<GameRecord>(`/api/games/${encodeURIComponent(id)}`),
   saveGame: (rec: GameRecord) =>
     call<{ file: string; deltas: number[]; ratings: Ratings }>("/api/games", { method: "POST", body: JSON.stringify(rec) }),

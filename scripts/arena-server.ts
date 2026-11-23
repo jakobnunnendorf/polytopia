@@ -8,6 +8,8 @@
  *   GET  /api/games             summaries of every recorded game (newest first)
  *   GET  /api/games/<id>        one full GameRecord
  *   POST /api/games             save a GameRecord (gzipped into data/games/), update Elo
+ *   POST /api/matches           start a model-only game that runs here (not in a browser tab)
+ *   POST /api/matches/<id>/resume   continue an unfinished model-only game
  *   POST /api/chat              proxy an OpenAI-style chat call to the model's endpoint
  *
  *   node -r sucrase/register scripts/arena-server.ts      (started by relaunch-preview.sh)
@@ -16,6 +18,7 @@ import http from "node:http";
 import { directChat } from "../logic/agents/registry";
 import type { GameRecord } from "../logic/arena/record";
 import { createProfile, findGame, listGames, listModels, listProfiles, readRatings, saveGame } from "./lib/store";
+import { isRunning, resumeMatch, startMatch } from "./lib/matches";
 
 const PORT = Number(process.env.ARENA_PORT ?? 8091);
 
@@ -52,7 +55,15 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url === "/api/models") return send(res, 200, listModels());
     if (req.method === "GET" && url === "/api/profiles") return send(res, 200, listProfiles());
     if (req.method === "GET" && url === "/api/ratings") return send(res, 200, readRatings());
-    if (req.method === "GET" && url === "/api/games") return send(res, 200, listGames());
+    if (req.method === "GET" && url === "/api/games") return send(res, 200, listGames().map((g) => ({ ...g, running: isRunning(g.id) })));
+    if (req.method === "POST" && url === "/api/matches") {
+      const b = (await body(req)) as Parameters<typeof startMatch>[0];
+      const rec = startMatch(b);
+      console.log(`match ${rec.id} started: ${rec.seats.map((x) => (x.kind === "model" ? x.modelId : x.name)).join(" vs ")}`);
+      return send(res, 200, { id: rec.id });
+    }
+    const resume = url.match(/^\/api\/matches\/([^/]+)\/resume$/);
+    if (req.method === "POST" && resume) return send(res, 200, resumeMatch(decodeURIComponent(resume[1])));
     if (req.method === "GET" && url.startsWith("/api/games/")) {
       const rec = findGame(decodeURIComponent(url.slice("/api/games/".length)));
       return rec ? send(res, 200, rec) : send(res, 404, { error: "No such game" });
