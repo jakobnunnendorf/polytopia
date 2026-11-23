@@ -132,7 +132,8 @@ export function UnitSprite({
           ],
         }}
       >
-        <Pop style={{ position: "absolute", left: 0, top: 0, width: box.size, height: box.size }}>
+        {/* the unit layer never takes taps: they go to the tile below */}
+        <Pop pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: box.size, height: box.size }}>
           <View
             style={{
               position: "absolute",
