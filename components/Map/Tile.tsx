@@ -18,9 +18,9 @@ export type Highlight = "selected" | "move" | "attack" | "action" | null;
 export type Borders = { top: boolean; right: boolean; bottom: boolean; left: boolean };
 
 const HIGHLIGHT_COLOR: Record<Exclude<Highlight, null>, string> = {
-  selected: "#ffffff88",
-  move: "#ffffff55",
-  attack: "#ff3b3b77",
+  selected: "#ffffff66",
+  move: "#4dabf7aa",
+  attack: "#ff3b3bbb",
   action: "#ffd43b77",
 };
 
@@ -179,8 +179,8 @@ function Tile({
             right: 0,
             bottom: 0,
             backgroundColor: HIGHLIGHT_COLOR[highlight],
-            borderWidth: highlight === "selected" ? 2 : 0,
-            borderColor: "white",
+            borderWidth: highlight === "selected" ? 3 : 2,
+            borderColor: highlight === "attack" ? "#ff3b3b" : "white",
           }}
         />
       )}
