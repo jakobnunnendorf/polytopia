@@ -1,9 +1,11 @@
-import { View, ImageBackground, Text, Pressable } from "react-native";
+import { View, ImageBackground, Text, Pressable, ScrollView } from "react-native";
 import Settings from "@/components/Settings/Settings";
 import { useContext, useEffect, useState } from "react";
 import * as Font from "expo-font";
 import { useRouter } from "expo-router";
 import { SettingsContext } from "@/context/SettingsContext";
+import { ShardIcon } from "@/components/art/Art";
+import { UI } from "@/components/game/theme";
 
 function StartButton() {
   const router = useRouter();
@@ -11,6 +13,7 @@ function StartButton() {
   return (
     <Pressable
       testID="start-button"
+      accessibilityRole="button"
       onPress={() =>
         router.push({
           pathname: "/game",
@@ -22,11 +25,16 @@ function StartButton() {
           },
         })
       }
-      className="px-6 py-3 mt-6 bg-amber-500 border-2 border-amber-700 rounded-xl"
+      style={({ pressed }) => ({
+        marginTop: 24,
+        paddingVertical: 15,
+        borderRadius: 14,
+        backgroundColor: UI.gold,
+        opacity: pressed ? 0.85 : 1,
+        alignItems: "center",
+      })}
     >
-      <Text className="text-lg font-bold text-center text-white">
-        Start game
-      </Text>
+      <Text style={{ color: UI.goldInk, fontSize: 17, fontWeight: "800" }}>Start a game</Text>
     </Pressable>
   );
 }
@@ -52,18 +60,32 @@ export default function HomeScreen() {
     <ImageBackground
       source={require("@/assets/images/menu-background.webp")}
       resizeMode="cover"
-      className="w-full h-full"
+      style={{ flex: 1, backgroundColor: UI.dusk }}
     >
-      <View className="flex items-center justify-center w-full h-full px-4">
-        <View className="w-full max-w-md px-6 py-8 rounded-3xl bg-white/90">
-          <Text className="text-2xl text-center font-oi">
-            {"The Age Of\n"}
-            <Text className="text-4xl">Shardlands</Text>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end", alignItems: "center", padding: 16 }}>
+        {/* the landscape stays visible above; logo and settings share one dusk panel */}
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 440,
+            backgroundColor: "#1b2846f2",
+            borderRadius: 24,
+            paddingHorizontal: 20,
+            paddingTop: 22,
+            paddingBottom: 20,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <ShardIcon size={40} />
+            <Text style={{ fontFamily: UI.display, fontSize: 40, color: UI.mist, marginLeft: 10 }}>Shardlands</Text>
+          </View>
+          <Text style={{ color: UI.muted, fontSize: 15, marginTop: 6 }}>
+            Build a clan from one city. Outgrow your rivals.
           </Text>
           <Settings />
           <StartButton />
         </View>
-      </View>
+      </ScrollView>
     </ImageBackground>
   );
 }

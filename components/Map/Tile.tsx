@@ -2,17 +2,24 @@ import React, { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 import { BuildingArt, CityArt, ResourceArt, TerrainArt, UnitArt, VillageArt } from "@/components/art/Art";
 import type { City, Tile as TileData, Unit } from "@/logic/engine/types";
-import { FOG, PLAYER_COLORS, TERRAIN_COLOR, TILE } from "@/components/game/theme";
+import { FOG, PLAYER_COLORS, TERRAIN_COLOR, TILE as TILE_BASE, UI } from "@/components/game/theme";
 
 export type Highlight = "selected" | "move" | "attack" | "action" | null;
 
 export type Borders = { top: boolean; right: boolean; bottom: boolean; left: boolean };
 
+/** light washes only, so the art stays readable; the shape (ring, dot) carries the meaning */
 const HIGHLIGHT_COLOR: Record<Exclude<Highlight, null>, string> = {
-  selected: "#ffffff66",
-  move: "#4dabf7aa",
-  attack: "#ff3b3bbb",
-  action: "#ffd43b77",
+  selected: "transparent",
+  move: "#5ec4d62e",
+  attack: "#f2785c40",
+  action: "#f6c45333",
+};
+const HIGHLIGHT_RING: Record<Exclude<Highlight, null>, string> = {
+  selected: "#ffffff",
+  move: "#bdeaf2aa",
+  attack: "#f2785c",
+  action: "#f6c453",
 };
 
 function Tile({
@@ -26,6 +33,7 @@ function Tile({
   borders,
   highlight,
   onPress,
+  size,
 }: {
   x: number;
   y: number;
@@ -37,8 +45,11 @@ function Tile({
   borders: Borders;
   highlight: Highlight;
   onPress: (x: number, y: number) => void;
+  size?: number;
 }) {
+  const TILE = size ?? TILE_BASE;
   if (!explored) {
+    // unexplored land is dusk sea: no grid lines, so the known world reads as an island
     return (
       <Pressable
         onPress={() => onPress(x, y)}
@@ -49,8 +60,6 @@ function Tile({
           width: TILE,
           height: TILE,
           backgroundColor: FOG,
-          borderWidth: 0.5,
-          borderColor: "#2a3344",
         }}
       />
     );
@@ -197,10 +206,26 @@ function Tile({
             right: 0,
             bottom: 0,
             backgroundColor: HIGHLIGHT_COLOR[highlight],
-            borderWidth: highlight === "selected" ? 3 : 2,
-            borderColor: highlight === "attack" ? "#ff3b3b" : "white",
+            borderWidth: highlight === "selected" || highlight === "attack" ? 3 : 1,
+            borderColor: HIGHLIGHT_RING[highlight],
+            borderRadius: 6,
+            alignItems: "center",
+            justifyContent: "center",
           }}
-        />
+        >
+          {highlight === "move" && (
+            <View
+              style={{
+                width: TILE * 0.24,
+                height: TILE * 0.24,
+                borderRadius: TILE,
+                backgroundColor: "#ffffffd9",
+                borderWidth: 2,
+                borderColor: UI.sky,
+              }}
+            />
+          )}
+        </View>
       )}
     </Pressable>
   );

@@ -19,7 +19,25 @@ export const TERRAIN_GLYPH: Partial<Record<Terrain, string>> = {
   mountain: "⛰️",
 };
 
-export const FOG = "#1f2633";
+export const FOG = "#1b2846";
+
+/**
+ * UI tokens, taken from the menu landscape: dusk sky, sunset clouds, shard gold.
+ * Gold is reserved for shards (currency) and the one primary action on screen.
+ */
+export const UI = {
+  dusk: "#16213a", // app background: the sea of fog the map floats in
+  panel: "#223154",
+  panelHi: "#2c3d66",
+  line: "#34477a",
+  mist: "#e8eef8", // primary text
+  muted: "#9db0cf", // secondary text
+  gold: "#f6c453", // shards + primary action
+  goldInk: "#3a2a05", // text on gold
+  sky: "#5ec4d6", // move targets, secondary actions
+  coral: "#f2785c", // attack targets, danger
+  display: "Oi-Regular", // display face: logo, headings, results only
+};
 
 export const RESOURCE_GLYPH: Record<string, string> = {
   fruit: "🫐",

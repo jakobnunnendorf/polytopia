@@ -1,8 +1,8 @@
 import React, { useMemo } from "react";
-import { ScrollView, View } from "react-native";
+import { ScrollView, View, useWindowDimensions } from "react-native";
 import Tile, { type Highlight } from "./Tile";
 import type { City, GameState, Unit } from "@/logic/engine/types";
-import { TILE } from "@/components/game/theme";
+import { FOG } from "@/components/game/theme";
 
 /**
  * Renders the map from one player's point of view (fog of war applies).
@@ -21,6 +21,9 @@ export default function Map({
 }) {
   const n = state.mapSize;
   const explored = state.players[viewer].explored;
+  // fit the board to the screen width on phones; big maps scroll, tiles never get too small to tap
+  const { width, height } = useWindowDimensions();
+  const TILE = Math.max(34, Math.min(60, Math.floor((Math.min(width, height * 0.9) - 24) / n)));
 
   const { unitAt, cityById, ownerOfTile } = useMemo(() => {
     const unitAt = new globalThis.Map<number, Unit>();
@@ -37,9 +40,21 @@ export default function Map({
     x < 0 || y < 0 || x >= n || y >= n ? null : ownerOfTile[y * n + x];
 
   return (
-    <ScrollView testID="map-component" style={{ flex: 1 }} contentContainerStyle={{ padding: 8 }}>
-      <ScrollView horizontal contentContainerStyle={{ paddingRight: 8 }}>
-        <View style={{ width: n * TILE, height: n * TILE }}>
+    <ScrollView
+      testID="map-component"
+      style={{ flex: 1 }}
+      contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 12 }}
+    >
+      <ScrollView horizontal contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}>
+        <View
+          style={{
+            width: n * TILE,
+            height: n * TILE,
+            borderRadius: 14,
+            overflow: "hidden",
+            backgroundColor: FOG,
+          }}
+        >
           {state.tiles.map((tile, i) => {
             const x = i % n;
             const y = Math.floor(i / n);
@@ -63,6 +78,7 @@ export default function Map({
                 }}
                 highlight={highlights[`${x},${y}`] ?? null}
                 onPress={onTilePress}
+                size={TILE}
               />
             );
           })}

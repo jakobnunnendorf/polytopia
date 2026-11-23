@@ -628,3 +628,16 @@ export function UnitArt({ type, color, size }: { type: string; color: string; si
       );
   }
 }
+
+/** The shard: Shardlands' currency and emblem. A cut gem in four facets. */
+export function ShardIcon({ size, color = "#f6c453" }: { size: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      <Polygon points={pts([50, 4, 86, 40, 50, 96, 14, 40])} fill={color} />
+      <Polygon points={pts([50, 4, 50, 40, 14, 40])} fill={shade(color, 0.45)} />
+      <Polygon points={pts([50, 4, 86, 40, 50, 40])} fill={shade(color, 0.15)} />
+      <Polygon points={pts([14, 40, 50, 40, 50, 96])} fill={shade(color, -0.12)} />
+      <Polygon points={pts([50, 40, 86, 40, 50, 96])} fill={shade(color, -0.32)} />
+    </Svg>
+  );
+}
