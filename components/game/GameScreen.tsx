@@ -58,7 +58,10 @@ export default function GameScreen() {
     players?: string;
     mode?: string;
     seed?: string;
+    watch?: string;
   }>();
+  // ?watch=1: a bot plays your clan too, so you can watch a whole game unfold
+  const watch = params.watch === "1";
   const router = useRouter();
 
   const [state, setState] = useState<GameState>(() =>
@@ -67,21 +70,21 @@ export default function GameScreen() {
       players: Math.max(2, Number(params.players ?? 2)),
       mode: (params.mode as GameMode) ?? "perfection",
       seed: Number(params.seed ?? 1),
-      humans: [HUMAN],
+      humans: watch ? [] : [HUMAN],
     }),
   );
   const [selected, setSelected] = useState<Selection>(null);
   const [techOpen, setTechOpen] = useState(false);
 
-  const myTurn = state.current === HUMAN && !state.over;
+  const myTurn = state.current === HUMAN && !state.over && !watch;
   const actions = useMemo(() => (myTurn ? legalActions(state) : []), [state, myTurn]);
 
   // let the bots play, one turn per animation frame so the map redraws in between
   useEffect(() => {
-    if (state.over || !state.players[state.current].bot) return;
-    const t = setTimeout(() => setState((s) => playBotTurn(s)), 250);
+    if (state.over || !(watch || state.players[state.current].bot)) return;
+    const t = setTimeout(() => setState((s) => playBotTurn(s)), watch ? 120 : 250);
     return () => clearTimeout(t);
-  }, [state]);
+  }, [state, watch]);
 
   const act = useCallback((a: Action) => {
     setState((s) => applyAction(s, a));

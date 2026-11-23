@@ -38,17 +38,25 @@ is left; read it first after any context reset.
 
 ## Checklist
 - [x] Seeded RNG (`logic/engine/rng.ts`), seeded `spawnCapitals` that works for any player count
-- [ ] RULES.md written from research, unverified values marked
-- [ ] Engine types + data tables (units, techs, improvements, terrain) matching RULES.md
-- [ ] Map generation (terrain, resources, villages, ruins, capitals)
-- [ ] Turn loop: income, research, train, move, attack, capture, harvest/build, level-up rewards, end turn
-- [ ] Combat, healing, veterans, skills (dash, escape, persist, fortify, ...)
-- [ ] Naval (port, embark, boats/ships), roads/bridges, temples, special units
-- [ ] Fog of war, vision, explorer, ruins
-- [ ] Win conditions: Domination, Perfection (30 turns, score)
-- [ ] Bot opponent (simple, legal-moves-only)
-- [ ] Rule tests against RULES.md + 200-game bot-vs-bot simulation without errors
-- [ ] RL interface: `legalActions`, `applyAction`, `observe`, headless Node runner (`scripts/simulate.ts`), documented in `docs/shardlands/RL.md`
-- [ ] Phone UI: pannable map, select/move/attack, city panel (train/build), tech tree, level-up choice, end turn, game over
-- [ ] Runs on the phone (Expo Go after SDK upgrade, or web build in phone browser), screenshot checked
-- [ ] Committed and pushed; final report with launch command
+- [x] RULES.md written from research, unverified values marked
+- [x] Engine types + data tables (units, techs, improvements, terrain) matching RULES.md
+- [x] Map generation (terrain, resources, villages, ruins, capitals)
+- [x] Turn loop: income, research, train, move, attack, capture, harvest/build, level-up rewards, end turn
+- [x] Combat, healing, veterans, skills (dash, escape, persist, fortify, ...)
+- [x] Naval (port, embark, boats/ships), roads/bridges, temples, special units
+- [x] Fog of war, vision, explorer, ruins
+- [x] Win conditions: Domination, Perfection (30 turns, score)
+- [x] Bot opponent (simple, legal-moves-only)
+- [x] Rule tests against RULES.md + 200-game bot-vs-bot simulation without errors
+- [x] RL interface: `legalActions`, `applyAction`, `observe`, headless Node runner (`scripts/simulate.ts`), documented in `docs/shardlands/RL.md`
+- [x] Phone UI: pannable map, select/move/attack, city panel (train/build), tech tree, level-up choice, end turn, game over
+- [x] Runs on the phone (Expo Go after SDK upgrade, or web build in phone browser), screenshot checked
+- [x] Committed; final report with launch command (push is blocked for the agent, Jakob runs `git push -u origin worktree-shardlands-engine`)
+
+## Status (2026-11-23)
+
+- Playable at http://<Mac LAN IP>:8090 (phone, same Wi-Fi) or http://localhost:8090 after `zsh scripts/relaunch-preview.sh`.
+- `?watch=1` on the game URL lets a bot play your clan too (watch a whole game; used to screenshot the game-over screen).
+- Metro does not pick up edits inside `.claude/worktrees/` (hidden folder): relaunch the preview after every change.
+- Art: original low-poly SVG drawings in `components/art/Art.tsx`.
+- Known simplifications vs RULES.md are listed at the end of `docs/shardlands/RL.md`.
