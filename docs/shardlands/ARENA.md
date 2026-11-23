@@ -107,3 +107,14 @@ games and 57.9% of the points against greedy-v1. In 40 recorded arena games per
 pairing: 22–18 against greedy-hill-v1, 27–13 against greedy-v1, 40–0 against
 random-v1. It plays differently from v1: monuments 70→162 and healing others
 15→89, plain hits 20→1.5 and ruins 60→11.
+
+`greedy-hill-v3` (2026-11-23, 10× longer again: 6000 rounds of 60 games, 360,000
+games on 10 worker threads, ~35 minutes): 59 of 6000 challengers kept, 68% of 100
+unseen games and 58.7% of the points against greedy-v1, about where v2 landed. A
+third style: mass army (train 12→103, unitsPerCity 3→27, growBase 25→112) with
+captures almost ignored (100→8). More rounds alone stopped paying: the climber
+mostly drifts between equally good weight sets once it is near a local optimum.
+
+`scripts/arena-grid.sh` plays every bot pairing in domination 1v1 (11×11 and
+16×16) and perfection 1v1 16×16, plus 3- and 4-player free-for-alls, to give the
+rating filters data (~270 games).
