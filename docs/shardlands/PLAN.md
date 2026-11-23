@@ -24,6 +24,18 @@ is left; read it first after any context reset.
 - Phone: Expo SDK 52 is too old for today's Expo Go (latest SDK 58). Upgrade the
   SDK, or play the web build in the phone's browser.
 
+## Standing rules (Jakob, 2026-11-23)
+- Live preview for Jakob: after **every checkpoint** (each ticked box / commit),
+  relaunch the preview so it serves the latest version:
+  `zsh scripts/relaunch-preview.sh` (run in the background, from the worktree
+  root). It serves http://localhost:8090 and, on the same Wi-Fi,
+  http://<Mac LAN IP>:8090 (`ipconfig getifaddr en0`; it was 10.80.133.230).
+  Check it answers HTTP 200 before reporting the checkpoint.
+- Keep the live preview runnable between checkpoints: unfinished screens stay
+  out of `app/` routes (the game screen lives in
+  `components/game/GameScreen.tsx` until the engine works).
+- `git push` is blocked by auto mode; commit locally, Jakob pushes.
+
 ## Checklist
 - [x] Seeded RNG (`logic/engine/rng.ts`), seeded `spawnCapitals` that works for any player count
 - [ ] RULES.md written from research, unverified values marked

@@ -1,9 +1,38 @@
 import React from "react";
+import { View, Text } from "react-native";
 
-export default function Capital() {
+/** City marker: a banner-coloured keep with the city level; capitals get a crown. */
+export default function Capital({
+  color,
+  level,
+  capital,
+  walls,
+}: {
+  color: string;
+  level: number;
+  capital: boolean;
+  walls: boolean;
+}) {
   return (
-    <div className="absolute inset-0 flex items-center justify-center">
-      <div className="w-6 h-6 bg-yellow-400 rounded-full border-2 border-yellow-600" />
-    </div>
+    <View
+      style={{
+        position: "absolute",
+        left: 6,
+        top: 6,
+        right: 6,
+        bottom: 6,
+        borderRadius: 8,
+        backgroundColor: color,
+        borderWidth: walls ? 3 : 2,
+        borderColor: walls ? "#3b3b3b" : "#ffffffcc",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text style={{ fontSize: 13, fontWeight: "800", color: "white" }}>
+        {capital ? "♛" : ""}
+        {level}
+      </Text>
+    </View>
   );
 }

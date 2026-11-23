@@ -1,5 +1,4 @@
 import { render, screen, waitFor } from "@testing-library/react-native";
-import { Text } from "react-native";
 import HomeScreen from "../../app/index";
 
 jest.mock("expo-font", () => ({
@@ -7,26 +6,27 @@ jest.mock("expo-font", () => ({
   isLoaded: jest.fn(() => true),
 }));
 
+jest.mock("expo-router", () => ({
+  useRouter: () => ({ push: jest.fn() }),
+}));
+
 describe("Renders all elements", () => {
   it("should render the header", async () => {
     render(<HomeScreen />);
     await waitFor(() => {
-      const header = screen.getByText("The Battle Of Polytopia");
-      expect(header).toBeTruthy();
-    });
-  });
-  it("should render the Map Component", async () => {
-    render(<HomeScreen />);
-    await waitFor(() => {
-      const mapComponent = screen.getByTestId("map-component");
-      expect(mapComponent).toBeTruthy();
+      expect(screen.getByText(/Shardlands/)).toBeTruthy();
     });
   });
   it("should render the Settings Component", async () => {
     render(<HomeScreen />);
     await waitFor(() => {
-      const settingsComponent = screen.getByTestId("settings-component");
-      expect(settingsComponent).toBeTruthy();
+      expect(screen.getByTestId("settings-component")).toBeTruthy();
+    });
+  });
+  it("should render the start button", async () => {
+    render(<HomeScreen />);
+    await waitFor(() => {
+      expect(screen.getByTestId("start-button")).toBeTruthy();
     });
   });
 });
