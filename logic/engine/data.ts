@@ -22,7 +22,19 @@ export type Skill =
   | "infiltrate"
   | "creep"
   | "heal"
-  | "convert";
+  | "convert"
+  // Special tribe skills
+  | "amphibious"
+  | "fly"
+  | "freeze"
+  | "freezeArea"
+  | "autoFreeze"
+  | "skate"
+  | "poison"
+  | "boost"
+  | "explode"
+  | "eat"
+  | "grow";
 
 export type UnitDef = {
   id: string;
@@ -77,7 +89,52 @@ export const UNITS: Record<string, UnitDef> = {
   juggernaut: u("juggernaut", 0, false, 40, 4, 4, 2, 1, ["water", "carry", "stomp", "stiff", "static"], null, true),
   dinghy: u("dinghy", 0, false, 5, 0, 0.5, 2, 1, ["water", "carry", "hide", "infiltrate", "dash", "scout", "stiff", "static"], null, true),
   pirate: u("pirate", 0, false, 10, 2, 2, 2, 1, ["water", "carry", "dash", "surprise", "independent", "static"], null, true),
+
+  // ---- Special tribe units (exact Polytopia 2.18 stats) ----
+  // Aquarion (2.10 rework)
+  mermaid: u("mermaid", 2, true, 10, 2, 2, 1, 1, ["dash", "fortify", "amphibious"], null),
+  amphibian: u("amphibian", 3, true, 10, 2, 1, 2, 1, ["dash", "escape", "fortify", "amphibious"], "riding"),
+  shark: u("shark", 8, true, 10, 3.5, 2, 3, 1, ["dash", "surprise", "water"], "sailing", true),
+  jelly: u("jelly", 8, true, 20, 2, 2, 2, 1, ["water", "stiff", "static"], "navigation", true),
+  puffer: u("puffer", 8, true, 10, 4, 0, 2, 3, ["water", "stiff"], "mathematics", true),
+  tridention: u("tridention", 8, true, 10, 2.5, 1, 2, 2, ["dash", "persist", "amphibious"], "chivalry"),
+  crab: u("crab", 10, false, 40, 4, 4, 1, 1, ["escape", "static", "amphibious"], null),
+
+  // Elyrion (2.15 balance pass)
+  polytaur: u("polytaur", 3, false, 15, 3, 1, 1, 1, ["dash", "fortify", "independent", "static"], null),
+  dragonEgg: u("dragonEgg", 10, false, 10, 0, 2, 1, 0, ["fortify", "stiff", "static", "grow"], null),
+  babyDragon: u("babyDragon", 10, false, 15, 3, 3, 2, 1, ["dash", "escape", "fly", "scout", "static", "grow"], null),
+  fireDragon: u("fireDragon", 10, false, 20, 4, 3, 3, 2, ["dash", "splash", "fly", "scout", "static"], null),
+
+  // Polaris (2.15 balance pass)
+  mooni: u("mooni", 5, true, 10, 0, 1, 1, 1, ["autoFreeze", "freezeArea", "skate", "stiff", "static"], "fishing"),
+  iceArcher: u("iceArcher", 3, true, 10, 1, 1, 1, 2, ["dash", "fortify", "freeze", "stiff"], "archery"),
+  battleSled: u("battleSled", 5, true, 15, 3, 2, 2, 1, ["dash", "escape", "skate"], "sailing"),
+  iceFortress: u("iceFortress", 15, true, 20, 4, 3, 1, 2, ["escape", "scout", "skate", "static"], "navigation"),
+  gaami: u("gaami", 10, false, 30, 4, 3, 1, 1, ["autoFreeze", "freezeArea", "static"], null),
+
+  // Cymanti (2.15 rework)
+  shaman: u("shaman", 5, true, 10, 1, 1, 1, 1, ["convert", "boost", "stiff"], "meditation"),
+  hexapod: u("hexapod", 3, true, 5, 3, 1, 2, 1, ["dash", "escape", "creep", "hide"], "riding"),
+  kiton: u("kiton", 3, true, 15, 1, 3, 1, 1, ["creep", "poison"], "strategy"),
+  phychi: u("phychi", 3, true, 5, 0.7, 1, 2, 2, ["dash", "fly", "poison", "surprise"], "archery"),
+  mantis: u("mantis", 5, true, 15, 3, 3, 1, 1, ["dash", "creep"], "smithery"),
+  moth: u("moth", 5, true, 10, 0, 0.1, 2, 1, ["fly", "dash", "infiltrate", "poison", "static", "stiff"], "diplomacy"),
+  raychi: u("raychi", 5, true, 10, 3, 2, 3, 1, ["water", "dash"], "sailing", true),
+  boomchi: u("boomchi", 5, true, 10, 3, 3, 1, 1, ["dash", "explode", "stiff", "amphibious"], "ramming"),
+  exida: u("exida", 8, true, 10, 3, 1, 2, 3, ["creep", "splash", "poison"], "mathematics"),
+  doomux: u("doomux", 10, true, 20, 3.5, 2, 3, 1, ["dash", "creep", "explode", "static"], "chivalry"),
+  livingIsland: u("livingIsland", 20, true, 20, 4, 4, 2, 1, ["water", "stomp", "poison", "static"], "navigation", true),
+  centipede: u("centipede", 10, false, 20, 4, 3, 2, 1, ["dash", "creep", "eat", "static"], null),
+  segment: u("segment", 2, false, 10, 2, 2, 1, 1, ["creep", "dash", "explode", "independent", "stiff", "static"], null),
 };
+
+/** Special-tribe-only trainable units (filtered by tribe in legalActions) */
+export const TRIBE_ONLY_UNITS = new Set([
+  "mermaid", "amphibian", "shark", "jelly", "puffer", "tridention",
+  "mooni", "iceArcher", "battleSled", "iceFortress",
+  "shaman", "hexapod", "kiton", "phychi", "mantis", "moth", "raychi", "boomchi", "exida", "doomux", "livingIsland",
+]);
 
 /** boat form a land unit takes when it enters an own port (§4.2); default raft */
 export const EMBARK_AS: Record<string, string> = {
@@ -189,7 +246,24 @@ export const BUILDS: Record<string, BuildDef> = {
   bridge: { id: "bridge", cost: 5, tech: "roads", kind: "bridge", terrain: ["water"], pop: 0 },
   destroy: { id: "destroy", cost: 0, tech: "chivalry", kind: "destroy", terrain: ["field", "forest", "mountain", "water", "ocean"], pop: 0 },
   embassy: { id: "embassy", cost: 5, tech: "diplomacy", kind: "embassy", terrain: ["field"], pop: 0 },
+
+  // ---- Special tribe builds & buildings ----
+  // Elyrion
+  enchantAnimal: { id: "enchantAnimal", cost: 3, tech: "hunting", kind: "harvest", terrain: ["forest"], resource: "animal", pop: 0 },
+  sanctuary: { id: "sanctuary", cost: 5, tech: "forestry", kind: "building", terrain: ["field", "forest"], pop: 0, onePerCity: true },
+  // Polaris
+  outpost: { id: "outpost", cost: 5, tech: "fishing", kind: "building", terrain: ["water", "ocean"], pop: 1 },
+  iceBank: { id: "iceBank", cost: 20, tech: "trade", kind: "building", terrain: ["field"], pop: 0, onePerCity: true },
+  // Cymanti
+  fungi: { id: "fungi", cost: 5, tech: "farming", kind: "building", terrain: ["field"], resource: "crop", pop: 3 },
+  mycelium: { id: "mycelium", cost: 5, tech: "construction", kind: "building", terrain: ["field"], pop: 0, onePerCity: true },
+  clathrus: { id: "clathrus", cost: 5, tech: "trade", kind: "building", terrain: ["field"], pop: 0, onePerCity: true },
 };
+
+/** Special-tribe-only builds (filtered by tribe in canBuild) */
+export const TRIBE_ONLY_BUILDS = new Set([
+  "enchantAnimal", "sanctuary", "outpost", "iceBank", "fungi", "mycelium", "clathrus",
+]);
 
 /** feeder -> leveling building it raises, and population per level (§5.5) */
 export const FEEDS: Record<string, { building: string; popPerLevel: number }> = {
@@ -256,21 +330,197 @@ export type ClanDef = {
   startStars: number;
   capitalLevel: number;
   mod: Partial<Record<"mountain" | "forest" | "fruit" | "crop" | "animal" | "fish" | "metal", number>>;
+  /** true for the 4 special tribes (Aquarion, Elyrion, Polaris, Cymanti) */
+  special?: boolean;
+  /** super unit spawned by the level 5+ city reward (default: "giant") */
+  superUnit?: string;
+  /** trainable units replaced for this tribe (standardUnit -> specialUnit, or null to disable) */
+  unitReplacements?: Record<string, string | null>;
+  /** extra trainable units unique to this tribe (not replacing a standard unit) */
+  extraUnits?: string[];
+  /** builds replaced for this tribe (standardBuild -> specialBuild, or null to disable) */
+  buildReplacements?: Record<string, string | null>;
+  /** extra builds unique to this tribe */
+  extraBuilds?: string[];
+  /** tech tree display overrides for special tribes (techId -> { name, unlocks }) */
+  techOverrides?: Record<string, { name: string; unlocks: string }>;
+  /** signature tribe colour (used in UI & tribe badges) */
+  color?: string;
 };
 
 export const CLANS: ClanDef[] = [
-  { id: "inca", startTech: "climbing", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 1.5, metal: 1.5 } },
-  { id: "romans", startTech: "organization", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { animal: 0.5, fruit: 2 } },
-  { id: "norse", startTech: "hunting", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { forest: 0.8, crop: 0 } },
-  { id: "mongols", startTech: "riding", startUnit: "rider", startStars: 6, capitalLevel: 1, mod: { forest: 0.2, animal: 0.2, mountain: 0.5 } },
-  { id: "polynesians", startTech: "fishing", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, fish: 1.5 } },
-  { id: "welsh", startTech: "archery", startUnit: "archer", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 1.5 } },
-  { id: "lydians", startTech: null, startUnit: "warrior", startStars: 2, capitalLevel: 3, mod: {} },
-  { id: "hittites", startTech: "smithery", startUnit: "swordsman", startStars: 5, capitalLevel: 1, mod: { metal: 2, animal: 0.1, fruit: 0.1, fish: 0.1 } },
-  { id: "sumerians", startTech: "farming", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 0.5 } },
-  { id: "tibetans", startTech: "philosophy", startUnit: "mindBender", startStars: 5, capitalLevel: 1, mod: { mountain: 1.5, crop: 0.1 } },
-  { id: "spartans", startTech: "strategy", startUnit: "defender", startStars: 7, capitalLevel: 1, mod: { fruit: 2, crop: 0.1 } },
-  { id: "persians", startTech: "roads", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 1.5 } },
+  // ---- 12 Regular Tribes ----
+  { id: "inca", startTech: "climbing", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 1.5, metal: 1.5 }, color: "#e63946" },
+  { id: "romans", startTech: "organization", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { animal: 0.5, fruit: 2 }, color: "#2589f5" },
+  { id: "norse", startTech: "hunting", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { forest: 0.8, crop: 0 }, color: "#3b4252" },
+  { id: "mongols", startTech: "riding", startUnit: "rider", startStars: 6, capitalLevel: 1, mod: { forest: 0.2, animal: 0.2, mountain: 0.5 }, color: "#f4c430" },
+  { id: "polynesians", startTech: "fishing", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, fish: 1.5 }, color: "#2db84d" },
+  { id: "welsh", startTech: "archery", startUnit: "archer", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 1.5 }, color: "#8c6239" },
+  { id: "lydians", startTech: null, startUnit: "warrior", startStars: 2, capitalLevel: 3, mod: {}, color: "#9b5de5" },
+  { id: "hittites", startTech: "smithery", startUnit: "swordsman", startStars: 5, capitalLevel: 1, mod: { metal: 2, animal: 0.1, fruit: 0.1, fish: 0.1 }, color: "#4a4e69" },
+  { id: "sumerians", startTech: "farming", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 0.5 }, color: "#f97316" },
+  { id: "tibetans", startTech: "philosophy", startUnit: "mindBender", startStars: 5, capitalLevel: 1, mod: { mountain: 1.5, crop: 0.1 }, color: "#14b8a6" },
+  { id: "spartans", startTech: "strategy", startUnit: "defender", startStars: 7, capitalLevel: 1, mod: { fruit: 2, crop: 0.1 }, color: "#0d9488" },
+  { id: "persians", startTech: "roads", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 1.5 }, color: "#b91c1c" },
+
+  // ---- 4 Special Tribes ----
+  {
+    id: "aquarion",
+    special: true,
+    startTech: null,
+    startUnit: "mermaid",
+    startStars: 5,
+    capitalLevel: 1,
+    mod: { forest: 0.5, fish: 1.5 },
+    superUnit: "crab",
+    unitReplacements: { warrior: "mermaid", rider: "amphibian", catapult: "puffer", knight: "tridention" },
+    extraUnits: ["shark", "jelly"],
+    techOverrides: {
+      riding: { name: "Riding", unlocks: "Amphibian (amphibious)" },
+      roads: { name: "Waterways", unlocks: "Flooding land, Bubbles" },
+      ramming: { name: "Aquaculture", unlocks: "Aqua Farm, Atoll" },
+      sailing: { name: "Marine Life", unlocks: "Shark" },
+      freeSpirit: { name: "Free Diving", unlocks: "Temple, ocean movement, Disband" },
+      chivalry: { name: "Spearing", unlocks: "Tridention, Destroy" },
+      mathematics: { name: "Mathematics", unlocks: "Puffer, Sawmill" },
+      navigation: { name: "Navigation", unlocks: "Jelly, Starfish" },
+    },
+    color: "#ff6b6b",
+  },
+  {
+    id: "elyrion",
+    special: true,
+    startTech: "hunting",
+    startUnit: "warrior",
+    startStars: 5,
+    capitalLevel: 1,
+    mod: { crop: 1.5, mountain: 0.5 },
+    superUnit: "dragonEgg",
+    buildReplacements: {
+      hunt: "enchantAnimal",
+      sawmill: "sanctuary",
+      clearForest: null,
+      burnForest: null,
+    },
+    techOverrides: {
+      hunting: { name: "Forest Magic", unlocks: "Enchant Animal -> Polytaur (3★)" },
+      forestry: { name: "Forestry", unlocks: "Lumber Hut, Sanctuary (+★ per animal)" },
+    },
+    color: "#e84393",
+  },
+  {
+    id: "polaris",
+    special: true,
+    startTech: "fishing",
+    startUnit: "mooni",
+    startStars: 5,
+    capitalLevel: 1,
+    mod: { forest: 0.8, fish: 1.2 },
+    superUnit: "gaami",
+    unitReplacements: {
+      archer: "iceArcher",
+      catapult: "iceFortress",
+    },
+    extraUnits: ["mooni", "battleSled"],
+    buildReplacements: {
+      port: "outpost",
+      market: "iceBank",
+    },
+    techOverrides: {
+      fishing: { name: "Frostwork", unlocks: "Mooni, Outpost, shallow water" },
+      ramming: { name: "Ice Fishing", unlocks: "Fishing" },
+      sailing: { name: "Sledding", unlocks: "Battle Sled (skates on Ice)" },
+      aquatism: { name: "Polarism", unlocks: "Ice Temple, Glide" },
+      navigation: { name: "Polar Warfare", unlocks: "Ice Fortress, Starfish" },
+      archery: { name: "Archery", unlocks: "Ice Archer (freezes enemies)" },
+      trade: { name: "Trade", unlocks: "Ice Bank (+2★ per 20 frozen tiles)" },
+    },
+    color: "#38bdf8",
+  },
+  {
+    id: "cymanti",
+    special: true,
+    startTech: "farming",
+    startUnit: "shaman",
+    startStars: 5,
+    capitalLevel: 1,
+    mod: { mountain: 1.2, crop: 1.5 },
+    superUnit: "centipede",
+    unitReplacements: {
+      rider: "hexapod",
+      defender: "kiton",
+      archer: "phychi",
+      swordsman: "mantis",
+      knight: "doomux",
+      catapult: "exida",
+      mindBender: "shaman",
+      cloak: "moth",
+    },
+    extraUnits: ["raychi", "boomchi", "livingIsland"],
+    buildReplacements: {
+      farm: "fungi",
+      windmill: "mycelium",
+      market: "clathrus",
+    },
+    techOverrides: {
+      farming: { name: "Farming", unlocks: "Fungi (+3 pop, poisons enemies)" },
+      riding: { name: "Riding", unlocks: "Hexapod (creep, sneak, escape)" },
+      roads: { name: "Network", unlocks: "Mycelium (links & heals bugs)" },
+      strategy: { name: "Strategy", unlocks: "Kiton (poisons attackers)" },
+      diplomacy: { name: "Synergy", unlocks: "Moth, Embassy, Capital Vision" },
+      archery: { name: "Archery", unlocks: "Phychi (flying, poison)" },
+      smithery: { name: "Smithery", unlocks: "Mantis, Forge" },
+      meditation: { name: "Rituals", unlocks: "Shaman (Swarm, Parasite)" },
+      philosophy: { name: "Mysticism", unlocks: "Mountain Temple, Deep Insight" },
+      chivalry: { name: "Shock Tactics", unlocks: "Doomux (explodes)" },
+      mathematics: { name: "Mathematics", unlocks: "Exida (splash poison)" },
+      fishing: { name: "Hydrology", unlocks: "Algae, Fishing, water movement" },
+      ramming: { name: "Inflation", unlocks: "Boomchi (amphibious, explodes)" },
+      sailing: { name: "Pescetism", unlocks: "Raychi, ocean movement" },
+      navigation: { name: "Oceanology", unlocks: "Living Island, Starfish" },
+      construction: { name: "Recycling", unlocks: "Decompose, Microbes" },
+      trade: { name: "Trade", unlocks: "Clathrus (+★ per Algae/Fungi)" },
+    },
+    color: "#84cc16",
+  },
 ];
 
 export const CLAN_BY_ID: Record<string, ClanDef> = Object.fromEntries(CLANS.map((c) => [c.id, c]));
+
+/** Effective trainable unit list for a tribe (respects special tribe replacements & extras). */
+export function trainableUnitsFor(clanId: string): UnitDef[] {
+  const clan = CLAN_BY_ID[clanId];
+  const rep = clan?.unitReplacements ?? {};
+  const extras = new Set(clan?.extraUnits ?? []);
+  const out: UnitDef[] = [];
+  for (const def of Object.values(UNITS)) {
+    if (!def.trainable) continue;
+    if (TRIBE_ONLY_UNITS.has(def.id)) {
+      if (extras.has(def.id) || Object.values(rep).includes(def.id)) out.push(def);
+      continue;
+    }
+    if (def.id in rep) {
+      // replaced by a special unit or disabled
+      continue;
+    }
+    out.push(def);
+  }
+  return out;
+}
+
+/** Whether a build id is allowed for this tribe. */
+export function buildAllowedFor(clanId: string, buildId: string): boolean {
+  const clan = CLAN_BY_ID[clanId];
+  const rep = clan?.buildReplacements ?? {};
+  const extras = new Set(clan?.extraBuilds ?? []);
+  if (TRIBE_ONLY_BUILDS.has(buildId)) {
+    return extras.has(buildId) || Object.values(rep).includes(buildId);
+  }
+  if (buildId in rep) return false;
+  return true;
+}
+
+/** Super unit id for a tribe (default: "giant"). */
+export function superUnitFor(clanId: string): string {
+  return CLAN_BY_ID[clanId]?.superUnit ?? "giant";
+}

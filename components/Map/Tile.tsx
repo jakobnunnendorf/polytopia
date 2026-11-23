@@ -131,6 +131,37 @@ function Tile({
       }}
     >
       <TerrainArt terrain={tile.terrain} x={x} y={y} size={TILE} />
+      {tile.ice && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "#cceeffaa",
+            borderWidth: 1,
+            borderColor: "#ffffffcc",
+          }}
+        />
+      )}
+      {tile.algae && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 2,
+            top: 2,
+            right: 2,
+            bottom: 2,
+            borderRadius: 6,
+            backgroundColor: "#65a30dbb",
+            borderWidth: 1,
+            borderColor: "#a3e635",
+          }}
+        />
+      )}
       {ownerColor && (
         <Pop key={`t${territoryOwner}`} from={0.92} style={fill}>
         <View

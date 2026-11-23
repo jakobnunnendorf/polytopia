@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SettingsContext } from "@/context/SettingsContext";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
 import { arena, type Profile } from "@/components/game/arenaClient";
@@ -7,6 +7,8 @@ import { BUILTIN_MODELS } from "@/logic/agents/registry";
 import type { ModelSpec } from "@/logic/agents/types";
 import type { Ratings } from "@/logic/arena/elo";
 import type { Seat } from "@/logic/arena/record";
+import { CLANS } from "@/logic/engine/data";
+import { name as displayName } from "@/logic/engine/names";
 
 const MAP_SIZES = [
   { title: "Tiny", size: 11 },
@@ -174,6 +176,22 @@ function SeatRow({
           {models.find((m) => m.id === seat.modelId)?.description}
         </Text>
       )}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+        <Chip
+          label="Random tribe"
+          on={!seat.clan}
+          onPress={() => onChange({ ...seat, clan: undefined })}
+        />
+        {CLANS.map((c) => (
+          <Chip
+            key={c.id}
+            testID={`seat-${i}-tribe-${c.id}`}
+            label={`${c.special ? "★ " : ""}${displayName("clan", c.id)}`}
+            on={seat.clan === c.id}
+            onPress={() => onChange({ ...seat, clan: c.id })}
+          />
+        ))}
+      </ScrollView>
     </View>
   );
 }

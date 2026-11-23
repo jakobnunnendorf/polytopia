@@ -194,15 +194,21 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   );
   const humanSeats = useMemo(() => seats.flatMap((s, i) => (s.kind === "human" ? [i] : [])), [seats]);
 
-  const [state, setState] = useState<GameState>(() =>
-    resumed ? replayStates(resumed).pop()! : createGame({
+  const [state, setState] = useState<GameState>(() => {
+    if (resumed) return replayStates(resumed).pop()!;
+    const hasExplicitTribes = seats.some((s) => !!s.clan);
+    const chosenClans = hasExplicitTribes
+      ? seats.map((s, i) => s.clan ?? ["romans", "norse", "aquarion", "elyrion", "polaris", "cymanti"][i % 6])
+      : undefined;
+    return createGame({
       mapSize: Number(params.mapSize ?? 11),
       players: seats.length,
       mode: (params.mode as GameMode) ?? "perfection",
       seed: Number(params.seed ?? 1),
       humans: humanSeats,
-    }),
-  );
+      clans: chosenClans,
+    });
+  });
   // the record of every action, saved to the repo through the arena server
   const stateRef = useRef(state);
   const recRef = useRef<GameRecord>(
@@ -403,6 +409,9 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         case "healOthers":
         case "harvestStarfish":
         case "infiltrate":
+        case "freezeArea":
+        case "boost":
+        case "explode":
           return unitAtSel !== null && a.unitId === unitAtSel.id;
         case "train":
           return citySel !== null && a.cityId === citySel.id;
@@ -603,6 +612,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           costOf={(t) => techCost(state, viewer, t)}
           stars={me.stars}
           clanColor={clanColor(viewer)}
+          clanId={me.clan}
           clanName={name("clan", me.clan)}
           onLearn={(t) => act({ type: "research", tech: t })}
           onClose={() => setTechOpen(false)}

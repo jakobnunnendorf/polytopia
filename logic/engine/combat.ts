@@ -22,18 +22,20 @@ export function hasSkill(u: Unit, skill: string): boolean {
   return (UNITS[u.type].skills as string[]).includes(skill);
 }
 
-/** defence multiplier for a unit where it stands (§3.3) */
+/** defence multiplier for a unit where it stands (§3.3); Poison halves it (1->0.5, 1.5->0.7, 4->2) */
 export function defenceBonus(s: GameState, u: Unit): number {
   const t = tileAt(s, u.x, u.y);
   const tech = (k: string) => s.players[u.owner].techs.includes(k);
-  if (isWater(t)) return tech("aquatism") ? 1.5 : 1;
-  if (t.terrain === "forest") return tech("archery") ? 1.5 : 1;
-  if (t.terrain === "mountain") return tech("climbing") ? 1.5 : 1;
-  if (t.cityId !== null && hasSkill(u, "fortify")) {
+  let bonus = 1;
+  if (isWater(t)) bonus = tech("aquatism") ? 1.5 : 1;
+  else if (t.terrain === "forest") bonus = tech("archery") ? 1.5 : 1;
+  else if (t.terrain === "mountain") bonus = tech("climbing") ? 1.5 : 1;
+  else if (t.cityId !== null && hasSkill(u, "fortify")) {
     const city = s.cities.find((c) => c.id === t.cityId);
-    if (city && city.owner === u.owner) return city.walls ? 4 : 1.5;
+    if (city && city.owner === u.owner) bonus = city.walls ? 4 : 1.5;
   }
-  return 1;
+  if (u.poisoned) return bonus === 4 ? 2 : bonus === 1.5 ? 0.7 : 0.5;
+  return bonus;
 }
 
 export type CombatResult = { damage: number; retaliation: number };
@@ -60,8 +62,9 @@ export function computeDamage(
 
 /** formula applied to two units in a game state (no retaliation conditions) */
 export function computeDamageRounded(s: GameState, attacker: Unit, defender: Unit): CombatResult {
+  const atk = UNITS[attacker.type].attack + (attacker.boosted ? 0.5 : 0);
   return computeDamage(
-    UNITS[attacker.type].attack,
+    atk,
     attacker.hp,
     attacker.maxHp,
     UNITS[defender.type].defence,

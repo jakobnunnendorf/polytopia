@@ -16,6 +16,9 @@ import {
   TECHS,
   TECH_BY_ID,
   UNITS,
+  buildAllowedFor,
+  superUnitFor,
+  trainableUnitsFor,
 } from "./data";
 import { around, cloneState, dist, idx, isWater, tileAt } from "./grid";
 import { computeDamageRounded } from "./combat";
@@ -83,6 +86,7 @@ function infiltrateTargets(s: GameState, u: Unit): City[] {
 function canBuild(s: GameState, p: number, b: string, x: number, y: number): boolean {
   const def = BUILDS[b];
   const pl = s.players[p];
+  if (!buildAllowedFor(pl.clan, b)) return false;
   const t = tileAt(s, x, y);
   if (def.kind === "monument") {
     const task = Object.keys(MONUMENTS).find((k) => MONUMENTS[k] === b)!;
@@ -153,8 +157,7 @@ export function legalActions(s: GameState): Action[] {
   for (const c of citiesOf(s, p)) {
     if (occupant(s, c.x, c.y)) continue;
     if (unitsHomedIn(s, c) >= unitCapacity(c)) continue;
-    for (const def of Object.values(UNITS)) {
-      if (!def.trainable) continue;
+    for (const def of trainableUnitsFor(pl.clan)) {
       if (def.tech && !pl.techs.includes(def.tech)) continue;
       if (pl.stars < def.cost) continue;
       out.push({ type: "train", cityId: c.id, unit: def.id });
@@ -206,6 +209,23 @@ export function legalActions(s: GameState): Action[] {
         const hurt = s.units.some((o) => o.owner === p && o !== u && dist(o, u) === 1 && o.hp < o.maxHp);
         if (hurt) out.push({ type: "healOthers", unitId: u.id });
       }
+      if (has(u, "freezeArea")) {
+        const canFreeze = around(s.mapSize, u, 1, true).some((q) => {
+          const qt = tileAt(s, q.x, q.y);
+          return !qt.ice || s.units.some((e) => e.owner !== p && e.x === q.x && e.y === q.y && !e.frozen);
+        });
+        if (canFreeze) out.push({ type: "freezeArea", unitId: u.id });
+      }
+      if (has(u, "boost")) {
+        const boostable = s.units.some((o) => o.owner === p && o !== u && dist(o, u) === 1 && !o.boosted);
+        if (boostable) out.push({ type: "boost", unitId: u.id });
+      }
+    }
+    if (!u.done && has(u, "explode")) {
+      const hasTarget =
+        s.units.some((e) => e.owner !== p && dist(e, u) === 1) ||
+        (u.type === "raychi" && isWater(tile) && !tile.algae);
+      if (hasTarget) out.push({ type: "explode", unitId: u.id });
     }
     for (const c of infiltrateTargets(s, u)) out.push({ type: "infiltrate", unitId: u.id, cityId: c.id });
     if (u.kills >= 3 && !u.veteran && !has(u, "static")) out.push({ type: "promote", unitId: u.id });
@@ -308,6 +328,25 @@ export function applyAction(prev: GameState, a: Action): GameState {
     case "reward":
       doReward(s, cityById(s, a.cityId)!, a.reward);
       break;
+    case "freezeArea": {
+      const u = unitById(s, a.unitId)!;
+      freezeSurrounding(s, u);
+      endUnit(u);
+      break;
+    }
+    case "boost": {
+      const u = unitById(s, a.unitId)!;
+      for (const o of s.units) {
+        if (o.owner === p && o !== u && dist(o, u) === 1) o.boosted = true;
+      }
+      endUnit(u);
+      break;
+    }
+    case "explode": {
+      const u = unitById(s, a.unitId)!;
+      doExplode(s, u);
+      break;
+    }
   }
   for (const u of s.units) if (u.owner === p && actsOn(a, u)) u.idle = false;
   updateConnections(s, p);
@@ -335,9 +374,14 @@ function heal(s: GameState, u: Unit) {
 function endTurn(s: GameState) {
   const p = s.current;
   const pl = s.players[p];
-  // automatic heal of idle units (§3.5)
+  // automatic heal of idle units (§3.5) and thaw frozen units at end of their owner's turn
   for (const u of s.units) {
-    if (u.owner === p && u.idle && !u.moved && !u.attacked && u.hp < u.maxHp) heal(s, u);
+    if (u.owner !== p) continue;
+    if (u.frozen) {
+      u.frozen = false;
+      continue;
+    }
+    if (u.idle && !u.moved && !u.attacked && u.hp < u.maxHp) heal(s, u);
   }
   if (pl.techs.includes("meditation")) pl.pacifistTurns = pl.attackedThisTurn ? 0 : pl.pacifistTurns + 1;
   checkTasks(s, p);
@@ -380,6 +424,35 @@ function doMove(s: GameState, u: Unit, to: Coord) {
   if (kind === "embark") embark(u);
   else if (kind === "disembark") disembark(u);
   if (has(u, "stomp")) stomp(s, u);
+  if (has(u, "autoFreeze")) freezeSurrounding(s, u);
+  // Cymanti Fungi poisons enemy units stepping onto it
+  const destTile = tileAt(s, u.x, u.y);
+  if (destTile.building === "fungi" && territoryOwner(s, destTile) !== u.owner) {
+    u.poisoned = true;
+  }
+}
+
+function freezeSurrounding(s: GameState, u: Unit) {
+  for (const q of around(s.mapSize, u, 1, true)) {
+    const t = tileAt(s, q.x, q.y);
+    t.ice = true;
+    const occ = occupant(s, q.x, q.y);
+    if (occ && occ.owner !== u.owner) occ.frozen = true;
+  }
+}
+
+function doExplode(s: GameState, u: Unit) {
+  const p = u.owner;
+  const pos = { x: u.x, y: u.y };
+  s.units = s.units.filter((x) => x !== u);
+  const t = tileAt(s, pos.x, pos.y);
+  if (isWater(t)) t.algae = true;
+  for (const e of s.units.slice()) {
+    if (e.owner === p || dist(e, pos) !== 1) continue;
+    const r = computeDamageRounded(s, u, e);
+    damage(s, e, Math.max(1, Math.floor(r.damage / 2)), u);
+    if (s.units.includes(e)) e.poisoned = true;
+  }
 }
 
 function embark(u: Unit) {
@@ -444,23 +517,32 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
 
   const r = computeDamageRounded(s, u, target);
   const from = { x: target.x, y: target.y };
+  const prevPos = { x: u.x, y: u.y };
   const killed = damage(s, target, r.damage, u);
+  // special on-hit effects: freeze (Ice Archer) & poison (Phychi, Exida, Kiton)
+  if (!killed && has(u, "freeze")) target.frozen = true;
+  if (!killed && has(u, "poison")) target.poisoned = true;
   // splash: half damage (floored) to enemies adjacent to the target
   if (has(u, "splash")) {
     for (const e of s.units.slice()) {
       if (e.owner === p || dist(e, from) !== 1 || e === u) continue;
       const sr = computeDamageRounded(s, u, e);
       damage(s, e, Math.floor(sr.damage / 2), u);
+      if (s.units.includes(e) && has(u, "poison")) e.poisoned = true;
     }
   }
   if (!killed) {
     const retaliates =
+      !target.frozen &&
       !has(u, "surprise") &&
       !has(target, "stiff") &&
       dist(u, target) <= UNITS[target.type].range &&
       s.players[target.owner].explored[idx(s.mapSize, u.x, u.y)] === 1 &&
       r.retaliation > 0;
-    if (retaliates) damage(s, u, r.retaliation, target);
+    if (retaliates) {
+      damage(s, u, r.retaliation, target);
+      if (s.units.includes(u) && has(target, "poison")) u.poisoned = true;
+    }
   }
   u.attacked = true;
   const alive = s.units.includes(u);
@@ -476,6 +558,10 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
       u.y = from.y;
       explore(s, p, u, sightRadius(s, u));
       if (kind === "embark") embark(u);
+      // Cymanti Centipede eat: spawns a Segment behind it on kill
+      if (has(u, "eat") && !occupant(s, prevPos.x, prevPos.y)) {
+        makeUnit(s, "segment", p, prevPos, null);
+      }
     }
   }
   if (killed && has(u, "persist") && attackTargets(s, { ...u, canAttack: true }).length) u.canAttack = true;
@@ -647,6 +733,14 @@ function doBuild(s: GameState, p: number, b: string, at: Coord) {
   const city = cityById(s, t.territory);
   switch (def.kind) {
     case "harvest":
+      if (b === "enchantAnimal") {
+        t.resource = null;
+        const occ = occupant(s, at.x, at.y);
+        if (occ) pushUnit(s, occ);
+        const poly = makeUnit(s, "polytaur", p, at, null);
+        explore(s, p, poly, 1);
+        break;
+      }
       if (b === "clearForest") t.terrain = "field";
       else if (b === "burnForest") {
         t.terrain = "field";
@@ -762,7 +856,8 @@ function doReward(s: GameState, c: City, reward: string) {
     case "superUnit": {
       const occ = occupant(s, c.x, c.y);
       if (occ) pushUnit(s, occ);
-      const g = makeUnit(s, "giant", p, c, c.id);
+      const su = superUnitFor(s.players[p].clan);
+      const g = makeUnit(s, su, p, c, c.id);
       explore(s, p, g, 1);
       break;
     }

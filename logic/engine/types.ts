@@ -30,6 +30,10 @@ export type Tile = {
   lighthouse: boolean;
   /** id of the city whose territory this tile belongs to */
   territory: number | null;
+  /** Polaris: frozen water/land tile */
+  ice?: boolean;
+  /** Cymanti: walkable algae on water */
+  algae?: boolean;
 };
 
 export type Unit = {
@@ -61,6 +65,14 @@ export type Unit = {
   hidden: boolean;
   /** direction of the last move/attack, for forced pushes */
   lastDir: Coord | null;
+  /** Polaris: frozen until owner's next turn ends */
+  frozen?: boolean;
+  /** Cymanti: poisoned (loses defence bonuses) */
+  poisoned?: boolean;
+  /** Cymanti: boosted by Shaman (+0.5 atk, +1 mov) */
+  boosted?: boolean;
+  /** Elyrion: turns lived (for Dragon Egg -> Baby Dragon -> Fire Dragon) */
+  age?: number;
 };
 
 export type City = {
@@ -150,4 +162,7 @@ export type Action =
   | { type: "infiltrate"; unitId: number; cityId: number }
   | { type: "train"; cityId: number; unit: string }
   | { type: "build"; at: Coord; building: string }
-  | { type: "reward"; cityId: number; reward: string };
+  | { type: "reward"; cityId: number; reward: string }
+  | { type: "freezeArea"; unitId: number }
+  | { type: "boost"; unitId: number }
+  | { type: "explode"; unitId: number };

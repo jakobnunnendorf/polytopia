@@ -61,6 +61,39 @@ const NAMES: Record<Kind, Record<string, string>> = {
     juggernaut: "Juggernaut",
     dinghy: "Dinghy",
     pirate: "Pirate",
+    // Aquarion
+    mermaid: "Mermaid",
+    amphibian: "Amphibian",
+    shark: "Shark",
+    jelly: "Jelly",
+    puffer: "Puffer",
+    tridention: "Tridention",
+    crab: "Crab",
+    // Elyrion
+    polytaur: "Polytaur",
+    dragonEgg: "Dragon Egg",
+    babyDragon: "Baby Dragon",
+    fireDragon: "Fire Dragon",
+    // Polaris
+    mooni: "Mooni",
+    iceArcher: "Ice Archer",
+    battleSled: "Battle Sled",
+    iceFortress: "Ice Fortress",
+    gaami: "Gaami",
+    // Cymanti
+    shaman: "Shaman",
+    hexapod: "Hexapod",
+    kiton: "Kiton",
+    phychi: "Phychi",
+    mantis: "Mantis",
+    moth: "Moth",
+    raychi: "Raychi",
+    boomchi: "Boomchi",
+    exida: "Exida",
+    doomux: "Doomux",
+    livingIsland: "Living Island",
+    centipede: "Centipede",
+    segment: "Segment",
   },
   building: {
     farm: "Farm",
@@ -95,6 +128,14 @@ const NAMES: Record<Kind, Record<string, string>> = {
     parkOfFortune: "Park of Fortune",
     grandBazaar: "Grand Bazaar",
     eyeOfGod: "Eye of God",
+    // Special tribe buildings
+    enchantAnimal: "Enchant Animal",
+    sanctuary: "Sanctuary",
+    outpost: "Outpost",
+    iceBank: "Ice Bank",
+    fungi: "Fungi",
+    mycelium: "Mycelium",
+    clathrus: "Clathrus",
   },
   terrain: {
     field: "Field",
@@ -124,6 +165,10 @@ const NAMES: Record<Kind, Record<string, string>> = {
     tibetans: "Ai-Mo",
     spartans: "Quetzali",
     persians: "Yădakk",
+    aquarion: "Aquarion",
+    elyrion: "∑∫ỹriȱŋ",
+    polaris: "Polaris",
+    cymanti: "Cymanti",
   },
   reward: {
     workshop: "Workshop (+1 ★/turn)",
@@ -189,5 +234,11 @@ export function actionLabel(_s: GameState, a: Action): string {
     }
     case "reward":
       return name("reward", a.reward);
+    case "freezeArea":
+      return "Freeze Area";
+    case "boost":
+      return "Boost Allies";
+    case "explode":
+      return "Explode";
   }
 }

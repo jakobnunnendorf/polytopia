@@ -148,6 +148,18 @@ export function UnitSprite({
             }}
           />
           <UnitArt type={unit.type} color={color(unit.owner)} size={box.size} />
+          {(unit.frozen || unit.poisoned || unit.boosted) && (
+            <Text
+              style={{
+                position: "absolute",
+                left: TILE * 0.08,
+                top: TILE * 0.06,
+                fontSize: Math.max(9, Math.round(TILE * 0.18)),
+              }}
+            >
+              {unit.frozen ? "❄️" : unit.poisoned ? "☠️" : "⚡"}
+            </Text>
+          )}
           <Text
             style={{
               position: "absolute",

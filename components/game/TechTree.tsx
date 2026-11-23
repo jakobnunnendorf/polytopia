@@ -1,34 +1,44 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import Svg, { Circle, Line } from "react-native-svg";
-import { ShardIcon } from "@/components/art/Art";
+import { ShardIcon, TribeEmblem } from "@/components/art/Art";
 import { TechIcon } from "@/components/art/TechIcons";
 import { UI } from "@/components/game/theme";
 import { Pop } from "@/components/anim";
-import { TECHS } from "@/logic/engine/data";
+import { CLAN_BY_ID, TECHS } from "@/logic/engine/data";
 import { name } from "@/logic/engine/names";
 
 type Node = { id: string; tier: number; x: number; y: number; parent: string | null };
 
 /**
- * Radial lore wheel: the clan sits in the centre, five branches fan out with
- * tier 1 on the inner ring, tier 2 in the middle and tier 3 on the outer ring.
- * Positions come from the tech data alone (5 branches of 1 + 2 + 2).
+ * Exact Battle of Polytopia radial tech tree layout:
+ * Tribe head in the centre; 5 branches arranged clockwise matching Polytopia:
+ *   Top-Left:  Climbing (Mining/Smithery, Meditation/Philosophy)
+ *   Top-Right: Fishing  (Sailing/Navigation, Ramming/Aquatism)
+ *   Right:     Hunting  (Archery/Spiritualism, Forestry/Mathematics)
+ *   Bottom:    Organization (Farming/Construction, Strategy/Diplomacy)
+ *   Left:      Riding   (Roads/Trade, Free Spirit/Chivalry)
  */
+const POLYTOPIA_BRANCH_ORDER = ["climbing", "fishing", "hunting", "organization", "riding"];
+
 function layout(size: number): Node[] {
   const c = size / 2;
   const radius = [0, size * 0.17, size * 0.31, size * 0.46];
   const angleOf: Record<string, number> = {};
   const nodes: Node[] = [];
-  const roots = TECHS.filter((t) => t.tier === 1);
+  const roots = POLYTOPIA_BRANCH_ORDER
+    .map((id) => TECHS.find((t) => t.id === id))
+    .filter((t): t is (typeof TECHS)[number] => !!t);
   roots.forEach((root, k) => {
-    const base = -Math.PI / 2 + (k * 2 * Math.PI) / roots.length;
+    // Start at -126° (top-left) and step +72° clockwise: -126°, -54°, +18°, +90°, +162°
+    const base = -Math.PI / 2 - Math.PI / 5 + (k * 2 * Math.PI) / roots.length;
     angleOf[root.id] = base;
     const kids = TECHS.filter((t) => t.parent === root.id);
     kids.forEach((kid, j) => {
       angleOf[kid.id] = base + (j === 0 ? -1 : 1) * (Math.PI / 10);
-      // the outer ring fans a little wider so labels never sit on the node beyond them
-      for (const leaf of TECHS.filter((t) => t.parent === kid.id)) angleOf[leaf.id] = base + (j === 0 ? -1 : 1) * (Math.PI / 6.5);
+      for (const leaf of TECHS.filter((t) => t.parent === kid.id)) {
+        angleOf[leaf.id] = base + (j === 0 ? -1 : 1) * (Math.PI / 6.5);
+      }
     });
   });
   for (const t of TECHS) {
@@ -44,6 +54,7 @@ export default function TechTree({
   costOf,
   stars,
   clanColor,
+  clanId,
   clanName,
   onLearn,
   onClose,
@@ -53,10 +64,14 @@ export default function TechTree({
   costOf: (tech: string) => number;
   stars: number;
   clanColor: string;
+  clanId?: string;
   clanName: string;
   onLearn: (tech: string) => void;
   onClose: () => void;
 }) {
+  const overrides = clanId ? CLAN_BY_ID[clanId]?.techOverrides : undefined;
+  const techLabel = (id: string) => overrides?.[id]?.name ?? name("tech", id);
+  const techUnlocks = (id: string, fallback: string) => overrides?.[id]?.unlocks ?? fallback;
   const { width, height } = useWindowDimensions();
   const size = Math.min(width - 16, height - 250, 640);
   const nodes = useMemo(() => layout(size), [size]);
@@ -114,7 +129,7 @@ export default function TechTree({
             })}
           </Svg>
 
-          {/* the clan at the centre */}
+          {/* the player's tribe head at the centre */}
           <View
             style={{
               position: "absolute",
@@ -130,7 +145,7 @@ export default function TechTree({
               justifyContent: "center",
             }}
           >
-            <ShardIcon size={node * 0.7} color="#ffffff" />
+            <TribeEmblem clan={clanId ?? "romans"} size={node * 1.1} />
           </View>
 
           {nodes.map((n) => {
@@ -177,7 +192,7 @@ export default function TechTree({
                     textShadowRadius: 4,
                   }}
                 >
-                  {name("tech", n.id)}
+                  {techLabel(n.id)}
                 </Text>
                 {st !== "known" && (
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -209,8 +224,8 @@ export default function TechTree({
         <View style={{ minHeight: 48 }}>
           {pickedTech ? (
             <>
-              <Text style={{ color: UI.mist, fontSize: 17, fontWeight: "800" }}>{name("tech", pickedTech.id)}</Text>
-              <Text style={{ color: UI.muted, fontSize: 14, marginTop: 2 }}>Unlocks {pickedTech.unlocks}</Text>
+              <Text style={{ color: UI.mist, fontSize: 17, fontWeight: "800" }}>{techLabel(pickedTech.id)}</Text>
+              <Text style={{ color: UI.muted, fontSize: 14, marginTop: 2 }}>Unlocks {techUnlocks(pickedTech.id, pickedTech.unlocks)}</Text>
             </>
           ) : (
             <Text style={{ color: UI.muted, fontSize: 14, lineHeight: 20 }}>

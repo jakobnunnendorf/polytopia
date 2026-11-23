@@ -9,6 +9,9 @@ import React from "react";
 import { Image, type ImageSourcePropType } from "react-native";
 import Svg, { Circle, Ellipse, G, Line, Path, Polygon, Rect } from "react-native-svg";
 import type { Terrain } from "@/logic/engine/types";
+import { SpecialBuildingArt, SpecialUnitArt, TribeEmblem } from "./TribeArt";
+
+export { TribeEmblem };
 
 // ---------- 3D low-poly Polytopia sprite map ----------
 const UNIT_SPRITES: Record<string, ImageSourcePropType> = {
@@ -295,6 +298,8 @@ function PolyHouse({
 export function BuildingArt({ id, size }: { id: string; size: number }) {
   const sprite = BUILDING_SPRITES[id];
   if (sprite) return <Sprite source={sprite} size={size} pad={size * 0.04} />;
+  const special = SpecialBuildingArt({ id, size });
+  if (special) return special;
 
   switch (id) {
     case "altarOfPeace":
@@ -703,10 +708,13 @@ export function CityArt({
   );
 }
 
-// ---------- units (3D Polytopia PNG sprites) ----------
-export function UnitArt({ type, size }: { type: string; color: string; size: number }) {
-  const sprite = UNIT_SPRITES[type] ?? UNIT_SPRITES.warrior;
-  return <Sprite source={sprite} size={size} pad={size * 0.02} />;
+// ---------- units (3D Polytopia PNG sprites + special tribe low-poly units) ----------
+export function UnitArt({ type, color, size }: { type: string; color: string; size: number }) {
+  const sprite = UNIT_SPRITES[type];
+  if (sprite) return <Sprite source={sprite} size={size} pad={size * 0.02} />;
+  const special = SpecialUnitArt({ type, color, size });
+  if (special) return special;
+  return <Sprite source={UNIT_SPRITES.warrior} size={size} pad={size * 0.02} />;
 }
 
 /** Battle of Polytopia 3D faceted golden Star currency icon */
