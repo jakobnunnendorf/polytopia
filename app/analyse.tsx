@@ -47,7 +47,8 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
   useEffect(() => {
     if (follow) setK(states.length - 1);
   }, [follow, states.length]);
-  const [view, setView] = useState<number | "all">("all");
+  // "mover": the map as the player who is moving right now sees it (switches every turn)
+  const [view, setView] = useState<number | "all" | "mover">(live ? "mover" : "all");
   const [playing, setPlaying] = useState(false);
   useEffect(() => {
     if (!playing) return;
@@ -88,8 +89,20 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
             ? `${seatLabel(rec.seats[step.p])} (${name("clan", states[k - 1].players[step.p].clan)}): ${actionLabel(states[k - 1], step.a)}`
             : "Start of the game"}
         </Text>
+        <Text style={{ color: UI.muted, fontSize: 12, marginTop: 2 }}>
+          {view === "all"
+            ? "Whole map. Dots show who has explored a tile; pale tiles nobody has seen."
+            : `Seen through ${seatLabel(rec.seats[view === "mover" ? s.current : view])}'s eyes; clouds hide what they have not discovered.`}
+        </Text>
       </View>
-      <Map state={s} viewer={view === "all" ? 0 : view} reveal={view === "all"} highlights={{}} onTilePress={() => {}} />
+      <Map
+        state={s}
+        viewer={view === "all" ? 0 : view === "mover" ? s.current : view}
+        reveal={view === "all"}
+        seenBy
+        highlights={{}}
+        onTilePress={() => {}}
+      />
       <View style={{ backgroundColor: "#223154f2", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 14, width: "100%", maxWidth: 640, alignSelf: "center" }}>
         <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
           <Btn label="⏮ Turn" onPress={() => { setFollow(false); setK(prevTurn); }} disabled={k === 0} />
@@ -100,6 +113,7 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
           {live && <Btn label="Follow live" on={follow} onPress={() => setFollow(!follow)} />}
         </View>
         <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 4 }}>
+          <Btn label="Mover's view" on={view === "mover"} onPress={() => setView("mover")} />
           <Btn label="Whole map" on={view === "all"} onPress={() => setView("all")} />
           {rec.seats.map((seat, i) => (
             <Btn key={i} label={`${seatLabel(seat)}'s view`} on={view === i} onPress={() => setView(i)} />

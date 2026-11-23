@@ -645,24 +645,23 @@ export function ShardIcon({ size, color = "#f6c453" }: { size: number; color?: s
 // ---------- clouds over undiscovered land ----------
 export const CLOUD = { base: "#e6e1ef", lit: "#ffffff", blush: "#f4d6dd", shade: "#c8c2dc" };
 
-/** a faceted puff: lower facets in shade, upper facets lit, one blush facet catching the dusk */
+/** a low-poly puff: a soft shadow below, a light body, and one lit facet catching the sun */
 function Puff({ cx, cy, r, seed }: { cx: number; cy: number; r: number; seed: number }) {
-  const k = 8;
-  const p = Array.from({ length: k }, (_, i) => {
-    const a = (i / k) * Math.PI * 2 + seed;
-    const rr = r * (0.86 + 0.14 * Math.sin(seed * 7 + i * 2.3));
-    return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.82];
-  });
-  const fan = (i: number) => pts([cx, cy, ...p[i], ...p[(i + 1) % k]]);
+  const k = 9;
+  const ring = (rx: number, ry: number, dx = 0, dy = 0) =>
+    Array.from({ length: k }, (_, i) => {
+      const a = (i / k) * Math.PI * 2 + seed;
+      return [cx + dx + Math.cos(a) * rx, cy + dy + Math.sin(a) * ry];
+    });
+  const body = ring(r, r * 0.78);
+  const shadow = ring(r * 0.98, r * 0.7, 0, r * 0.18);
+  // highlight: the upper-left part of the body
+  const lit = ring(r * 0.62, r * 0.42, -r * 0.18, -r * 0.2);
   return (
     <G>
-      <Polygon points={pts(p.flat())} fill={CLOUD.shade} />
-      {p.map((_, i) => {
-        const mid = Math.sin(((i + 0.5) / k) * Math.PI * 2 + seed);
-        // sin < 0 is the upper half (SVG y grows down)
-        const fill = mid < -0.55 ? CLOUD.lit : mid < 0 ? (i % 3 === 0 ? CLOUD.blush : CLOUD.base) : mid < 0.5 ? CLOUD.base : CLOUD.shade;
-        return <Polygon key={i} points={fan(i)} fill={fill} />;
-      })}
+      <Polygon points={pts(shadow.flat())} fill={CLOUD.shade} />
+      <Polygon points={pts(body.flat())} fill={CLOUD.base} />
+      <Polygon points={pts(lit.flat())} fill={seed > 4 ? CLOUD.blush : CLOUD.lit} />
     </G>
   );
 }

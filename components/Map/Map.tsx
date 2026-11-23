@@ -15,22 +15,27 @@ export default function Map({
   highlights,
   onTilePress,
   reveal = false,
+  seenBy,
 }: {
   state: GameState;
   viewer: number;
   /** show the whole map without clouds (game analysis) */
   reveal?: boolean;
+  /** with reveal: mark each tile with the colours of the players who have explored it */
+  seenBy?: boolean;
   highlights: Record<string, Highlight>;
   onTilePress: (x: number, y: number) => void;
 }) {
   const n = state.mapSize;
   const explored = state.players[viewer].explored;
-  // fit the board to the screen width on phones; big maps scroll, tiles never get too small to tap
+  // fit the whole board into the space this map really gets (between HUD and tray);
+  // before the first layout, guess from the window
   const { width, height } = useWindowDimensions();
-  const fit = Math.floor((Math.min(width, height * 0.9) - 24) / n);
-  // zoom steps: 0 = fit the board on screen; each step is 25% bigger and the board scrolls
+  const [area, setArea] = useState<{ w: number; h: number } | null>(null);
+  const fit = Math.max(12, Math.floor((Math.min(area?.w ?? width, area?.h ?? height * 0.6) - 26) / n));
+  // zoom steps: 0 = the whole board fits; each step is 25% bigger and the board scrolls
   const [zoom, setZoom] = useState(0);
-  const TILE = Math.max(34, Math.min(88, Math.round(fit * 1.25 ** zoom)));
+  const TILE = zoom <= 0 ? fit : Math.min(96, Math.round(fit * 1.25 ** zoom));
 
   const { unitAt, cityById, ownerOfTile } = useMemo(() => {
     const unitAt = new globalThis.Map<number, Unit>();
@@ -68,7 +73,7 @@ export default function Map({
   );
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1 }} onLayout={(e) => setArea({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
     <ScrollView
       testID="map-component"
       style={{ flex: 1 }}
@@ -90,6 +95,7 @@ export default function Map({
             const x = i % n;
             const y = Math.floor(i / n);
             const seen = reveal || explored[i] === 1;
+            const watchers = reveal && seenBy ? state.players.filter((p) => p.explored[i] === 1).map((p) => p.id) : undefined;
             const o = ownerOfTile[i];
             return (
               <Tile
@@ -110,6 +116,7 @@ export default function Map({
                 highlight={highlights[`${x},${y}`] ?? null}
                 onPress={onTilePress}
                 size={TILE}
+                watchers={watchers}
               />
             );
           })}
@@ -117,8 +124,8 @@ export default function Map({
       </ScrollView>
     </ScrollView>
       <View style={{ position: "absolute", right: 12, top: 12 }}>
-        {zoomButton("+", 1, TILE < 88)}
-        {zoomButton("−", -1, zoom > 0 || TILE > fit)}
+        {zoomButton("+", 1, TILE < 96)}
+        {zoomButton("−", -1, zoom > 0)}
       </View>
     </View>
   );

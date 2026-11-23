@@ -34,6 +34,7 @@ function Tile({
   highlight,
   onPress,
   size,
+  watchers,
 }: {
   x: number;
   y: number;
@@ -46,6 +47,8 @@ function Tile({
   highlight: Highlight;
   onPress: (x: number, y: number) => void;
   size?: number;
+  /** analysis: ids of the players who have explored this tile (dots), none = dimmed */
+  watchers?: number[];
 }) {
   const TILE = size ?? TILE_BASE;
   if (!explored) {
@@ -201,6 +204,27 @@ function Tile({
           >
             {Math.ceil(unit.hp)}
           </Text>
+        </View>
+      )}
+      {watchers && watchers.length === 0 && (
+        <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#e6e1efb0" }} />
+      )}
+      {watchers && watchers.length > 0 && (
+        <View pointerEvents="none" style={{ position: "absolute", right: 2, top: 2, flexDirection: "row", zIndex: 3 }}>
+          {watchers.map((p) => (
+            <View
+              key={p}
+              style={{
+                width: Math.max(5, TILE * 0.13),
+                height: Math.max(5, TILE * 0.13),
+                borderRadius: TILE,
+                marginLeft: 1,
+                backgroundColor: PLAYER_COLORS[p % PLAYER_COLORS.length],
+                borderWidth: 1,
+                borderColor: "#ffffffcc",
+              }}
+            />
+          ))}
         </View>
       )}
       {highlight && (
