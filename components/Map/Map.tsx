@@ -2,7 +2,6 @@ import React, { useMemo } from "react";
 import { ScrollView, View, useWindowDimensions } from "react-native";
 import Tile, { type Highlight } from "./Tile";
 import type { City, GameState, Unit } from "@/logic/engine/types";
-import { FOG } from "@/components/game/theme";
 
 /**
  * Renders the map from one player's point of view (fog of war applies).
@@ -52,7 +51,8 @@ export default function Map({
             height: n * TILE,
             borderRadius: 14,
             overflow: "hidden",
-            backgroundColor: FOG,
+            borderWidth: 1,
+            borderColor: "#ffffff2e", // faint edge of the world
           }}
         >
           {state.tiles.map((tile, i) => {

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { ImageBackground, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import * as Font from "expo-font";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Map from "@/components/Map/Map";
@@ -236,7 +236,13 @@ export default function GameScreen() {
   const winnerClan = state.winner !== null ? name("clan", state.players[state.winner].clan) : "";
 
   return (
-    <View style={{ flex: 1, backgroundColor: UI.dusk }}>
+    <ImageBackground
+      source={require("@/assets/images/menu-background.webp")}
+      resizeMode="cover"
+      style={{ flex: 1, backgroundColor: UI.dusk }}
+    >
+      {/* a dusk veil calms the busy landscape so the map stays the focus */}
+      <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#16213a66" }} />
       {/* HUD */}
       <View
         style={{
@@ -244,11 +250,13 @@ export default function GameScreen() {
           alignItems: "center",
           justifyContent: "space-between",
           paddingHorizontal: 16,
-          paddingTop: 14,
-          paddingBottom: 6,
-          width: "100%",
+          paddingVertical: 10,
+          marginTop: 10,
+          width: "94%",
           maxWidth: 640,
           alignSelf: "center",
+          borderRadius: 16,
+          backgroundColor: "#1b2846e0",
         }}
       >
         <View testID="hud-shards">
@@ -279,7 +287,7 @@ export default function GameScreen() {
       {/* selection card + action tray */}
       <View
         style={{
-          backgroundColor: UI.panel,
+          backgroundColor: "#223154f2",
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
           paddingHorizontal: 16,
@@ -442,6 +450,6 @@ export default function GameScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </ImageBackground>
   );
 }

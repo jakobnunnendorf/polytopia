@@ -19,7 +19,7 @@ export const TERRAIN_GLYPH: Partial<Record<Terrain, string>> = {
   mountain: "⛰️",
 };
 
-export const FOG = "#1b2846";
+export const FOG = "#16213a47"; // a light mist: the landscape shows through unexplored land
 
 /**
  * UI tokens, taken from the menu landscape: dusk sky, sunset clouds, shard gold.
