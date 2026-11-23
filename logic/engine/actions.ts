@@ -200,13 +200,15 @@ export function legalActions(s: GameState): Action[] {
         out.push({ type: "capture", unitId: u.id });
       }
       if (tile.ruin) out.push({ type: "examine", unitId: u.id });
-      if (u.hp < u.maxHp) out.push({ type: "recover", unitId: u.id });
+      if (u.hp < u.maxHp || u.poisoned) out.push({ type: "recover", unitId: u.id });
       if (tile.resource === "starfish" && pl.techs.includes("navigation") && !tile.building) {
         out.push({ type: "harvestStarfish", unitId: u.id });
       }
       if (pl.techs.includes("freeSpirit")) out.push({ type: "disband", unitId: u.id });
       if (has(u, "heal")) {
-        const hurt = s.units.some((o) => o.owner === p && o !== u && dist(o, u) === 1 && o.hp < o.maxHp);
+        const hurt = s.units.some(
+          (o) => o.owner === p && o !== u && dist(o, u) === 1 && (o.hp < o.maxHp || o.poisoned),
+        );
         if (hurt) out.push({ type: "healOthers", unitId: u.id });
       }
       if (has(u, "freezeArea")) {
@@ -303,7 +305,7 @@ export function applyAction(prev: GameState, a: Action): GameState {
     case "healOthers": {
       const u = unitById(s, a.unitId)!;
       for (const o of s.units) {
-        if (o.owner === p && o !== u && dist(o, u) === 1) o.hp = Math.min(o.maxHp, o.hp + 4);
+        if (o.owner === p && o !== u && dist(o, u) === 1) healBy(o, 4);
       }
       endUnit(u);
       break;
@@ -366,22 +368,27 @@ function endUnit(u: Unit) {
   u.canAttack = false;
 }
 
-function heal(s: GameState, u: Unit) {
-  const amount = ownTile(s, u.owner, u.x, u.y) ? 4 : 2;
+/** any heal: a poisoned unit loses the poison and gains no HP (spec: Poison) */
+function healBy(u: Unit, amount: number) {
+  if (u.poisoned) {
+    u.poisoned = false;
+    return;
+  }
   u.hp = Math.min(u.maxHp, u.hp + amount);
+}
+
+/** Recover: 4 HP in friendly territory, 2 elsewhere */
+function heal(s: GameState, u: Unit) {
+  healBy(u, ownTile(s, u.owner, u.x, u.y) ? 4 : 2);
 }
 
 function endTurn(s: GameState) {
   const p = s.current;
   const pl = s.players[p];
-  // automatic heal of idle units (§3.5) and thaw frozen units at end of their owner's turn
+  // thaw frozen units at end of their owner's turn (no automatic heal: only the Recover action heals)
   for (const u of s.units) {
     if (u.owner !== p) continue;
-    if (u.frozen) {
-      u.frozen = false;
-      continue;
-    }
-    if (u.idle && !u.moved && !u.attacked && u.hp < u.maxHp) heal(s, u);
+    if (u.frozen) u.frozen = false;
   }
   if (pl.techs.includes("meditation")) pl.pacifistTurns = pl.attackedThisTurn ? 0 : pl.pacifistTurns + 1;
   checkTasks(s, p);
@@ -421,9 +428,13 @@ function doMove(s: GameState, u: Unit, to: Coord) {
   if (!has(u, "dash")) u.canAttack = false;
   if (has(u, "hide")) u.hidden = true;
   explore(s, u.owner, u, sightRadius(s, u));
+  // Stomp also fires when a Juggernaut boards or leaves a port: a Juggernaut landing
+  // stomps (with its own stats) before it turns back into a Giant
+  const stompsLeaving = kind === "disembark" && has(u, "stomp");
+  if (stompsLeaving) stomp(s, u);
   if (kind === "embark") embark(u);
   else if (kind === "disembark") disembark(u);
-  if (has(u, "stomp")) stomp(s, u);
+  if (!stompsLeaving && has(u, "stomp")) stomp(s, u);
   if (has(u, "autoFreeze")) freezeSurrounding(s, u);
   // Cymanti Fungi poisons enemy units stepping onto it
   const destTile = tileAt(s, u.x, u.y);
@@ -450,7 +461,7 @@ function doExplode(s: GameState, u: Unit) {
   for (const e of s.units.slice()) {
     if (e.owner === p || dist(e, pos) !== 1) continue;
     const r = computeDamageRounded(s, u, e);
-    damage(s, e, Math.max(1, Math.floor(r.damage / 2)), u);
+    damage(s, e, r.damage / 2, u); // half the damage, unrounded (RULES_PARITY)
     if (s.units.includes(e)) e.poisoned = true;
   }
 }
@@ -475,7 +486,7 @@ function stomp(s: GameState, u: Unit) {
   for (const e of s.units.slice()) {
     if (e.owner === u.owner || dist(e, u) !== 1) continue;
     const r = computeDamageRounded(s, u, e);
-    damage(s, e, Math.floor(r.damage / 2), u);
+    damage(s, e, r.damage / 2, u); // amount unconfirmed in the spec: half, unrounded, like splash
   }
 }
 
@@ -522,12 +533,12 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
   // special on-hit effects: freeze (Ice Archer) & poison (Phychi, Exida, Kiton)
   if (!killed && has(u, "freeze")) target.frozen = true;
   if (!killed && has(u, "poison")) target.poisoned = true;
-  // splash: half damage (floored) to enemies adjacent to the target
+  // splash: half damage, unrounded (.5 possible), to enemies adjacent to the target
   if (has(u, "splash")) {
     for (const e of s.units.slice()) {
       if (e.owner === p || dist(e, from) !== 1 || e === u) continue;
       const sr = computeDamageRounded(s, u, e);
-      damage(s, e, Math.floor(sr.damage / 2), u);
+      damage(s, e, sr.damage / 2, u);
       if (s.units.includes(e) && has(u, "poison")) e.poisoned = true;
     }
   }
@@ -548,8 +559,8 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
   const alive = s.units.includes(u);
   if (!alive) return;
   u.canAttack = false;
-  u.canMove = u.canMove && has(u, "escape");
-  if (has(u, "escape") && !u.moved) u.canMove = true;
+  // Escape: may move again after attacking, also after moving first (move, attack, move)
+  u.canMove = has(u, "escape") && !u.frozen;
   // melee advance into the killed unit's tile (§3.4)
   if (killed && UNITS[u.type].range < 2 && !occupant(s, from.x, from.y)) {
     const kind = enterKind(s, u, tileAt(s, from.x, from.y));
@@ -637,7 +648,7 @@ function doExamine(s: GameState, u: Unit) {
       break;
     case "newFriends": {
       const water = isWater(t);
-      pushUnit(s, u);
+      pushUnit(s, u, p);
       const nu = makeUnit(s, water ? "rammer" : "swordsman", p, { x: t === tileAt(s, u.x, u.y) ? u.x : u.x, y: u.y }, null);
       // spawn on the ruin tile itself
       const ruinIdx = s.tiles.indexOf(t);
@@ -659,7 +670,13 @@ function doExamine(s: GameState, u: Unit) {
   log(s, `ruin: ${pick}`);
 }
 
-/** Explorer walker (§5.12): 12 steps toward the most unexplored surroundings */
+/**
+ * Explorer walker (spec "Explorer"): EXPLORER_STEPS automatic moves into the fog.
+ * Each step goes to the neighbour that uncovers the most new tiles (3x3 vision);
+ * ties go to the step closest to the nearest lighthouse this player hasn't found.
+ * If no neighbour uncovers anything, it steps along a shortest path toward the
+ * nearest unexplored tile. Remaining ties are broken by the game RNG.
+ */
 export function runExplorer(s: GameState, p: number, from: Coord) {
   const pl = s.players[p];
   const n = s.mapSize;
@@ -672,21 +689,57 @@ export function runExplorer(s: GameState, p: number, from: Coord) {
     if (t.terrain === "ocean") return pl.techs.includes("navigation");
     return true;
   };
-  const fogScore = (q: Coord) =>
-    around(n, q, 2, true).filter((c) => pl.explored[idx(n, c.x, c.y)] !== 1).length;
+  const uncovers = (q: Coord) =>
+    around(n, q, 1, true).filter((c) => pl.explored[idx(n, c.x, c.y)] !== 1).length;
+  const lighthouseDist = (q: Coord) => {
+    let best = Infinity;
+    s.tiles.forEach((t, i) => {
+      if (!t.lighthouse || pl.lighthouses.includes(i)) return;
+      best = Math.min(best, dist(q, { x: i % n, y: Math.floor(i / n) }));
+    });
+    return best;
+  };
+  /** BFS distance (steps over passable tiles) from every tile to the nearest unexplored tile */
+  const fogDistance = () => {
+    const d = new Array<number>(n * n).fill(Infinity);
+    const queue: number[] = [];
+    for (let i = 0; i < n * n; i++) {
+      if (pl.explored[i] !== 1) {
+        d[i] = 0;
+        queue.push(i);
+      }
+    }
+    for (let h = 0; h < queue.length; h++) {
+      const i = queue[h];
+      for (const q of around(n, { x: i % n, y: Math.floor(i / n) }, 1)) {
+        const j = idx(n, q.x, q.y);
+        if (d[j] !== Infinity || !passable(q)) continue;
+        d[j] = d[i] + 1;
+        queue.push(j);
+      }
+    }
+    return d;
+  };
+  const lowest = (cands: { q: Coord; key: number }[]) => {
+    const top = Math.min(...cands.map((c) => c.key));
+    return cands.filter((c) => c.key === top).map((c) => c.q);
+  };
   explore(s, p, cur, 1);
-  let prev: Coord | null = null;
   for (let step = 0; step < EXPLORER_STEPS; step++) {
     const options = around(n, cur, 1).filter(passable);
     if (!options.length) break;
-    const scored = options.map((q) => ({
-      q,
-      score: fogScore(q) - (prev && q.x === prev.x && q.y === prev.y ? 1 : 0),
-    }));
-    const top = Math.max(...scored.map((o) => o.score));
-    const best = scored.filter((o) => o.score === top);
-    const choice = withRng(s, (r) => r.pick(best)).q;
-    prev = cur;
+    let cands: Coord[];
+    const gains = options.map((q) => ({ q, key: -uncovers(q) }));
+    if (Math.min(...gains.map((g) => g.key)) < 0) {
+      cands = lowest(gains);
+    } else {
+      const d = fogDistance();
+      const near = options.map((q) => ({ q, key: d[idx(n, q.x, q.y)] }));
+      if (near.every((c) => c.key === Infinity)) break;
+      cands = lowest(near);
+    }
+    if (cands.length > 1) cands = lowest(cands.map((q) => ({ q, key: lighthouseDist(q) })));
+    const choice = cands.length === 1 ? cands[0] : withRng(s, (r) => r.pick(cands));
     cur = choice;
     explore(s, p, cur, 1);
   }
@@ -740,7 +793,7 @@ function doBuild(s: GameState, p: number, b: string, at: Coord) {
       if (b === "enchantAnimal") {
         t.resource = null;
         const occ = occupant(s, at.x, at.y);
-        if (occ) pushUnit(s, occ);
+        if (occ) pushUnit(s, occ, p);
         const poly = makeUnit(s, "polytaur", p, at, null);
         explore(s, p, poly, 1);
         break;
@@ -859,7 +912,7 @@ function doReward(s: GameState, c: City, reward: string) {
       break;
     case "superUnit": {
       const occ = occupant(s, c.x, c.y);
-      if (occ) pushUnit(s, occ);
+      if (occ) pushUnit(s, occ, p);
       const su = superUnitFor(s.players[p].clan);
       const g = makeUnit(s, su, p, c, c.id);
       explore(s, p, g, 1);

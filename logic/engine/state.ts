@@ -415,12 +415,17 @@ export function makeUnit(
   return u;
 }
 
-/** push a unit off a tile to make room for a spawn (§5.13); removes it if no room */
-export function pushUnit(s: GameState, u: Unit) {
+/**
+ * push a unit off a tile to make room for a spawn (§5.13); removes it if no room.
+ * A friendly occupant is pushed the way it faces, an enemy one the opposite way.
+ * `spawner` is the owner of the unit being created (default: the occupant's owner).
+ */
+export function pushUnit(s: GameState, u: Unit, spawner: number = u.owner) {
   const n = s.mapSize;
   const c = (n - 1) / 2;
   let dir = u.lastDir ?? { x: Math.sign(c - u.x), y: Math.sign(c - u.y) };
   if (dir.x === 0 && dir.y === 0) dir = { x: 0, y: 1 };
+  if (spawner !== u.owner) dir = { x: -dir.x, y: -dir.y };
   const dirs8 = [
     { x: 0, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 0 }, { x: 1, y: 1 },
     { x: 0, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 },

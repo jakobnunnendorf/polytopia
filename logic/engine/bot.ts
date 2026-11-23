@@ -170,7 +170,9 @@ export function scoreAction(s: GameState, a: Action, w: GreedyWeights = DEFAULT_
     }
     case "recover": {
       const u = s.units.find((x) => x.id === a.unitId)!;
-      return u.hp < u.maxHp / 2 ? w.recover : -1;
+      // no automatic heal: recover when badly hurt or poisoned, else only when nothing better is left
+      if (u.hp < u.maxHp / 2 && !u.poisoned) return w.recover;
+      return u.hp < u.maxHp || u.poisoned ? 1 : -1;
     }
     case "healOthers":
       return w.healOthers;

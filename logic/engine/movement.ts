@@ -83,9 +83,14 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
   const explored = s.players[u.owner].explored;
   const rawMov = UNITS[u.type].movement + (u.boosted ? 1 : 0) - (u.poisoned ? 1 : 0);
   const budget = Math.max(1, rawMov) * 2;
-  const creep = has(u, "creep") || has(u, "fly");
+  // Creep: forests cost 1 and don't stop it, no road bonus, mountains still stop it (2.15).
+  // Air: ignores terrain (no forest/mountain stop), every step costs 1, no roads.
+  // Zone of control is ignored only by Hide (invisible) and Sneak; Creep and Air still stop.
+  const creep = has(u, "creep");
+  const fly = has(u, "fly");
+  const noRoad = creep || fly;
   const skate = has(u, "skate");
-  const ignoresZoc = creep || has(u, "hide") || has(u, "infiltrate");
+  const ignoresZoc = has(u, "hide") || has(u, "sneak");
   const occupied = new Map<number, Unit>();
   for (const o of s.units) occupied.set(idx(n, o.x, o.y), o);
   const enemyAdjacent = (x: number, y: number) =>
@@ -126,13 +131,13 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
         // enemy units block (hidden movers may pass through), friendly units can be passed
         if (occ && occ.owner !== u.owner && !has(u, "hide")) continue;
         const road =
-          !creep && !UNITS[u.type].naval && roadNode(s, from, u.owner) && roadNode(s, t, u.owner);
+          !noRoad && !UNITS[u.type].naval && roadNode(s, from, u.owner) && roadNode(s, t, u.owner);
         const iceGlide = skate && !!t.ice;
         const cost = road || iceGlide ? 1 : 2;
         const total = spent + cost;
         let stop = kind !== "normal";
-        if (!creep && t.terrain === "mountain") stop = true;
-        if (!creep && t.terrain === "forest" && !road) stop = true;
+        if (!fly && t.terrain === "mountain") stop = true;
+        if (!creep && !fly && t.terrain === "forest" && !road) stop = true;
         if (!ignoresZoc && enemyAdjacent(x, y)) stop = true;
         if (!occ && !ends.has(i)) ends.set(i, kind);
         if (stop) continue;

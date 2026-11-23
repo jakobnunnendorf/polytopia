@@ -87,7 +87,7 @@ export const UNITS: Record<string, UnitDef> = {
   rammer: u("rammer", 5, false, null, 3, 3, 3, 1, ["water", "carry", "dash", "static"], "ramming", true),
   bomber: u("bomber", 15, false, null, 3, 2, 2, 3, ["water", "carry", "splash", "stiff", "static"], "navigation", true),
   juggernaut: u("juggernaut", 0, false, 40, 4, 4, 2, 1, ["water", "carry", "stomp", "stiff", "static"], null, true),
-  dinghy: u("dinghy", 0, false, 5, 0, 0.5, 2, 1, ["water", "carry", "hide", "infiltrate", "dash", "scout", "stiff", "static"], null, true),
+  dinghy: u("dinghy", 0, false, 5, 0, 0.5, 2, 1, ["water", "carry", "hide", "creep", "infiltrate", "stiff"], null, true),
   pirate: u("pirate", 0, false, 10, 2, 2, 2, 1, ["water", "carry", "dash", "surprise", "independent", "static"], null, true),
 
   // ---- Special tribe units (exact Polytopia 2.18 stats) ----
@@ -297,7 +297,7 @@ export function rewardOptions(level: number): [string, string] {
 }
 
 export const START_STARS = 5;
-export const EXPLORER_STEPS = 12;
+export const EXPLORER_STEPS = 15;
 export const PERFECTION_TURNS = 30;
 export const STARFISH_STARS = 8;
 export const RUIN_STARS = 10;
