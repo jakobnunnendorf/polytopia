@@ -32,7 +32,6 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 | Unit stats | the unit-page value (the doc's "Used here"), e.g. Pirate movement 2 |
 | Unlocking techs | the tech-page value in the doc |
 | Bot capital income | 1/2/3/5★ for Easy/Normal/Hard/Crazy |
-
 | Creep and zone of control | the doc contradicts itself (Terrain and Cloak sections: Creep ignores it; Movement rules: only Sneak, Hide and invisibility do). The engine follows Movement rules; Cloak and Dinghy ignore it through Hide anyway |
 | Escape | after attacking, the unit may move again with its full movement |
 | Stomp | half the damage, unrounded, like splash |
