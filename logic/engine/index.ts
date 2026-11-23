@@ -1,5 +1,5 @@
 /** Public engine API (UI, simulations, RL). */
-export { createGame, income, resourceVisible, scoreOf, techCost } from "./state";
+export { createGame, income, perfectionRating, perfectionStars, resourceVisible, scoreOf, techCost } from "./state";
 export type { NewGameOptions } from "./state";
 export { applyAction, legalActions } from "./actions";
 export { botStep, playBotTurn } from "./bot";

@@ -7,7 +7,8 @@ import { BUILTIN_MODELS } from "@/logic/agents/registry";
 import type { ModelSpec } from "@/logic/agents/types";
 import type { Ratings } from "@/logic/arena/elo";
 import type { Seat } from "@/logic/arena/record";
-import { CLANS } from "@/logic/engine/data";
+import { CLANS, maxPlayersFor } from "@/logic/engine/data";
+import { mapSizeAllowed, mapSizeFor } from "@/logic/engine/state";
 import { name as displayName } from "@/logic/engine/names";
 import { TribeEmblem } from "@/components/art/Art";
 
@@ -21,8 +22,18 @@ const MAP_SIZES = [
 ];
 
 const MODES = [
-  { id: "perfection", title: "Perfection", hint: "Highest score after 30 turns wins." },
-  { id: "domination", title: "Domination", hint: "The last tribe holding a city wins." },
+  { id: "perfection", title: "Perfection", hint: "Highest score after 30 turns wins. Always a Normal map." },
+  { id: "domination", title: "Domination", hint: "The last tribe holding a city wins. The map size follows the opponent count." },
+  { id: "creative", title: "Creative", hint: "Any size and opponents, no turn limit; the last tribe holding a city wins." },
+  { id: "glory", title: "Glory", hint: "First to 10,000 points wins; if several reach it in one turn, the highest score." },
+  { id: "might", title: "Might", hint: "Capture every tribe's capital to win; other cities don't count." },
+] as const;
+
+const DIFFICULTIES = [
+  { id: "easy", title: "Easy" },
+  { id: "normal", title: "Normal" },
+  { id: "hard", title: "Hard" },
+  { id: "crazy", title: "Crazy" },
 ] as const;
 
 const GUEST: Profile = { id: "guest", name: "Guest", created: "" };
@@ -268,20 +279,38 @@ export default function Settings() {
 
   return (
     <View testID="settings-component">
+      <Heading>Victory</Heading>
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+        {MODES.map((m) => (
+          <Chip key={m.id} testID={`mode-${m.id}`} label={m.title} on={mode.id === m.id} onPress={() => settings.setGameMode(m.id)} />
+        ))}
+      </View>
+      <Text style={{ color: UI.muted, fontSize: 13 }}>{mode.hint}</Text>
+
       <Heading>Map size</Heading>
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-        {MAP_SIZES.map((m) => (
+        {MAP_SIZES.filter(
+          (m) =>
+            (mapSizeFor(mode.id, seats.length - 1) ?? m.size) === m.size &&
+            mapSizeAllowed(mode.id, m.size) &&
+            seats.length <= maxPlayersFor(m.size),
+        ).map((m) => (
           <Chip key={m.size} label={m.title} on={settings.mapSize === m.size} onPress={() => settings.setMapSize(m.size)} />
         ))}
       </View>
 
-      <Heading>Victory</Heading>
+      <Heading>Difficulty</Heading>
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-        {MODES.map((m) => (
-          <Chip key={m.id} label={m.title} on={mode.id === m.id} onPress={() => settings.setGameMode(m.id)} />
+        {DIFFICULTIES.map((d) => (
+          <Chip
+            key={d.id}
+            testID={`difficulty-${d.id}`}
+            label={d.title}
+            on={settings.difficulty === d.id}
+            onPress={() => settings.setDifficulty(d.id)}
+          />
         ))}
       </View>
-      <Text style={{ color: UI.muted, fontSize: 13 }}>{mode.hint}</Text>
 
       <Heading>Players</Heading>
       {seats.map((seat, i) => (

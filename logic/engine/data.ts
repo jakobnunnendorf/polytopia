@@ -223,7 +223,7 @@ export type BuildDef = {
 export const BUILDS: Record<string, BuildDef> = {
   harvestFruit: { id: "harvestFruit", cost: 2, tech: "organization", kind: "harvest", terrain: ["field"], resource: "fruit", pop: 1 },
   hunt: { id: "hunt", cost: 2, tech: "hunting", kind: "harvest", terrain: ["forest"], resource: "animal", pop: 1 },
-  fish: { id: "fish", cost: 2, tech: "fishing", kind: "harvest", terrain: ["water"], resource: "fish", pop: 1 },
+  fish: { id: "fish", cost: 2, tech: "fishing", kind: "harvest", terrain: ["water", "ocean"], resource: "fish", pop: 1 },
   clearForest: { id: "clearForest", cost: 0, gain: 1, tech: "forestry", kind: "harvest", terrain: ["forest"], pop: 0 },
   burnForest: { id: "burnForest", cost: 3, tech: "construction", kind: "harvest", terrain: ["forest"], pop: 0 },
   growForest: { id: "growForest", cost: 5, tech: "spiritualism", kind: "harvest", terrain: ["field"], pop: 0 },
@@ -302,6 +302,22 @@ export const PERFECTION_TURNS = 30;
 export const STARFISH_STARS = 8;
 export const RUIN_STARS = 10;
 export const EMBASSY_INCOME = 2;
+/** ports link to own ports within this range (rules doc, The capital and connections) */
+export const PORT_RANGE = 5;
+/** Glory: first to this score wins (rules doc, Modes) */
+export const GLORY_TARGET = 10_000;
+/**
+ * Capital income bonus over a plain city of the same level (rules doc, Income per turn and AI and difficulty):
+ * a human's capital +1; a bot's level-1 capital makes 1/2/3/5★ by difficulty, i.e. +0/+1/+2/+4.
+ */
+export const HUMAN_CAPITAL_BONUS = 1;
+export const BOT_CAPITAL_BONUS = { easy: 0, normal: 1, hard: 2, crazy: 4 } as const;
+/** Perfection bonus difficulty part d (rules doc, Perfection difficulty bonus) */
+export const PERFECTION_DIFFICULTY_BONUS = { easy: 0, normal: 0.2, hard: 0.4, crazy: 0.8 } as const;
+/** Perfection rating that earns 1, 2, 3 stars and a halo (rules doc, Modes) */
+export const PERFECTION_STARS = [3_000, 10_000, 50_000, 100_000];
+/** most tribes per map size (rules doc, Map sizes): Tiny 9, every other size 16 */
+export const maxPlayersFor = (mapSize: number) => (mapSize <= 11 ? 9 : 16);
 
 /** score (§7.1) */
 export const SCORE = {
@@ -310,7 +326,10 @@ export const SCORE = {
   territoryTile: 20,
   exploredTile: 5,
   city: 100,
-  cityLevel: 50,
+  /** per point of population a city has gained (levels and current population; negative counts against) */
+  cityPop: 5,
+  /** level-up bonus by the level reached (rules doc, Scoring: 40 at level 2, 35 at level 3, "falling after") */
+  cityLevelBonus: (level: number) => Math.max(0, 50 - 5 * level),
   park: 250,
   monument: 400,
   templeLevel: 100,
@@ -356,7 +375,7 @@ export const CLANS: ClanDef[] = [
   { id: "mongols", startTech: "riding", startUnit: "rider", startStars: 6, capitalLevel: 1, mod: { forest: 0.2, animal: 0.2, mountain: 0.5 }, color: "#f4c430" },
   { id: "polynesians", startTech: "fishing", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, fish: 1.5 }, color: "#2db84d" },
   { id: "welsh", startTech: "archery", startUnit: "archer", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 1.5 }, color: "#8c6239" },
-  { id: "lydians", startTech: null, startUnit: "warrior", startStars: 2, capitalLevel: 3, mod: {}, color: "#9b5de5" },
+  { id: "lydians", startTech: null, startUnit: "warrior", startStars: 2, capitalLevel: 2, mod: {}, color: "#9b5de5" },
   { id: "hittites", startTech: "smithery", startUnit: "swordsman", startStars: 5, capitalLevel: 1, mod: { metal: 2, animal: 0.1, fruit: 0.1, fish: 0.1 }, color: "#4a4e69" },
   { id: "sumerians", startTech: "farming", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 0.5 }, color: "#f97316" },
   { id: "tibetans", startTech: "philosophy", startUnit: "mindBender", startStars: 5, capitalLevel: 1, mod: { mountain: 1.5, crop: 0.1 }, color: "#14b8a6" },

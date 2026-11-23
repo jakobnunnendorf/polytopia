@@ -24,7 +24,13 @@ function StartButton() {
         // models only: the server plays the game, the app watches it live
         if (settings.seats.every((s) => s.kind === "model")) {
           try {
-            const { id } = await arena.startMatch({ mapSize: settings.mapSize, mode: settings.gameMode, seed, seats: settings.seats });
+            const { id } = await arena.startMatch({
+              mapSize: settings.mapSize,
+              mode: settings.gameMode,
+              difficulty: settings.difficulty,
+              seed,
+              seats: settings.seats,
+            });
             router.push({ pathname: "/analyse", params: { id, live: "1" } } as never);
             return;
           } catch {
@@ -38,6 +44,7 @@ function StartButton() {
             players: String(settings.seats.length),
             seats: JSON.stringify(settings.seats),
             mode: settings.gameMode,
+            difficulty: settings.difficulty,
             seed: String(seed),
           },
         });
