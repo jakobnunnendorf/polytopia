@@ -94,6 +94,8 @@ const NAMES: Record<Kind, Record<string, string>> = {
     livingIsland: "Living Island",
     centipede: "Centipede",
     segment: "Segment",
+    insectEgg: "Insect Egg",
+    larva: "Larva",
   },
   building: {
     farm: "Farm",
@@ -107,6 +109,7 @@ const NAMES: Record<Kind, Record<string, string>> = {
     temple: "Temple",
     forestTemple: "Forest Temple",
     waterTemple: "Water Temple",
+    iceTemple: "Ice Temple",
     mountainTemple: "Mountain Temple",
     customsHouse: "Customs House",
     embassy: "Embassy",
@@ -151,6 +154,7 @@ const NAMES: Record<Kind, Record<string, string>> = {
     fish: "Fish",
     metal: "Metal",
     starfish: "Starfish",
+    spores: "Spores",
   },
   clan: {
     inca: "Xin-xi",
@@ -237,8 +241,10 @@ export function actionLabel(_s: GameState, a: Action): string {
     case "freezeArea":
       return "Freeze Area";
     case "boost":
-      return "Boost Allies";
+      return "Swarm";
     case "explode":
       return "Explode";
+    case "breakIce":
+      return `Break Ice at ${a.at.x},${a.at.y}`;
   }
 }

@@ -10,7 +10,7 @@ import { cityById, income, resourceVisible, scoreOf, techCost } from "./state";
 import type { GameState } from "./types";
 
 const TERRAINS = ["field", "forest", "mountain", "water", "ocean"] as const;
-const RESOURCES = ["fruit", "crop", "animal", "fish", "metal", "starfish"] as const;
+const RESOURCES = ["fruit", "crop", "animal", "fish", "metal", "starfish", "spores"] as const;
 export const UNIT_TYPES = Object.keys(UNITS);
 
 export const CHANNELS = [
@@ -62,7 +62,11 @@ export function observe(s: GameState, p: number): Observation {
   };
   const pl = s.players[p];
   for (let i = 0; i < N; i++) {
-    if (pl.explored[i] !== 1) continue;
+    // Elyrion see ruins through clouds
+    if (pl.explored[i] !== 1) {
+      if (pl.clan === "elyrion" && s.tiles[i].ruin) set("ruin", i, 1);
+      continue;
+    }
     const t = s.tiles[i];
     set("explored", i, 1);
     set(`terrain:${t.terrain}`, i, 1);

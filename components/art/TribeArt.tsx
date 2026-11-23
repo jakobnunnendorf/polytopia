@@ -59,6 +59,9 @@ const SPECIAL_UNIT_SPRITES: Record<string, ImageSourcePropType> = {
   livingIsland: require("@/assets/sprites/livingIsland.png"),
   centipede: require("@/assets/sprites/centipede.png"),
   segment: require("@/assets/sprites/segment.png"),
+  // no own art yet: reuse the closest sprites
+  insectEgg: require("@/assets/sprites/dragonEgg.png"),
+  larva: require("@/assets/sprites/segment.png"),
 };
 
 const SPECIAL_BUILDING_SPRITES: Record<string, ImageSourcePropType> = {
@@ -68,6 +71,8 @@ const SPECIAL_BUILDING_SPRITES: Record<string, ImageSourcePropType> = {
   fungi: require("@/assets/sprites/fungi.png"),
   mycelium: require("@/assets/sprites/mycelium.png"),
   clathrus: require("@/assets/sprites/clathrus.png"),
+  // no own art yet: reuse the Water Temple sprite
+  iceTemple: require("@/assets/sprites/waterTemple.png"),
 };
 
 export function TribeEmblem({ clan, size }: { clan: string; size: number }) {

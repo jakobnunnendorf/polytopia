@@ -414,6 +414,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         case "freezeArea":
         case "boost":
         case "explode":
+        case "breakIce":
           return unitAtSel !== null && a.unitId === unitAtSel.id;
         case "train":
           return citySel !== null && a.cityId === citySel.id;

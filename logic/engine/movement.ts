@@ -78,23 +78,32 @@ export type MoveTarget = Coord & { kind: StepKind };
 
 /** All tiles unit u can end its move on this turn. */
 export function reachable(s: GameState, u: Unit): MoveTarget[] {
-  if (u.frozen) return [];
+  if (u.frozen || UNITS[u.type].movement === 0) return [];
   const n = s.mapSize;
   const explored = s.players[u.owner].explored;
-  const rawMov = UNITS[u.type].movement + (u.boosted ? 1 : 0) - (u.poisoned ? 1 : 0);
-  const budget = Math.max(1, rawMov) * 2;
-  const creep = has(u, "creep") || has(u, "fly");
   const skate = has(u, "skate");
+  // Skate: a move that starts on ice may use the unit's ice movement (Battle Sled 3)
+  const startsOnIce = !!tileAt(s, u.x, u.y).ice;
+  const baseMov = skate && startsOnIce ? (UNITS[u.type].iceMovement ?? UNITS[u.type].movement) : UNITS[u.type].movement;
+  const rawMov = baseMov + (u.boosted ? 1 : 0) - (u.poisoned ? 1 : 0);
+  // movement points (a step costs 1, road to road 0.5, a Glide ice step 0.9)
+  let budget = Math.max(1, rawMov);
+  // Eat: while the Centipede has segments it moves only 1 tile
+  if (has(u, "eat") && s.units.some((o) => o.bodyOf === u.id)) budget = 1;
+  // Glide (Polarism): Polaris ice steps cost 0.9
+  const glide = s.players[u.owner].clan === "polaris" && techOf(s, u.owner, "aquatism");
+  const creep = has(u, "creep") || has(u, "fly");
   const ignoresZoc = creep || has(u, "hide") || has(u, "infiltrate");
   const occupied = new Map<number, Unit>();
   for (const o of s.units) occupied.set(idx(n, o.x, o.y), o);
   const enemyAdjacent = (x: number, y: number) =>
     around(n, { x, y }, 1).some((c) => {
       const o = occupied.get(idx(n, c.x, c.y));
-      return o !== undefined && o.owner !== u.owner && !o.hidden;
+      // Centipede segments exert no zone of control
+      return o !== undefined && o.owner !== u.owner && !o.hidden && o.type !== "segment";
     });
 
-  // spent[i] = cheapest half-steps to reach tile i with the ability to continue
+  // spent[i] = cheapest movement points to reach tile i with the ability to continue
   const best = new Map<number, number>();
   const ends = new Map<number, StepKind>();
   const start = idx(n, u.x, u.y);
@@ -107,7 +116,7 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
       if ((best.get(queue[k]) ?? 0) < (best.get(queue[bi]) ?? 0)) bi = k;
     const cur = queue.splice(bi, 1)[0];
     const spent = best.get(cur)!;
-    if (spent >= budget) continue;
+    if (spent >= budget - 1e-9) continue;
     const cx = cur % n;
     const cy = Math.floor(cur / n);
     const from = s.tiles[cur];
@@ -125,14 +134,19 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
         const occ = occupied.get(i);
         // enemy units block (hidden movers may pass through), friendly units can be passed
         if (occ && occ.owner !== u.owner && !has(u, "hide")) continue;
+        // roads give no bonus on ice or to skaters
         const road =
-          !creep && !UNITS[u.type].naval && roadNode(s, from, u.owner) && roadNode(s, t, u.owner);
-        const iceGlide = skate && !!t.ice;
-        const cost = road || iceGlide ? 1 : 2;
+          !creep && !skate && !UNITS[u.type].naval && !from.ice && !t.ice &&
+          roadNode(s, from, u.owner) && roadNode(s, t, u.owner);
+        const cost = road ? 0.5 : glide && t.ice ? 0.9 : 1;
         const total = spent + cost;
         let stop = kind !== "normal";
         if (!creep && t.terrain === "mountain") stop = true;
         if (!creep && t.terrain === "forest" && !road) stop = true;
+        // Skate: on land at most 1 tile
+        if (skate && !isWater(t)) stop = true;
+        // algae ends the move of land units
+        if (!creep && t.algae && !UNITS[u.type].naval) stop = true;
         if (!ignoresZoc && enemyAdjacent(x, y)) stop = true;
         if (!occ && !ends.has(i)) ends.set(i, kind);
         if (stop) continue;

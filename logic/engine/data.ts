@@ -34,7 +34,12 @@ export type Skill =
   | "boost"
   | "explode"
   | "eat"
-  | "grow";
+  | "grow"
+  | "sneak"
+  | "doubleAttack"
+  | "algae"
+  /** Kiton: poisons units that attack it */
+  | "poisonDefence";
 
 export type UnitDef = {
   id: string;
@@ -52,6 +57,8 @@ export type UnitDef = {
   /** tech that unlocks training / upgrading; null = none needed */
   tech: string | null;
   naval: boolean;
+  /** Skate: movement when the move starts on ice (Battle Sled: 3) */
+  iceMovement?: number;
 };
 
 const u = (
@@ -107,26 +114,29 @@ export const UNITS: Record<string, UnitDef> = {
   fireDragon: u("fireDragon", 10, false, 20, 4, 3, 3, 2, ["dash", "splash", "fly", "scout", "static"], null),
 
   // Polaris (2.15 balance pass)
-  mooni: u("mooni", 5, true, 10, 0, 1, 1, 1, ["autoFreeze", "freezeArea", "skate", "stiff", "static"], "fishing"),
+  mooni: u("mooni", 5, true, 10, 0, 1, 1, 1, ["autoFreeze", "skate", "stiff", "static"], "fishing"),
   iceArcher: u("iceArcher", 3, true, 10, 1, 1, 1, 2, ["dash", "fortify", "freeze", "stiff"], "archery"),
-  battleSled: u("battleSled", 5, true, 15, 3, 2, 2, 1, ["dash", "escape", "skate"], "sailing"),
+  battleSled: { ...u("battleSled", 5, true, 15, 3, 2, 2, 1, ["dash", "escape", "skate"], "sailing"), iceMovement: 3 },
   iceFortress: u("iceFortress", 15, true, 20, 4, 3, 1, 2, ["escape", "scout", "skate", "static"], "navigation"),
   gaami: u("gaami", 10, false, 30, 4, 3, 1, 1, ["autoFreeze", "freezeArea", "static"], null),
 
   // Cymanti (2.15 rework)
-  shaman: u("shaman", 5, true, 10, 1, 1, 1, 1, ["convert", "boost", "stiff"], "meditation"),
-  hexapod: u("hexapod", 3, true, 5, 3, 1, 2, 1, ["dash", "escape", "creep", "hide"], "riding"),
-  kiton: u("kiton", 3, true, 15, 1, 3, 1, 1, ["creep", "poison"], "strategy"),
-  phychi: u("phychi", 3, true, 5, 0.7, 1, 2, 2, ["dash", "fly", "poison", "surprise"], "archery"),
+  shaman: u("shaman", 5, true, 10, 1, 1, 1, 1, ["convert", "boost"], "meditation"),
+  hexapod: u("hexapod", 3, true, 5, 3, 1, 2, 1, ["dash", "escape", "creep", "sneak"], "riding"),
+  kiton: u("kiton", 3, true, 15, 1, 3, 1, 1, ["creep", "poisonDefence"], "strategy"),
+  phychi: u("phychi", 3, true, 5, 0.7, 1, 2, 2, ["dash", "fly", "poison", "surprise", "doubleAttack"], "archery"),
   mantis: u("mantis", 5, true, 15, 3, 3, 1, 1, ["dash", "creep"], "smithery"),
-  moth: u("moth", 5, true, 10, 0, 0.1, 2, 1, ["fly", "dash", "infiltrate", "poison", "static", "stiff"], "diplomacy"),
+  moth: u("moth", 5, true, 10, 0, 0.1, 2, 1, ["fly", "dash", "sneak", "infiltrate", "poison", "static", "stiff"], "diplomacy"),
   raychi: u("raychi", 5, true, 10, 3, 2, 3, 1, ["water", "dash"], "sailing", true),
   boomchi: u("boomchi", 5, true, 10, 3, 3, 1, 1, ["dash", "explode", "stiff", "amphibious"], "ramming"),
   exida: u("exida", 8, true, 10, 3, 1, 2, 3, ["creep", "splash", "poison"], "mathematics"),
   doomux: u("doomux", 10, true, 20, 3.5, 2, 3, 1, ["dash", "creep", "explode", "static"], "chivalry"),
-  livingIsland: u("livingIsland", 20, true, 20, 4, 4, 2, 1, ["water", "stomp", "poison", "static"], "navigation", true),
+  livingIsland: u("livingIsland", 20, true, 20, 4, 4, 2, 1, ["water", "stomp", "algae", "poison", "static"], "navigation", true),
   centipede: u("centipede", 10, false, 20, 4, 3, 2, 1, ["dash", "creep", "eat", "static"], null),
   segment: u("segment", 2, false, 10, 2, 2, 1, 1, ["creep", "dash", "explode", "independent", "stiff", "static"], null),
+  // Moth infiltration: Insect Egg -> Larva (1 turn) -> Moth (3 turns later)
+  insectEgg: u("insectEgg", 0, false, 10, 2, 3, 0, 1, ["grow", "stiff", "explode", "independent", "static"], null),
+  larva: u("larva", 0, false, 10, 2, 2, 1, 1, ["dash", "creep", "surprise", "independent", "static", "grow"], null),
 };
 
 /** Special-tribe-only trainable units (filtered by tribe in legalActions) */
@@ -241,6 +251,8 @@ export const BUILDS: Record<string, BuildDef> = {
   mountainTemple: { id: "mountainTemple", cost: 20, tech: "meditation", kind: "temple", terrain: ["mountain"], pop: 1 },
   forestTemple: { id: "forestTemple", cost: 15, tech: "spiritualism", kind: "temple", terrain: ["forest"], pop: 1 },
   waterTemple: { id: "waterTemple", cost: 20, tech: "aquatism", kind: "temple", terrain: ["water", "ocean"], pop: 1 },
+  /** Polaris (Polarism): on ice, replaces the Water Temple (ice checked in canBuild) */
+  iceTemple: { id: "iceTemple", cost: 20, tech: "aquatism", kind: "temple", terrain: ["water", "ocean"], pop: 1 },
 
   road: { id: "road", cost: 3, tech: "roads", kind: "road", terrain: ["field", "forest"], pop: 0 },
   bridge: { id: "bridge", cost: 5, tech: "roads", kind: "bridge", terrain: ["water"], pop: 0 },
@@ -252,17 +264,20 @@ export const BUILDS: Record<string, BuildDef> = {
   enchantAnimal: { id: "enchantAnimal", cost: 3, tech: "hunting", kind: "harvest", terrain: ["forest"], resource: "animal", pop: 0 },
   sanctuary: { id: "sanctuary", cost: 5, tech: "forestry", kind: "building", terrain: ["field", "forest"], pop: 0, onePerCity: true },
   // Polaris
+  // outpost: only on ice (checked in canBuild); links cities like a port
   outpost: { id: "outpost", cost: 5, tech: "fishing", kind: "building", terrain: ["water", "ocean"], pop: 1 },
-  iceBank: { id: "iceBank", cost: 20, tech: "trade", kind: "building", terrain: ["field"], pop: 0, onePerCity: true },
+  // ice bank: one per tribe (checked in canBuild)
+  iceBank: { id: "iceBank", cost: 20, tech: "trade", kind: "building", terrain: ["field"], pop: 0 },
   // Cymanti
-  fungi: { id: "fungi", cost: 5, tech: "farming", kind: "building", terrain: ["field"], resource: "crop", pop: 3 },
-  mycelium: { id: "mycelium", cost: 5, tech: "construction", kind: "building", terrain: ["field"], pop: 0, onePerCity: true },
-  clathrus: { id: "clathrus", cost: 5, tech: "trade", kind: "building", terrain: ["field"], pop: 0, onePerCity: true },
+  fungi: { id: "fungi", cost: 5, tech: "farming", kind: "building", terrain: ["field", "forest"], resource: "spores", pop: 3 },
+  // mycelium replaces roads (Network): links cities within 3 tiles, heals adjacent units
+  mycelium: { id: "mycelium", cost: 5, tech: "roads", kind: "building", terrain: ["field", "forest"], pop: 0 },
+  clathrus: { id: "clathrus", cost: 5, tech: "trade", kind: "building", terrain: ["field", "forest"], resource: "spores", pop: 0 },
 };
 
 /** Special-tribe-only builds (filtered by tribe in canBuild) */
 export const TRIBE_ONLY_BUILDS = new Set([
-  "enchantAnimal", "sanctuary", "outpost", "iceBank", "fungi", "mycelium", "clathrus",
+  "enchantAnimal", "sanctuary", "outpost", "iceBank", "iceTemple", "fungi", "mycelium", "clathrus",
 ]);
 
 /** feeder -> leveling building it raises, and population per level (§5.5) */
@@ -398,10 +413,10 @@ export const CLANS: ClanDef[] = [
     superUnit: "dragonEgg",
     buildReplacements: {
       hunt: "enchantAnimal",
-      sawmill: "sanctuary",
       clearForest: null,
       burnForest: null,
     },
+    extraBuilds: ["sanctuary"],
     techOverrides: {
       hunting: { name: "Forest Magic", unlocks: "Enchant Animal -> Polytaur (3★)" },
       forestry: { name: "Forestry", unlocks: "Lumber Hut, Sanctuary (+★ per animal)" },
@@ -419,12 +434,12 @@ export const CLANS: ClanDef[] = [
     superUnit: "gaami",
     unitReplacements: {
       archer: "iceArcher",
-      catapult: "iceFortress",
     },
-    extraUnits: ["mooni", "battleSled"],
+    extraUnits: ["mooni", "battleSled", "iceFortress"],
     buildReplacements: {
       port: "outpost",
       market: "iceBank",
+      waterTemple: "iceTemple",
     },
     techOverrides: {
       fishing: { name: "Frostwork", unlocks: "Mooni, Outpost, shallow water" },
@@ -459,7 +474,7 @@ export const CLANS: ClanDef[] = [
     extraUnits: ["raychi", "boomchi", "livingIsland"],
     buildReplacements: {
       farm: "fungi",
-      windmill: "mycelium",
+      road: "mycelium",
       market: "clathrus",
     },
     techOverrides: {
@@ -479,7 +494,7 @@ export const CLANS: ClanDef[] = [
       sailing: { name: "Pescetism", unlocks: "Raychi, ocean movement" },
       navigation: { name: "Oceanology", unlocks: "Living Island, Starfish" },
       construction: { name: "Recycling", unlocks: "Decompose, Microbes" },
-      trade: { name: "Trade", unlocks: "Clathrus (+★ per Algae/Fungi)" },
+      trade: { name: "Trade", unlocks: "Clathrus (+★ per adjacent Algae)" },
     },
     color: "#84cc16",
   },

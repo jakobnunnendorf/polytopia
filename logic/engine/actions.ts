@@ -92,6 +92,9 @@ function canBuild(s: GameState, p: number, b: string, x: number, y: number): boo
     const task = Object.keys(MONUMENTS).find((k) => MONUMENTS[k] === b)!;
     if (!pl.tasks.includes(task) || pl.monuments.includes(b)) return false;
   } else if (!pl.techs.includes(def.tech)) return false;
+  // tribe tech swaps: Polaris fish with Ice Fishing (ramming); Cymanti Mountain Temple with Mysticism (philosophy)
+  if (b === "fish" && pl.clan === "polaris" && !pl.techs.includes("ramming")) return false;
+  if (b === "mountainTemple" && pl.clan === "cymanti" && !pl.techs.includes("philosophy")) return false;
   if (pl.stars < def.cost) return false;
   if (t.cityId !== null || t.village || t.ruin || t.lighthouse) return false;
   if (def.kind === "embassy") return false; // embassies are built inside cities, see legalActions
@@ -123,6 +126,9 @@ function canBuild(s: GameState, p: number, b: string, x: number, y: number): boo
     return false;
   }
   if (b === "lumberHut" && t.resource) return false;
+  // Polaris: Outpost and Ice Temple stand on ice; one Ice Bank per tribe
+  if ((b === "outpost" || b === "iceTemple") && !t.ice) return false;
+  if (b === "iceBank" && s.tiles.some((o) => o.building === "iceBank" && territoryOwner(s, o) === p)) return false;
   if (b === "port" && t.resource) return false;
   if (def.nextTo) {
     const ok = around(s.mapSize, { x, y }, 1).some((q) => {
@@ -159,6 +165,8 @@ export function legalActions(s: GameState): Action[] {
     if (unitsHomedIn(s, c) >= unitCapacity(c)) continue;
     for (const def of trainableUnitsFor(pl.clan)) {
       if (def.tech && !pl.techs.includes(def.tech)) continue;
+      // Raychi: only from cities next to (open) water
+      if (def.id === "raychi" && !around(s.mapSize, c, 1).some((q) => isWater(tileAt(s, q.x, q.y)) && !tileAt(s, q.x, q.y).ice)) continue;
       if (pl.stars < def.cost) continue;
       out.push({ type: "train", cityId: c.id, unit: def.id });
     }
@@ -212,7 +220,9 @@ export function legalActions(s: GameState): Action[] {
       if (has(u, "freezeArea")) {
         const canFreeze = around(s.mapSize, u, 1, true).some((q) => {
           const qt = tileAt(s, q.x, q.y);
-          return !qt.ice || s.units.some((e) => e.owner !== p && e.x === q.x && e.y === q.y && !e.frozen);
+          const o = territoryOwner(s, qt);
+          if (isWater(qt) ? !qt.ice : !qt.polar && (o === null || o === p)) return true;
+          return s.units.some((e) => e.owner !== p && e.x === q.x && e.y === q.y && !e.frozen);
         });
         if (canFreeze) out.push({ type: "freezeArea", unitId: u.id });
       }
@@ -228,6 +238,15 @@ export function legalActions(s: GameState): Action[] {
       if (hasTarget) out.push({ type: "explode", unitId: u.id });
     }
     for (const c of infiltrateTargets(s, u)) out.push({ type: "infiltrate", unitId: u.id, cityId: c.id });
+    // Dash: break adjacent (non-Polaris units) empty ice back into water
+    if (!u.done && u.canAttack && has(u, "dash") && pl.clan !== "polaris") {
+      for (const q of around(s.mapSize, u, 1)) {
+        const qt = tileAt(s, q.x, q.y);
+        if (qt.ice && !qt.building && qt.cityId === null && !occupant(s, q.x, q.y)) {
+          out.push({ type: "breakIce", unitId: u.id, at: { x: q.x, y: q.y } });
+        }
+      }
+    }
     if (u.kills >= 3 && !u.veteran && !has(u, "static")) out.push({ type: "promote", unitId: u.id });
     if (u.type === "raft" && ownTile(s, p, u.x, u.y)) {
       for (const b of RAFT_UPGRADES) {
@@ -330,8 +349,16 @@ export function applyAction(prev: GameState, a: Action): GameState {
       break;
     case "freezeArea": {
       const u = unitById(s, a.unitId)!;
-      freezeSurrounding(s, u);
+      freezeSurrounding(s, u, true);
       endUnit(u);
+      break;
+    }
+    case "breakIce": {
+      const u = unitById(s, a.unitId)!;
+      tileAt(s, a.at.x, a.at.y).ice = false;
+      u.attacked = true;
+      u.canAttack = false;
+      u.canMove = false;
       break;
     }
     case "boost": {
@@ -409,10 +436,15 @@ function doMove(s: GameState, u: Unit, to: Coord) {
   u.lastDir = { x: Math.sign(to.x - u.x), y: Math.sign(to.y - u.y) };
   // explore the straight-line path's tiles (approximation of "every tile along the path")
   const steps = dist(u, to);
-  for (let k = 1; k <= steps; k++) {
+  for (let k = 0; k <= steps; k++) {
     const x = Math.round(u.x + ((to.x - u.x) * k) / steps);
     const y = Math.round(u.y + ((to.y - u.y) * k) / steps);
-    explore(s, u.owner, { x, y }, has(u, "scout") ? 2 : 1);
+    // Algae (Living Island): leaves algae on the water tiles it passes
+    if (k < steps && has(u, "algae")) {
+      const pt = tileAt(s, x, y);
+      if (isWater(pt) && !pt.ice) pt.algae = true;
+    }
+    if (k > 0) explore(s, u.owner, { x, y }, has(u, "scout") ? 2 : 1);
   }
   u.x = to.x;
   u.y = to.y;
@@ -421,23 +453,46 @@ function doMove(s: GameState, u: Unit, to: Coord) {
   if (!has(u, "dash")) u.canAttack = false;
   if (has(u, "hide")) u.hidden = true;
   explore(s, u.owner, u, sightRadius(s, u));
+  // Skate: a move ending on land allows no attack (Dash blocked on land)
+  if (has(u, "skate") && !isWater(tileAt(s, u.x, u.y))) u.canAttack = false;
   if (kind === "embark") embark(u);
   else if (kind === "disembark") disembark(u);
   if (has(u, "stomp")) stomp(s, u);
-  if (has(u, "autoFreeze")) freezeSurrounding(s, u);
-  // Cymanti Fungi poisons enemy units stepping onto it
+  if (has(u, "autoFreeze")) freezeSurrounding(s, u, false);
+  // Cymanti Fungi and Clathrus poison enemy units stepping onto them
   const destTile = tileAt(s, u.x, u.y);
-  if (destTile.building === "fungi" && territoryOwner(s, destTile) !== u.owner) {
+  if ((destTile.building === "fungi" || destTile.building === "clathrus") && territoryOwner(s, destTile) !== u.owner) {
     u.poisoned = true;
   }
 }
 
-function freezeSurrounding(s: GameState, u: Unit) {
+/**
+ * Auto Freeze: adjacent water turns to ice and adjacent enemies freeze.
+ * Freeze Area (area = true) also turns adjacent land into Polaris terrain,
+ * never inside enemy territory. Freezing an enemy counts as an attack (Altar of Peace).
+ */
+function freezeSurrounding(s: GameState, u: Unit, area: boolean) {
   for (const q of around(s.mapSize, u, 1, true)) {
     const t = tileAt(s, q.x, q.y);
-    t.ice = true;
+    if (isWater(t)) t.ice = true;
+    else if (area) {
+      const o = territoryOwner(s, t);
+      if (o === null || o === u.owner) t.polar = true;
+    }
     const occ = occupant(s, q.x, q.y);
-    if (occ && occ.owner !== u.owner) occ.frozen = true;
+    if (occ && occ.owner !== u.owner) {
+      occ.frozen = true;
+      s.players[u.owner].attackedThisTurn = true;
+    }
+  }
+}
+
+/** a poisoned unit's death or an explosion leaves spores on land, algae on water */
+function leaveSporesOrAlgae(t: ReturnType<typeof tileAt>) {
+  if (isWater(t)) {
+    if (!t.ice) t.algae = true;
+  } else if (t.resource === null && t.building === null && t.cityId === null && !t.village && t.terrain !== "mountain") {
+    t.resource = "spores";
   }
 }
 
@@ -446,7 +501,7 @@ function doExplode(s: GameState, u: Unit) {
   const pos = { x: u.x, y: u.y };
   s.units = s.units.filter((x) => x !== u);
   const t = tileAt(s, pos.x, pos.y);
-  if (isWater(t)) t.algae = true;
+  leaveSporesOrAlgae(t);
   for (const e of s.units.slice()) {
     if (e.owner === p || dist(e, pos) !== 1) continue;
     const r = computeDamageRounded(s, u, e);
@@ -483,8 +538,11 @@ function stomp(s: GameState, u: Unit) {
 
 function damage(s: GameState, target: Unit, amount: number, by: Unit | null): boolean {
   target.hp -= amount;
+  // Swarm lasts until the unit is attacked
+  target.boosted = false;
   if (target.hp > 0) return false;
   s.units = s.units.filter((x) => x !== target);
+  if (target.poisoned) leaveSporesOrAlgae(tileAt(s, target.x, target.y));
   s.players[target.owner].losses += 1;
   if (by) {
     s.players[by.owner].kills += 1;
@@ -495,7 +553,6 @@ function damage(s: GameState, target: Unit, amount: number, by: Unit | null): bo
 
 function doAttack(s: GameState, u: Unit, target: Unit) {
   const p = u.owner;
-  s.players[p].attackedThisTurn = true;
   u.hidden = false;
   u.lastDir = { x: Math.sign(target.x - u.x), y: Math.sign(target.y - u.y) };
   // embassies between the two are destroyed by any attack (§5.5)
@@ -504,16 +561,24 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
   s.players[q].embassies = s.players[q].embassies.filter((h) => h !== p);
 
   if (has(u, "convert")) {
-    target.owner = p;
+    // converting any part of a Centipede converts the whole body
+    const headId = target.bodyOf ?? (target.type === "centipede" ? target.id : null);
+    const group = headId === null ? [target] : s.units.filter((o) => o.id === headId || o.bodyOf === headId);
     const cap = capitalOf(s, p) ?? citiesOf(s, p)[0];
-    target.homeCity = has(target, "independent") ? null : (cap?.id ?? null);
-    target.canMove = false;
-    target.canAttack = false;
-    target.done = true;
+    for (const o of group) {
+      o.owner = p;
+      o.homeCity = has(o, "independent") ? null : (cap?.id ?? null);
+      o.canMove = false;
+      o.canAttack = false;
+      o.done = true;
+    }
+    // conversions are no attack for the Altar of Peace; Cymanti count them for its replacement task
+    if (u.type === "shaman") s.players[p].conversions = (s.players[p].conversions ?? 0) + 1;
     endUnit(u);
     u.attacked = true;
     return;
   }
+  s.players[p].attackedThisTurn = true;
 
   const r = computeDamageRounded(s, u, target);
   const from = { x: target.x, y: target.y };
@@ -540,16 +605,27 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
       s.players[target.owner].explored[idx(s.mapSize, u.x, u.y)] === 1 &&
       r.retaliation > 0;
     if (retaliates) {
+      const swarm = u.boosted; // retaliation is no attack: Swarm stays
       damage(s, u, r.retaliation, target);
+      u.boosted = swarm;
       if (s.units.includes(u) && has(target, "poison")) u.poisoned = true;
     }
   }
+  // Kiton: poisons every unit that attacks it (melee or ranged)
+  if (has(target, "poisonDefence") && s.units.includes(u)) u.poisoned = true;
   u.attacked = true;
   const alive = s.units.includes(u);
   if (!alive) return;
   u.canAttack = false;
-  u.canMove = u.canMove && has(u, "escape");
-  if (has(u, "escape") && !u.moved) u.canMove = true;
+  // Double Attack: a second attack this turn
+  if (has(u, "doubleAttack") && !u.secondAttack) {
+    u.secondAttack = true;
+    u.canAttack = true;
+  }
+  // Skate: Escape is blocked on land
+  const escape = has(u, "escape") && !(has(u, "skate") && !isWater(tileAt(s, u.x, u.y)));
+  u.canMove = u.canMove && escape;
+  if (escape && !u.moved) u.canMove = true;
   // melee advance into the killed unit's tile (§3.4)
   if (killed && UNITS[u.type].range < 2 && !occupant(s, from.x, from.y)) {
     const kind = enterKind(s, u, tileAt(s, from.x, from.y));
@@ -560,7 +636,7 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
       if (kind === "embark") embark(u);
       // Cymanti Centipede eat: spawns a Segment behind it on kill
       if (has(u, "eat") && !occupant(s, prevPos.x, prevPos.y)) {
-        makeUnit(s, "segment", p, prevPos, null);
+        makeUnit(s, "segment", p, prevPos, null).bodyOf = u.id;
       }
     }
   }
@@ -586,6 +662,10 @@ function doCapture(s: GameState, u: Unit) {
       return;
     }
     const old = c.owner;
+    // a captured Polaris city's land changes to the captor's style
+    if (s.players[old].clan === "polaris" && s.players[p].clan !== "polaris") {
+      for (const tt of s.tiles) if (tt.territory === c.id) tt.polar = false;
+    }
     c.owner = p;
     c.capital = false;
     c.connected = false;
@@ -668,8 +748,8 @@ export function runExplorer(s: GameState, p: number, from: Coord) {
     const t = tileAt(s, q.x, q.y);
     if (pl.explored[idx(n, q.x, q.y)] !== 1) return true; // may walk into fog
     if (t.terrain === "mountain") return pl.techs.includes("climbing");
-    if (t.terrain === "water") return pl.techs.includes("sailing");
-    if (t.terrain === "ocean") return pl.techs.includes("navigation");
+    if (t.terrain === "water") return pl.techs.includes("sailing") || pl.clan === "cymanti";
+    if (t.terrain === "ocean") return pl.techs.includes("navigation") || pl.clan === "cymanti";
     return true;
   };
   const fogScore = (q: Coord) =>
@@ -695,6 +775,10 @@ export function runExplorer(s: GameState, p: number, from: Coord) {
 function doInfiltrate(s: GameState, u: Unit, c: City) {
   const p = u.owner;
   s.units = s.units.filter((x) => x !== u);
+  if (u.type === "moth") {
+    mothInfiltrate(s, u, c);
+    return;
+  }
   const occ = occupant(s, c.x, c.y);
   if (occ && occ.owner !== p) {
     const dagger = { ...u, type: "dagger", hp: 10, maxHp: 10 };
@@ -724,6 +808,23 @@ function doInfiltrate(s: GameState, u: Unit, c: City) {
     made++;
   }
   log(s, `infiltrated ${c.name}`);
+}
+
+/** Moth: poisons the defender and lays Insect Eggs on free land; steals no stars, no riot */
+function mothInfiltrate(s: GameState, u: Unit, c: City) {
+  const p = u.owner;
+  const occ = occupant(s, c.x, c.y);
+  if (occ && occ.owner !== p) occ.poisoned = true;
+  const count = Math.min(c.level, 5);
+  let made = 0;
+  s.tiles.forEach((t, i) => {
+    const x = i % s.mapSize;
+    const y = Math.floor(i / s.mapSize);
+    if (made >= count || t.territory !== c.id || isWater(t) || occupant(s, x, y)) return;
+    makeUnit(s, "insectEgg", p, { x, y }, null);
+    made++;
+  });
+  log(s, `moth infiltrated ${c.name}`);
 }
 
 /* ---------- builds ---------- */
