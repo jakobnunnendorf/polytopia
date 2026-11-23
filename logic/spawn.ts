@@ -1,36 +1,39 @@
-import { useContext } from 'react';
+import { createRng, shuffle, type Rng } from "./engine/rng";
 
+/**
+ * Place one capital per player, each in its own region of the map.
+ *
+ * The map is cut into a k×k grid of regions (k = ceil(sqrt(players))), the
+ * players get distinct regions in random order, and each capital lands at a
+ * random spot inside its region, kept away from the region edges so that
+ * neighbouring capitals never touch.
+ */
 export function spawnCapitals({
   players,
   mapSize,
+  rng = createRng(Math.floor(Math.random() * 2 ** 32)),
 }: {
   players: number;
   mapSize: number;
-  }): { x: number; y: number }[] {
-  const center = Math.floor(mapSize / 2);
-  const positions: { x: number; y: number }[] = [];
-
-  // Polytopia-style quadrant division
-  const regions = Math.sqrt(players);
+  rng?: Rng;
+}): { x: number; y: number }[] {
+  const regions = Math.ceil(Math.sqrt(players));
   const regionSize = Math.floor(mapSize / regions);
+  // keep a 2-tile margin inside each region when there is room for it
+  const pad = regionSize >= 5 ? 2 : regionSize >= 3 ? 1 : 0;
 
-  for (let i = 0; i < players; i++) {
-    // Determine quadrant
-    const row = Math.floor(i / regions);
-    const col = i % regions;
+  const cells = shuffle(
+    rng,
+    Array.from({ length: regions * regions }, (_, i) => i),
+  ).slice(0, players);
 
-    // Generate position within quadrant with padding
-    const minX = col * regionSize + 2;
-    const maxX = (col + 1) * regionSize - 2;
-    const minY = row * regionSize + 2;
-    const maxY = (row + 1) * regionSize - 2;
-
-    // Random position within safe zone
-    const x = Math.floor(Math.random() * (maxX - minX + 1)) + minX;
-    const y = Math.floor(Math.random() * (maxY - minY + 1)) + minY;
-
-    positions.push({ x, y });
-  }
-
-  return positions;
+  return cells.map((cell) => {
+    const row = Math.floor(cell / regions);
+    const col = cell % regions;
+    const minX = col * regionSize + pad;
+    const maxX = (col + 1) * regionSize - 1 - pad;
+    const minY = row * regionSize + pad;
+    const maxY = (row + 1) * regionSize - 1 - pad;
+    return { x: rng.int(minX, maxX), y: rng.int(minY, maxY) };
+  });
 }
