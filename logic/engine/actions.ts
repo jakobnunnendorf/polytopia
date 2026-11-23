@@ -28,6 +28,7 @@ import {
   canResearch,
   capitalOf,
   checkElimination,
+  checkGameEnd,
   checkMeetings,
   checkTasks,
   cityById,
@@ -39,7 +40,6 @@ import {
   newCity,
   pendingReward,
   pushUnit,
-  scoreOf,
   startTurn,
   techCost,
   unitCapacity,
@@ -118,12 +118,9 @@ function canBuild(s: GameState, p: number, b: string, x: number, y: number): boo
   if (!def.terrain.includes(t.terrain as never)) return false;
   if (def.resource && t.resource !== def.resource) return false;
   if (def.kind === "harvest" && def.resource === undefined && t.resource && b !== "growForest" && b !== "clearForest" && b !== "burnForest") return false;
-  if (def.kind === "building" && !def.resource && t.resource && b !== "lumberHut" && b !== "forge" && b !== "port") {
-    // windmill/sawmill/market on an empty field only
-    return false;
-  }
-  if (b === "lumberHut" && t.resource) return false;
-  if (b === "port" && t.resource) return false;
+  // a building, temple or monument that needs no resource goes on a tile without one (fruit, crop,
+  // animal, fish, metal, starfish must be harvested first); the same rule for every improvement
+  if ((def.kind === "building" || def.kind === "temple" || def.kind === "monument") && !def.resource && t.resource) return false;
   if (def.nextTo) {
     const ok = around(s.mapSize, { x, y }, 1).some((q) => {
       const n = tileAt(s, q.x, q.y);
@@ -392,13 +389,8 @@ function endTurn(s: GameState) {
     if (next === 0) s.turn += 1;
   } while (!s.players[next].alive && next !== p);
   s.current = next;
-  if (s.mode === "perfection" && s.turn > s.maxTurns) {
-    s.over = true;
-    let best = 0;
-    for (const o of s.players) if (o.alive && scoreOf(s, o.id) > scoreOf(s, best)) best = o.id;
-    s.winner = best;
-    return;
-  }
+  checkGameEnd(s, true);
+  if (s.over) return;
   startTurn(s);
 }
 
@@ -586,10 +578,23 @@ function doCapture(s: GameState, u: Unit) {
       return;
     }
     const old = c.owner;
+    // the connections through this city are cut and the population they gave goes with them (may go negative)
+    if (c.capital) {
+      for (const o of citiesOf(s, old)) {
+        if (o === c || !o.connected) continue;
+        o.connected = false;
+        o.pop -= 1;
+        c.pop -= 1;
+      }
+    } else if (c.connected) {
+      const oldCap = capitalOf(s, old);
+      c.pop -= 1;
+      if (oldCap) oldCap.pop -= 1;
+    }
     c.owner = p;
-    c.capital = false;
+    // recapturing your own starting city makes it your capital again; level, population and rewards stay
+    c.capital = c.originalCapitalOf === p;
     c.connected = false;
-    c.pendingRewards = [];
     for (const o of s.units) if (o.owner === old && o.homeCity === c.id) o.homeCity = null;
     // reveal the whole old territory
     s.tiles.forEach((tt, i) => {
@@ -601,6 +606,7 @@ function doCapture(s: GameState, u: Unit) {
     }
     if (!has(u, "independent")) u.homeCity = c.id;
     updateConnections(s, old);
+    updateConnections(s, p);
     log(s, `captured ${c.name} from player ${old}`);
   }
   endUnit(u);
@@ -775,9 +781,9 @@ function doBuild(s: GameState, p: number, b: string, at: Coord) {
         const lost = (BUILDS[old]?.pop ?? 0) + (FEEDS[old] ? 0 : levelPop(old, t.buildingLevel));
         city.pop -= lost;
       }
-      unfeed(s, p, at, old);
       t.building = null;
       t.buildingLevel = 0;
+      unfeed(s, p, at, old);
       break;
     }
     default: {
@@ -798,7 +804,7 @@ function doBuild(s: GameState, p: number, b: string, at: Coord) {
         t.buildingLevel = lvl;
         if (city) addPop(s, city, lvl * levelKind.popPerLevel);
       }
-      if (FEEDS[b]) feed(s, p, at, b, +1);
+      if (FEEDS[b]) feed(s, p, at, b);
     }
   }
 }
@@ -809,13 +815,17 @@ function levelPop(building: string, level: number): number {
 }
 
 /** a feeder (farm/lumber hut/mine) was built or removed: adjust adjacent leveling buildings */
-function feed(s: GameState, p: number, at: Coord, feeder: string, delta: number) {
+function feed(s: GameState, p: number, at: Coord, feeder: string) {
   const f = FEEDS[feeder];
   for (const q of around(s.mapSize, at, 1)) {
     const n = tileAt(s, q.x, q.y);
     if (n.building !== f.building || !ownTile(s, p, q.x, q.y)) continue;
     const before = n.buildingLevel;
-    n.buildingLevel = Math.max(0, Math.min(LEVEL_CAP, before + delta));
+    // level = adjacent own feeders, at most 8 (recounted, so a 9th feeder's removal keeps level 8)
+    n.buildingLevel = Math.min(
+      LEVEL_CAP,
+      around(s.mapSize, q, 1).filter((r) => tileAt(s, r.x, r.y).building === feeder && ownTile(s, p, r.x, r.y)).length,
+    );
     const gained = (n.buildingLevel - before) * f.popPerLevel;
     const c = cityById(s, n.territory);
     if (c && gained) {
@@ -826,7 +836,7 @@ function feed(s: GameState, p: number, at: Coord, feeder: string, delta: number)
 }
 
 function unfeed(s: GameState, p: number, at: Coord, old: string) {
-  if (FEEDS[old]) feed(s, p, at, old, -1);
+  if (FEEDS[old]) feed(s, p, at, old);
 }
 
 /* ---------- rewards ---------- */

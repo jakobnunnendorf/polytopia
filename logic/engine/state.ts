@@ -5,22 +5,29 @@
  */
 import { createRng, shuffle, type Rng } from "./rng";
 import {
+  BOT_CAPITAL_BONUS,
   BUILDS,
   CLANS,
   CLAN_BY_ID,
   EMBASSY_INCOME,
+  GLORY_TARGET,
+  HUMAN_CAPITAL_BONUS,
   MARKET_CAP,
   MONUMENTS,
+  PERFECTION_DIFFICULTY_BONUS,
+  PERFECTION_STARS,
   PERFECTION_TURNS,
+  PORT_RANGE,
   SCORE,
   TECHS,
   TECH_BY_ID,
   UNITS,
+  maxPlayersFor,
   rewardOptions,
 } from "./data";
 import { generateMap, type MapType } from "./mapgen";
 import { around, dist, idx, inBounds, isWater, tileAt } from "./grid";
-import type { City, Coord, GameMode, GameState, Player, Unit } from "./types";
+import type { City, Coord, Difficulty, GameMode, GameState, Player, Unit } from "./types";
 import { canSee } from "./movement";
 
 const CITY_NAMES = [
@@ -32,9 +39,12 @@ const CITY_NAMES = [
 ];
 
 export type NewGameOptions = {
-  mapSize: number;
+  /** default: the size the mode forces (see mapSizeFor), Normal otherwise */
+  mapSize?: number;
   players: number;
   mode: GameMode;
+  /** bot difficulty, default "normal" */
+  difficulty?: Difficulty;
   seed: number;
   /** player ids controlled by humans (others are bots) */
   humans?: number[];
@@ -42,6 +52,24 @@ export type NewGameOptions = {
   /** clan per player; default: random distinct clans */
   clans?: string[];
 };
+
+/**
+ * Map size a mode forces (rules doc, Map sizes): Perfection always Normal (16);
+ * Domination by opponent count 1 -> 11, 2 -> 14, 3 -> 16, 4+ -> 18.
+ * Returns null when the mode lets the player choose (Creative, Glory, Might).
+ */
+export function mapSizeFor(mode: GameMode, opponents: number): number | null {
+  if (mode === "perfection") return 16;
+  if (mode === "domination") return opponents <= 1 ? 11 : opponents === 2 ? 14 : opponents === 3 ? 16 : 18;
+  return null;
+}
+
+/** Huge (20) and Massive (30) maps exist only in Creative and the multiplayer modes */
+export function mapSizeAllowed(mode: GameMode, mapSize: number): boolean {
+  return mapSize <= 18 || mode === "creative" || mode === "glory" || mode === "might";
+}
+
+export const difficultyOf = (s: GameState): Difficulty => s.difficulty ?? "normal";
 
 export function withRng<T>(s: GameState, f: (rng: Rng) => T): T {
   const rng = createRng(s.rng);
@@ -109,8 +137,8 @@ export function unitCapacity(city: City): number {
 }
 
 /** stars per turn of one city (§5.2), ignoring siege */
-export function cityIncome(_s: GameState, c: City): number {
-  const bonus = c.capital ? 1 : 0;
+export function cityIncome(s: GameState, c: City): number {
+  const bonus = !c.capital ? 0 : s.players[c.owner]?.bot ? BOT_CAPITAL_BONUS[difficultyOf(s)] : HUMAN_CAPITAL_BONUS;
   const neg = c.pop < 0 ? -c.pop : 0;
   return Math.max(0, c.level + (c.workshop ? 1 : 0) + c.parks + bonus - neg);
 }
@@ -221,10 +249,8 @@ const SUPER_UNITS = new Set(["giant", "juggernaut", "crab", "dragonEgg", "babyDr
 function unitScore(u: Unit): number {
   if (SUPER_UNITS.has(u.type) || (u.carried && SUPER_UNITS.has(u.carried))) return SCORE.superUnit;
   const def = UNITS[u.type];
-  if (def.naval) {
-    const passenger = u.carried ? UNITS[u.carried].cost : 0;
-    return SCORE.perUnitCost * (passenger + def.cost);
-  }
+  // a ship scores only the unit it carries; upgrading a ship adds nothing (rules doc, Scoring)
+  if (def.naval) return SCORE.perUnitCost * (u.carried ? UNITS[u.carried].cost : 0);
   return SCORE.perUnitCost * def.cost;
 }
 
@@ -235,9 +261,7 @@ export function scoreOf(s: GameState, p: number): number {
   for (const t of pl.techs) score += SCORE.techTier * TECH_BY_ID[t].tier;
   for (const u of s.units) if (u.owner === p) score += unitScore(u);
   const mine = new Set(citiesOf(s, p).map((c) => c.id));
-  for (const c of citiesOf(s, p)) {
-    score += SCORE.city + SCORE.cityLevel * (c.level - 1) + SCORE.park * c.parks;
-  }
+  for (const c of citiesOf(s, p)) score += cityScore(c);
   for (const t of s.tiles) {
     if (t.territory === null || !mine.has(t.territory)) continue;
     score += SCORE.territoryTile;
@@ -251,6 +275,33 @@ export function scoreOf(s: GameState, p: number): number {
     }
   }
   return score;
+}
+
+/**
+ * City score (rules doc, Scoring): 100 at level 1, 5 per population point (the
+ * points spent on each level-up plus the current population, which counts
+ * against when negative), plus a level-up bonus of 40 at level 2, 35 at level 3
+ * and falling after; parks 250 each.
+ */
+export function cityScore(c: City): number {
+  let score = SCORE.city + SCORE.cityPop * c.pop + SCORE.park * c.parks;
+  for (let l = 2; l <= c.level; l++) score += SCORE.cityPop * l + SCORE.cityLevelBonus(l);
+  return score;
+}
+
+/**
+ * Perfection rating (rules doc, Perfection difficulty bonus):
+ * score x (1 + 0.41 ln(opponents) + d), d = 0/0.2/0.4/0.8 for Easy/Normal/Hard/Crazy.
+ */
+export function perfectionRating(s: GameState, p: number): number {
+  const opponents = s.players.length - 1;
+  const bonus = 1 + (opponents > 0 ? 0.41 * Math.log(opponents) : 0) + PERFECTION_DIFFICULTY_BONUS[difficultyOf(s)];
+  return Math.round(scoreOf(s, p) * bonus);
+}
+
+/** Perfection stars for a rating: 0-3, 4 = halo (3,000 / 10,000 / 50,000 / 100,000) */
+export function perfectionStars(rating: number): number {
+  return PERFECTION_STARS.filter((t) => rating >= t).length;
 }
 
 /* ---------- city connections (§5.6) ---------- */
@@ -284,12 +335,12 @@ export function updateConnections(s: GameState, p: number) {
           queue.push(i);
         }
       }
-      // port-to-port links within distance 4 over friendly water
+      // port-to-port links within range 5 over friendly water; ocean only with Sailing
       if (t.building === "port") {
         for (let j = 0; j < s.tiles.length; j++) {
           if (seen.has(j) || s.tiles[j].building !== "port") continue;
           const q = { x: j % n, y: Math.floor(j / n) };
-          if (dist(c, q) > 4) continue;
+          if (dist(c, q) > PORT_RANGE) continue;
           const owner = cityById(s, s.tiles[j].territory)?.owner;
           if (owner !== p) continue;
           if (waterPath(s, p, c, q)) {
@@ -316,14 +367,16 @@ function waterPath(s: GameState, p: number, a: Coord, b: Coord): boolean {
   const n = s.mapSize;
   const seen = new Set<number>([idx(n, a.x, a.y)]);
   const queue = [a];
+  const sailing = s.players[p].techs.includes("sailing");
   while (queue.length) {
     const c = queue.shift()!;
     if (c.x === b.x && c.y === b.y) return true;
     for (const q of around(n, c, 1)) {
       const i = idx(n, q.x, q.y);
-      if (seen.has(i) || dist(a, q) > 4) continue;
+      if (seen.has(i) || dist(a, q) > PORT_RANGE) continue;
       const t = s.tiles[i];
       if (!isWater(t)) continue;
+      if (t.terrain === "ocean" && !sailing) continue;
       const o = cityById(s, t.territory)?.owner;
       if (o !== undefined && o !== p) continue;
       seen.add(i);
@@ -366,9 +419,7 @@ export function checkMeetings(s: GameState) {
       if (!seesUnit && !seesCity) continue;
       pl.met.push(other.id);
       const sc = scoreOf(s, other.id);
-      let reward = 1 + 2 * Math.min(Math.ceil(sc / 1000), 5);
-      if (s.players.length === 2 && other.id === 1) reward += 2;
-      pl.stars += reward;
+      pl.stars += 1 + 2 * Math.min(Math.ceil(sc / 1000), 5);
     }
     if (pl.techs.includes("diplomacy")) {
       for (const m of pl.met) {
@@ -453,11 +504,52 @@ export function checkElimination(s: GameState) {
       log(s, `player ${pl.id} eliminated`);
     }
   }
-  const alive = s.players.filter((p) => p.alive);
-  if (alive.length === 1) {
-    s.over = true;
-    s.winner = alive[0].id;
+  checkGameEnd(s, false);
+}
+
+/** the alive player with the highest score; ties go to the lower player index */
+export function leader(s: GameState): number | null {
+  let best: number | null = null;
+  let bestScore = -Infinity;
+  for (const o of s.players) {
+    if (!o.alive) continue;
+    const sc = scoreOf(s, o.id);
+    if (sc > bestScore) {
+      best = o.id;
+      bestScore = sc;
+    }
   }
+  return best;
+}
+
+/**
+ * Game end by mode (rules doc, Modes). Called after every action and, with
+ * turnEnded, after every player's turn:
+ * - every mode: the last tribe with a city wins;
+ * - single player (exactly one human seat): the human losing all cities ends the game (a loss);
+ * - Perfection: after the last turn the highest score among alive players wins;
+ * - Glory: at the end of a turn in which someone reached the target, the highest score wins;
+ * - Might: holding every tribe's original capital wins.
+ * Domination and Creative end only by elimination (Creative has no turn limit).
+ */
+export function checkGameEnd(s: GameState, turnEnded: boolean) {
+  if (s.over) return;
+  const end = (w: number | null) => {
+    s.over = true;
+    s.winner = w;
+  };
+  const alive = s.players.filter((p) => p.alive);
+  if (alive.length === 1) return end(alive[0].id);
+  const humans = s.players.filter((p) => !p.bot);
+  if (humans.length === 1 && !humans[0].alive) return end(leader(s));
+  if (s.mode === "might") {
+    const capitals = s.cities.filter((c) => c.originalCapitalOf !== null);
+    const holder = capitals[0]?.owner;
+    if (capitals.length > 1 && capitals.every((c) => c.owner === holder)) return end(holder);
+  }
+  if (!turnEnded) return;
+  if (s.mode === "perfection" && s.turn > s.maxTurns) return end(leader(s));
+  if (s.mode === "glory" && s.players.some((o) => o.alive && scoreOf(s, o.id) >= GLORY_TARGET)) return end(leader(s));
 }
 
 /* ---------- setup ---------- */
@@ -488,7 +580,8 @@ export function newCity(s: GameState, at: Coord, owner: number): City {
 }
 
 export function createGame(opts: NewGameOptions): GameState {
-  const n = opts.mapSize;
+  const n = opts.mapSize ?? mapSizeFor(opts.mode, opts.players - 1) ?? 16;
+  if (opts.players > maxPlayersFor(n)) throw new Error(`a ${n}x${n} map holds at most ${maxPlayersFor(n)} tribes`);
   const rng = createRng(opts.seed);
   const clanIds =
     opts.clans ??
@@ -509,6 +602,7 @@ export function createGame(opts: NewGameOptions): GameState {
     rng: rng.state(),
     mapSize: n,
     mode: opts.mode,
+    difficulty: opts.difficulty ?? "normal",
     maxTurns: PERFECTION_TURNS,
     turn: 0,
     current: 0,

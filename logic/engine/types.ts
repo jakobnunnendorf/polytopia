@@ -125,13 +125,18 @@ export type Player = {
   capitalId: number;
 };
 
-export type GameMode = "perfection" | "domination";
+export type GameMode = "perfection" | "domination" | "creative" | "glory" | "might";
+
+/** bot difficulty (rules doc, AI and difficulty): bot capital income and the Perfection bonus */
+export type Difficulty = "easy" | "normal" | "hard" | "crazy";
 
 export type GameState = {
   seed: number;
   rng: number;
   mapSize: number;
   mode: GameMode;
+  /** bot difficulty; missing in states saved before it existed (read as "normal") */
+  difficulty?: Difficulty;
   /** turn limit for perfection mode */
   maxTurns: number;
   turn: number;

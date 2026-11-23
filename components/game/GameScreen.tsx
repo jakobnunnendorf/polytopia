@@ -16,12 +16,14 @@ import {
   income,
   legalActions,
   resourceVisible,
+  perfectionRating,
+  perfectionStars,
   scoreOf,
   techCost,
 } from "@/logic/engine";
 import TechTree from "@/components/game/TechTree";
 import { actionLabel, name } from "@/logic/engine/names";
-import type { Action, GameMode, GameState } from "@/logic/engine/types";
+import type { Action, Difficulty, GameMode, GameState } from "@/logic/engine/types";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
 import { arena, serverChat } from "@/components/game/arenaClient";
 import { BUILTIN_MODELS, DEFAULT_MODEL, createAgent } from "@/logic/agents/registry";
@@ -178,6 +180,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     mapSize?: string;
     players?: string;
     mode?: string;
+    difficulty?: string;
     seed?: string;
     watch?: string;
     seats?: string;
@@ -203,9 +206,10 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
       ? seats.map((s, i) => s.clan ?? ["romans", "norse", "aquarion", "elyrion", "polaris", "cymanti"][i % 6])
       : undefined;
     return createGame({
-      mapSize: Number(params.mapSize ?? 11),
+      mapSize: params.mapSize ? Number(params.mapSize) : undefined,
       players: seats.length,
       mode: (params.mode as GameMode) ?? "perfection",
+      difficulty: (params.difficulty as Difficulty) ?? "normal",
       seed: Number(params.seed ?? 1),
       humans: humanSeats,
       clans: chosenClans,
@@ -699,7 +703,14 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           <GameOverCard
             title={humanSeats.length !== 1 ? `${seatName(state.winner ?? 0)} wins` : state.winner === viewer ? "Victory" : "Defeat"}
             good={humanSeats.length !== 1 || state.winner === viewer}
-            subtitle={`The ${winnerClan} rule the Square.`}
+            subtitle={
+              `The ${winnerClan} rule the Square.` +
+              (state.mode === "perfection"
+                ? ` Your rating: ${perfectionRating(state, viewer).toLocaleString("en")} (${
+                    ["no stars", "1 star", "2 stars", "3 stars", "a halo"][perfectionStars(perfectionRating(state, viewer))]
+                  }).`
+                : "")
+            }
             standings={ranking.map(({ p, score }) => ({
               id: p.id,
               name: seatName(p.id),

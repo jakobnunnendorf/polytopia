@@ -37,7 +37,15 @@ export function describe(s: GameState): string {
   const units = s.units.filter((u) => u.owner === p);
   const rivals = s.players.filter((o) => o.id !== p && o.alive);
   const lines = [
-    `Turn ${s.turn}${s.mode === "perfection" ? ` of ${s.maxTurns} (highest score wins)` : " (last clan with a city wins)"}.`,
+    `Turn ${s.turn}${
+      s.mode === "perfection"
+        ? ` of ${s.maxTurns} (highest score wins)`
+        : s.mode === "glory"
+          ? " (first to 10,000 points wins)"
+          : s.mode === "might"
+            ? " (capture every capital to win)"
+            : " (last clan with a city wins)"
+    }.`,
     `You are the ${name("clan", me.clan)}. Shards: ${me.stars} (+${income(s, p)} per turn). Score: ${scoreOf(s, p)}.`,
     `Your cities: ${cities.map((c) => `${c.name} level ${c.level} (${c.pop}/${c.level + 1} people) at ${c.x},${c.y}`).join("; ") || "none"}.`,
     `Your units: ${units.map((u) => `${name("unit", u.type)} ${Math.ceil(u.hp)}hp at ${u.x},${u.y}`).join("; ") || "none"}.`,
