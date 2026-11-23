@@ -40,8 +40,10 @@ export type Tile = {
   lighthouse: boolean;
   /** id of the city whose territory this tile belongs to */
   territory: number | null;
-  /** Polaris: frozen water/land tile */
+  /** Polaris: frozen water tile (ice) */
   ice?: boolean;
+  /** Polaris: land turned into Polaris terrain by Freeze Area */
+  polar?: boolean;
   /** Cymanti: walkable algae on water */
   algae?: boolean;
   /** Aquarion: flooded land tile (land and water units move on it; ships stop on it) */
@@ -83,10 +85,14 @@ export type Unit = {
   frozen?: boolean;
   /** Cymanti: poisoned (loses defence bonuses) */
   poisoned?: boolean;
-  /** Cymanti: boosted by Shaman (+0.5 atk, +1 mov) */
+  /** Cymanti: Swarm from a Shaman (+1 movement until attacked) */
   boosted?: boolean;
   /** Aquarion Bubbles: +1 movement after entering a flooded tile; lost when attacked or on dry land */
   bubble?: boolean;
+  /** Double Attack: the second attack of this turn is used */
+  secondAttack?: boolean;
+  /** Centipede segment: id of the Centipede head it belongs to */
+  bodyOf?: number;
   /** Elyrion: turns lived (for Dragon Egg -> Baby Dragon -> Fire Dragon) */
   age?: number;
 };
@@ -139,6 +145,8 @@ export type Player = {
   embassies: number[];
   /** the city this player started with */
   capitalId: number;
+  /** Cymanti: enemy units converted by Shamans (replaces the Altar of Peace task) */
+  conversions?: number;
 };
 
 export type GameMode = "perfection" | "domination" | "creative" | "glory" | "might";
@@ -186,4 +194,5 @@ export type Action =
   | { type: "reward"; cityId: number; reward: string }
   | { type: "freezeArea"; unitId: number }
   | { type: "boost"; unitId: number }
-  | { type: "explode"; unitId: number };
+  | { type: "explode"; unitId: number }
+  | { type: "breakIce"; unitId: number; at: Coord };

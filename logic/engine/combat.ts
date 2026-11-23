@@ -62,7 +62,7 @@ export function computeDamage(
 
 /** formula applied to two units in a game state (no retaliation conditions) */
 export function computeDamageRounded(s: GameState, attacker: Unit, defender: Unit): CombatResult {
-  const atk = UNITS[attacker.type].attack + (attacker.boosted ? 0.5 : 0);
+  const atk = UNITS[attacker.type].attack;
   return computeDamage(
     atk,
     attacker.hp,

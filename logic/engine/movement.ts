@@ -106,18 +106,26 @@ export type MoveTarget = Coord & { kind: StepKind };
 
 /** All tiles unit u can end its move on this turn. */
 export function reachable(s: GameState, u: Unit): MoveTarget[] {
-  if (u.frozen) return [];
+  if (u.frozen || UNITS[u.type].movement === 0) return [];
   const n = s.mapSize;
   const explored = s.players[u.owner].explored;
-  const rawMov = UNITS[u.type].movement + (u.boosted || u.bubble ? 1 : 0) - (u.poisoned ? 1 : 0);
-  const budget = Math.max(1, rawMov) * 2;
+  const skate = has(u, "skate");
+  // Skate: a move that starts on ice may use the unit's ice movement (Battle Sled 3)
+  const startsOnIce = !!tileAt(s, u.x, u.y).ice;
+  const baseMov = skate && startsOnIce ? (UNITS[u.type].iceMovement ?? UNITS[u.type].movement) : UNITS[u.type].movement;
+  const rawMov = baseMov + (u.boosted || u.bubble ? 1 : 0) - (u.poisoned ? 1 : 0);
+  // movement points (a step costs 1, road to road 0.5, a Glide ice step 0.9)
+  let budget = Math.max(1, rawMov);
+  // Eat: while the Centipede has segments it moves only 1 tile
+  if (has(u, "eat") && s.units.some((o) => o.bodyOf === u.id)) budget = 1;
+  // Glide (Polarism): Polaris ice steps cost 0.9
+  const glide = s.players[u.owner].clan === "polaris" && techOf(s, u.owner, "aquatism");
   // Creep: forests cost 1 and don't stop it, no road bonus, mountains still stop it (2.15).
   // Air: ignores terrain (no forest/mountain stop), every step costs 1, no roads.
   // Zone of control is ignored only by Hide (invisible) and Sneak; Creep and Air still stop.
   const creep = has(u, "creep");
   const fly = has(u, "fly");
   const noRoad = creep || fly;
-  const skate = has(u, "skate");
   const amphibious = has(u, "amphibious");
   const ignoresZoc = has(u, "hide") || has(u, "sneak");
   const occupied = new Map<number, Unit>();
@@ -125,10 +133,11 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
   const enemyAdjacent = (x: number, y: number) =>
     around(n, { x, y }, 1).some((c) => {
       const o = occupied.get(idx(n, c.x, c.y));
-      return o !== undefined && o.owner !== u.owner && !o.hidden;
+      // Centipede segments exert no zone of control
+      return o !== undefined && o.owner !== u.owner && !o.hidden && o.type !== "segment";
     });
 
-  // spent[i] = cheapest half-steps to reach tile i with the ability to continue
+  // spent[i] = cheapest movement points to reach tile i with the ability to continue
   const best = new Map<number, number>();
   const ends = new Map<number, StepKind>();
   const start = idx(n, u.x, u.y);
@@ -141,7 +150,7 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
       if ((best.get(queue[k]) ?? 0) < (best.get(queue[bi]) ?? 0)) bi = k;
     const cur = queue.splice(bi, 1)[0];
     const spent = best.get(cur)!;
-    if (spent >= budget) continue;
+    if (spent >= budget - 1e-9) continue;
     const cx = cur % n;
     const cy = Math.floor(cur / n);
     const from = s.tiles[cur];
@@ -159,14 +168,19 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
         const occ = occupied.get(i);
         // enemy units block (hidden movers may pass through), friendly units can be passed
         if (occ && occ.owner !== u.owner && !has(u, "hide")) continue;
+        // roads give no bonus on ice or to skaters
         const road =
-          !noRoad && !amphibious && !UNITS[u.type].naval && roadNode(s, from, u.owner) && roadNode(s, t, u.owner);
-        const iceGlide = skate && !!t.ice;
-        const cost = road || iceGlide ? 1 : 2;
+          !noRoad && !amphibious && !skate && !UNITS[u.type].naval && !from.ice && !t.ice &&
+          roadNode(s, from, u.owner) && roadNode(s, t, u.owner);
+        const cost = road ? 0.5 : glide && t.ice ? 0.9 : 1;
         const total = spent + cost;
         let stop = kind !== "normal";
         if (!fly && t.terrain === "mountain") stop = true;
         if (!creep && !fly && t.terrain === "forest" && !road) stop = true;
+        // Skate: on land at most 1 tile
+        if (skate && !isWater(t)) stop = true;
+        // algae ends the move of land units
+        if (!fly && t.algae && !UNITS[u.type].naval) stop = true;
         if (!ignoresZoc && enemyAdjacent(x, y)) stop = true;
         // Aquarion: amphibious units stop on dry land, ships stop on flooded tiles
         if (amphibious && !isWater(t) && !t.flooded) stop = true;

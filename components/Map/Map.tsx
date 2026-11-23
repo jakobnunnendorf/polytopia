@@ -152,6 +152,7 @@ export default function Map({
                 watchers={watchers}
                 animateReveal={ready && sameView}
                 showResource={reveal || !tile.resource || resourceVisible(state, viewer, tile.resource)}
+                ruinThroughClouds={!seen && tile.ruin && state.players[viewer].clan === "elyrion"}
               />
             );
           })}

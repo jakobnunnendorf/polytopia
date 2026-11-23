@@ -64,6 +64,7 @@ function Tile({
   watchers,
   animateReveal = false,
   showResource = true,
+  ruinThroughClouds = false,
 }: {
   x: number;
   y: number;
@@ -81,6 +82,8 @@ function Tile({
   animateReveal?: boolean;
   /** false while the viewer lacks the tech that reveals this resource (crops, metal) */
   showResource?: boolean;
+  /** Elyrion viewer: an unexplored ruin shows above the clouds */
+  ruinThroughClouds?: boolean;
 }) {
   const TILE = size ?? TILE_BASE;
   // remember when this tile was revealed, so the clearing clouds survive quick re-renders
@@ -104,6 +107,7 @@ function Tile({
         }}
       >
         <CloudArt x={x} y={y} size={TILE} />
+        {ruinThroughClouds && tile.ruin ? <BuildingArt id="ruin" size={TILE} /> : null}
       </Pressable>
     );
   }

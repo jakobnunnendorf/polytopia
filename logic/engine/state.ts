@@ -177,19 +177,18 @@ function specialBuildingIncome(s: GameState, p: number): number {
     if (!c || c.owner !== p) return;
     const pos = { x: i % s.mapSize, y: Math.floor(i / s.mapSize) };
     if (t.building === "sanctuary") {
-      total += around(s.mapSize, pos, 1).filter((q) => tileAt(s, q.x, q.y).terrain === "forest").length;
+      // +1 per adjacent wild animal
+      total += around(s.mapSize, pos, 1).filter((q) => tileAt(s, q.x, q.y).resource === "animal").length;
     } else if (t.building === "iceBank") {
       hasIceBank = true;
     } else if (t.building === "clathrus") {
-      const adj = around(s.mapSize, pos, 1).filter((q) => {
-        const nt = tileAt(s, q.x, q.y);
-        return nt.algae || nt.building === "fungi";
-      }).length;
-      total += Math.min(16, adj * 2);
+      // +1 per adjacent algae
+      total += around(s.mapSize, pos, 1).filter((q) => tileAt(s, q.x, q.y).algae).length;
     }
   });
   if (hasIceBank) {
-    const frozenCount = s.tiles.filter((t) => t.ice).length;
+    // frozen tiles: ice and Polaris land
+    const frozenCount = s.tiles.filter((t) => t.ice || t.polar).length;
     total += Math.min(30, Math.floor(frozenCount / 20) * 2);
   }
   return total;
@@ -309,7 +308,7 @@ export function perfectionStars(rating: number): number {
 
 function networkNode(s: GameState, i: number, p: number): boolean {
   const t = s.tiles[i];
-  if (!(t.road || t.building === "bridge" || t.village || t.cityId !== null || t.building === "port")) return false;
+  if (!(t.road || t.building === "bridge" || t.village || t.cityId !== null || t.building === "port" || t.building === "outpost" || t.building === "mycelium")) return false;
   const c = cityById(s, t.territory);
   return !c || c.owner === p;
 }
@@ -336,10 +335,24 @@ export function updateConnections(s: GameState, p: number) {
           queue.push(i);
         }
       }
+      // Mycelium links cities and other Mycelium within 3 tiles
+      if (t.building === "mycelium" || (t.cityId !== null && s.players[p].clan === "cymanti")) {
+        for (const q of around(n, c, 3)) {
+          const j = idx(n, q.x, q.y);
+          const tj = s.tiles[j];
+          if (seen.has(j) || explored[j] !== 1) continue;
+          if (!(tj.building === "mycelium" || (t.building === "mycelium" && tj.cityId !== null))) continue;
+          if (cityById(s, tj.territory)?.owner !== p && tj.cityId === null) continue;
+          if (tj.cityId !== null && cityById(s, tj.cityId)?.owner !== p) continue;
+          seen.add(j);
+          queue.push(j);
+        }
+      }
       // port-to-port links within range 5 over friendly water; ocean only with Sailing
-      if (t.building === "port") {
+      // (Polaris: outposts link like ports)
+      if (t.building === "port" || t.building === "outpost") {
         for (let j = 0; j < s.tiles.length; j++) {
-          if (seen.has(j) || s.tiles[j].building !== "port") continue;
+          if (seen.has(j) || s.tiles[j].building !== t.building) continue;
           const q = { x: j % n, y: Math.floor(j / n) };
           if (dist(c, q) > PORT_RANGE) continue;
           const owner = cityById(s, s.tiles[j].territory)?.owner;
@@ -415,7 +428,8 @@ export function checkTasks(s: GameState, p: number) {
   if (!done("metropolis") && citiesOf(s, p).some((c) => c.level >= 5)) complete("metropolis");
   if (!done("network") && citiesOf(s, p).filter((c) => c.connected).length >= 5) complete("network");
   if (!done("explorer") && pl.lighthouses.length >= 4) complete("explorer");
-  if (!done("pacifist") && pl.pacifistTurns >= 5) complete("pacifist");
+  // Cymanti: convert 3 enemies with Shamans instead of the pacifist task
+  if (!done("pacifist") && (pl.clan === "cymanti" ? (pl.conversions ?? 0) >= 3 : pl.pacifistTurns >= 5)) complete("pacifist");
 }
 
 /** meeting reward (§5.9) and Capital Vision; checked after every action */
@@ -686,27 +700,30 @@ export function startTurn(s: GameState) {
   }
   for (const u of s.units) {
     if (u.owner !== p) continue;
-    // Elyrion dragon growth: Egg -> Baby Dragon (3 turns) -> Fire Dragon (6 turns)
+    // Grow: Dragon Egg -> Baby Dragon (3 turns) -> Fire Dragon (3 more);
+    // Insect Egg -> Larva (1 turn) -> Moth (3 more). The unit keeps its damage.
     if (s.turn > 0 && (UNITS[u.type].skills as string[]).includes("grow")) {
       u.age = (u.age ?? 0) + 1;
-      if (u.type === "dragonEgg" && u.age >= 3) {
-        u.type = "babyDragon";
-        u.maxHp = UNITS.babyDragon.hp!;
-        u.hp = Math.min(u.maxHp, u.hp + 5);
-      } else if (u.type === "babyDragon" && u.age >= 6) {
-        u.type = "fireDragon";
-        u.maxHp = UNITS.fireDragon.hp!;
-        u.hp = Math.min(u.maxHp, u.hp + 5);
+      const g = GROWS[u.type];
+      if (g && u.age >= g.at) {
+        const lost = u.maxHp - u.hp;
+        u.type = g.into;
+        u.maxHp = UNITS[g.into].hp! + (u.veteran ? 5 : 0);
+        u.hp = Math.max(1, u.maxHp - lost);
       }
     }
-    // Cymanti Mycelium: heals adjacent friendly units & cures poison
+    // Cymanti Mycelium: heals adjacent friendly units (4 HP); a heal on a poisoned unit only cures the poison
     if (s.turn > 0 && pl.clan === "cymanti") {
-      const nearMyc = around(s.mapSize, u, 1, true).some((q) => tileAt(s, q.x, q.y).building === "mycelium");
+      const nearMyc = around(s.mapSize, u, 1, true).some((q) => {
+        const qt = tileAt(s, q.x, q.y);
+        return qt.building === "mycelium" && cityById(s, qt.territory)?.owner === p;
+      });
       if (nearMyc) {
-        u.hp = Math.min(u.maxHp, u.hp + 4);
-        u.poisoned = false;
+        if (u.poisoned) u.poisoned = false;
+        else u.hp = Math.min(u.maxHp, u.hp + 4);
       }
     }
+    u.secondAttack = false;
     const frozen = !!u.frozen;
     u.canMove = !frozen;
     u.canAttack = !frozen && (UNITS[u.type].attack > 0 || (UNITS[u.type].skills as string[]).includes("convert"));
@@ -715,7 +732,33 @@ export function startTurn(s: GameState) {
     u.done = frozen;
     u.idle = true;
   }
+  if (s.turn > 0) sanctuaryAnimals(s, p);
   checkTasks(s, p);
+}
+
+/** Grow: unit type -> what it becomes and at which age (own turns lived) */
+const GROWS: Record<string, { into: string; at: number }> = {
+  dragonEgg: { into: "babyDragon", at: 3 },
+  babyDragon: { into: "fireDragon", at: 6 },
+  insectEgg: { into: "larva", at: 1 },
+  larva: { into: "moth", at: 4 },
+};
+
+/** Elyrion Sanctuary: every 2 turns it draws a new wild animal into an adjacent empty forest */
+function sanctuaryAnimals(s: GameState, p: number) {
+  const n = s.mapSize;
+  s.tiles.forEach((t, i) => {
+    if (t.building !== "sanctuary" || cityById(s, t.territory)?.owner !== p) return;
+    const age = s.turn - t.builtTurn;
+    if (age <= 0 || age % 2 !== 0) return;
+    const spots = around(n, { x: i % n, y: Math.floor(i / n) }, 1).filter((q) => {
+      const qt = tileAt(s, q.x, q.y);
+      return qt.terrain === "forest" && qt.resource === null && qt.building === null && qt.cityId === null && !qt.village;
+    });
+    if (!spots.length) return;
+    const q = withRng(s, (r) => r.pick(spots));
+    tileAt(s, q.x, q.y).resource = "animal";
+  });
 }
 
 /** pending level-up rewards for the current player, as [city, level] */
