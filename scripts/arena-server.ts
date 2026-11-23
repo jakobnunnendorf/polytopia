@@ -4,7 +4,8 @@
  *
  *   GET  /api/models            model specs from models/<id>/model.json
  *   GET  /api/profiles          human profiles      POST /api/profiles {name}
- *   GET  /api/ratings           Elo table
+ *   GET  /api/ratings           Elo table; ?mode=&players=&size=&mapType= fits it on only those games
+ *   GET  /api/ratings/facets    rated games per mode, player count, map size and map type
  *   GET  /api/games             summaries of every recorded game (newest first)
  *   GET  /api/games/<id>        one full GameRecord
  *   POST /api/games             save a GameRecord (gzipped into data/games/), update Elo
@@ -17,7 +18,7 @@
 import http from "node:http";
 import { directChat } from "../logic/agents/registry";
 import type { GameRecord } from "../logic/arena/record";
-import { createProfile, findGame, listGames, listModels, listProfiles, readRatings, saveGame } from "./lib/store";
+import { createProfile, findGame, listGames, listModels, listProfiles, ratingFacets, ratingsFor, saveGame } from "./lib/store";
 import { isRunning, resumeMatch, startMatch } from "./lib/matches";
 
 const PORT = Number(process.env.ARENA_PORT ?? 8091);
@@ -54,7 +55,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url === "/api/health") return send(res, 200, { ok: true });
     if (req.method === "GET" && url === "/api/models") return send(res, 200, listModels());
     if (req.method === "GET" && url === "/api/profiles") return send(res, 200, listProfiles());
-    if (req.method === "GET" && url === "/api/ratings") return send(res, 200, readRatings());
+    if (req.method === "GET" && url === "/api/ratings") {
+      const q = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+      const num = (k: string) => (q.get(k) ? Number(q.get(k)) : undefined);
+      return send(res, 200, ratingsFor({ mode: q.get("mode") ?? undefined, players: num("players"), size: num("size"), mapType: q.get("mapType") ?? undefined }));
+    }
+    if (req.method === "GET" && url === "/api/ratings/facets") return send(res, 200, ratingFacets());
     if (req.method === "GET" && url === "/api/games") return send(res, 200, listGames().map((g) => ({ ...g, running: isRunning(g.id) })));
     if (req.method === "POST" && url === "/api/matches") {
       const b = (await body(req)) as Parameters<typeof startMatch>[0];

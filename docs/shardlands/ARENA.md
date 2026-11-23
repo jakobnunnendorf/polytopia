@@ -51,6 +51,14 @@ BayesElo in computer chess (`logic/arena/elo.ts`):
 - `lo`–`hi`: the 95% interval from 200 refits on games resampled with replacement. Overlapping intervals mean the order between those two is not settled yet.
 - Elo scale: a 200-point gap means the stronger side wins about 3 games in 4.
 
+Filtered ratings: every results line also stores the game's mode, player count,
+map size and map type, and the same fit over only the matching games gives a
+player's rating in that kind of game. Models play every format with the same
+weights; the filters show where they are strong or weak.
+- `GET /api/ratings?mode=domination&players=2&size=11` (any combination; none = overall), `GET /api/ratings/facets` for the game counts.
+- Analyse → Rankings has a row of chips per setting (only settings with more than one value appear).
+- New game shows each model's rating for the chosen mode, player count and map size, or "overall" when it has no such games.
+
 The fit reruns after every finished game (about 0.35 s for 300 games). `npm run elo -- --rebuild`
 rebuilds the results file from all recordings and refits. Keys are `model:<id>` and
 `human:<profileId>`. Unfinished games and a model playing itself don't count.

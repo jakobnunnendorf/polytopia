@@ -15,6 +15,8 @@
  *   of jumping to extremes; with many games the prior washes out.
  * - lo/hi: the 95% interval from refitting on games resampled with replacement.
  * - Scale: classic Elo, 400 points = 10:1 odds, a 1200 player is the anchor.
+ * - Filters: the same fit over only the games of one mode, player count, map
+ *   size or map type gives a player's rating in that kind of game.
  */
 import { seatKey, type GameRecord } from "./record";
 
@@ -32,8 +34,42 @@ export type Rating = {
 };
 export type Ratings = Record<string, Rating>;
 
-/** one rated game, compact: what the fit needs */
-export type ResultRow = { id: string; endedAt: string; keys: string[]; standing: number[]; winner: number | null };
+/** one rated game, compact: what the fit and the filters need */
+export type ResultRow = {
+  id: string;
+  endedAt: string;
+  keys: string[];
+  standing: number[];
+  winner: number | null;
+  mode: string;
+  players: number;
+  size: number;
+  mapType: string;
+};
+
+/** which games a rating is fitted on; an empty filter means all games */
+export type RatingFilter = { mode?: string; players?: number; size?: number; mapType?: string };
+
+export function matchesFilter(row: ResultRow, f: RatingFilter): boolean {
+  return (
+    (f.mode === undefined || row.mode === f.mode) &&
+    (f.players === undefined || row.players === f.players) &&
+    (f.size === undefined || row.size === f.size) &&
+    (f.mapType === undefined || row.mapType === f.mapType)
+  );
+}
+
+/** how many rated games exist per mode, player count, map size and map type (for filter menus) */
+export function facets(rows: ResultRow[]): { mode: Record<string, number>; players: Record<string, number>; size: Record<string, number>; mapType: Record<string, number> } {
+  const out = { mode: {} as Record<string, number>, players: {} as Record<string, number>, size: {} as Record<string, number>, mapType: {} as Record<string, number> };
+  for (const r of rows) {
+    out.mode[r.mode] = (out.mode[r.mode] ?? 0) + 1;
+    out.players[r.players] = (out.players[r.players] ?? 0) + 1;
+    out.size[r.size] = (out.size[r.size] ?? 0) + 1;
+    out.mapType[r.mapType] = (out.mapType[r.mapType] ?? 0) + 1;
+  }
+  return out;
+}
 
 /** chance that a player rated a beats one rated b */
 export function expected(a: number, b: number): number {
@@ -50,6 +86,10 @@ export function resultRow(rec: GameRecord): ResultRow | null {
     // the winner always ranks first, the rest by final score
     standing: r.scores.map((sc, i) => (i === r.winner ? Number.MAX_SAFE_INTEGER : sc)),
     winner: r.winner ?? null,
+    mode: rec.options.mode,
+    players: rec.seats.length,
+    size: rec.options.mapSize,
+    mapType: rec.options.mapType ?? "drylands",
   };
 }
 

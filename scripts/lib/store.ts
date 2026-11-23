@@ -9,7 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
-import { START_RATING, rate, resultRow, type Ratings, type ResultRow } from "../../logic/arena/elo";
+import { START_RATING, facets, matchesFilter, rate, resultRow, type RatingFilter, type Ratings, type ResultRow } from "../../logic/arena/elo";
 import type { GameRecord } from "../../logic/arena/record";
 import type { ModelSpec } from "../../logic/agents/types";
 
@@ -73,12 +73,34 @@ export function gamePath(rec: GameRecord): string {
 
 /** the rated games, oldest first; built from data/games/ the first time */
 export function readResults(): ResultRow[] {
-  if (!fs.existsSync(RESULTS)) return writeResults(listGameFiles().map(readGame).map(resultRow).filter((r): r is ResultRow => r !== null));
-  return fs
+  const fromGames = () => writeResults(listGameFiles().map(readGame).map(resultRow).filter((r): r is ResultRow => r !== null));
+  if (!fs.existsSync(RESULTS)) return fromGames();
+  const rows = fs
     .readFileSync(RESULTS, "utf8")
     .split("\n")
     .filter(Boolean)
     .map((l) => JSON.parse(l) as ResultRow);
+  // an index written before the game settings were added: rebuild it from the recordings
+  return rows.some((r) => r.mode === undefined) ? fromGames() : rows;
+}
+
+/** ratings fitted on the games that match the filter; no filter = the stored overall table */
+const filtered = new Map<string, { n: number; ratings: Ratings }>();
+export function ratingsFor(f: RatingFilter): Ratings {
+  const keys = Object.entries(f).filter(([, v]) => v !== undefined);
+  if (keys.length === 0) return readRatings();
+  const rows = readResults();
+  const cacheKey = JSON.stringify(keys.sort());
+  const hit = filtered.get(cacheKey);
+  if (hit && hit.n === rows.length) return hit.ratings;
+  const ratings = rate(rows.filter((r) => matchesFilter(r, f)));
+  filtered.set(cacheKey, { n: rows.length, ratings });
+  return ratings;
+}
+
+/** rated games per mode, player count, map size and map type */
+export function ratingFacets() {
+  return facets(readResults());
 }
 
 function writeResults(rows: ResultRow[]): ResultRow[] {
