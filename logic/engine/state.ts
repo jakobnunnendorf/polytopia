@@ -203,6 +203,7 @@ function specialBuildingIncome(s: GameState, p: number): number {
  */
 export function resourceVisible(s: GameState, p: number, r: string): boolean {
   const techs = s.players[p].techs;
+  if (r === "aquaCrop") return s.players[p].clan === "aquarion";
   if (r === "crop") return techs.includes("organization");
   if (r === "metal") return techs.includes("climbing");
   return true;
@@ -349,6 +350,17 @@ export function updateConnections(s: GameState, p: number) {
           }
         }
       }
+      // Aquarion Atolls link own cities and atolls within 3 tiles
+      if (t.building === "atoll" || t.cityId !== null) {
+        for (let j = 0; j < s.tiles.length; j++) {
+          const o = s.tiles[j];
+          if (seen.has(j) || dist(c, { x: j % n, y: Math.floor(j / n) }) > 3) continue;
+          if (!(o.building === "atoll" || (t.building === "atoll" && o.cityId !== null))) continue;
+          if (cityById(s, o.cityId ?? o.territory)?.owner !== p) continue;
+          seen.add(j);
+          queue.push(j);
+        }
+      }
     }
   }
   for (const city of citiesOf(s, p)) {
@@ -375,7 +387,7 @@ function waterPath(s: GameState, p: number, a: Coord, b: Coord): boolean {
       const i = idx(n, q.x, q.y);
       if (seen.has(i) || dist(a, q) > PORT_RANGE) continue;
       const t = s.tiles[i];
-      if (!isWater(t)) continue;
+      if (!isWater(t) && !t.flooded) continue;
       if (t.terrain === "ocean" && !sailing) continue;
       const o = cityById(s, t.territory)?.owner;
       if (o !== undefined && o !== p) continue;
@@ -491,7 +503,8 @@ export function pushUnit(s: GameState, u: Unit, spawner: number = u.owner) {
     if (s.units.some((v) => v.x === x && v.y === y)) continue;
     const t = tileAt(s, x, y);
     const naval = UNITS[u.type].naval;
-    if (naval ? !isWater(t) : isWater(t) && t.building !== "bridge") continue;
+    const amphibious = (UNITS[u.type].skills as string[]).includes("amphibious");
+    if (!amphibious && (naval ? !isWater(t) && !t.flooded : isWater(t) && t.building !== "bridge")) continue;
     u.x = x;
     u.y = y;
     return;
@@ -599,6 +612,9 @@ export function createGame(opts: NewGameOptions): GameState {
   const mods = clanIds.map((c) => CLAN_BY_ID[c].mod as Record<string, number>);
   const map = generateMap(rng, n, opts.players, opts.mapType ?? "drylands", mods, {
     waterStart: clanIds.map((c) => c === "polynesians" || c === "aquarion"),
+    flooded: clanIds.map((c) => c === "aquarion"),
+    spores: clanIds.map((c) => c === "cymanti"),
+    aquaCrops: clanIds.includes("aquarion"),
   });
   const humans = new Set(opts.humans ?? [0]);
 

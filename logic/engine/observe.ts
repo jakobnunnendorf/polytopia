@@ -10,7 +10,7 @@ import { cityById, income, resourceVisible, scoreOf, techCost } from "./state";
 import type { GameState } from "./types";
 
 const TERRAINS = ["field", "forest", "mountain", "water", "ocean"] as const;
-const RESOURCES = ["fruit", "crop", "animal", "fish", "metal", "starfish"] as const;
+const RESOURCES = ["fruit", "crop", "animal", "fish", "metal", "starfish", "aquaCrop", "spores"] as const;
 export const UNIT_TYPES = Object.keys(UNITS);
 
 export const CHANNELS = [
@@ -21,6 +21,7 @@ export const CHANNELS = [
   "road",
   "village",
   "ruin",
+  "flooded",
   "territory:own",
   "territory:enemy",
   "city:own_level",
@@ -71,6 +72,7 @@ export function observe(s: GameState, p: number): Observation {
     if (t.road) set("road", i, 1);
     if (t.village) set("village", i, 1);
     if (t.ruin) set("ruin", i, 1);
+    if (t.flooded) set("flooded", i, 1);
     const owner = cityById(s, t.territory)?.owner;
     if (owner === p) set("territory:own", i, 1);
     else if (owner !== undefined) set("territory:enemy", i, 1);

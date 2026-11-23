@@ -34,7 +34,11 @@ export type Skill =
   | "boost"
   | "explode"
   | "eat"
-  | "grow";
+  | "grow"
+  // Aquarion (rules doc, Unit skills)
+  | "tentacles"
+  | "drench"
+  | "autoFlood";
 
 export type UnitDef = {
   id: string;
@@ -95,10 +99,17 @@ export const UNITS: Record<string, UnitDef> = {
   mermaid: u("mermaid", 2, true, 10, 2, 2, 1, 1, ["dash", "fortify", "amphibious"], null),
   amphibian: u("amphibian", 3, true, 10, 2, 1, 2, 1, ["dash", "escape", "fortify", "amphibious"], "riding"),
   shark: u("shark", 8, true, 10, 3.5, 2, 3, 1, ["dash", "surprise", "water"], "sailing", true),
-  jelly: u("jelly", 8, true, 20, 2, 2, 2, 1, ["water", "stiff", "static"], "navigation", true),
-  puffer: u("puffer", 8, true, 10, 4, 0, 2, 3, ["water", "stiff"], "mathematics", true),
+  jelly: u("jelly", 8, true, 20, 2, 2, 2, 1, ["tentacles", "water", "stiff", "static"], "navigation", true),
+  puffer: u("puffer", 8, true, 10, 4, 0, 2, 3, ["drench", "water", "stiff"], "mathematics", true),
   tridention: u("tridention", 8, true, 10, 2.5, 1, 2, 2, ["dash", "persist", "amphibious"], "chivalry"),
-  crab: u("crab", 10, false, 40, 4, 4, 1, 1, ["escape", "static", "amphibious"], null),
+  crab: u("crab", 10, false, 40, 4, 4, 1, 1, ["escape", "static", "amphibious", "autoFlood"], null),
+  mermaidArcher: u("mermaidArcher", 3, true, 10, 2, 1, 1, 2, ["dash", "fortify", "amphibious"], "archery"),
+  mermaidDefender: u("mermaidDefender", 3, true, 15, 1, 3, 1, 1, ["fortify", "amphibious"], "strategy"),
+  swordsmaid: u("swordsmaid", 5, true, 15, 3, 3, 1, 1, ["dash", "amphibious"], "smithery"),
+  siren: u("siren", 8, true, 10, 0, 1, 1, 1, ["heal", "convert", "amphibious", "stiff"], "philosophy"),
+  scuba: u("scuba", 8, true, 5, 0, 0.5, 2, 1, ["hide", "infiltrate", "dash", "scout", "creep", "stiff", "static", "amphibious"], "diplomacy"),
+  /** Dagger spawned by a Scuba's infiltration: Dagger stats plus Amphibious (engine choice) */
+  mermaidDagger: u("mermaidDagger", 2, false, 10, 2, 2, 1, 1, ["dash", "surprise", "independent", "static", "amphibious"], null),
 
   // Elyrion (2.15 balance pass)
   polytaur: u("polytaur", 3, false, 15, 3, 1, 1, 1, ["dash", "fortify", "independent", "static"], null),
@@ -132,6 +143,7 @@ export const UNITS: Record<string, UnitDef> = {
 /** Special-tribe-only trainable units (filtered by tribe in legalActions) */
 export const TRIBE_ONLY_UNITS = new Set([
   "mermaid", "amphibian", "shark", "jelly", "puffer", "tridention",
+  "mermaidArcher", "mermaidDefender", "swordsmaid", "siren", "scuba",
   "mooni", "iceArcher", "battleSled", "iceFortress",
   "shaman", "hexapod", "kiton", "phychi", "mantis", "moth", "raychi", "boomchi", "exida", "doomux", "livingIsland",
 ]);
@@ -255,14 +267,26 @@ export const BUILDS: Record<string, BuildDef> = {
   outpost: { id: "outpost", cost: 5, tech: "fishing", kind: "building", terrain: ["water", "ocean"], pop: 1 },
   iceBank: { id: "iceBank", cost: 20, tech: "trade", kind: "building", terrain: ["field"], pop: 0, onePerCity: true },
   // Cymanti
-  fungi: { id: "fungi", cost: 5, tech: "farming", kind: "building", terrain: ["field"], resource: "crop", pop: 3 },
+  fungi: { id: "fungi", cost: 5, tech: "farming", kind: "building", terrain: ["field"], resource: "spores", pop: 3 },
   mycelium: { id: "mycelium", cost: 5, tech: "construction", kind: "building", terrain: ["field"], pop: 0, onePerCity: true },
   clathrus: { id: "clathrus", cost: 5, tech: "trade", kind: "building", terrain: ["field"], pop: 0, onePerCity: true },
+  // Aquarion (rules doc, Tribes > Aquarion). Costs the doc doesn't give are engine choices (docs/RULES_PARITY.md).
+  /** Waterways: flood a dry field or forest in own territory */
+  flood: { id: "flood", cost: 3, tech: "roads", kind: "harvest", terrain: ["field", "forest"], pop: 0 },
+  /** Aquaculture: replaces roads, links cities within 3 tiles over water, +1 population */
+  atoll: { id: "atoll", cost: 5, tech: "ramming", kind: "building", terrain: ["water", "ocean"], pop: 1 },
+  /** Aquaculture: on Aqua Crops, +2 population */
+  aquaFarm: { id: "aquaFarm", cost: 5, tech: "ramming", kind: "building", terrain: ["water", "ocean"], resource: "aquaCrop", pop: 2 },
+  /** Construction: replaces Burn Forest, grows a crop on an empty flooded field */
+  fertilize: { id: "fertilize", cost: 3, tech: "construction", kind: "harvest", terrain: ["field"], pop: 0 },
+  /** every other tribe: turns a flooded tile in own territory dry again */
+  landfill: { id: "landfill", cost: 3, tech: "construction", kind: "harvest", terrain: ["field", "forest"], pop: 0 },
 };
 
 /** Special-tribe-only builds (filtered by tribe in canBuild) */
 export const TRIBE_ONLY_BUILDS = new Set([
   "enchantAnimal", "sanctuary", "outpost", "iceBank", "fungi", "mycelium", "clathrus",
+  "flood", "atoll", "aquaFarm", "fertilize",
 ]);
 
 /** feeder -> leveling building it raises, and population per level (§5.5) */
@@ -348,7 +372,7 @@ export type ClanDef = {
   startUnit: string;
   startStars: number;
   capitalLevel: number;
-  mod: Partial<Record<"mountain" | "forest" | "fruit" | "crop" | "animal" | "fish" | "metal", number>>;
+  mod: Partial<Record<"mountain" | "forest" | "fruit" | "crop" | "animal" | "fish" | "metal" | "water", number>>;
   /** true for the 4 special tribes (Aquarion, Elyrion, Polaris, Cymanti) */
   special?: boolean;
   /** super unit spawned by the level 5+ city reward (default: "giant") */
@@ -373,7 +397,7 @@ export const CLANS: ClanDef[] = [
   { id: "romans", startTech: "organization", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { animal: 0.5, fruit: 2 }, color: "#2589f5" },
   { id: "norse", startTech: "hunting", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { forest: 0.8, crop: 0 }, color: "#3b4252" },
   { id: "mongols", startTech: "riding", startUnit: "rider", startStars: 6, capitalLevel: 1, mod: { forest: 0.2, animal: 0.2, mountain: 0.5 }, color: "#f4c430" },
-  { id: "polynesians", startTech: "fishing", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, fish: 1.5 }, color: "#2db84d" },
+  { id: "polynesians", startTech: "fishing", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { water: 2, fish: 1.5, mountain: 0.5 }, color: "#2db84d" },
   { id: "welsh", startTech: "archery", startUnit: "archer", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 1.5 }, color: "#8c6239" },
   { id: "lydians", startTech: null, startUnit: "warrior", startStars: 2, capitalLevel: 2, mod: {}, color: "#9b5de5" },
   { id: "hittites", startTech: "smithery", startUnit: "swordsman", startStars: 5, capitalLevel: 1, mod: { metal: 2, animal: 0.1, fruit: 0.1, fish: 0.1 }, color: "#4a4e69" },
@@ -390,12 +414,26 @@ export const CLANS: ClanDef[] = [
     startUnit: "mermaid",
     startStars: 5,
     capitalLevel: 1,
-    mod: { forest: 0.5, fish: 1.5 },
+    mod: { forest: 0.5, water: 1.5 },
     superUnit: "crab",
-    unitReplacements: { warrior: "mermaid", rider: "amphibian", catapult: "puffer", knight: "tridention" },
+    unitReplacements: {
+      warrior: "mermaid",
+      rider: "amphibian",
+      archer: "mermaidArcher",
+      defender: "mermaidDefender",
+      swordsman: "swordsmaid",
+      mindBender: "siren",
+      catapult: "puffer",
+      knight: "tridention",
+      cloak: "scuba",
+    },
     extraUnits: ["shark", "jelly"],
+    // no roads or bridges (Atoll replaces roads), Fertilize replaces Burn Forest, Landfill is for the others
+    buildReplacements: { road: "atoll", bridge: null, burnForest: "fertilize", landfill: null },
+    extraBuilds: ["flood", "aquaFarm"],
     techOverrides: {
-      riding: { name: "Riding", unlocks: "Amphibian (amphibious)" },
+      riding: { name: "Riding", unlocks: "Amphibian, shallow-water movement" },
+      construction: { name: "Construction", unlocks: "Windmill, Fertilize" },
       roads: { name: "Waterways", unlocks: "Flooding land, Bubbles" },
       ramming: { name: "Aquaculture", unlocks: "Aqua Farm, Atoll" },
       sailing: { name: "Marine Life", unlocks: "Shark" },
@@ -434,7 +472,7 @@ export const CLANS: ClanDef[] = [
     startUnit: "mooni",
     startStars: 5,
     capitalLevel: 1,
-    mod: { forest: 0.8, fish: 1.2 },
+    mod: {},
     superUnit: "gaami",
     unitReplacements: {
       archer: "iceArcher",
@@ -463,7 +501,8 @@ export const CLANS: ClanDef[] = [
     startUnit: "shaman",
     startStars: 5,
     capitalLevel: 1,
-    mod: { mountain: 1.2, crop: 1.5 },
+    // spores instead of crops (mapgen), at least 2 at the capital
+    mod: { mountain: 1.2 },
     superUnit: "centipede",
     unitReplacements: {
       rider: "hexapod",

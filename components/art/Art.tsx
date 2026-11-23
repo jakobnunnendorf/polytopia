@@ -45,6 +45,9 @@ const RESOURCE_SPRITES: Record<string, ImageSourcePropType> = {
   fish: require("@/assets/sprites/fish.png"),
   metal: require("@/assets/sprites/metal.png"),
   starfish: require("@/assets/sprites/starfish.png"),
+  // no own art yet: Aquarion Aqua Crops and Cymanti spores reuse the crop sprite
+  aquaCrop: require("@/assets/sprites/crop.png"),
+  spores: require("@/assets/sprites/crop.png"),
 };
 
 const BUILDING_SPRITES: Record<string, ImageSourcePropType> = {

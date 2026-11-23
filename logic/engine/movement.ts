@@ -48,6 +48,8 @@ export function enterKind(s: GameState, u: Unit, t: Tile): StepKind | null {
   const p = u.owner;
   const def = UNITS[u.type];
   if (has(u, "fly")) return "normal";
+  const aq = aquarionEnterKind(s, u, t);
+  if (aq !== undefined) return aq;
   if (def.naval) {
     if (isWater(t)) {
       if (t.ice) return null;
@@ -74,6 +76,32 @@ export function enterKind(s: GameState, u: Unit, t: Tile): StepKind | null {
   return "normal";
 }
 
+/**
+ * Aquarion and flooded-tile rules (rules doc, Tribes > Aquarion; Movement):
+ * Aquarion units get shallow water from Riding and ocean from Free Spirit
+ * (Free Diving); its water units swim shallow water from the start. Ships may
+ * enter flooded land (and stop there); a port on a flooded tile embarks land
+ * units. Returns undefined when the regular rules apply.
+ */
+function aquarionEnterKind(s: GameState, u: Unit, t: Tile): StepKind | null | undefined {
+  const p = u.owner;
+  const def = UNITS[u.type];
+  if (s.players[p].clan === "aquarion" && isWater(t) && !t.ice && !t.algae && t.building !== "bridge") {
+    const swims = def.naval || has(u, "amphibious");
+    if (swims) {
+      if (t.terrain === "ocean") return techOf(s, p, "freeSpirit") ? "normal" : null;
+      if (def.naval || techOf(s, p, "riding")) return "normal";
+      return null;
+    }
+  }
+  if (!isWater(t) && t.flooded) {
+    if (def.naval) return t.terrain === "mountain" ? null : "normal";
+    if (!has(u, "amphibious") && t.building === "port" && territoryOwner(s, t) === p && techOf(s, p, "fishing")) return "embark";
+  }
+  if (def.naval && !isWater(t) && !has(u, "carry")) return null; // a ship with no passenger can't land
+  return undefined;
+}
+
 export type MoveTarget = Coord & { kind: StepKind };
 
 /** All tiles unit u can end its move on this turn. */
@@ -81,7 +109,7 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
   if (u.frozen) return [];
   const n = s.mapSize;
   const explored = s.players[u.owner].explored;
-  const rawMov = UNITS[u.type].movement + (u.boosted ? 1 : 0) - (u.poisoned ? 1 : 0);
+  const rawMov = UNITS[u.type].movement + (u.boosted || u.bubble ? 1 : 0) - (u.poisoned ? 1 : 0);
   const budget = Math.max(1, rawMov) * 2;
   // Creep: forests cost 1 and don't stop it, no road bonus, mountains still stop it (2.15).
   // Air: ignores terrain (no forest/mountain stop), every step costs 1, no roads.
@@ -90,6 +118,7 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
   const fly = has(u, "fly");
   const noRoad = creep || fly;
   const skate = has(u, "skate");
+  const amphibious = has(u, "amphibious");
   const ignoresZoc = has(u, "hide") || has(u, "sneak");
   const occupied = new Map<number, Unit>();
   for (const o of s.units) occupied.set(idx(n, o.x, o.y), o);
@@ -131,7 +160,7 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
         // enemy units block (hidden movers may pass through), friendly units can be passed
         if (occ && occ.owner !== u.owner && !has(u, "hide")) continue;
         const road =
-          !noRoad && !UNITS[u.type].naval && roadNode(s, from, u.owner) && roadNode(s, t, u.owner);
+          !noRoad && !amphibious && !UNITS[u.type].naval && roadNode(s, from, u.owner) && roadNode(s, t, u.owner);
         const iceGlide = skate && !!t.ice;
         const cost = road || iceGlide ? 1 : 2;
         const total = spent + cost;
@@ -139,6 +168,9 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
         if (!fly && t.terrain === "mountain") stop = true;
         if (!creep && !fly && t.terrain === "forest" && !road) stop = true;
         if (!ignoresZoc && enemyAdjacent(x, y)) stop = true;
+        // Aquarion: amphibious units stop on dry land, ships stop on flooded tiles
+        if (amphibious && !isWater(t) && !t.flooded) stop = true;
+        if (UNITS[u.type].naval && !isWater(t) && t.flooded) stop = true;
         if (!occ && !ends.has(i)) ends.set(i, kind);
         if (stop) continue;
         if (best.get(i) === undefined || total < best.get(i)!) {

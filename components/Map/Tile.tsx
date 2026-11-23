@@ -149,6 +149,19 @@ function Tile({
           }}
         />
       )}
+      {tile.flooded && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "#4fb3e855",
+          }}
+        />
+      )}
       {tile.algae && (
         <View
           pointerEvents="none"

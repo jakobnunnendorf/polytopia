@@ -69,6 +69,12 @@ const NAMES: Record<Kind, Record<string, string>> = {
     puffer: "Puffer",
     tridention: "Tridention",
     crab: "Crab",
+    mermaidArcher: "Mermaid Archer",
+    mermaidDefender: "Mermaid Defender",
+    swordsmaid: "Swordsmaid",
+    siren: "Siren",
+    scuba: "Scuba",
+    mermaidDagger: "Mermaid Dagger",
     // Elyrion
     polytaur: "Polytaur",
     dragonEgg: "Dragon Egg",
@@ -136,6 +142,11 @@ const NAMES: Record<Kind, Record<string, string>> = {
     fungi: "Fungi",
     mycelium: "Mycelium",
     clathrus: "Clathrus",
+    flood: "Flood Tile",
+    atoll: "Atoll",
+    aquaFarm: "Aqua Farm",
+    fertilize: "Fertilize",
+    landfill: "Landfill",
   },
   terrain: {
     field: "Field",
@@ -151,6 +162,8 @@ const NAMES: Record<Kind, Record<string, string>> = {
     fish: "Fish",
     metal: "Metal",
     starfish: "Starfish",
+    aquaCrop: "Aqua Crop",
+    spores: "Spores",
   },
   clan: {
     inca: "Xin-xi",
