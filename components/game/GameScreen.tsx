@@ -15,6 +15,7 @@ import {
   createGame,
   income,
   legalActions,
+  resourceVisible,
   scoreOf,
   techCost,
 } from "@/logic/engine";
@@ -442,7 +443,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   const tileWords =
     tileSel && seen
       ? [
-          tileSel.resource ? name("resource", tileSel.resource) : null,
+          tileSel.resource && resourceVisible(state, me.id, tileSel.resource) ? name("resource", tileSel.resource) : null,
           tileSel.building ? name("building", tileSel.building) : null,
           tileSel.village ? "Village" : null,
           tileSel.ruin ? "Ruins" : null,

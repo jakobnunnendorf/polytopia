@@ -6,7 +6,7 @@
  */
 import { TECHS, UNITS } from "./data";
 import { canSee } from "./movement";
-import { cityById, income, scoreOf, techCost } from "./state";
+import { cityById, income, resourceVisible, scoreOf, techCost } from "./state";
 import type { GameState } from "./types";
 
 const TERRAINS = ["field", "forest", "mountain", "water", "ocean"] as const;
@@ -66,7 +66,7 @@ export function observe(s: GameState, p: number): Observation {
     const t = s.tiles[i];
     set("explored", i, 1);
     set(`terrain:${t.terrain}`, i, 1);
-    if (t.resource) set(`resource:${t.resource}`, i, 1);
+    if (t.resource && resourceVisible(s, p, t.resource)) set(`resource:${t.resource}`, i, 1);
     if (t.building) set("building", i, 1);
     if (t.road) set("road", i, 1);
     if (t.village) set("village", i, 1);

@@ -10,8 +10,13 @@
  *  4. land terrain in exact proportions: 48% field, 38% forest, 14% mountain
  *  5. resources only within 2 tiles of a city/village, with "inner"
  *     (adjacent) and "outer" (distance 2) rates
- *  6. fish on 50% of shallow water near a city/village; ruins (count by map
- *     size); starfish (about one per 25 water tiles)
+ *  6. fish on 50% of shallow water and ocean near a city/village; ruins
+ *     (count by map size); starfish (about one per 25 water tiles)
+ *
+ * Map-type steps from the rules doc (POLYTOPIA_RULES.md, "How the map is
+ * generated"): suburbs and an early village batch on Lakes/Archipelago/Water
+ * World, capitals picked among villages on Continents/Pangea, land only around
+ * cities on Water World, a land ring on Lakes.
  */
 import type { Rng } from "./rng";
 import { shuffle } from "./rng";
@@ -112,6 +117,17 @@ export type GeneratedMap = {
   villages: Coord[];
 };
 
+/** "Extra island villages (Continents, Pangea)" per map width (rules doc, Map sizes) */
+export const EXTRA_ISLAND_VILLAGES: Record<number, number> = { 11: 0, 14: 1, 16: 2, 18: 3, 20: 4, 30: 9 };
+
+/** early (pre-terrain) village coefficient per map type (rules doc, How the map is generated) */
+export const EARLY_VILLAGE_COEF: Partial<Record<MapType, number>> = { lakes: 0.3, archipelago: 0.3, waterworld: 0.1 };
+
+export type MapOptions = {
+  /** per player: the capital gets 2 water tiles with fish on Drylands (Kickoo, Aquarion) */
+  waterStart?: boolean[];
+};
+
 export function generateMap(
   rng: Rng,
   n: number,
@@ -119,58 +135,139 @@ export function generateMap(
   mapType: MapType = "drylands",
   /** per-player spawn modifiers (§6.3), applied in the area nearest each capital */
   mods: Partial<Record<string, number>>[] = [],
+  opts: MapOptions = {},
 ): GeneratedMap {
-  // 1. capitals in distinct domains
-  const domains = domainsFor(players);
-  const span = n / domains;
-  const cells = shuffle(
-    rng,
-    Array.from({ length: domains * domains }, (_, i) => i),
-  ).slice(0, players);
-  const capitals: Coord[] = cells.map((c) => {
-    const col = c % domains;
-    const row = Math.floor(c / domains);
-    const pad = span >= 5 ? 1 : 0;
-    const minX = Math.max(1, Math.floor(col * span) + pad);
-    const maxX = Math.min(n - 2, Math.ceil((col + 1) * span) - 1 - pad);
-    const minY = Math.max(1, Math.floor(row * span) + pad);
-    const maxY = Math.min(n - 2, Math.ceil((row + 1) * span) - 1 - pad);
-    return { x: rng.int(minX, Math.max(minX, maxX)), y: rng.int(minY, Math.max(minY, maxY)) };
-  });
+  const notEdge = (p: Coord) => p.x >= 1 && p.y >= 1 && p.x <= n - 2 && p.y <= n - 2;
+  const capitalsFromVillages = mapType === "continents" || mapType === "pangea";
+  const allCoords = Array.from({ length: n * n }, (_, i) => ({ x: i % n, y: Math.floor(i / n) }));
 
-  // 2. land / water: noise thresholded to the exact water share
-  const [wLo, wHi] = WETNESS[mapType];
-  const wetness = wLo + rng.next() * (wHi - wLo);
-  const coarse = noiseField(rng, n, mapType === "archipelago" ? 2.5 : 4);
-  const fine = noiseField(rng, n, 2);
-  const height = coarse.map((v, i) => 0.7 * v + 0.3 * fine[i]);
-  if (mapType === "pangea") {
-    const c = (n - 1) / 2;
-    for (let i = 0; i < height.length; i++) {
-      const d = dist({ x: i % n, y: Math.floor(i / n) }, { x: c, y: c }) / c;
-      height[i] -= 0.6 * d;
-    }
-  }
-  const land = new Array<boolean>(n * n).fill(true);
-  const waterCount = Math.round(wetness * n * n);
-  if (waterCount > 0) {
-    const order = height.map((h, i) => [h, i] as const).sort((a, b) => a[0] - b[0]);
-    for (let k = 0; k < waterCount; k++) land[order[k][1]] = false;
-  }
-  // capitals and their neighbours are land
-  for (const c of capitals) {
-    for (const p of around(n, c, 1, true)) land[idx(n, p.x, p.y)] = true;
+  // 1. capitals in distinct quadrants (Drylands, Lakes, Archipelago, Water World)
+  let capitals: Coord[] = [];
+  if (!capitalsFromVillages) {
+    const domains = domainsFor(players);
+    const span = n / domains;
+    const cells = shuffle(
+      rng,
+      Array.from({ length: domains * domains }, (_, i) => i),
+    ).slice(0, players);
+    capitals = cells.map((c) => {
+      const col = c % domains;
+      const row = Math.floor(c / domains);
+      const pad = span >= 5 ? 1 : 0;
+      const minX = Math.max(1, Math.floor(col * span) + pad);
+      const maxX = Math.min(n - 2, Math.ceil((col + 1) * span) - 1 - pad);
+      const minY = Math.max(1, Math.floor(row * span) + pad);
+      const maxY = Math.min(n - 2, Math.ceil((row + 1) * span) - 1 - pad);
+      return { x: rng.int(minX, Math.max(minX, maxX)), y: rng.int(minY, Math.max(minY, maxY)) };
+    });
   }
 
-  // 3. villages, at least 3 apart from each other and the capitals, not on the edge
+  // 2. pre-terrain villages: suburbs (Lakes, Archipelago), then the early batch
   const villages: Coord[] = [];
   const centres = () => [...capitals, ...villages];
-  const candidates = shuffle(
-    rng,
-    Array.from({ length: n * n }, (_, i) => ({ x: i % n, y: Math.floor(i / n) })),
-  ).filter((p) => land[idx(n, p.x, p.y)] && p.x >= 1 && p.y >= 1 && p.x <= n - 2 && p.y <= n - 2);
-  for (const p of candidates) {
-    if (centres().every((c) => dist(c, p) >= 3)) villages.push(p);
+  // no village within 2 tiles of another village or city, and none on the edge
+  const villageFits = (p: Coord) => notEdge(p) && centres().every((c) => dist(c, p) >= 3);
+  let suburbs = 0;
+  if (mapType === "lakes" || mapType === "archipelago") {
+    for (const cap of capitals.slice()) {
+      const want = rng.int(0, 2);
+      let placed = 0;
+      for (const p of shuffle(rng, allCoords.filter((q) => dist(q, cap) === 3))) {
+        if (placed >= want) break;
+        if (!villageFits(p)) continue;
+        villages.push(p);
+        placed++;
+      }
+      suburbs += placed;
+    }
+  }
+  const coef = EARLY_VILLAGE_COEF[mapType] ?? 0;
+  if (coef > 0) {
+    let early = Math.round((Math.floor(n / 3) ** 2 - capitals.length - suburbs) * coef);
+    for (const p of shuffle(rng, allCoords)) {
+      if (early <= 0) break;
+      if (!villageFits(p)) continue;
+      villages.push(p);
+      early--;
+    }
+  }
+
+  // 3a. land / water. A capital and its 8 neighbours are land; a pre-terrain
+  // village is land on its own tile (an island on Archipelago and Water World)
+  const forcedLand = () => [
+    ...capitals.flatMap((c) => around(n, c, 1, true).map((p) => idx(n, p.x, p.y))),
+    ...villages.map((v) => idx(n, v.x, v.y)),
+  ];
+  const land = new Array<boolean>(n * n).fill(true);
+  if (mapType === "waterworld") {
+    // land only where cities stand
+    land.fill(false);
+  } else {
+    const [wLo, wHi] = WETNESS[mapType];
+    const wetness = wLo + rng.next() * (wHi - wLo);
+    const coarse = noiseField(rng, n, mapType === "archipelago" ? 2.5 : 4);
+    const fine = noiseField(rng, n, 2);
+    const height = coarse.map((v, i) => 0.7 * v + 0.3 * fine[i]);
+    if (mapType === "pangea") {
+      const c = (n - 1) / 2;
+      for (let i = 0; i < height.length; i++) {
+        const d = dist({ x: i % n, y: Math.floor(i / n) }, { x: c, y: c }) / c;
+        height[i] -= 0.6 * d;
+      }
+    }
+    if (mapType === "lakes") {
+      // inland lakes inside a ring of land at the edge
+      for (let i = 0; i < height.length; i++) if (!notEdge(allCoords[i])) height[i] += 10;
+    }
+    // reserve the forced land first so the water share still comes out exact
+    for (const i of forcedLand()) height[i] += 10;
+    const waterCount = Math.round(wetness * n * n);
+    if (waterCount > 0) {
+      const order = height.map((h, i) => [h, i] as const).sort((a, b) => a[0] - b[0]);
+      for (let k = 0; k < waterCount; k++) land[order[k][1]] = false;
+    }
+  }
+  for (const i of forcedLand()) land[i] = true;
+
+  // 3b. post-terrain villages: random land tiles until no valid tile is left
+  for (const p of shuffle(rng, allCoords)) {
+    if (land[idx(n, p.x, p.y)] && villageFits(p)) villages.push(p);
+  }
+
+  // Continents and Pangea: extra villages on small islands, then the capitals
+  // are picked among the villages, as far apart as possible and near the coast
+  if (capitalsFromVillages) {
+    let extra = EXTRA_ISLAND_VILLAGES[n] ?? Math.max(0, Math.round(n / 3) - 3);
+    const offshore = (p: Coord) => around(n, p, 1, true).every((q) => !land[idx(n, q.x, q.y)]);
+    for (const p of shuffle(rng, allCoords)) {
+      if (extra <= 0) break;
+      if (!villageFits(p) || !offshore(p)) continue;
+      land[idx(n, p.x, p.y)] = true;
+      villages.push(p);
+      extra--;
+    }
+    const coastal = (p: Coord) => around(n, p, 2).some((q) => !land[idx(n, q.x, q.y)]);
+    const pool = shuffle(rng, villages.slice());
+    const ranked = [...pool.filter(coastal), ...pool.filter((p) => !coastal(p))];
+    const chosen: Coord[] = [];
+    while (chosen.length < players && ranked.length) {
+      let best = 0;
+      if (chosen.length) {
+        let bestD = -1;
+        ranked.forEach((p, i) => {
+          const d = Math.min(...chosen.map((c) => dist(c, p)));
+          // a coastal village wins any tie
+          if (d > bestD || (d === bestD && coastal(p) && !coastal(ranked[best]))) {
+            bestD = d;
+            best = i;
+          }
+        });
+      }
+      chosen.push(ranked.splice(best, 1)[0]);
+    }
+    capitals = chosen;
+    for (const c of capitals) villages.splice(villages.indexOf(c), 1);
+    for (const c of capitals) for (const p of around(n, c, 1, true)) land[idx(n, p.x, p.y)] = true;
   }
 
   // 4. terrain on land in exact proportions; settlements stand on fields
@@ -182,7 +279,7 @@ export function generateMap(
   );
   // each land tile belongs to the area of its nearest capital (ties: lower index)
   const areaOf = (i: number) => {
-    const p = { x: i % n, y: Math.floor(i / n) };
+    const p = allCoords[i];
     let best = 0;
     for (let k = 1; k < capitals.length; k++)
       if (dist(capitals[k], p) < dist(capitals[best], p)) best = k;
@@ -209,24 +306,42 @@ export function generateMap(
       tiles[i].terrain = k < mountains ? "mountain" : k < mountains + forests ? "forest" : "field";
     });
   }
+  // Drylands: Kickoo and Aquarion capitals still get 2 water tiles with fish
+  const forcedFish = new Set<number>();
+  if (mapType === "drylands") {
+    capitals.forEach((c, p) => {
+      if (!opts.waterStart?.[p]) return;
+      const ring = shuffle(rng, around(n, c, 1)).map((q) => idx(n, q.x, q.y));
+      const water = ring.filter((i) => !land[i]);
+      for (const i of ring) {
+        if (water.length >= 2) break;
+        if (!land[i] || settlement.has(i)) continue;
+        land[i] = false;
+        water.push(i);
+      }
+      for (const i of water.slice(0, 2)) forcedFish.add(i);
+    });
+  }
   // water next to land is shallow, the rest is deep ocean
   for (let i = 0; i < tiles.length; i++) {
     if (land[i]) continue;
-    const p = { x: i % n, y: Math.floor(i / n) };
-    const nearLand = around(n, p, 1).some((q) => land[idx(n, q.x, q.y)]);
+    const nearLand = around(n, allCoords[i], 1).some((q) => land[idx(n, q.x, q.y)]);
     tiles[i].terrain = nearLand ? "water" : "ocean";
   }
   for (const v of villages) tiles[idx(n, v.x, v.y)].village = true;
 
-  // 5. resources near settlements
+  // 5. resources only within 2 tiles of a city or village
   const nearest = (p: Coord) => Math.min(...centres().map((c) => dist(c, p)));
   for (let i = 0; i < tiles.length; i++) {
     if (settlement.has(i)) continue;
-    const p = { x: i % n, y: Math.floor(i / n) };
-    const d = nearest(p);
+    const t = tiles[i];
+    if (forcedFish.has(i)) {
+      t.resource = "fish";
+      continue;
+    }
+    const d = nearest(allCoords[i]);
     if (d > 2) continue;
     const r = d === 1 ? RESOURCE_RATES.inner : RESOURCE_RATES.outer;
-    const t = tiles[i];
     const a = areaOf(i);
     const m = (k: string) => modOf(a, k);
     const roll = rng.next();
@@ -240,34 +355,45 @@ export function generateMap(
       if (roll < (r.animal * m("animal")) / LAND_SHARE.forest) t.resource = "animal";
     } else if (t.terrain === "mountain") {
       if (roll < (r.metal * m("metal")) / LAND_SHARE.mountain) t.resource = "metal";
-    } else if (t.terrain === "water") {
+    } else {
+      // fish on half the shallow water, and on ocean too since 2.8
       if (roll < FISH_RATE * m("fish")) t.resource = "fish";
     }
   }
 
   // lighthouses in the four corners (§6.4)
-  for (const [x, y] of [[0, 0], [n - 1, 0], [0, n - 1], [n - 1, n - 1]]) {
-    tiles[idx(n, x, y)].lighthouse = true;
-  }
+  const lighthouses: Coord[] = [
+    { x: 0, y: 0 },
+    { x: n - 1, y: 0 },
+    { x: 0, y: n - 1 },
+    { x: n - 1, y: n - 1 },
+  ];
+  for (const c of lighthouses) tiles[idx(n, c.x, c.y)].lighthouse = true;
 
-  // 6. ruins: land or deep ocean, not next to a village/ruin/settlement
+  // 6. ruins on fields, forests, mountains or deep ocean; never next to a ruin,
+  // a capital or a village; on Lakes at most a third of them on water
   const ruinSpots = shuffle(rng, tiles.map((_, i) => i)).filter((i) => {
     const t = tiles[i];
     return t.terrain !== "water" && !settlement.has(i) && t.resource === null && !t.lighthouse;
   });
-  let ruins = ruinCount(n);
+  const ruinTotal = ruinCount(n);
+  let ruins = ruinTotal;
+  let waterRuinsLeft = mapType === "lakes" ? Math.floor(ruinTotal / 3) : Infinity;
   const ruinCoords: Coord[] = [];
   for (const i of ruinSpots) {
     if (ruins === 0) break;
-    const p = { x: i % n, y: Math.floor(i / n) };
+    const p = allCoords[i];
     if (centres().some((c) => dist(c, p) <= 1)) continue;
     if (ruinCoords.some((c) => dist(c, p) <= 1)) continue;
+    const onWater = tiles[i].terrain === "ocean";
+    if (onWater && waterRuinsLeft <= 0) continue;
+    if (onWater) waterRuinsLeft--;
     tiles[i].ruin = true;
     ruinCoords.push(p);
     ruins--;
   }
 
-  // starfish: ~1 per 25 water tiles, not adjacent to another starfish or a settlement
+  // starfish: ~1 per 25 water tiles, never next to another starfish, a lighthouse or a city
   const waterIdx = shuffle(
     rng,
     tiles.map((_, i) => i).filter((i) => !land[i] && !tiles[i].ruin && !tiles[i].lighthouse && tiles[i].resource === null),
@@ -276,8 +402,9 @@ export function generateMap(
   const starCoords: Coord[] = [];
   for (const i of waterIdx) {
     if (starfish === 0) break;
-    const p = { x: i % n, y: Math.floor(i / n) };
+    const p = allCoords[i];
     if (starCoords.some((c) => dist(c, p) <= 1)) continue;
+    if (lighthouses.some((c) => dist(c, p) <= 1)) continue;
     if (centres().some((c) => dist(c, p) <= 1)) continue;
     tiles[i].resource = "starfish";
     starCoords.push(p);

@@ -63,6 +63,7 @@ function Tile({
   size,
   watchers,
   animateReveal = false,
+  showResource = true,
 }: {
   x: number;
   y: number;
@@ -78,6 +79,8 @@ function Tile({
   watchers?: number[];
   /** play the clouds-clearing animation when this tile becomes explored */
   animateReveal?: boolean;
+  /** false while the viewer lacks the tech that reveals this resource (crops, metal) */
+  showResource?: boolean;
 }) {
   const TILE = size ?? TILE_BASE;
   // remember when this tile was revealed, so the clearing clouds survive quick re-renders
@@ -112,7 +115,7 @@ function Tile({
     <BuildingArt id={tile.building} size={TILE} />
   ) : tile.ruin ? (
     <BuildingArt id="ruin" size={TILE} />
-  ) : tile.resource ? (
+  ) : tile.resource && showResource ? (
     <ResourceArt id={tile.resource} size={TILE} />
   ) : null;
 
@@ -196,7 +199,7 @@ function Tile({
         />
       )}
       {!city && overlay && (
-        <Pop key={tile.building ?? (tile.ruin ? "ruin" : (tile.resource ?? ""))} style={fill}>
+        <Pop key={tile.building ?? (tile.ruin ? "ruin" : showResource ? (tile.resource ?? "") : "")} style={fill}>
           {overlay}
         </Pop>
       )}

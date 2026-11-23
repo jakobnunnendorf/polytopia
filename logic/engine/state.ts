@@ -168,6 +168,18 @@ function specialBuildingIncome(s: GameState, p: number): number {
 }
 
 /** expected income for player p at the start of their next turn */
+/**
+ * Whether player p can see a resource kind: crops show only with Organization
+ * and metal only with Climbing (rules doc, Tech tree: "Harvest fruit, see crops",
+ * "Mountains, see metal"). Special tribes keep these tech ids under other names.
+ */
+export function resourceVisible(s: GameState, p: number, r: string): boolean {
+  const techs = s.players[p].techs;
+  if (r === "crop") return techs.includes("organization");
+  if (r === "metal") return techs.includes("climbing");
+  return true;
+}
+
 export function income(s: GameState, p: number): number {
   let total = 0;
   for (const c of citiesOf(s, p)) {
@@ -487,7 +499,9 @@ export function createGame(opts: NewGameOptions): GameState {
       .concat(shuffle(rng, CLANS.map((c) => c.id)))
       .slice(0, opts.players);
   const mods = clanIds.map((c) => CLAN_BY_ID[c].mod as Record<string, number>);
-  const map = generateMap(rng, n, opts.players, opts.mapType ?? "drylands", mods);
+  const map = generateMap(rng, n, opts.players, opts.mapType ?? "drylands", mods, {
+    waterStart: clanIds.map((c) => c === "polynesians" || c === "aquarion"),
+  });
   const humans = new Set(opts.humans ?? [0]);
 
   const s: GameState = {
