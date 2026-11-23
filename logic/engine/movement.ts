@@ -47,19 +47,26 @@ export type StepKind = "normal" | "embark" | "disembark";
 export function enterKind(s: GameState, u: Unit, t: Tile): StepKind | null {
   const p = u.owner;
   const def = UNITS[u.type];
+  if (has(u, "fly")) return "normal";
   if (def.naval) {
     if (isWater(t)) {
+      if (t.ice) return null;
       if (t.terrain === "ocean" && !techOf(s, p, "sailing")) return null;
-      if (t.terrain === "water" && !techOf(s, p, "fishing")) return null;
+      if (t.terrain === "water" && !techOf(s, p, "fishing") && u.type !== "raychi") return null;
       return "normal";
     }
+    if (u.type === "raychi") return null;
     // landing: passenger must be able to stand there
     if (t.terrain === "mountain" && !techOf(s, p, "climbing")) return null;
     return "disembark";
   }
-  // land unit
+  // land or amphibious unit
   if (isWater(t)) {
-    if (t.building === "bridge") return "normal";
+    if (t.ice || t.algae || t.building === "bridge") return "normal";
+    if (has(u, "amphibious")) {
+      if (t.terrain === "ocean" && !techOf(s, p, "sailing")) return null;
+      return "normal";
+    }
     if (t.building === "port" && territoryOwner(s, t) === p && techOf(s, p, "fishing")) return "embark";
     return null;
   }
@@ -71,10 +78,13 @@ export type MoveTarget = Coord & { kind: StepKind };
 
 /** All tiles unit u can end its move on this turn. */
 export function reachable(s: GameState, u: Unit): MoveTarget[] {
+  if (u.frozen) return [];
   const n = s.mapSize;
   const explored = s.players[u.owner].explored;
-  const budget = UNITS[u.type].movement * 2;
-  const creep = has(u, "creep");
+  const rawMov = UNITS[u.type].movement + (u.boosted ? 1 : 0) - (u.poisoned ? 1 : 0);
+  const budget = Math.max(1, rawMov) * 2;
+  const creep = has(u, "creep") || has(u, "fly");
+  const skate = has(u, "skate");
   const ignoresZoc = creep || has(u, "hide") || has(u, "infiltrate");
   const occupied = new Map<number, Unit>();
   for (const o of s.units) occupied.set(idx(n, o.x, o.y), o);
@@ -117,7 +127,8 @@ export function reachable(s: GameState, u: Unit): MoveTarget[] {
         if (occ && occ.owner !== u.owner && !has(u, "hide")) continue;
         const road =
           !creep && !UNITS[u.type].naval && roadNode(s, from, u.owner) && roadNode(s, t, u.owner);
-        const cost = road ? 1 : 2;
+        const iceGlide = skate && !!t.ice;
+        const cost = road || iceGlide ? 1 : 2;
         const total = spent + cost;
         let stop = kind !== "normal";
         if (!creep && t.terrain === "mountain") stop = true;

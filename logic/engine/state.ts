@@ -139,6 +139,34 @@ function marketIncome(s: GameState, p: number): number {
   return total;
 }
 
+/** Special tribe building income: Sanctuary (Elyrion), Ice Bank (Polaris), Clathrus (Cymanti). */
+function specialBuildingIncome(s: GameState, p: number): number {
+  let total = 0;
+  let hasIceBank = false;
+  s.tiles.forEach((t, i) => {
+    if (!t.building) return;
+    const c = cityById(s, t.territory);
+    if (!c || c.owner !== p) return;
+    const pos = { x: i % s.mapSize, y: Math.floor(i / s.mapSize) };
+    if (t.building === "sanctuary") {
+      total += around(s.mapSize, pos, 1).filter((q) => tileAt(s, q.x, q.y).terrain === "forest").length;
+    } else if (t.building === "iceBank") {
+      hasIceBank = true;
+    } else if (t.building === "clathrus") {
+      const adj = around(s.mapSize, pos, 1).filter((q) => {
+        const nt = tileAt(s, q.x, q.y);
+        return nt.algae || nt.building === "fungi";
+      }).length;
+      total += Math.min(16, adj * 2);
+    }
+  });
+  if (hasIceBank) {
+    const frozenCount = s.tiles.filter((t) => t.ice).length;
+    total += Math.min(30, Math.floor(frozenCount / 20) * 2);
+  }
+  return total;
+}
+
 /** expected income for player p at the start of their next turn */
 export function income(s: GameState, p: number): number {
   let total = 0;
@@ -147,6 +175,7 @@ export function income(s: GameState, p: number): number {
     total += cityIncome(s, c);
   }
   total += marketIncome(s, p);
+  total += specialBuildingIncome(s, p);
   // embassies pay both builder and host (§5.5)
   for (const pl of s.players) {
     if (!pl.alive) continue;
@@ -176,8 +205,9 @@ export function canResearch(s: GameState, p: number, tech: string): boolean {
 }
 
 /** unit score value (§7.1) */
+const SUPER_UNITS = new Set(["giant", "juggernaut", "crab", "dragonEgg", "babyDragon", "fireDragon", "gaami", "centipede"]);
 function unitScore(u: Unit): number {
-  if (u.type === "giant" || u.type === "juggernaut" || u.carried === "giant") return SCORE.superUnit;
+  if (SUPER_UNITS.has(u.type) || (u.carried && SUPER_UNITS.has(u.carried))) return SCORE.superUnit;
   const def = UNITS[u.type];
   if (def.naval) {
     const passenger = u.carried ? UNITS[u.carried].cost : 0;
@@ -527,11 +557,33 @@ export function startTurn(s: GameState) {
   }
   for (const u of s.units) {
     if (u.owner !== p) continue;
-    u.canMove = true;
-    u.canAttack = UNITS[u.type].attack > 0 || (UNITS[u.type].skills as string[]).includes("convert");
+    // Elyrion dragon growth: Egg -> Baby Dragon (3 turns) -> Fire Dragon (6 turns)
+    if (s.turn > 0 && (UNITS[u.type].skills as string[]).includes("grow")) {
+      u.age = (u.age ?? 0) + 1;
+      if (u.type === "dragonEgg" && u.age >= 3) {
+        u.type = "babyDragon";
+        u.maxHp = UNITS.babyDragon.hp!;
+        u.hp = Math.min(u.maxHp, u.hp + 5);
+      } else if (u.type === "babyDragon" && u.age >= 6) {
+        u.type = "fireDragon";
+        u.maxHp = UNITS.fireDragon.hp!;
+        u.hp = Math.min(u.maxHp, u.hp + 5);
+      }
+    }
+    // Cymanti Mycelium: heals adjacent friendly units & cures poison
+    if (s.turn > 0 && pl.clan === "cymanti") {
+      const nearMyc = around(s.mapSize, u, 1, true).some((q) => tileAt(s, q.x, q.y).building === "mycelium");
+      if (nearMyc) {
+        u.hp = Math.min(u.maxHp, u.hp + 4);
+        u.poisoned = false;
+      }
+    }
+    const frozen = !!u.frozen;
+    u.canMove = !frozen;
+    u.canAttack = !frozen && (UNITS[u.type].attack > 0 || (UNITS[u.type].skills as string[]).includes("convert"));
     u.moved = false;
     u.attacked = false;
-    u.done = false;
+    u.done = frozen;
     u.idle = true;
   }
   checkTasks(s, p);

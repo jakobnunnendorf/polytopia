@@ -12,8 +12,8 @@ import type { Action, GameMode, GameState } from "../engine/types";
 import type { MapType } from "../engine/mapgen";
 
 export type Seat =
-  | { kind: "human"; profileId: string; name: string }
-  | { kind: "model"; modelId: string };
+  | { kind: "human"; profileId: string; name: string; clan?: string }
+  | { kind: "model"; modelId: string; clan?: string };
 
 export type GameOptions = {
   mapSize: number;

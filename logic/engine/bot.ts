@@ -174,6 +174,14 @@ export function scoreAction(s: GameState, a: Action, w: GreedyWeights = DEFAULT_
     }
     case "healOthers":
       return w.healOthers;
+    case "freezeArea":
+    case "boost":
+      return w.special;
+    case "explode": {
+      const u = s.units.find((x) => x.id === a.unitId)!;
+      const adjEnemies = s.units.filter((e) => e.owner !== p && dist(e, u) === 1).length;
+      return adjEnemies >= 2 ? w.hit + adjEnemies * 10 : -1;
+    }
     case "upgrade":
       return pl.stars > 20 ? w.upgrade : -1;
     default:
