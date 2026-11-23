@@ -138,10 +138,10 @@ export default function HomeScreen() {
         >
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <ShardIcon size={40} />
-            <Text style={{ fontFamily: UI.display, fontSize: 40, color: UI.mist, marginLeft: 10 }}>Shardlands</Text>
+            <Text style={{ fontFamily: UI.display, fontSize: 40, color: UI.mist, marginLeft: 10 }}>Polytopia</Text>
           </View>
           <Text style={{ color: UI.muted, fontSize: 15, marginTop: 6 }}>
-            Build a clan from one city. Outgrow your rivals.
+            Build a tribe from one city. Outgrow your rivals.
           </Text>
 
           {page === "home" && (

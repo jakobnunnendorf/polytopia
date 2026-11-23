@@ -126,7 +126,7 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
           <GameOverCard
             title={`${seatLabel(rec.seats[s.winner ?? 0])} wins`}
             good
-            subtitle={`The ${name("clan", s.players[s.winner ?? 0].clan)} hold the Shardlands after ${s.turn} turns.`}
+            subtitle={`The ${name("clan", s.players[s.winner ?? 0].clan)} rule the Square after ${s.turn} turns.`}
             standings={[...s.players]
               .sort((a, b) => (b.id === s.winner ? 1 : 0) - (a.id === s.winner ? 1 : 0) || scoreOf(s, b.id) - scoreOf(s, a.id))
               .map((p) => ({ id: p.id, name: seatLabel(rec.seats[p.id]), clan: name("clan", p.clan), score: scoreOf(s, p.id), alive: p.alive }))}

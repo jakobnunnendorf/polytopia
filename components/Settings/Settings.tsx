@@ -19,7 +19,7 @@ const MAP_SIZES = [
 
 const MODES = [
   { id: "perfection", title: "Perfection", hint: "Highest score after 30 turns wins." },
-  { id: "domination", title: "Domination", hint: "The last clan holding a city wins." },
+  { id: "domination", title: "Domination", hint: "The last tribe holding a city wins." },
 ] as const;
 
 const GUEST: Profile = { id: "guest", name: "Guest", created: "" };

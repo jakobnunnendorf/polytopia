@@ -84,7 +84,7 @@ export default function TechTree({
           alignSelf: "center",
         }}
       >
-        <Text style={{ color: UI.mist, fontSize: 30, fontFamily: UI.display }}>Lore</Text>
+        <Text style={{ color: UI.mist, fontSize: 30, fontFamily: UI.display }}>Tech Tree</Text>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <ShardIcon size={20} />
           <Text style={{ color: UI.mist, fontSize: 20, fontWeight: "800", marginLeft: 4 }}>{stars}</Text>
@@ -107,8 +107,8 @@ export default function TechTree({
                   y1={from.y}
                   x2={n.x}
                   y2={n.y}
-                  stroke={lit ? UI.sky : UI.line}
-                  strokeWidth={lit ? 3 : 2}
+                  stroke={lit ? "#4ade80" : UI.line}
+                  strokeWidth={lit ? 3.5 : 2}
                 />
               );
             })}
@@ -141,7 +141,7 @@ export default function TechTree({
                 key={n.id}
                 testID={`tech-${n.id}`}
                 accessibilityRole="button"
-                accessibilityLabel={`${name("tech", n.id)}, ${st === "known" ? "learned" : `${costOf(n.id)} shards`}`}
+                accessibilityLabel={`${name("tech", n.id)}, ${st === "known" ? "researched" : `${costOf(n.id)} stars`}`}
                 onPress={() => setPicked(on ? null : n.id)}
                 style={{ position: "absolute", left: n.x - 40, top: n.y - node / 2, width: 80, alignItems: "center" }}
               >
@@ -154,15 +154,15 @@ export default function TechTree({
                     borderRadius: node / 2,
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: st === "known" ? UI.sky : st === "open" ? UI.gold : UI.panel,
-                    borderWidth: on ? 3 : 2,
-                    borderColor: on ? "#ffffff" : st === "locked" ? UI.line : "transparent",
+                    backgroundColor: st === "known" ? "#1e7a48" : st === "open" ? "#1d63b8" : "#14223b",
+                    borderWidth: on ? 3 : 2.5,
+                    borderColor: on ? "#ffffff" : st === "known" ? "#4ade80" : st === "open" ? UI.gold : "#2c426b",
                   }}
                 >
                   <TechIcon
                     id={n.id}
-                    size={node * 0.62}
-                    ink={st === "known" ? UI.dusk : st === "open" ? UI.goldInk : UI.muted}
+                    size={node * 0.72}
+                    ink={st === "known" ? UI.mist : st === "open" ? UI.gold : UI.muted}
                   />
                 </View>
                 </Pop>
@@ -214,7 +214,7 @@ export default function TechTree({
             </>
           ) : (
             <Text style={{ color: UI.muted, fontSize: 14, lineHeight: 20 }}>
-              Tap a discovery to see what it unlocks. Gold ones are ready for the {clanName} to learn.
+              Tap a tech to see what it unlocks. Gold ones are ready for {clanName} to research.
             </Text>
           )}
         </View>
@@ -245,10 +245,10 @@ export default function TechTree({
             >
               <Text style={{ color: pickedState === "open" ? UI.goldInk : UI.muted, fontWeight: "800", fontSize: 15 }}>
                 {pickedState === "open"
-                  ? `Learn for ${pickedCost} shards`
+                  ? `Research for ${pickedCost} stars`
                   : stars < pickedCost
-                    ? `Needs ${pickedCost} shards, you have ${stars}`
-                    : `Learn ${name("tech", pickedTech.parent ?? "")} first`}
+                    ? `Needs ${pickedCost} stars, you have ${stars}`
+                    : `Research ${name("tech", pickedTech.parent ?? "")} first`}
               </Text>
             </Pressable>
           )}

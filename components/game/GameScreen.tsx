@@ -434,8 +434,8 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
       ? [
           tileSel.resource ? name("resource", tileSel.resource) : null,
           tileSel.building ? name("building", tileSel.building) : null,
-          tileSel.village ? "Hamlet" : null,
-          tileSel.ruin ? "Old ruin" : null,
+          tileSel.village ? "Village" : null,
+          tileSel.ruin ? "Ruins" : null,
         ].filter((w): w is string => !!w)
       : [];
   const ranking = [...state.players]
@@ -528,7 +528,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
                 </Text>
                 <Text style={{ color: UI.muted, fontSize: 14 }}>
                   {citySel
-                    ? `level ${citySel.level}${citySel.capital ? " capital" : ""}, ${citySel.pop} of ${citySel.level + 1} people to grow`
+                    ? `Level ${citySel.level}${citySel.capital ? " Capital" : ""} · ${citySel.pop}/${citySel.level + 1} population`
                     : tileWords.join(", ")}
                 </Text>
               </View>
@@ -563,12 +563,12 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
               )}
             </>
           ) : selected ? (
-            <Text style={{ color: UI.muted, fontSize: 14 }}>Nobody from your clan has been here yet.</Text>
+            <Text style={{ color: UI.muted, fontSize: 14 }}>Nobody from your tribe has been here yet.</Text>
           ) : watch ? (
-            <Text style={{ color: UI.muted, fontSize: 14 }}>Watching the models play every clan.</Text>
+            <Text style={{ color: UI.muted, fontSize: 14 }}>Watching the models play every tribe.</Text>
           ) : (
             <Text style={{ color: UI.muted, fontSize: 14, lineHeight: 20 }}>
-              Tap one of your units to see where it can go. Blue tiles are moves, coral tiles are attacks.
+              Tap one of your units to see where it can go. Blue tiles are moves, red tiles are attacks.
             </Text>
           )}
         </View>
@@ -576,7 +576,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           <IconButton label="Back to the menu" testID="menu-button" onPress={leave}>
             <HomeIcon />
           </IconButton>
-          <IconButton label="Lore" testID="tech-button" onPress={() => setTechOpen(true)}>
+          <IconButton label="Tech Tree" testID="tech-button" onPress={() => setTechOpen(true)}>
             <BookIcon />
           </IconButton>
           <Pulse on={nothingLeft} amount={0.03} period={1400} style={{ flexGrow: 1 }}>
@@ -617,10 +617,10 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           <Pop force from={0.85} style={{ width: "100%", maxWidth: 420 }}>
           <View style={{ backgroundColor: UI.panel, padding: 20, borderRadius: 20, width: "100%" }}>
             <Text style={{ color: UI.mist, fontSize: 26, fontFamily: UI.display }}>
-              {rewardCity ? `${rewardCity.name} grew` : "A city grew"}
+              {rewardCity ? `${rewardCity.name} leveled up!` : "City leveled up!"}
             </Text>
             <Text style={{ color: UI.muted, fontSize: 14, marginTop: 4, marginBottom: 4 }}>
-              It reached level {rewardCity?.level ?? ""}. Choose one boon for it.
+              Reached level {rewardCity?.level ?? ""}. Choose a reward:
             </Text>
             {rewardActions.map((a, i) => (
               <Pop force key={i} delay={180 + i * 90} from={0.8}>
@@ -656,7 +656,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           <GameOverCard
             title={humanSeats.length !== 1 ? `${seatName(state.winner ?? 0)} wins` : state.winner === viewer ? "Victory" : "Defeat"}
             good={humanSeats.length !== 1 || state.winner === viewer}
-            subtitle={`The ${winnerClan} hold the Shardlands.`}
+            subtitle={`The ${winnerClan} rule the Square.`}
             standings={ranking.map(({ p, score }) => ({
               id: p.id,
               name: seatName(p.id),

@@ -1,12 +1,81 @@
 /**
- * Shardlands art: original low-poly vector drawings. Every shape is split into
- * a lit facet and a shaded facet, which reads as 3D without gradients.
- * All drawings use a 100×100 viewBox and scale to the tile size.
+ * Battle of Polytopia-style game art.
+ * Uses crisp 3D low-poly isometric transparent PNG sprites for all land units,
+ * naval units, resources, buildings, temples, and the Star currency icon, paired
+ * with Polytopia-styled low-poly SVG terrain, cities, villages, monuments, and clouds.
  * Purely cosmetic; the engine never imports this file.
  */
 import React from "react";
-import Svg, { Circle, G, Line, Path, Polygon, Rect } from "react-native-svg";
+import { Image, type ImageSourcePropType } from "react-native";
+import Svg, { Circle, Ellipse, G, Line, Path, Polygon, Rect } from "react-native-svg";
 import type { Terrain } from "@/logic/engine/types";
+
+// ---------- 3D low-poly Polytopia sprite map ----------
+const UNIT_SPRITES: Record<string, ImageSourcePropType> = {
+  warrior: require("@/assets/sprites/warrior.png"),
+  rider: require("@/assets/sprites/rider.png"),
+  archer: require("@/assets/sprites/archer.png"),
+  defender: require("@/assets/sprites/defender.png"),
+  swordsman: require("@/assets/sprites/swordsman.png"),
+  knight: require("@/assets/sprites/knight.png"),
+  catapult: require("@/assets/sprites/catapult.png"),
+  giant: require("@/assets/sprites/giant.png"),
+  mindBender: require("@/assets/sprites/mindBender.png"),
+  cloak: require("@/assets/sprites/cloak.png"),
+  dagger: require("@/assets/sprites/dagger.png"),
+  raft: require("@/assets/sprites/raft.png"),
+  boat: require("@/assets/sprites/raft.png"),
+  dinghy: require("@/assets/sprites/dinghy.png"),
+  scout: require("@/assets/sprites/scout.png"),
+  ship: require("@/assets/sprites/scout.png"),
+  rammer: require("@/assets/sprites/rammer.png"),
+  pirate: require("@/assets/sprites/rammer.png"),
+  bomber: require("@/assets/sprites/bomber.png"),
+  battleship: require("@/assets/sprites/bomber.png"),
+  juggernaut: require("@/assets/sprites/juggernaut.png"),
+};
+
+const RESOURCE_SPRITES: Record<string, ImageSourcePropType> = {
+  fruit: require("@/assets/sprites/fruit.png"),
+  crop: require("@/assets/sprites/crop.png"),
+  animal: require("@/assets/sprites/animal.png"),
+  fish: require("@/assets/sprites/fish.png"),
+  metal: require("@/assets/sprites/metal.png"),
+  starfish: require("@/assets/sprites/starfish.png"),
+};
+
+const BUILDING_SPRITES: Record<string, ImageSourcePropType> = {
+  farm: require("@/assets/sprites/farm.png"),
+  mine: require("@/assets/sprites/mine.png"),
+  lumberHut: require("@/assets/sprites/lumberHut.png"),
+  sawmill: require("@/assets/sprites/sawmill.png"),
+  windmill: require("@/assets/sprites/windmill.png"),
+  forge: require("@/assets/sprites/forge.png"),
+  port: require("@/assets/sprites/port.png"),
+  market: require("@/assets/sprites/market.png"),
+  ruin: require("@/assets/sprites/ruin.png"),
+  temple: require("@/assets/sprites/temple.png"),
+  forestTemple: require("@/assets/sprites/forestTemple.png"),
+  waterTemple: require("@/assets/sprites/waterTemple.png"),
+};
+
+const STAR_SPRITE: ImageSourcePropType = require("@/assets/sprites/star.png");
+
+function Sprite({ source, size, pad = 0 }: { source: ImageSourcePropType; size: number; pad?: number }) {
+  return (
+    <Image
+      source={source}
+      resizeMode="contain"
+      style={{
+        position: "absolute",
+        left: pad,
+        top: pad,
+        width: size - pad * 2,
+        height: size - pad * 2,
+      }}
+    />
+  );
+}
 
 // ---------- colour helpers ----------
 export function shade(hex: string, amt: number): string {
@@ -18,27 +87,31 @@ export function shade(hex: string, amt: number): string {
   const b = ch(n & 255);
   return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
-/** deterministic 0..1 noise per tile, so the map looks hand-made but never flickers */
+
+/** deterministic 0..1 noise per tile, so the map looks hand-crafted and never flickers */
 function hash(x: number, y: number, k: number): number {
   let h = (x * 374761393 + y * 668265263 + k * 2147483647) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
 }
+
 const pts = (a: number[]) => a.join(" ");
 
 const PAL = {
-  field: "#a8c95a",
-  forestFloor: "#7aa84a",
-  mountain: "#9c8f7d",
-  water: "#5fc2d6",
-  ocean: "#2f6fa8",
-  pine: "#2f7d4f",
-  trunk: "#7a5230",
-  snow: "#f4f1ea",
-  wood: "#a8743f",
-  stone: "#b9b2a6",
-  gold: "#f2c14e",
-  skin: "#f1c9a0",
+  field: "#8bd44b",
+  forestFloor: "#6bb53d",
+  mountain: "#8c929c",
+  water: "#3ec5e0",
+  ocean: "#1a5ba0",
+  pine: "#258246",
+  trunk: "#7a4c2a",
+  snow: "#f6faff",
+  wood: "#a9713b",
+  stone: "#c4c9d0",
+  gold: "#ffd23f",
+  skin: "#f5cea8",
+  shadow: "#0d1f2d",
+  steel: "#dce4ec",
 };
 
 function Box({ size, children }: { size: number; children: React.ReactNode }) {
@@ -51,33 +124,46 @@ function Box({ size, children }: { size: number; children: React.ReactNode }) {
 
 // ---------- terrain ----------
 function Ground({ base, x, y }: { base: string; x: number; y: number }) {
-  const j = (k: number) => 25 + hash(x, y, k) * 50;
+  const j = (k: number) => 22 + hash(x, y, k) * 56;
   const a = j(1);
   const b = j(2);
   return (
     <G>
       <Rect x={0} y={0} width={100} height={100} fill={base} />
-      <Polygon points={pts([0, 0, a, 0, 0, b])} fill={shade(base, 0.12)} />
-      <Polygon points={pts([100, 100, 100 - b, 100, 100, 100 - a])} fill={shade(base, -0.1)} />
-      <Polygon points={pts([a, 0, 100, 0, 100, 100 - a])} fill={shade(base, 0.05)} />
+      <Polygon points={pts([0, 0, a, 0, 50, 50, 0, b])} fill={shade(base, 0.13)} />
+      <Polygon points={pts([a, 0, 100, 0, 100, 100 - a, 50, 50])} fill={shade(base, 0.04)} />
+      <Polygon points={pts([100, 100, 100 - b, 100, 50, 50, 100, 100 - a])} fill={shade(base, -0.11)} />
+      <Polygon points={pts([0, b, 50, 50, 100 - b, 100, 0, 100])} fill={shade(base, -0.04)} />
+      <Polygon points={pts([0, 0, 100, 0, 96, 4, 4, 4])} fill="#ffffff" opacity={0.14} />
+      <Polygon points={pts([0, 0, 4, 4, 4, 96, 0, 100])} fill="#ffffff" opacity={0.09} />
+      <Polygon points={pts([0, 100, 4, 96, 96, 96, 100, 100])} fill={PAL.shadow} opacity={0.14} />
+      <Polygon points={pts([100, 0, 100, 100, 96, 96, 96, 4])} fill={PAL.shadow} opacity={0.1} />
     </G>
   );
 }
 
-function Pine({ cx, base, s = 1 }: { cx: number; base: number; s?: number }) {
-  const w = 20 * s;
-  const h = 22 * s;
+function Pine({ cx, base, s = 1, tint = PAL.pine }: { cx: number; base: number; s?: number; tint?: string }) {
+  const w = 18 * s;
+  const h = 21 * s;
   const tiers = [0, 1, 2];
   return (
     <G>
-      <Rect x={cx - 2.5 * s} y={base - 6 * s} width={5 * s} height={8 * s} fill={PAL.trunk} />
+      <Polygon
+        points={pts([cx - 6 * s, base + 2 * s, cx + 18 * s, base - 2 * s, cx + 12 * s, base + 5 * s, cx - 2 * s, base + 5 * s])}
+        fill={PAL.shadow}
+        opacity={0.22}
+      />
+      <Rect x={cx - 3 * s} y={base - 8 * s} width={3 * s} height={10 * s} fill={shade(PAL.trunk, 0.14)} />
+      <Rect x={cx} y={base - 8 * s} width={3 * s} height={10 * s} fill={shade(PAL.trunk, -0.22)} />
       {tiers.map((t) => {
-        const bottom = base - 4 * s - t * 13 * s;
-        const tw = w - t * 5 * s;
+        const bottom = base - 5 * s - t * 12 * s;
+        const tw = w - t * 4.2 * s;
+        const top = bottom - h + t * 2 * s;
         return (
           <G key={t}>
-            <Polygon points={pts([cx - tw, bottom, cx, bottom - h, cx, bottom])} fill={shade(PAL.pine, 0.18)} />
-            <Polygon points={pts([cx, bottom, cx, bottom - h, cx + tw, bottom])} fill={shade(PAL.pine, -0.15)} />
+            <Polygon points={pts([cx - tw, bottom, cx, top, cx - tw * 0.12, bottom + 2 * s])} fill={shade(tint, 0.24)} />
+            <Polygon points={pts([cx - tw * 0.12, bottom + 2 * s, cx, top, cx + tw * 0.18, bottom + 2 * s])} fill={tint} />
+            <Polygon points={pts([cx + tw * 0.18, bottom + 2 * s, cx, top, cx + tw, bottom])} fill={shade(tint, -0.26)} />
           </G>
         );
       })}
@@ -86,14 +172,21 @@ function Pine({ cx, base, s = 1 }: { cx: number; base: number; s?: number }) {
 }
 
 function Peak({ x, y }: { x: number; y: number }) {
-  const tip = 40 + hash(x, y, 7) * 20;
+  const tip = 44 + hash(x, y, 7) * 12;
+  const sideTip = tip > 50 ? 24 : 76;
   return (
     <G>
-      <Polygon points={pts([6, 88, tip, 12, tip, 88])} fill={shade(PAL.mountain, 0.15)} />
-      <Polygon points={pts([tip, 12, 94, 88, tip, 88])} fill={shade(PAL.mountain, -0.2)} />
-      <Polygon points={pts([tip - 13, 36, tip, 12, tip, 40, tip - 6, 34])} fill={PAL.snow} />
-      <Polygon points={pts([tip, 12, tip + 12, 34, tip + 5, 31, tip, 40])} fill={shade(PAL.snow, -0.12)} />
-      <Polygon points={pts([70, 88, 82, 62, 94, 88])} fill={shade(PAL.mountain, -0.32)} />
+      <Polygon points={pts([10, 90, 94, 90, 86, 96, 18, 96])} fill={PAL.shadow} opacity={0.22} />
+      <Polygon points={pts([sideTip - 20, 88, sideTip, 40, sideTip, 88])} fill={shade(PAL.mountain, 0.1)} />
+      <Polygon points={pts([sideTip, 40, sideTip + 20, 88, sideTip, 88])} fill={shade(PAL.mountain, -0.28)} />
+      <Polygon points={pts([sideTip - 7, 56, sideTip, 40, sideTip, 58])} fill={PAL.snow} />
+      <Polygon points={pts([sideTip, 40, sideTip + 7, 56, sideTip, 58])} fill={shade(PAL.snow, -0.14)} />
+      <Polygon points={pts([10, 90, tip, 10, tip - 5, 90])} fill={shade(PAL.mountain, 0.22)} />
+      <Polygon points={pts([tip - 5, 90, tip, 10, tip + 8, 90])} fill={PAL.mountain} />
+      <Polygon points={pts([tip + 8, 90, tip, 10, 90, 90])} fill={shade(PAL.mountain, -0.3)} />
+      <Polygon points={pts([tip - 15, 39, tip, 10, tip - 2, 42, tip - 9, 35])} fill={PAL.snow} />
+      <Polygon points={pts([tip - 2, 42, tip, 10, tip + 6, 36, tip + 3, 44])} fill={shade(PAL.snow, -0.06)} />
+      <Polygon points={pts([tip + 6, 36, tip, 10, tip + 15, 38, tip + 9, 34])} fill={shade(PAL.snow, -0.2)} />
     </G>
   );
 }
@@ -101,301 +194,411 @@ function Peak({ x, y }: { x: number; y: number }) {
 export function TerrainArt({ terrain, x, y, size }: { terrain: Terrain; x: number; y: number; size: number }) {
   if (terrain === "water" || terrain === "ocean") {
     const base = terrain === "water" ? PAL.water : PAL.ocean;
-    const o = hash(x, y, 3) * 30;
+    const o = hash(x, y, 3) * 26;
+    const o2 = hash(x, y, 8) * 22;
     return (
       <Box size={size}>
         <Rect x={0} y={0} width={100} height={100} fill={base} />
-        <Polygon points={pts([0, 30 + o, 50, 0, 100, 40 - o / 2, 60, 100, 0, 100])} fill={shade(base, 0.06)} />
-        <Polyline d={`M ${15 + o} 30 l 8 -5 l 8 5`} color={shade(base, 0.35)} />
-        <Polyline d={`M ${55 - o / 2} 68 l 8 -5 l 8 5`} color={shade(base, 0.35)} />
+        <Polygon points={pts([0, 0, 55 + o * 0.4, 0, 35, 52, 0, 40 + o * 0.5])} fill={shade(base, 0.12)} />
+        <Polygon points={pts([35, 52, 100, 34 - o * 0.3, 100, 100, 55, 100])} fill={shade(base, -0.1)} />
+        <Polygon points={pts([0, 70, 48, 52, 62, 100, 0, 100])} fill={shade(base, 0.05)} />
+        <Polygon points={pts([14 + o, 30, 24 + o, 25, 34 + o, 30, 24 + o, 32])} fill={shade(base, 0.48)} opacity={0.75} />
+        <Polygon points={pts([50 - o2 * 0.4, 70, 62 - o2 * 0.4, 65, 74 - o2 * 0.4, 70, 62 - o2 * 0.4, 72])} fill={shade(base, 0.42)} opacity={0.65} />
+        {terrain === "ocean" && (
+          <Polygon points={pts([62, 22 + o2 * 0.4, 72, 18 + o2 * 0.4, 82, 22 + o2 * 0.4, 72, 24 + o2 * 0.4])} fill={shade(base, 0.35)} opacity={0.5} />
+        )}
       </Box>
     );
   }
   if (terrain === "forest") {
+    const j1 = hash(x, y, 4) * 6;
+    const j2 = hash(x, y, 5) * 6;
+    const j3 = hash(x, y, 6) * 5;
     return (
       <Box size={size}>
         <Ground base={PAL.forestFloor} x={x} y={y} />
-        <Pine cx={30 + hash(x, y, 4) * 6} base={88} s={1.05} />
-        <Pine cx={68 + hash(x, y, 5) * 6} base={72} s={0.85} />
+        <Pine cx={68 + j2} base={64} s={0.82} tint={shade(PAL.pine, -0.06)} />
+        <Pine cx={28 + j1} base={76} s={0.96} tint={PAL.pine} />
+        <Pine cx={56 + j3} base={90} s={1.04} tint={shade(PAL.pine, 0.06)} />
       </Box>
     );
   }
   if (terrain === "mountain") {
     return (
       <Box size={size}>
-        <Ground base={shade(PAL.field, -0.1)} x={x} y={y} />
+        <Ground base={shade(PAL.field, -0.12)} x={x} y={y} />
         <Peak x={x} y={y} />
       </Box>
     );
   }
+  const tuft = hash(x, y, 9);
+  const flower = hash(x, y, 11);
   return (
     <Box size={size}>
       <Ground base={PAL.field} x={x} y={y} />
-      {hash(x, y, 9) > 0.6 && (
-        <Polygon points={pts([20, 80, 24, 70, 28, 80])} fill={shade(PAL.field, -0.2)} />
+      {tuft > 0.55 && (
+        <G>
+          <Polygon points={pts([18, 78, 22, 68, 25, 78])} fill={shade(PAL.field, -0.22)} />
+          <Polygon points={pts([24, 79, 28, 71, 31, 79])} fill={shade(PAL.field, 0.22)} />
+        </G>
+      )}
+      {flower > 0.72 && (
+        <G>
+          <Polygon points={pts([72, 28, 76, 24, 80, 28, 76, 32])} fill={flower > 0.86 ? "#fff7a8" : "#ffffff"} />
+          <Circle cx={76} cy={28} r={1.6} fill="#f5a623" />
+        </G>
       )}
     </Box>
   );
 }
 
-function Polyline({ d, color, w = 3 }: { d: string; color: string; w?: number }) {
-  return <Path d={d} stroke={color} strokeWidth={w} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
-}
-
-// ---------- resources ----------
+// ---------- resources (3D Polytopia PNG sprites) ----------
 export function ResourceArt({ id, size }: { id: string; size: number }) {
-  switch (id) {
-    case "fruit":
-      return (
-        <Box size={size}>
-          <Polygon points={pts([22, 72, 30, 48, 50, 38, 70, 46, 78, 72])} fill={shade("#3f9a52", 0.1)} />
-          <Polygon points={pts([50, 38, 70, 46, 78, 72, 50, 72])} fill={shade("#3f9a52", -0.15)} />
-          {[
-            [36, 56],
-            [52, 50],
-            [62, 62],
-            [44, 66],
-          ].map(([cx, cy], i) => (
-            <G key={i}>
-              <Circle cx={cx} cy={cy} r={6} fill="#6a5acd" />
-              <Circle cx={cx - 2} cy={cy - 2} r={2} fill="#b8b0ff" />
-            </G>
-          ))}
-        </Box>
-      );
-    case "crop":
-      return (
-        <Box size={size}>
-          {[34, 50, 66].map((cx, i) => (
-            <G key={i}>
-              <Line x1={cx} y1={80} x2={cx + (i - 1) * 4} y2={40} stroke="#b08a3c" strokeWidth={3} />
-              {[0, 1, 2].map((k) => (
-                <G key={k}>
-                  <Polygon points={pts([cx + (i - 1) * 4, 30 + k * 9, cx + (i - 1) * 4 - 6, 36 + k * 9, cx + (i - 1) * 4, 42 + k * 9])} fill={PAL.gold} />
-                  <Polygon points={pts([cx + (i - 1) * 4, 30 + k * 9, cx + (i - 1) * 4 + 6, 36 + k * 9, cx + (i - 1) * 4, 42 + k * 9])} fill={shade(PAL.gold, -0.2)} />
-                </G>
-              ))}
-            </G>
-          ))}
-        </Box>
-      );
-    case "animal": {
-      const c = "#9a6a3e";
-      return (
-        <Box size={size}>
-          <Rect x={34} y={62} width={4} height={18} fill={shade(c, -0.3)} />
-          <Rect x={60} y={62} width={4} height={18} fill={shade(c, -0.3)} />
-          <Polygon points={pts([28, 52, 68, 48, 70, 66, 30, 66])} fill={c} />
-          <Polygon points={pts([28, 52, 68, 48, 48, 58])} fill={shade(c, 0.18)} />
-          <Polygon points={pts([66, 50, 80, 34, 86, 40, 74, 58])} fill={shade(c, 0.05)} />
-          <Polyline d="M 80 34 L 76 20 M 78 26 L 70 22 M 84 36 L 92 24 M 89 29 L 95 30" color="#e6d3b0" w={2.5} />
-          <Circle cx={81} cy={40} r={1.6} fill="#222" />
-        </Box>
-      );
-    }
-    case "fish":
-      return (
-        <Box size={size}>
-          <Polygon points={pts([22, 50, 48, 34, 72, 50, 48, 66])} fill="#e2eef2" />
-          <Polygon points={pts([22, 50, 48, 34, 72, 50])} fill="#ffffff" />
-          <Polygon points={pts([70, 50, 86, 38, 82, 50, 86, 62])} fill="#c9dde4" />
-          <Circle cx={32} cy={48} r={2} fill="#234" />
-        </Box>
-      );
-    case "metal":
-      return (
-        <Box size={size}>
-          <Polygon points={pts([20, 76, 30, 50, 52, 40, 76, 52, 82, 76])} fill={shade(PAL.stone, -0.15)} />
-          <Polygon points={pts([52, 40, 76, 52, 82, 76, 56, 76])} fill={shade(PAL.stone, -0.35)} />
-          <Polygon points={pts([38, 60, 44, 48, 50, 60])} fill={PAL.gold} />
-          <Polygon points={pts([44, 48, 50, 60, 47, 60])} fill={shade(PAL.gold, -0.25)} />
-          <Polygon points={pts([58, 66, 64, 54, 70, 66])} fill="#d9e3ea" />
-        </Box>
-      );
-    case "starfish":
-      return (
-        <Box size={size}>
-          <Polygon
-            points={pts(
-              Array.from({ length: 10 }, (_, i) => {
-                const r = i % 2 === 0 ? 30 : 13;
-                const a = -Math.PI / 2 + (i * Math.PI) / 5;
-                return [50 + r * Math.cos(a), 52 + r * Math.sin(a)];
-              }).flat(),
-            )}
-            fill="#ff8a4c"
-          />
-          <Circle cx={50} cy={52} r={6} fill="#ffb37a" />
-        </Box>
-      );
-    default:
-      return null;
-  }
+  const sprite = RESOURCE_SPRITES[id];
+  if (sprite) return <Sprite source={sprite} size={size} pad={size * 0.08} />;
+  return null;
 }
 
-// ---------- small building parts ----------
-function House({ x, y, w, h, roof, wall = "#efe3c8" }: { x: number; y: number; w: number; h: number; roof: string; wall?: string }) {
+// ---------- buildings, temples & monuments ----------
+function PolyHouse({
+  x,
+  y,
+  w,
+  h,
+  roof,
+  wall = "#f4ebd9",
+  door = true,
+}: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  roof: string;
+  wall?: string;
+  door?: boolean;
+}) {
+  const mid = x + w * 0.52;
+  const peakY = y - h * 0.72;
   return (
     <G>
-      <Rect x={x} y={y} width={w / 2} height={h} fill={wall} />
-      <Rect x={x + w / 2} y={y} width={w / 2} height={h} fill={shade(wall, -0.15)} />
-      <Polygon points={pts([x - 3, y, x + w / 2, y - h * 0.8, x + w / 2, y])} fill={shade(roof, 0.12)} />
-      <Polygon points={pts([x + w / 2, y - h * 0.8, x + w + 3, y, x + w / 2, y])} fill={shade(roof, -0.18)} />
-      <Rect x={x + w / 2 - 3} y={y + h - 9} width={6} height={9} fill={shade(wall, -0.5)} />
+      <Polygon points={pts([x + 2, y + h, x + w + 7, y + h - 3, x + w + 5, y + h + 4, x + 4, y + h + 4])} fill={PAL.shadow} opacity={0.22} />
+      <Polygon points={pts([x, y, mid, y + 3, mid, y + h + 3, x, y + h])} fill={wall} />
+      <Polygon points={pts([mid, y + 3, x + w, y, x + w, y + h, mid, y + h + 3])} fill={shade(wall, -0.18)} />
+      <Polygon points={pts([x - 3, y + 1, mid, peakY, mid, y + 4])} fill={shade(roof, 0.16)} />
+      <Polygon points={pts([mid, peakY, x + w + 3, y + 1, mid, y + 4])} fill={shade(roof, -0.22)} />
+      {door && <Rect x={x + w * 0.22} y={y + h - 8} width={Math.max(4, w * 0.18)} height={8} fill={shade(wall, -0.58)} />}
+      <Rect x={mid + w * 0.14} y={y + h * 0.35} width={Math.max(3, w * 0.14)} height={Math.max(4, h * 0.22)} fill="#2e3e59" />
     </G>
   );
 }
 
 export function BuildingArt({ id, size }: { id: string; size: number }) {
+  const sprite = BUILDING_SPRITES[id];
+  if (sprite) return <Sprite source={sprite} size={size} pad={size * 0.04} />;
+
   switch (id) {
-    case "farm":
-      return (
-        <Box size={size}>
-          <Polygon points={pts([10, 30, 90, 30, 90, 90, 10, 90])} fill="#c8a165" />
-          {[0, 1, 2, 3, 4].map((i) => (
-            <Rect key={i} x={14} y={34 + i * 11} width={72} height={5} fill={i % 2 ? "#e2c25a" : "#8fbf4a"} />
-          ))}
-        </Box>
-      );
-    case "mine":
-      return (
-        <Box size={size}>
-          <Polygon points={pts([10, 86, 28, 40, 54, 26, 82, 44, 92, 86])} fill={shade(PAL.stone, -0.2)} />
-          <Polygon points={pts([54, 26, 82, 44, 92, 86, 58, 86])} fill={shade(PAL.stone, -0.4)} />
-          <Path d="M 36 86 L 36 62 Q 50 46 64 62 L 64 86 Z" fill="#2b2420" />
-          <Polyline d="M 34 86 L 34 60 L 66 60 L 66 86" color={PAL.wood} w={4} />
-        </Box>
-      );
-    case "lumberHut":
-      return (
-        <Box size={size}>
-          <House x={22} y={46} w={40} h={30} roof="#8a5a32" wall="#c9955e" />
-          {[0, 1, 2].map((i) => (
-            <G key={i}>
-              <Rect x={64} y={64 + i * 7} width={24} height={6} rx={3} fill={PAL.wood} />
-              <Circle cx={88} cy={67 + i * 7} r={3} fill="#e8c597" />
-            </G>
-          ))}
-        </Box>
-      );
-    case "sawmill":
-      return (
-        <Box size={size}>
-          <House x={14} y={46} w={44} h={32} roof="#8a5a32" wall="#c9955e" />
-          <Circle cx={72} cy={56} r={16} fill="#d4dbe0" />
-          <Circle cx={72} cy={56} r={16} fill="none" stroke="#8a969e" strokeWidth={3} strokeDasharray="4 3" />
-          <Circle cx={72} cy={56} r={4} fill="#59636a" />
-        </Box>
-      );
-    case "windmill":
-      return (
-        <Box size={size}>
-          <Polygon points={pts([38, 90, 44, 40, 50, 40, 50, 90])} fill="#efe3c8" />
-          <Polygon points={pts([50, 40, 56, 40, 62, 90, 50, 90])} fill={shade("#efe3c8", -0.18)} />
-          <G>
-            <Polygon points={pts([50, 38, 46, 8, 54, 8])} fill="#f7f3ea" />
-            <Polygon points={pts([50, 38, 80, 34, 80, 42])} fill="#e3ddd0" />
-            <Polygon points={pts([50, 38, 54, 68, 46, 68])} fill="#f7f3ea" />
-            <Polygon points={pts([50, 38, 20, 42, 20, 34])} fill="#e3ddd0" />
-          </G>
-          <Circle cx={50} cy={38} r={4} fill={PAL.wood} />
-        </Box>
-      );
-    case "forge":
-      return (
-        <Box size={size}>
-          <Rect x={64} y={22} width={10} height={30} fill={shade(PAL.stone, -0.3)} />
-          <House x={20} y={48} w={52} h={34} roof="#5b5b66" wall={PAL.stone} />
-          <Polygon points={pts([36, 82, 46, 64, 56, 82])} fill="#ff8c2e" />
-          <Polygon points={pts([42, 82, 46, 72, 50, 82])} fill="#ffe08a" />
-          <Circle cx={72} cy={16} r={5} fill="#cfcfcf" opacity={0.7} />
-        </Box>
-      );
-    case "port":
-      return (
-        <Box size={size}>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <Rect key={i} x={20 + i * 12} y={40} width={10} height={30} fill={i % 2 ? PAL.wood : shade(PAL.wood, 0.12)} />
-          ))}
-          <Rect x={18} y={68} width={6} height={18} fill={shade(PAL.wood, -0.35)} />
-          <Rect x={76} y={68} width={6} height={18} fill={shade(PAL.wood, -0.35)} />
-          <Polyline d="M 80 40 L 80 22" color={shade(PAL.wood, -0.35)} w={4} />
-        </Box>
-      );
-    case "market":
-      return (
-        <Box size={size}>
-          <Rect x={20} y={52} width={60} height={30} fill="#efe3c8" />
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <Polygon key={i} points={pts([16 + i * 11.3, 52, 22 + i * 11.3, 32, 27 + i * 11.3, 52])} fill={i % 2 ? "#e9536a" : "#fff3e0"} />
-          ))}
-          <Circle cx={36} cy={66} r={5} fill={PAL.gold} />
-          <Circle cx={50} cy={68} r={5} fill="#7fc36b" />
-          <Circle cx={64} cy={66} r={5} fill="#e9536a" />
-        </Box>
-      );
-    case "ruin":
-      return (
-        <Box size={size}>
-          <Rect x={14} y={80} width={72} height={8} fill={shade(PAL.stone, -0.2)} />
-          <Rect x={22} y={40} width={10} height={40} fill="#e8e0cf" />
-          <Rect x={46} y={58} width={10} height={22} fill="#e8e0cf" />
-          <Polygon points={pts([66, 50, 76, 50, 76, 80, 66, 80, 66, 62])} fill={shade("#e8e0cf", -0.15)} />
-          <Polygon points={pts([18, 40, 56, 34, 56, 40, 18, 46])} fill={shade("#e8e0cf", -0.08)} />
-          <Circle cx={50} cy={50} r={4} fill={PAL.gold} />
-        </Box>
-      );
-    case "monument":
     case "altarOfPeace":
-    case "emperorsTomb":
-    case "eyeOfGod":
-    case "gateOfPower":
-    case "grandBazaar":
-    case "parkOfFortune":
+      return (
+        <Box size={size}>
+          <Ellipse cx={50} cy={86} rx={30} ry={7} fill={PAL.shadow} opacity={0.22} />
+          <Rect x={22} y={76} width={56} height={10} fill="#d6dde6" />
+          <Rect x={30} y={66} width={40} height={10} fill="#eef3f8" />
+          <Polygon points={pts([50, 14, 62, 66, 50, 66])} fill="#d4deeb" />
+          <Polygon points={pts([50, 14, 38, 66, 50, 66])} fill="#ffffff" />
+          <Polygon points={pts([50, 26, 62, 38, 50, 50, 38, 38])} fill={PAL.gold} />
+        </Box>
+      );
     case "towerOfWisdom":
       return (
         <Box size={size}>
-          <Rect x={30} y={78} width={40} height={10} fill={shade(PAL.stone, -0.1)} />
-          <Polygon points={pts([40, 78, 46, 20, 50, 20, 50, 78])} fill="#f3ede0" />
-          <Polygon points={pts([50, 20, 54, 20, 60, 78, 50, 78])} fill={shade("#f3ede0", -0.2)} />
-          <Polygon points={pts([46, 20, 50, 8, 54, 20])} fill={PAL.gold} />
+          <Ellipse cx={50} cy={88} rx={26} ry={6} fill={PAL.shadow} opacity={0.22} />
+          <Polygon points={pts([34, 86, 40, 26, 50, 26, 50, 86])} fill="#f2efe8" />
+          <Polygon points={pts([50, 26, 60, 26, 66, 86, 50, 86])} fill="#c9c4b8" />
+          <Polygon points={pts([36, 28, 50, 8, 50, 28])} fill="#3b82f6" />
+          <Polygon points={pts([50, 8, 64, 28, 50, 28])} fill="#1d4ed8" />
+          <Circle cx={50} cy={12} r={5} fill={PAL.gold} />
+        </Box>
+      );
+    case "emperorsTomb":
+      return (
+        <Box size={size}>
+          <Ellipse cx={50} cy={86} rx={36} ry={7} fill={PAL.shadow} opacity={0.24} />
+          <Polygon points={pts([14, 84, 50, 20, 50, 84])} fill="#e6c473" />
+          <Polygon points={pts([50, 20, 86, 84, 50, 84])} fill="#ba9441" />
+          <Polygon points={pts([42, 34, 50, 20, 58, 34])} fill={PAL.gold} />
+          <Rect x={44} y={66} width={12} height={18} fill="#2b2114" />
+        </Box>
+      );
+    case "gateOfPower":
+      return (
+        <Box size={size}>
+          <Ellipse cx={50} cy={86} rx={34} ry={7} fill={PAL.shadow} opacity={0.24} />
+          <Rect x={18} y={34} width={18} height={50} fill="#e0dcd2" />
+          <Rect x={64} y={34} width={18} height={50} fill="#b8b3a8" />
+          <Rect x={14} y={24} width={72} height={14} fill="#ece8de" />
+          <Polygon points={pts([50, 8, 64, 24, 36, 24])} fill={PAL.gold} />
+          <Polygon points={pts([36, 84, 36, 52, 50, 42, 64, 52, 64, 84])} fill="#2b2622" opacity={0.6} />
+        </Box>
+      );
+    case "parkOfFortune":
+      return (
+        <Box size={size}>
+          <Polygon points={pts([14, 78, 50, 62, 86, 78, 50, 92])} fill="#45bd59" />
+          <Polygon points={pts([24, 74, 50, 62, 76, 74, 50, 84])} fill="#4fd0e8" />
+          <Rect x={46} y={36} width={8} height={36} fill="#f2ede2" />
+          <Polygon points={pts([50, 14, 60, 28, 50, 42, 40, 28])} fill={PAL.gold} />
+        </Box>
+      );
+    case "grandBazaar":
+      return (
+        <Box size={size}>
+          <Ellipse cx={50} cy={86} rx={36} ry={7} fill={PAL.shadow} opacity={0.22} />
+          <Rect x={20} y={52} width={30} height={32} fill="#f5ede0" />
+          <Rect x={50} y={52} width={30} height={32} fill="#d6cbb8" />
+          <Polygon points={pts([22, 52, 50, 18, 50, 52])} fill="#2ec4d6" />
+          <Polygon points={pts([50, 18, 78, 52, 50, 52])} fill="#1a8fa0" />
+          <Polygon points={pts([50, 8, 55, 18, 45, 18])} fill={PAL.gold} />
+        </Box>
+      );
+    case "eyeOfGod":
+    case "monument":
+      return (
+        <Box size={size}>
+          <Ellipse cx={50} cy={86} rx={28} ry={7} fill={PAL.shadow} opacity={0.24} />
+          <Rect x={26} y={76} width={48} height={10} fill={shade(PAL.stone, -0.18)} />
+          <Polygon points={pts([38, 76, 44, 22, 50, 22, 50, 76])} fill="#f5f0e4" />
+          <Polygon points={pts([50, 22, 56, 22, 62, 76, 50, 76])} fill="#c9c2b2" />
+          <Polygon points={pts([44, 22, 50, 6, 56, 22])} fill={PAL.gold} />
+          <Polygon points={pts([42, 42, 50, 36, 58, 42, 50, 48])} fill="#3ec5e0" />
+          <Circle cx={50} cy={42} r={2.5} fill="#ffffff" />
         </Box>
       );
     default:
       if (id.toLowerCase().includes("temple")) {
-        const tint =
-          id === "forestTemple" ? "#7fbf7f" : id === "waterTemple" ? "#7fc7e0" : id === "mountainTemple" ? "#c9c0b4" : "#f0e2b6";
+        const tint = "#d4cfc6";
+        const accent = "#7a7670";
         return (
           <Box size={size}>
-            <Rect x={18} y={78} width={64} height={10} fill={shade(tint, -0.3)} />
-            <Rect x={24} y={68} width={52} height={10} fill={shade(tint, -0.15)} />
-            {[30, 44, 58].map((x) => (
-              <Rect key={x} x={x} y={42} width={8} height={26} fill={tint} />
+            <Ellipse cx={50} cy={86} rx={34} ry={7} fill={PAL.shadow} opacity={0.24} />
+            <Rect x={16} y={76} width={68} height={10} fill={shade(tint, -0.32)} />
+            <Rect x={22} y={66} width={56} height={10} fill={shade(tint, -0.14)} />
+            {[28, 46, 64].map((px) => (
+              <G key={px}>
+                <Rect x={px} y={42} width={5} height={24} fill={tint} />
+                <Rect x={px + 5} y={42} width={3} height={24} fill={shade(tint, -0.25)} />
+              </G>
             ))}
-            <Polygon points={pts([22, 42, 50, 22, 50, 42])} fill={shade(tint, 0.15)} />
-            <Polygon points={pts([50, 22, 78, 42, 50, 42])} fill={shade(tint, -0.2)} />
+            <Polygon points={pts([18, 44, 50, 20, 50, 44])} fill={shade(accent, 0.22)} />
+            <Polygon points={pts([50, 20, 82, 44, 50, 44])} fill={shade(accent, -0.18)} />
+            <Polygon points={pts([45, 22, 50, 10, 55, 22])} fill={PAL.gold} />
           </Box>
         );
       }
       return (
         <Box size={size}>
-          <House x={30} y={48} w={40} h={30} roof="#9a7b5a" />
+          <PolyHouse x={26} y={44} w={48} h={32} roof="#9a7b5a" />
         </Box>
       );
   }
 }
 
+/**
+ * True isometric 3D low-poly Polytopia building block (sunlit left wall, shaded
+ * right wall, pitched pyramidal tribe-coloured roof, arched door & windows).
+ * (cx, cy) is the bottom front corner of the isometric footprint.
+ */
+function IsoBuilding({
+  cx,
+  cy,
+  rx,
+  ry,
+  h,
+  roof,
+  roofH,
+  wall = "#f6f1e6",
+  goldTrim = false,
+  door = false,
+}: {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  h: number;
+  roof: string;
+  roofH: number;
+  wall?: string;
+  goldTrim?: boolean;
+  door?: boolean;
+}) {
+  // Base diamond: front (cx, cy), left (cx-rx, cy-ry), back (cx, cy-2*ry), right (cx+rx, cy-ry)
+  const topY = cy - h;
+  const peakY = topY - ry - roofH;
+  const ov = 1.14; // roof overhang
+  const rrx = rx * ov;
+  const rry = ry * ov;
+  return (
+    <G>
+      {/* soft isometric cast shadow to the right */}
+      <Polygon
+        points={pts([cx, cy, cx + rx, cy - ry, cx + rx + 5, cy - ry + 2, cx + 4, cy + 3])}
+        fill={PAL.shadow}
+        opacity={0.22}
+      />
+      {/* sunlit left wall */}
+      <Polygon
+        points={pts([cx - rx, cy - ry, cx, cy, cx, topY, cx - rx, topY - ry])}
+        fill={wall}
+      />
+      {/* shaded right wall */}
+      <Polygon
+        points={pts([cx, cy, cx + rx, cy - ry, cx + rx, topY - ry, cx, topY])}
+        fill={shade(wall, -0.19)}
+      />
+      {/* gold cornice trim on capital/tall towers */}
+      {goldTrim && (
+        <G>
+          <Polygon points={pts([cx - rx, topY - ry, cx, topY, cx, topY + 2.4, cx - rx, topY - ry + 2.4])} fill={PAL.gold} />
+          <Polygon points={pts([cx, topY, cx + rx, topY - ry, cx + rx, topY - ry + 2.4, cx, topY + 2.4])} fill={shade(PAL.gold, -0.22)} />
+        </G>
+      )}
+      {/* isometric windows */}
+      {h >= 12 && (
+        <G>
+          <Polygon
+            points={pts([
+              cx - rx * 0.62, topY - ry * 0.62 + 4,
+              cx - rx * 0.34, topY - ry * 0.34 + 4,
+              cx - rx * 0.34, topY - ry * 0.34 + 8.5,
+              cx - rx * 0.62, topY - ry * 0.62 + 8.5,
+            ])}
+            fill="#283852"
+          />
+          <Polygon
+            points={pts([
+              cx + rx * 0.34, topY - ry * 0.34 + 4,
+              cx + rx * 0.62, topY - ry * 0.62 + 4,
+              cx + rx * 0.62, topY - ry * 0.62 + 8.5,
+              cx + rx * 0.34, topY - ry * 0.34 + 8.5,
+            ])}
+            fill="#1b2638"
+          />
+        </G>
+      )}
+      {/* wooden doorway on front-left wall */}
+      {door && (
+        <Polygon
+          points={pts([
+            cx - rx * 0.56, cy - ry * 0.56,
+            cx - rx * 0.24, cy - ry * 0.24,
+            cx - rx * 0.24, cy - ry * 0.24 - 7,
+            cx - rx * 0.56, cy - ry * 0.56 - 7,
+          ])}
+          fill="#5c3d24"
+        />
+      )}
+      {/* 3D pyramidal isometric pitched roof (3 visible facets) */}
+      {/* rear-left sunlit slope */}
+      <Polygon
+        points={pts([cx - rrx, topY - rry, cx, topY - 2 * rry, cx, peakY])}
+        fill={shade(roof, 0.28)}
+      />
+      {/* front-left bright slope */}
+      <Polygon
+        points={pts([cx - rrx, topY - rry, cx, topY + 1, cx, peakY])}
+        fill={shade(roof, 0.1)}
+      />
+      {/* front-right shaded slope */}
+      <Polygon
+        points={pts([cx, topY + 1, cx + rrx, topY - rry, cx, peakY])}
+        fill={shade(roof, -0.26)}
+      />
+    </G>
+  );
+}
+
+/** Isometric 3D stone watchtower for fortified city walls */
+function IsoBastion({ cx, cy, s = 1 }: { cx: number; cy: number; s?: number }) {
+  const rx = 6.5 * s;
+  const ry = 3.6 * s;
+  const h = 13 * s;
+  const topY = cy - h;
+  return (
+    <G>
+      <Polygon points={pts([cx - rx, cy - ry, cx, cy, cx, topY, cx - rx, topY - ry])} fill="#cfd5dd" />
+      <Polygon points={pts([cx, cy, cx + rx, cy - ry, cx + rx, topY - ry, cx, topY])} fill="#9aa3b0" />
+      <Polygon points={pts([cx - rx, topY - ry, cx, topY - 2 * ry, cx + rx, topY - ry, cx, topY])} fill="#e6ebf2" />
+      {/* crenellation cap */}
+      <Polygon points={pts([cx - rx * 0.7, topY - ry * 0.7, cx, topY - 1.4 * ry, cx + rx * 0.7, topY - ry * 0.7, cx, topY])} fill="#b6bfcc" />
+    </G>
+  );
+}
+
 export function VillageArt({ size }: { size: number }) {
   return (
     <Box size={size}>
-      <House x={18} y={56} w={28} h={22} roof="#8f8a80" wall="#ddd3bf" />
-      <House x={52} y={48} w={32} h={26} roof="#8f8a80" wall="#ddd3bf" />
-      <Polyline d="M 14 88 L 88 88" color="#b9a98a" w={4} />
+      {/* humble neutral dirt clearing (smaller than a city's stone plaza) */}
+      <Polygon points={pts([24, 78, 50, 65, 76, 78, 50, 91])} fill="#c9b894" opacity={0.85} />
+      {/* 2 small low-profile neutral huts */}
+      <IsoBuilding cx={42} cy={76} rx={8.5} ry={4.6} h={8.5} roof="#8e95a0" roofH={7} wall="#ede5d4" door />
+      <IsoBuilding cx={61} cy={81} rx={7.5} ry={4.1} h={7.5} roof="#7d8590" roofH={6.5} wall="#e5dcc9" />
     </Box>
   );
 }
 
-// ---------- cities ----------
+/** Flat-roofed isometric Polytopia parapet/terrace block (used alongside pitched roofs for authentic stacked Polytopia skylines) */
+function IsoTerrace({
+  cx,
+  cy,
+  rx,
+  ry,
+  h,
+  accent,
+  wall = "#f4efe4",
+}: {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  h: number;
+  accent: string;
+  wall?: string;
+}) {
+  const topY = cy - h;
+  return (
+    <G>
+      <Polygon points={pts([cx - rx, cy - ry, cx, cy, cx, topY, cx - rx, topY - ry])} fill={wall} />
+      <Polygon points={pts([cx, cy, cx + rx, cy - ry, cx + rx, topY - ry, cx, topY])} fill={shade(wall, -0.2)} />
+      {/* flat roof terrace */}
+      <Polygon points={pts([cx - rx, topY - ry, cx, topY - 2 * ry, cx + rx, topY - ry, cx, topY])} fill={shade(wall, 0.08)} />
+      {/* tribe-coloured cornice band */}
+      <Polygon points={pts([cx - rx, topY - ry + 1, cx, topY + 1, cx, topY + 3.6, cx - rx, topY - ry + 3.6])} fill={accent} />
+      <Polygon points={pts([cx, topY + 1, cx + rx, topY - ry + 1, cx + rx, topY - ry + 3.6, cx, topY + 3.6])} fill={shade(accent, -0.25)} />
+      {/* arched doorway/window */}
+      <Polygon
+        points={pts([
+          cx - rx * 0.52, cy - ry * 0.52,
+          cx - rx * 0.22, cy - ry * 0.22,
+          cx - rx * 0.22, cy - ry * 0.22 - 5.5,
+          cx - rx * 0.52, cy - ry * 0.52 - 5.5,
+        ])}
+        fill="#283852"
+      />
+    </G>
+  );
+}
+
+/** Tiny Polytopia courtyard cypress tree */
+function MiniTree({ cx, cy }: { cx: number; cy: number }) {
+  return (
+    <G>
+      <Rect x={cx - 1.2} y={cy - 3} width={2.4} height={4} fill="#6b4423" />
+      <Polygon points={pts([cx - 4.5, cy - 2, cx, cy - 13, cx, cy - 2])} fill="#38b04a" />
+      <Polygon points={pts([cx, cy - 13, cx + 4.5, cy - 2, cx, cy - 2])} fill="#217834" />
+    </G>
+  );
+}
+
+// ---------- cities (iconic stacked isometric Polytopia skyline) ----------
 export function CityArt({
   color,
   level,
@@ -409,274 +612,171 @@ export function CityArt({
   walls: boolean;
   size: number;
 }) {
-  const houses = [
-    { x: 34, y: 46, w: 32, h: 26 },
-    { x: 12, y: 60, w: 24, h: 20 },
-    { x: 64, y: 60, w: 24, h: 20 },
-    { x: 38, y: 76, w: 24, h: 14 },
-  ].slice(0, Math.min(4, Math.max(1, Math.ceil(level / 1.5))));
   return (
     <Box size={size}>
+      {/* isometric 3D marble city plaza slab */}
+      <Polygon points={pts([6, 74, 50, 52, 94, 74, 50, 96])} fill="#d6d0c2" />
+      <Polygon points={pts([12, 74, 50, 55, 88, 74, 50, 93])} fill="#ece7db" />
+      <Polygon points={pts([6, 74, 50, 96, 50, 100, 6, 78])} fill="#aba496" />
+      <Polygon points={pts([50, 96, 94, 74, 94, 78, 50, 100])} fill="#857f73" />
+
+      {/* rear isometric fortress walls when fortified */}
       {walls && (
         <G>
-          <Rect x={4} y={84} width={92} height={10} fill={shade(PAL.stone, -0.25)} />
-          {[4, 24, 44, 64, 84].map((x) => (
-            <Rect key={x} x={x} y={78} width={12} height={8} fill={shade(PAL.stone, -0.1)} />
-          ))}
+          <Polygon points={pts([10, 72, 50, 52, 50, 41, 10, 61])} fill="#aeb6c2" />
+          <Polygon points={pts([50, 52, 90, 72, 90, 61, 50, 41])} fill="#8f98a6" />
+          <IsoBastion cx={50} cy={53} s={0.95} />
         </G>
       )}
-      {houses.map((h, i) => (
-        <House key={i} {...h} roof={color} />
-      ))}
+
+      {/* back-row stacked towers (levels 3+) */}
+      {level >= 3 && (
+        <IsoBuilding cx={35} cy={65} rx={10.5} ry={5.8} h={level >= 5 ? 27 : 20} roof={color} roofH={11} wall="#f4efe4" />
+      )}
+      {level >= 4 && (
+        <IsoBuilding cx={65} cy={65} rx={10.5} ry={5.8} h={level >= 5 ? 25 : 19} roof={color} roofH={11} wall="#f4efe4" />
+      )}
+
+      {/* central Polytopia tiered citadel tower */}
+      <IsoBuilding
+        cx={50}
+        cy={73}
+        rx={capital ? 14.5 : 13.5}
+        ry={capital ? 7.8 : 7.3}
+        h={capital ? Math.min(35, 22 + level * 2.6) : Math.min(28, 17 + level * 2.4)}
+        roof={color}
+        roofH={capital ? 16 : 12}
+        wall="#faf6ee"
+        goldTrim={capital}
+        door
+      />
+
+      {/* fluttering capital banner atop the spire */}
       {capital && (
         <G>
-          <Line x1={50} y1={26} x2={50} y2={4} stroke="#4a3a2a" strokeWidth={2.5} />
-          <Polygon points={pts([51, 4, 68, 9, 51, 14])} fill={color} />
-          <Polygon points={pts([51, 9, 68, 9, 51, 14])} fill={shade(color, -0.25)} />
+          <Line x1={50} y1={73 - Math.min(35, 22 + level * 2.6) - 23} x2={50} y2={6} stroke="#4a3828" strokeWidth={2.4} />
+          <Polygon points={pts([51, 6, 71, 11, 51, 16])} fill={color} />
+          <Polygon points={pts([51, 11, 71, 11, 51, 16])} fill={shade(color, -0.24)} />
+          <Circle cx={50} cy={6} r={2.3} fill={PAL.gold} />
+        </G>
+      )}
+
+      {/* left stacked terrace building (present from Lv 1!) */}
+      <IsoTerrace cx={28} cy={79} rx={10.5} ry={5.8} h={level >= 2 ? 16 : 12} accent={color} wall="#f2ece0" />
+
+      {/* right pitched-roof building (levels 2+) or courtyard tree at Lv 1 */}
+      {level >= 2 ? (
+        <IsoBuilding cx={72} cy={79} rx={10.5} ry={5.8} h={level >= 3 ? 16 : 13} roof={color} roofH={9.5} wall="#f2ece0" />
+      ) : (
+        <MiniTree cx={71} cy={76} />
+      )}
+
+      {/* front-courtyard terraced block (levels 4+) or tiny cypress at Lv 2-3 */}
+      {level >= 4 ? (
+        <IsoTerrace cx={50} cy={87} rx={11.5} ry={6.2} h={13} accent={color} wall="#f6f1e6" />
+      ) : (
+        <MiniTree cx={49} cy={86} />
+      )}
+
+      {/* front isometric crenelated fortress walls + bastions + gatehouse */}
+      {walls && (
+        <G>
+          <IsoBastion cx={12} cy={74} s={1} />
+          <IsoBastion cx={88} cy={74} s={1} />
+          <Polygon points={pts([12, 74, 50, 93, 50, 81, 12, 62])} fill="#cfd5dd" />
+          <Polygon points={pts([12, 62, 50, 81, 50, 78, 12, 59])} fill="#e6ebf2" />
+          <Polygon points={pts([50, 93, 88, 74, 88, 62, 50, 81])} fill="#9aa3b0" />
+          <Polygon points={pts([50, 81, 88, 62, 88, 59, 50, 78])} fill="#b8c0cc" />
+          {/* square merlons along front-left and front-right walls */}
+          {[0.25, 0.5, 0.75].map((t) => (
+            <G key={t}>
+              <Rect x={12 + 38 * t - 2.5} y={60 + 19 * t - 3} width={5} height={4} fill="#e6ebf2" />
+              <Rect x={50 + 38 * t - 2.5} y={79 - 19 * t - 3} width={5} height={4} fill="#b8c0cc" />
+            </G>
+          ))}
+          {/* arched gatehouse */}
+          <Polygon points={pts([26, 81, 36, 86, 36, 77, 26, 72])} fill="#453324" />
+          <IsoBastion cx={50} cy={95} s={1.05} />
         </G>
       )}
     </Box>
   );
 }
 
-// ---------- units ----------
-function Figure({ color, head = PAL.skin, hood = false, big = false }: { color: string; head?: string; hood?: boolean; big?: boolean }) {
-  const s = big ? 1.25 : 1;
-  const cx = 50;
-  return (
-    <G>
-      <Polygon points={pts([cx - 16 * s, 88, cx - 10 * s, 52, cx, 50, cx, 88])} fill={shade(color, 0.12)} />
-      <Polygon points={pts([cx, 50, cx + 10 * s, 52, cx + 16 * s, 88, cx, 88])} fill={shade(color, -0.2)} />
-      <Circle cx={cx} cy={50 - 13 * s} r={11 * s} fill={head} />
-      {hood ? (
-        <Polygon points={pts([cx - 13 * s, 44 - 10 * s, cx, 50 - 30 * s, cx + 13 * s, 44 - 10 * s, cx + 9 * s, 50 - 5 * s, cx - 9 * s, 50 - 5 * s])} fill={shade(color, -0.45)} opacity={0.9} />
-      ) : (
-        <Polygon points={pts([cx - 11 * s, 50 - 15 * s, cx, 50 - 27 * s, cx + 11 * s, 50 - 15 * s])} fill={shade(color, -0.1)} />
-      )}
-      <Circle cx={cx - 4 * s} cy={50 - 12 * s} r={1.6} fill="#2b2b2b" />
-      <Circle cx={cx + 4 * s} cy={50 - 12 * s} r={1.6} fill="#2b2b2b" />
-    </G>
-  );
+// ---------- units (3D Polytopia PNG sprites) ----------
+export function UnitArt({ type, size }: { type: string; color: string; size: number }) {
+  const sprite = UNIT_SPRITES[type] ?? UNIT_SPRITES.warrior;
+  return <Sprite source={sprite} size={size} pad={size * 0.02} />;
 }
 
-function Horse({ color }: { color: string }) {
-  const c = "#8a5a3a";
-  return (
-    <G>
-      <Rect x={26} y={78} width={5} height={14} fill={shade(c, -0.3)} />
-      <Rect x={66} y={78} width={5} height={14} fill={shade(c, -0.3)} />
-      <Polygon points={pts([20, 66, 76, 64, 78, 82, 22, 82])} fill={c} />
-      <Polygon points={pts([20, 66, 76, 64, 50, 72])} fill={shade(c, 0.15)} />
-      <Polygon points={pts([74, 66, 90, 48, 96, 54, 82, 72])} fill={shade(c, 0.05)} />
-      <Rect x={36} y={62} width={26} height={6} fill={color} />
-    </G>
-  );
-}
-
-function Hull({ color, length = 1, ram = false, cannon = false, sail = true }: { color: string; length?: number; ram?: boolean; cannon?: boolean; sail?: boolean }) {
-  const l = 36 * length;
-  return (
-    <G>
-      <Polygon points={pts([50 - l, 70, 50 + l, 70, 50 + l - 10, 88, 50 - l + 10, 88])} fill={PAL.wood} />
-      <Polygon points={pts([50 - l, 70, 50 + l, 70, 50, 76])} fill={shade(PAL.wood, 0.2)} />
-      {ram && <Polygon points={pts([50 + l, 72, 50 + l + 10, 80, 50 + l - 6, 86])} fill="#8a969e" />}
-      {cannon && <Rect x={54} y={58} width={26} height={8} rx={3} fill="#3c3c44" />}
-      {sail && (
-        <G>
-          <Line x1={44} y1={70} x2={44} y2={18} stroke="#5a3e26" strokeWidth={3} />
-          <Polygon points={pts([46, 20, 74, 58, 46, 58])} fill={color} />
-          <Polygon points={pts([46, 20, 60, 39, 46, 58])} fill={shade(color, 0.2)} />
-        </G>
-      )}
-    </G>
-  );
-}
-
-export function UnitArt({ type, color, size }: { type: string; color: string; size: number }) {
-  const metal = "#d9e0e6";
-  switch (type) {
-    case "rider":
-      return (
-        <Box size={size}>
-          <Horse color={color} />
-          <G transform="translate(0,-22) scale(1)">
-            <Figure color={color} />
-          </G>
-        </Box>
-      );
-    case "knight":
-      return (
-        <Box size={size}>
-          <Horse color={color} />
-          <G transform="translate(0,-22)">
-            <Figure color={color} head={metal} />
-          </G>
-          <Line x1={30} y1={60} x2={96} y2={18} stroke="#6b4a2e" strokeWidth={3} />
-        </Box>
-      );
-    case "archer":
-      return (
-        <Box size={size}>
-          <Figure color={color} />
-          <Path d="M 72 30 Q 88 56 72 82" stroke="#6b4a2e" strokeWidth={3.5} fill="none" />
-          <Line x1={72} y1={30} x2={72} y2={82} stroke="#eee" strokeWidth={1.2} />
-        </Box>
-      );
-    case "defender":
-      return (
-        <Box size={size}>
-          <Figure color={color} />
-          <Polygon points={pts([54, 50, 82, 50, 82, 72, 68, 86, 54, 72])} fill={metal} />
-          <Polygon points={pts([68, 50, 82, 50, 82, 72, 68, 86])} fill={shade(metal, -0.2)} />
-          <Circle cx={68} cy={64} r={5} fill={color} />
-        </Box>
-      );
-    case "swordsman":
-      return (
-        <Box size={size}>
-          <Figure color={color} head={metal} />
-          <Polygon points={pts([74, 14, 79, 14, 79, 70, 74, 70])} fill={metal} />
-          <Rect x={68} y={68} width={17} height={4} fill="#6b4a2e" />
-        </Box>
-      );
-    case "catapult":
-      return (
-        <Box size={size}>
-          <Rect x={18} y={66} width={64} height={10} fill={PAL.wood} />
-          <Circle cx={28} cy={82} r={8} fill={shade(PAL.wood, -0.35)} />
-          <Circle cx={72} cy={82} r={8} fill={shade(PAL.wood, -0.35)} />
-          <Line x1={36} y1={66} x2={74} y2={22} stroke={shade(PAL.wood, -0.15)} strokeWidth={5} />
-          <Circle cx={76} cy={20} r={7} fill={shade(PAL.stone, -0.2)} />
-          <Rect x={46} y={52} width={6} height={14} fill={color} />
-        </Box>
-      );
-    case "giant":
-      return (
-        <Box size={size}>
-          <G transform="translate(-12,-6) scale(1.24)">
-            <Figure color={color} head="#c9b8a6" />
-          </G>
-          <Polygon points={pts([80, 30, 90, 26, 94, 70, 84, 72])} fill="#7a5a3a" />
-        </Box>
-      );
-    case "mindBender":
-      return (
-        <Box size={size}>
-          <Figure color={color} hood />
-          <Line x1={76} y1={30} x2={76} y2={88} stroke="#6b4a2e" strokeWidth={3} />
-          <Circle cx={76} cy={26} r={7} fill="#b18cff" />
-          <Circle cx={74} cy={24} r={2.5} fill="#e8dcff" />
-        </Box>
-      );
-    case "cloak":
-      return (
-        <Box size={size}>
-          <Figure color={shade(color, -0.45)} hood head="#3a3a44" />
-        </Box>
-      );
-    case "dagger":
-      return (
-        <Box size={size}>
-          <Figure color={shade(color, -0.3)} hood />
-          <Polygon points={pts([72, 46, 76, 46, 74, 30])} fill={metal} />
-          <Rect x={70} y={46} width={8} height={4} fill="#6b4a2e" />
-        </Box>
-      );
-    case "raft":
-    case "boat":
-    case "dinghy":
-      return (
-        <Box size={size}>
-          <Hull color={color} length={0.8} sail={type !== "dinghy"} />
-        </Box>
-      );
-    case "scout":
-    case "ship":
-      return (
-        <Box size={size}>
-          <Hull color={color} length={1} />
-        </Box>
-      );
-    case "rammer":
-    case "pirate":
-      return (
-        <Box size={size}>
-          <Hull color={color} length={0.95} ram />
-        </Box>
-      );
-    case "bomber":
-    case "battleship":
-      return (
-        <Box size={size}>
-          <Hull color={color} length={1} cannon sail={false} />
-        </Box>
-      );
-    case "juggernaut":
-      return (
-        <Box size={size}>
-          <Hull color={color} length={1.2} cannon ram />
-        </Box>
-      );
-    default:
-      // warrior and any unknown unit: a fighter with a short club-sword
-      return (
-        <Box size={size}>
-          <Figure color={color} />
-          <Polygon points={pts([72, 34, 77, 34, 77, 72, 72, 72])} fill={shade(PAL.wood, 0.1)} />
-          <Rect x={67} y={70} width={15} height={4} fill="#5a3e26" />
-        </Box>
-      );
+/** Battle of Polytopia 3D faceted golden Star currency icon */
+export function ShardIcon({ size, color }: { size: number; color?: string }) {
+  if (!color || color === "#f6c453" || color === "#ffd23f") {
+    return (
+      <Image
+        source={STAR_SPRITE}
+        resizeMode="contain"
+        style={{ width: size, height: size }}
+      />
+    );
   }
-}
-
-/** The shard: Shardlands' currency and emblem. A cut gem in four facets. */
-export function ShardIcon({ size, color = "#f6c453" }: { size: number; color?: string }) {
+  const cx = 50;
+  const cy = 52;
+  const rOut = 44;
+  const rIn = 20;
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
-      <Polygon points={pts([50, 4, 86, 40, 50, 96, 14, 40])} fill={color} />
-      <Polygon points={pts([50, 4, 50, 40, 14, 40])} fill={shade(color, 0.45)} />
-      <Polygon points={pts([50, 4, 86, 40, 50, 40])} fill={shade(color, 0.15)} />
-      <Polygon points={pts([14, 40, 50, 40, 50, 96])} fill={shade(color, -0.12)} />
-      <Polygon points={pts([50, 40, 86, 40, 50, 96])} fill={shade(color, -0.32)} />
+      {Array.from({ length: 5 }, (_, i) => {
+        const aTip = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+        const aL = aTip - Math.PI / 5;
+        const aR = aTip + Math.PI / 5;
+        const tx = cx + rOut * Math.cos(aTip);
+        const ty = cy + rOut * Math.sin(aTip);
+        const lx = cx + rIn * Math.cos(aL);
+        const ly = cy + rIn * Math.sin(aL);
+        const rx = cx + rIn * Math.cos(aR);
+        const ry = cy + rIn * Math.sin(aR);
+        return (
+          <G key={i}>
+            <Polygon points={pts([cx, cy, lx, ly, tx, ty])} fill={shade(color, 0.34)} />
+            <Polygon points={pts([cx, cy, tx, ty, rx, ry])} fill={shade(color, -0.18)} />
+          </G>
+        );
+      })}
     </Svg>
   );
 }
 
-// ---------- clouds over undiscovered land ----------
-export const CLOUD = { base: "#e6e1ef", lit: "#ffffff", blush: "#f4d6dd", shade: "#c8c2dc" };
+// ---------- crisp Polytopia white low-poly clouds over undiscovered land ----------
+export const CLOUD = { base: "#ebf3fc", lit: "#ffffff", blush: "#dcebf9", shade: "#b8cee6" };
 
-/** a low-poly puff: a soft shadow below, a light body, and one lit facet catching the sun */
 function Puff({ cx, cy, r, seed }: { cx: number; cy: number; r: number; seed: number }) {
-  const k = 9;
+  const k = 7;
   const ring = (rx: number, ry: number, dx = 0, dy = 0) =>
     Array.from({ length: k }, (_, i) => {
       const a = (i / k) * Math.PI * 2 + seed;
       return [cx + dx + Math.cos(a) * rx, cy + dy + Math.sin(a) * ry];
     });
   const body = ring(r, r * 0.78);
-  const shadow = ring(r * 0.98, r * 0.7, 0, r * 0.18);
-  // highlight: the upper-left part of the body
-  const lit = ring(r * 0.62, r * 0.42, -r * 0.18, -r * 0.2);
+  const shadow = ring(r * 0.98, r * 0.72, 2, r * 0.2);
+  const lit = ring(r * 0.64, r * 0.46, -r * 0.16, -r * 0.22);
   return (
     <G>
       <Polygon points={pts(shadow.flat())} fill={CLOUD.shade} />
       <Polygon points={pts(body.flat())} fill={CLOUD.base} />
-      <Polygon points={pts(lit.flat())} fill={seed > 4 ? CLOUD.blush : CLOUD.lit} />
+      <Polygon points={pts(lit.flat())} fill={seed > 4.2 ? CLOUD.blush : CLOUD.lit} />
     </G>
   );
 }
 
 export function CloudArt({ x, y, size }: { x: number; y: number; size: number }) {
-  // two or three big puffs per tile; the cloud colour itself is the board's background,
-  // so neighbouring tiles merge into one continuous cloud bank without seams
   const n = 2 + Math.floor(hash(x, y, 40) * 2);
   const puffs = Array.from({ length: n }, (_, i) => ({
     cx: 18 + hash(x, y, 41 + i) * 64,
     cy: 20 + hash(x, y, 51 + i) * 60,
-    r: 30 + hash(x, y, 61 + i) * 12,
+    r: 31 + hash(x, y, 61 + i) * 12,
     seed: hash(x, y, 71 + i) * 6.28,
   })).sort((a, b) => a.cy - b.cy);
-  // drawn 36% larger than the tile so puffs spill over the coast of the known world
   const big = size * 1.36;
   return (
     <Svg

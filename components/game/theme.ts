@@ -1,17 +1,18 @@
 /**
- * Shardlands art: a flat, top-down tile look with a muted "parchment map"
- * palette and glyph icons. Purely cosmetic; the engine never reads this file.
+ * Battle of Polytopia-inspired colour palette and UI tokens.
+ * Sunlit emerald terrain, turquoise shallows, cobalt oceans, star-gold accents,
+ * and vibrant high-contrast clan banners. Purely cosmetic; the engine never reads this file.
  */
 import type { Terrain } from "@/logic/engine/types";
 
 export const TILE = 46;
 
 export const TERRAIN_COLOR: Record<Terrain, string> = {
-  field: "#cdd88a",
-  forest: "#7fa25a",
-  mountain: "#b3a48f",
-  water: "#79c3cf",
-  ocean: "#3c78a8",
+  field: "#8bd44b",
+  forest: "#6bb53d",
+  mountain: "#8c929c",
+  water: "#3ec5e0",
+  ocean: "#1a5ba0",
 };
 
 export const TERRAIN_GLYPH: Partial<Record<Terrain, string>> = {
@@ -19,23 +20,23 @@ export const TERRAIN_GLYPH: Partial<Record<Terrain, string>> = {
   mountain: "⛰️",
 };
 
-export const FOG = "#16213a47"; // a light mist: the landscape shows through unexplored land
+export const FOG = "#ebf3fc66"; // crisp Polytopia cloud mist
 
 /**
- * UI tokens, taken from the menu landscape: dusk sky, sunset clouds, shard gold.
- * Gold is reserved for shards (currency) and the one primary action on screen.
+ * UI tokens harmonized with the Polytopia low-poly diorama aesthetic:
+ * deep twilight sky, crisp cobalt panels, bright white-ice text, and star gold.
  */
 export const UI = {
-  dusk: "#16213a", // app background: the sea of fog the map floats in
-  panel: "#223154",
-  panelHi: "#2c3d66",
-  line: "#34477a",
-  mist: "#e8eef8", // primary text
-  muted: "#9db0cf", // secondary text
-  gold: "#f6c453", // shards + primary action
-  goldInk: "#3a2a05", // text on gold
-  sky: "#5ec4d6", // move targets, secondary actions
-  coral: "#f2785c", // attack targets, danger
+  dusk: "#12213d", // app background: deep Polytopia twilight sky
+  panel: "#1c3158",
+  panelHi: "#264173",
+  line: "#365894",
+  mist: "#f2f7ff", // primary text
+  muted: "#9bb6db", // secondary text
+  gold: "#ffd23f", // Polytopia stars + primary action
+  goldInk: "#362503", // text on gold
+  sky: "#3ec5e0", // move targets, secondary actions
+  coral: "#f25f5c", // attack targets, danger
   display: "Oi-Regular", // display face: logo, headings, results only
 };
 
@@ -87,22 +88,22 @@ export const UNIT_GLYPH: Record<string, string> = {
   battleship: "🚢",
 };
 
-/** Clan banner colours (index = player id). */
+/** Vibrant Polytopia-style clan banner colours (index = player id). */
 export const PLAYER_COLORS = [
-  "#e4572e",
-  "#2e86ab",
-  "#8e5bd1",
-  "#2f9e44",
-  "#e9b44c",
-  "#d6336c",
-  "#1b998b",
-  "#6c757d",
-  "#f76707",
-  "#3b5bdb",
-  "#c2255c",
-  "#5c940d",
-  "#862e9c",
-  "#0b7285",
-  "#a61e4d",
-  "#495057",
+  "#e63946",
+  "#2589f5",
+  "#9b5de5",
+  "#2db84d",
+  "#f4a226",
+  "#ec4899",
+  "#14b8a6",
+  "#64748b",
+  "#f97316",
+  "#4361ee",
+  "#d90429",
+  "#65a30d",
+  "#7c3aed",
+  "#0891b2",
+  "#be185d",
+  "#475569",
 ];

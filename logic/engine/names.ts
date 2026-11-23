@@ -1,7 +1,7 @@
 /**
- * Shardlands display names. The engine uses plain descriptive ids
- * ("warrior", "climbing"); players see the names below. Purely cosmetic:
- * changing a name here never changes a rule.
+ * Battle of Polytopia display names. The engine uses plain descriptive ids
+ * ("warrior", "climbing"); players see the standard Polytopia names below.
+ * Purely cosmetic: changing a name here never changes a rule.
  */
 import type { Action, GameState } from "./types";
 import { BUILDS } from "./data";
@@ -11,129 +11,129 @@ type Kind = "tech" | "unit" | "building" | "terrain" | "resource" | "clan" | "re
 const NAMES: Record<Kind, Record<string, string>> = {
   tech: {
     // riding branch
-    riding: "Beastcalling",
-    roads: "Wayfinding",
-    freeSpirit: "Wanderlust",
-    trade: "Barter",
-    chivalry: "Lancecraft",
+    riding: "Riding",
+    roads: "Roads",
+    freeSpirit: "Free Spirit",
+    trade: "Trade",
+    chivalry: "Chivalry",
     // organization branch
-    organization: "Foraging",
-    farming: "Tilling",
-    strategy: "Bulwarks",
-    construction: "Masonry",
-    diplomacy: "Envoys",
+    organization: "Organization",
+    farming: "Farming",
+    strategy: "Strategy",
+    construction: "Construction",
+    diplomacy: "Diplomacy",
     // climbing branch
-    climbing: "Cragwalking",
-    mining: "Delving",
-    meditation: "Stillness",
-    smithery: "Forgecraft",
-    philosophy: "Insight",
+    climbing: "Climbing",
+    mining: "Mining",
+    meditation: "Meditation",
+    smithery: "Smithery",
+    philosophy: "Philosophy",
     // hunting branch
-    hunting: "Tracking",
-    archery: "Fletching",
-    forestry: "Woodlore",
-    spiritualism: "Rootsong",
-    mathematics: "Siegecraft",
+    hunting: "Hunting",
+    archery: "Archery",
+    forestry: "Forestry",
+    spiritualism: "Spiritualism",
+    mathematics: "Mathematics",
     // fishing branch
-    fishing: "Netweaving",
-    sailing: "Windsails",
-    ramming: "Prowcraft",
-    navigation: "Starcharts",
-    aquatism: "Tidebond",
+    fishing: "Fishing",
+    sailing: "Sailing",
+    ramming: "Ramming",
+    navigation: "Navigation",
+    aquatism: "Aquatism",
   },
   unit: {
-    warrior: "Brawler",
-    rider: "Outrider",
-    archer: "Slinger",
-    defender: "Shieldbearer",
-    swordsman: "Blademaster",
-    catapult: "Trebuchet",
-    knight: "Lancer",
-    giant: "Colossus",
-    mindBender: "Whisperer",
-    explorer: "Pathfinder",
-    cloak: "Shade",
-    dagger: "Cutthroat",
-    raft: "Skiff",
-    scout: "Sloop",
-    rammer: "Ironprow",
-    bomber: "Mortar Barge",
-    juggernaut: "Leviathan",
-    dinghy: "Shade Skiff",
-    pirate: "Corsair",
+    warrior: "Warrior",
+    rider: "Rider",
+    archer: "Archer",
+    defender: "Defender",
+    swordsman: "Swordsman",
+    catapult: "Catapult",
+    knight: "Knight",
+    giant: "Giant",
+    mindBender: "Mind Bender",
+    explorer: "Explorer",
+    cloak: "Cloak",
+    dagger: "Dagger",
+    raft: "Raft",
+    scout: "Scout",
+    rammer: "Rammer",
+    bomber: "Bomber",
+    juggernaut: "Juggernaut",
+    dinghy: "Dinghy",
+    pirate: "Pirate",
   },
   building: {
-    farm: "Field Plot",
-    mine: "Delve",
-    lumberHut: "Woodcutter",
-    sawmill: "Timberyard",
-    windmill: "Grainmill",
-    forge: "Smeltery",
-    port: "Harbor",
-    market: "Bazaar",
-    temple: "Shrine",
-    forestTemple: "Grove Shrine",
-    waterTemple: "Tide Shrine",
-    mountainTemple: "Peak Shrine",
-    customsHouse: "Tollhouse",
-    embassy: "Envoy Lodge",
-    monument: "Wonder",
+    farm: "Farm",
+    mine: "Mine",
+    lumberHut: "Lumber Hut",
+    sawmill: "Sawmill",
+    windmill: "Windmill",
+    forge: "Forge",
+    port: "Port",
+    market: "Market",
+    temple: "Temple",
+    forestTemple: "Forest Temple",
+    waterTemple: "Water Temple",
+    mountainTemple: "Mountain Temple",
+    customsHouse: "Customs House",
+    embassy: "Embassy",
+    monument: "Monument",
     road: "Road",
     bridge: "Bridge",
-    park: "Garden",
-    destroy: "Demolish",
-    harvestFruit: "Gather berries",
-    hunt: "Hunt deer",
-    fish: "Catch fish",
-    clearForest: "Clear woods (+1 ◆)",
-    burnForest: "Burn woods",
-    growForest: "Grow woods",
-    altarOfPeace: "Stone of Calm",
-    towerOfWisdom: "Lore Spire",
-    emperorsTomb: "Gilded Vault",
-    gateOfPower: "Warden Arch",
-    parkOfFortune: "Garden of Plenty",
-    grandBazaar: "Crossroads Fair",
-    eyeOfGod: "Beacon Crown",
+    park: "Park",
+    destroy: "Destroy",
+    harvestFruit: "Harvest Fruit",
+    hunt: "Hunt Animal",
+    fish: "Fishing",
+    clearForest: "Clear Forest (+1 ★)",
+    burnForest: "Burn Forest",
+    growForest: "Grow Forest",
+    altarOfPeace: "Altar of Peace",
+    towerOfWisdom: "Tower of Wisdom",
+    emperorsTomb: "Emperor's Tomb",
+    gateOfPower: "Gate of Power",
+    parkOfFortune: "Park of Fortune",
+    grandBazaar: "Grand Bazaar",
+    eyeOfGod: "Eye of God",
   },
   terrain: {
-    field: "Meadow",
-    forest: "Woods",
-    mountain: "Crag",
-    water: "Shallows",
-    ocean: "Deep sea",
+    field: "Field",
+    forest: "Forest",
+    mountain: "Mountain",
+    water: "Water",
+    ocean: "Ocean",
   },
   resource: {
-    fruit: "Berries",
-    crop: "Wild grain",
-    animal: "Deer",
+    fruit: "Fruit",
+    crop: "Crop",
+    animal: "Animal",
     fish: "Fish",
-    metal: "Ore",
-    starfish: "Sea shard",
+    metal: "Metal",
+    starfish: "Starfish",
   },
   clan: {
-    inca: "Inca",
-    romans: "Romans",
-    norse: "Norse",
-    mongols: "Mongols",
-    polynesians: "Polynesians",
-    welsh: "Welsh",
-    lydians: "Lydians",
-    hittites: "Hittites",
-    sumerians: "Sumerians",
-    tibetans: "Tibetans",
-    spartans: "Spartans",
-    persians: "Persians",
+    inca: "Xin-xi",
+    romans: "Imperius",
+    norse: "Bardur",
+    mongols: "Oumaji",
+    polynesians: "Kickoo",
+    welsh: "Hoodrick",
+    lydians: "Luxidoor",
+    hittites: "Vengir",
+    sumerians: "Zebasi",
+    tibetans: "Ai-Mo",
+    spartans: "Quetzali",
+    persians: "Yădakk",
   },
   reward: {
-    workshop: "Workshop (+1 ◆ per turn)",
-    explorer: "Pathfinder (scouts the map)",
-    cityWall: "City wall",
-    resources: "Stockpile (+5 ◆)",
-    populationGrowth: "Growth (+3 pop)",
-    borderGrowth: "Wider borders",
-    park: "Garden (+score)",
-    superUnit: "Colossus",
+    workshop: "Workshop (+1 ★/turn)",
+    explorer: "Explorer (reveals map)",
+    cityWall: "City Wall",
+    resources: "Resources (+5 ★)",
+    populationGrowth: "Population Growth (+3 pop)",
+    borderGrowth: "Border Growth",
+    park: "Park (+250 pts)",
+    superUnit: "Super Unit (Giant)",
   },
   ability: {},
 };
@@ -155,29 +155,29 @@ export const CLAN_IDS = Object.keys(NAMES.clan);
 export function actionLabel(_s: GameState, a: Action): string {
   switch (a.type) {
     case "endTurn":
-      return "End turn";
+      return "End Turn";
     case "research":
-      return `Learn ${name("tech", a.tech)}`;
+      return `Research ${name("tech", a.tech)}`;
     case "move":
       return `Move to ${a.to.x},${a.to.y}`;
     case "attack":
       return "Attack";
     case "capture":
-      return "Claim";
+      return "Capture";
     case "recover":
-      return "Rest";
+      return "Recover";
     case "examine":
-      return "Search ruin";
+      return "Examine";
     case "disband":
       return "Disband";
     case "upgrade":
-      return `Refit: ${name("unit", a.to)}`;
+      return `Upgrade: ${name("unit", a.to)}`;
     case "promote":
-      return "Promote (veteran)";
+      return "Promote";
     case "healOthers":
-      return "Mend allies";
+      return "Heal";
     case "harvestStarfish":
-      return "Gather sea shard (+8 ◆)";
+      return "Harvest Starfish (+8 ★)";
     case "infiltrate":
       return "Infiltrate";
     case "train":

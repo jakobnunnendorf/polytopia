@@ -18,7 +18,7 @@ beforeAll(() => {
 describe("Main menu", () => {
   it("shows the title and the three entries", async () => {
     render(<HomeScreen />);
-    await waitFor(() => expect(screen.getByText(/Shardlands/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Polytopia/)).toBeTruthy());
     expect(screen.getByTestId("new-game")).toBeTruthy();
     expect(screen.getByTestId("resume-game")).toBeTruthy();
     expect(screen.getByTestId("analyse-games")).toBeTruthy();
