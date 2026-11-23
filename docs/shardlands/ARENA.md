@@ -109,7 +109,7 @@ random-v1. It plays differently from v1: monuments 70→162 and healing others
 15→89, plain hits 20→1.5 and ruins 60→11.
 
 `greedy-hill-v3` (2026-11-23, 10× longer again: 6000 rounds of 60 games, 360,000
-games on 10 worker threads, ~35 minutes): 59 of 6000 challengers kept, 68% of 100
+games on 10 worker threads, ~35 minutes): 60 of 6000 challengers kept, 68% of 100
 unseen games and 58.7% of the points against greedy-v1, about where v2 landed. A
 third style: mass army (train 12→103, unitsPerCity 3→27, growBase 25→112) with
 captures almost ignored (100→8). More rounds alone stopped paying: the climber
