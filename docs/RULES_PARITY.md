@@ -31,7 +31,7 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 | Ruin placement | never next to a capital or a village |
 | Unit stats | the unit-page value (the doc's "Used here"), e.g. Pirate movement 2 |
 | Unlocking techs | the tech-page value in the doc |
-| Bot capital income | 1/2/3/5★ for Easy/Normal/Hard/Crazy |
+| Bot capital income | a bot capital makes 1/2/3/5★ in total for Easy/Normal/Hard/Crazy (Normal = a human capital) |
 | Creep and zone of control | the doc contradicts itself (Terrain and Cloak sections: Creep ignores it; Movement rules: only Sneak, Hide and invisibility do). The engine follows Movement rules; Cloak and Dinghy ignore it through Hide anyway |
 | Escape | after attacking, the unit may move again with its full movement |
 | Stomp | half the damage, unrounded, like splash |
@@ -43,6 +43,13 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 - Ruin rewards: an even draw among the eligible rewards.
 - A unit on a mountain sees 5×5.
 - No star cap, no unit upkeep.
+- City score above level 3 (the doc only says "falling"): level bonus max(0, 50 − 5·level).
+- When the only human is eliminated, the game ends; the leading surviving bot is recorded as winner.
+- Buildings that need no resource (Forge, temples, monuments included) go on a tile without one.
+- Map size: Perfection 16 and Domination 11/14/16/18 are the defaults and are forced in the
+  settings screen; scripts may still pass an explicit size.
+- Luxidoor: the doc's starting-score table (515) assumes a level-3 capital; with the level-2
+  capital it chose, Luxidoor starts at 465.
 
 ## Kept on purpose
 
