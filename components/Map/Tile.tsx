@@ -1,17 +1,8 @@
 import React, { memo } from "react";
 import { Pressable, Text, View } from "react-native";
-import Capital from "./Capital";
+import { BuildingArt, CityArt, ResourceArt, TerrainArt, UnitArt, VillageArt } from "@/components/art/Art";
 import type { City, Tile as TileData, Unit } from "@/logic/engine/types";
-import {
-  BUILDING_GLYPH,
-  FOG,
-  PLAYER_COLORS,
-  RESOURCE_GLYPH,
-  TERRAIN_COLOR,
-  TERRAIN_GLYPH,
-  TILE,
-  UNIT_GLYPH,
-} from "@/components/game/theme";
+import { FOG, PLAYER_COLORS, TERRAIN_COLOR, TILE } from "@/components/game/theme";
 
 export type Highlight = "selected" | "move" | "attack" | "action" | null;
 
@@ -67,13 +58,14 @@ function Tile({
   const ownerColor =
     territoryOwner !== null ? PLAYER_COLORS[territoryOwner % PLAYER_COLORS.length] : null;
   const edge = (on: boolean) => (on && ownerColor ? 3 : 0);
-  const glyph = tile.building
-    ? (BUILDING_GLYPH[tile.building] ?? "🏠")
-    : tile.ruin
-      ? "🏛️"
-      : tile.resource
-        ? RESOURCE_GLYPH[tile.resource]
-        : (TERRAIN_GLYPH[tile.terrain] ?? "");
+  // a building replaces the resource it was built on; ruins sit on bare terrain
+  const overlay = tile.building ? (
+    <BuildingArt id={tile.building} size={TILE} />
+  ) : tile.ruin ? (
+    <BuildingArt id="ruin" size={TILE} />
+  ) : tile.resource ? (
+    <ResourceArt id={tile.resource} size={TILE} />
+  ) : null;
 
   return (
     <Pressable
@@ -86,10 +78,10 @@ function Tile({
         width: TILE,
         height: TILE,
         backgroundColor: TERRAIN_COLOR[tile.terrain],
-        borderColor: "#00000014",
-        borderWidth: 0.5,
+        overflow: "hidden",
       }}
     >
+      <TerrainArt terrain={tile.terrain} x={x} y={y} size={TILE} />
       {ownerColor && (
         <View
           style={{
@@ -98,7 +90,7 @@ function Tile({
             top: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: ownerColor + "22",
+            backgroundColor: ownerColor + "1a",
             borderColor: ownerColor,
             borderStyle: "dashed",
             borderTopWidth: edge(borders.top),
@@ -121,48 +113,74 @@ function Tile({
           }}
         />
       )}
-      {glyph ? (
-        <Text style={{ position: "absolute", left: 3, top: 1, fontSize: 15 }}>{glyph}</Text>
-      ) : null}
-      {tile.village && !city && (
-        <Text style={{ position: "absolute", right: 3, bottom: 1, fontSize: 18 }}>🛖</Text>
-      )}
+      {!city && overlay}
+      {tile.village && !city && <VillageArt size={TILE} />}
       {city && (
-        <Capital
-          color={PLAYER_COLORS[city.owner % PLAYER_COLORS.length]}
-          level={city.level}
-          capital={city.capital}
-          walls={city.walls}
-        />
-      )}
-      {unit && (
-        <View
-          style={{
-            position: "absolute",
-            right: 2,
-            bottom: 2,
-            minWidth: 28,
-            height: 28,
-            borderRadius: 14,
-            backgroundColor: PLAYER_COLORS[unit.owner % PLAYER_COLORS.length],
-            borderWidth: 2,
-            borderColor: unit.veteran ? "#ffd43b" : "white",
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: unit.canMove || unit.canAttack ? 1 : 0.7,
-          }}
-        >
-          <Text style={{ fontSize: 14 }}>{UNIT_GLYPH[unit.type] ?? "●"}</Text>
+        <>
+          <CityArt
+            color={PLAYER_COLORS[city.owner % PLAYER_COLORS.length]}
+            level={city.level}
+            capital={city.capital}
+            walls={city.walls}
+            size={TILE}
+          />
           <Text
             style={{
               position: "absolute",
-              bottom: -7,
+              left: 2,
+              top: 1,
+              fontSize: 9,
+              fontWeight: "800",
+              color: "white",
+              backgroundColor: PLAYER_COLORS[city.owner % PLAYER_COLORS.length],
+              paddingHorizontal: 3,
+              borderRadius: 4,
+              overflow: "hidden",
+            }}
+          >
+            {city.capital ? "♛" : ""}
+            {city.level}
+          </Text>
+        </>
+      )}
+      {unit && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: city ? TILE * 0.42 : TILE * 0.12,
+            top: city ? TILE * 0.4 : TILE * 0.08,
+            width: (city ? 0.6 : 0.88) * TILE,
+            height: (city ? 0.6 : 0.88) * TILE,
+            opacity: unit.canMove || unit.canAttack ? 1 : 0.6,
+          }}
+        >
+          <View
+            style={{
+              position: "absolute",
+              left: TILE * 0.14,
+              bottom: TILE * 0.02,
+              width: TILE * 0.6,
+              height: TILE * 0.16,
+              borderRadius: TILE,
+              backgroundColor: "#0004",
+              borderWidth: 2,
+              borderColor: unit.veteran ? "#ffd43b" : PLAYER_COLORS[unit.owner % PLAYER_COLORS.length],
+            }}
+          />
+          <UnitArt type={unit.type} color={PLAYER_COLORS[unit.owner % PLAYER_COLORS.length]} size={(city ? 0.6 : 0.88) * TILE} />
+          <Text
+            style={{
+              position: "absolute",
+              right: 0,
+              bottom: 0,
               fontSize: 9,
               fontWeight: "800",
               color: "white",
               backgroundColor: "#000a",
               paddingHorizontal: 2,
               borderRadius: 3,
+              overflow: "hidden",
             }}
           >
             {Math.ceil(unit.hp)}
