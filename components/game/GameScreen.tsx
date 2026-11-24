@@ -30,7 +30,7 @@ import { PLAYER_COLORS, UI } from "@/components/game/theme";
 import { arena, serverChat } from "@/components/game/arenaClient";
 import { BUILTIN_MODELS, DEFAULT_MODEL, createAgent } from "@/logic/agents/registry";
 import type { ModelSpec } from "@/logic/agents/types";
-import { finishRecord, recordStep, replayStates, startRecord, type GameRecord, type Seat } from "@/logic/arena/record";
+import { finishRecord, latestState, recordStep, startRecord, type GameRecord, type Seat } from "@/logic/arena/record";
 
 const clanColor = (p: number) => PLAYER_COLORS[p % PLAYER_COLORS.length];
 
@@ -202,7 +202,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   const humanSeats = useMemo(() => seats.flatMap((s, i) => (s.kind === "human" ? [i] : [])), [seats]);
 
   const [state, setState] = useState<GameState>(() => {
-    if (resumed) return replayStates(resumed).pop()!;
+    if (resumed) return latestState(resumed);
     const hasExplicitTribes = seats.some((s) => !!s.clan);
     const chosenClans = hasExplicitTribes
       ? seats.map((s, i) => s.clan ?? ["imperius", "bardur", "aquarion", "elyrion", "polaris", "cymanti"][i % 6])

@@ -71,6 +71,13 @@ export const arena = {
   stopMatch: (id: string) =>
     call<{ ok: boolean; reason?: string }>(`/api/matches/${encodeURIComponent(id)}/stop`, { method: "POST" }),
   game: (id: string) => call<GameRecord>(`/api/games/${encodeURIComponent(id)}`),
+  /** a game from its newest checkpoint on (`base` = moves before it), so a long game opens at once */
+  liveGame: (id: string) => call<GameRecord>(`/api/games/${encodeURIComponent(id)}?live=1`),
+  /** only the moves after the first `from` (counted from the start of the game) */
+  gameSteps: (id: string, from: number) =>
+    call<{ total: number; steps: GameRecord["steps"]; endedAt: string | null; result: GameRecord["result"]; stoppedAt: string | null }>(
+      `/api/games/${encodeURIComponent(id)}?from=${from}`,
+    ),
   saveGame: (rec: GameRecord) =>
     call<{ file: string; deltas: number[]; ratings: Ratings }>("/api/games", { method: "POST", body: JSON.stringify(rec) }),
 };

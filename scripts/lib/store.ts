@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import { START_RATING, facets, matchesFilter, rate, resultRow, type RatingFilter, type Ratings, type ResultRow } from "../../logic/arena/elo";
-import type { GameRecord } from "../../logic/arena/record";
+import { slimRecord, type GameRecord } from "../../logic/arena/record";
 import type { ModelSpec } from "../../logic/agents/types";
 
 export const ROOT = path.resolve(__dirname, "..", "..");
@@ -112,6 +112,8 @@ function writeResults(rows: ResultRow[]): ResultRow[] {
 
 /** save a record; if it just finished, add it to the results and refit the ratings. Returns the rating change per seat. */
 export function saveGame(rec: GameRecord): { file: string; deltas: number[]; ratings: Ratings } {
+  // a record from an older client may still carry a snapshot per turn
+  rec = slimRecord(rec);
   const file = gamePath(rec);
   // a game is rated once: autosaves and re-saves of an already finished game do not touch Elo
   let ratedBefore = false;
@@ -136,8 +138,9 @@ export function saveGame(rec: GameRecord): { file: string; deltas: number[]; rat
   return { file: path.relative(ROOT, file), deltas, ratings: next };
 }
 
+/** read a record; one saved with a snapshot per turn (up to 150 MB) is slimmed, so nothing downstream carries them */
 export function readGame(file: string): GameRecord {
-  return JSON.parse(zlib.gunzipSync(fs.readFileSync(file)).toString("utf8")) as GameRecord;
+  return slimRecord(JSON.parse(zlib.gunzipSync(fs.readFileSync(file)).toString("utf8")) as GameRecord);
 }
 
 export function listGameFiles(): string[] {
@@ -176,7 +179,7 @@ export type GameSummary = {
 };
 
 export function summarize(file: string, rec: GameRecord): GameSummary {
-  const last = rec.turnStates[rec.turnStates.length - 1];
+  const last = rec.checkpoint?.state ?? rec.turnStates[rec.turnStates.length - 1];
   return {
     id: rec.id,
     file: path.relative(ROOT, file),

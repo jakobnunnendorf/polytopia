@@ -7,7 +7,9 @@
  *   GET  /api/ratings           Elo table; ?mode=&players=&size=&mapType= fits it on only those games
  *   GET  /api/ratings/facets    rated games per mode, player count, map size and map type
  *   GET  /api/games             summaries of every recorded game (newest first)
- *   GET  /api/games/<id>        one full GameRecord
+ *   GET  /api/games/<id>        one full GameRecord (start position + every move)
+ *        ?live=1                the same game from its newest checkpoint on (for watching a long game live)
+ *        ?from=N                only the moves after the first N, plus result and stop state
  *   POST /api/games             save a GameRecord (gzipped into data/games/), update Elo
  *   POST /api/matches           start a model-only game that runs here (not in a browser tab)
  *   POST /api/matches/<id>/resume   continue an unfinished model-only game
@@ -19,7 +21,7 @@
  */
 import http from "node:http";
 import { directChat } from "../logic/agents/registry";
-import type { GameRecord } from "../logic/arena/record";
+import { liveWindow, type GameRecord } from "../logic/arena/record";
 import { createProfile, findGame, listGames, listModels, listProfiles, ratingFacets, ratingsFor, saveGame } from "./lib/store";
 import { isRunning, paceOf, resumeMatch, setPace, startMatch, stopMatch } from "./lib/matches";
 
@@ -82,7 +84,15 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && stop) return send(res, 200, stopMatch(decodeURIComponent(stop[1])));
     if (req.method === "GET" && url.startsWith("/api/games/")) {
       const rec = findGame(decodeURIComponent(url.slice("/api/games/".length)));
-      return rec ? send(res, 200, rec) : send(res, 404, { error: "No such game" });
+      if (!rec) return send(res, 404, { error: "No such game" });
+      const q = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+      // ?from=N: only the moves after the first N, for a live view that already has the rest
+      if (q.has("from")) {
+        const from = Math.max(0, Math.floor(Number(q.get("from")) || 0));
+        return send(res, 200, { total: rec.steps.length, steps: rec.steps.slice(from), endedAt: rec.endedAt, result: rec.result, stoppedAt: rec.stoppedAt ?? null });
+      }
+      // ?live=1: the game from its newest checkpoint on, not from move 1
+      return send(res, 200, q.get("live") === "1" ? liveWindow(rec) : rec);
     }
     if (req.method === "POST" && url === "/api/profiles") {
       const { name } = (await body(req)) as { name?: string };

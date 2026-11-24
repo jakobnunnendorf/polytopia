@@ -103,6 +103,8 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
   }, [playing, k, states.length, speedMs]);
 
   const s = states[k];
+  // a live view starts at the record's checkpoint: `base` moves of the game came before it
+  const base = rec.base ?? 0;
   // a live model-only game the server is still playing (a stopped one is kept but never resumed)
   const running = live && !rec.result?.over && !rec.stoppedAt;
   const step = k > 0 ? rec.steps[k - 1] : null;
@@ -161,13 +163,13 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
             </Pulse>
           )}
           <Text style={{ color: UI.mist, fontSize: 16, fontWeight: "800" }}>
-            {running ? "LIVE  " : rec.stoppedAt ? "STOPPED  " : ""}Turn {s.turn}, move {k} of {states.length - 1}
+            {running ? "LIVE  " : rec.stoppedAt ? "STOPPED  " : ""}Turn {s.turn}, move {base + k} of {base + states.length - 1}
           </Text>
         </View>
       </View>
       {divergedAt !== null && (
         <Text style={{ color: UI.coral, fontSize: 13, marginTop: 6 }}>
-          This game was played under older rules; the replay stops at move {divergedAt} of {rec.steps.length}.
+          This game was played under older rules; the replay stops at move {base + divergedAt} of {base + rec.steps.length}.
         </Text>
       )}
       {!wide && (
@@ -185,7 +187,7 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
         {step && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color(step.p), marginRight: 6 }} />}
         <Text style={{ color: UI.muted, fontSize: 13, flex: 1 }} numberOfLines={1}>
-          {step ? `${who(step.p)} (${name("clan", states[k - 1].players[step.p].clan)}): ${actionLabel(states[k - 1], step.a)}` : "Start of the game"}
+          {step ? `${who(step.p)} (${name("clan", states[k - 1].players[step.p].clan)}): ${actionLabel(states[k - 1], step.a)}` : base ? "Where this live view begins; open the whole game to see the moves before" : "Start of the game"}
         </Text>
       </View>
       <Text style={{ color: UI.muted, fontSize: 12, marginTop: 2 }}>
@@ -202,6 +204,7 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
   const quickBar = (
     <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
       {live && <Btn label="Follow live" on={follow} onPress={() => setFollow(!follow)} />}
+      {base > 0 && <Btn label="Whole game" onPress={() => router.replace({ pathname: "/analyse", params: { id: rec.id } } as never)} testID="whole-game" />}
       <Btn label="Territory" on={territory} onPress={() => setTerritory(!territory)} testID="territory-view" />
       <Btn label={controlsOpen ? "Replay & views ▾" : "Replay & views ▸"} on={controlsOpen} onPress={() => setControlsOpen(!controlsOpen)} />
       {!wide && <Btn label="Leaderboard" on={overlay === "board"} onPress={() => setOverlay(overlay === "board" ? null : "board")} />}
@@ -316,22 +319,47 @@ export default function AnalyseScreen() {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     setRec(null);
+    setError(null);
     if (!id) return;
     let stop = false;
-    const load = () =>
-      arena
-        .game(id)
-        .then((r) => {
+    // the record as loaded so far, and whether a request is under way (polls never pile up)
+    let cur: GameRecord | null = null;
+    let busy = false;
+    const fail = () => !stop && !cur && setError("This game could not be loaded. Is the arena server running?");
+    const load = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        if (!cur) {
+          // live: from the newest checkpoint, so a game of thousands of moves opens at once
+          const r = await (live ? arena.liveGame(id) : arena.game(id));
           if (stop) return;
-          // only replace the record when it grew, so the replay is not recomputed for nothing
-          setRec((cur) => (cur && cur.steps.length === r.steps.length && !!cur.result?.over === !!r.result?.over ? cur : r));
-        })
-        .catch(() => !stop && setError("This game could not be loaded. Is the arena server running?"));
-    load();
+          cur = r;
+          setRec(r);
+          return;
+        }
+        // afterwards only the moves this page does not have yet
+        const have = (cur.base ?? 0) + cur.steps.length;
+        const d = await arena.gameSteps(id, have);
+        if (stop) return;
+        if (d.total < have) {
+          cur = null; // the record on the server is shorter than ours: start over
+          return;
+        }
+        if (d.steps.length === 0 && !!d.result?.over === !!cur.result?.over && (d.stoppedAt ?? null) === (cur.stoppedAt ?? null)) return;
+        cur = { ...cur, steps: d.steps.length ? [...cur.steps, ...d.steps] : cur.steps, endedAt: d.endedAt, result: d.result, stoppedAt: d.stoppedAt };
+        setRec(cur);
+      } catch {
+        fail();
+      } finally {
+        busy = false;
+      }
+    };
+    void load();
     // a model-only game left behind by a closed tab continues on the server
     if (live) arena.resumeMatch(id).catch(() => {});
-    // live: poll the recording, which the players save after every move
-    const t = live ? setInterval(load, 700) : null;
+    // live: poll for the moves the players saved since
+    const t = live ? setInterval(() => void load(), 700) : null;
     return () => {
       stop = true;
       if (t) clearInterval(t);
