@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ImageBackground, Pressable, ScrollView, Text, View } from "react-native";
+import { ImageBackground, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Map from "@/components/Map/Map";
 import GameList, { seatLabel } from "@/components/game/GameList";
@@ -12,6 +12,8 @@ import { scoreOf } from "@/logic/engine";
 import GameOverCard from "@/components/game/GameOverCard";
 import { Pulse } from "@/components/anim";
 import { actionLabel, name } from "@/logic/engine/names";
+import { EventFeed, Leaderboard } from "@/components/game/WatchPanels";
+import { extendEvents, type EventLog } from "@/components/game/gameEvents";
 
 const color = (p: number) => PLAYER_COLORS[p % PLAYER_COLORS.length];
 
@@ -101,93 +103,171 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
   const prevTurn = [...turnStarts].reverse().find((i) => i < k) ?? 0;
   const nextTurn = turnStarts.find((i) => i > k) ?? states.length - 1;
 
-  return (
-    <View style={{ flex: 1 }}>
-      <View style={{ paddingHorizontal: 16, paddingTop: 12, width: "100%", maxWidth: 640, alignSelf: "center" }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <View style={{ flexDirection: "row" }}>
-            <Btn label="Games" onPress={() => router.replace("/analyse" as never)} />
-            {running && <Btn label="Stop game" onPress={() => void arena.stopMatch(rec.id).catch(() => {})} testID="stop-match" />}
-          </View>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            {running && (
-              <Pulse amount={0.5} period={1200} style={{ marginRight: 8 }}>
-                <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: UI.coral }} />
-              </Pulse>
-            )}
-            <Text style={{ color: UI.mist, fontSize: 16, fontWeight: "800" }}>
-              {running ? "LIVE  " : rec.stoppedAt ? "STOPPED  " : ""}Turn {s.turn}, move {k} of {states.length - 1}
-            </Text>
-          </View>
+  // notable events, extended move by move like the replay
+  const who = (p: number) => seatLabel(rec.seats[p]);
+  const evCache = useRef<{ id: string; r: EventLog } | null>(null);
+  const events = useMemo(() => {
+    const r = extendEvents(evCache.current?.id === rec.id ? evCache.current.r : null, rec, states, who);
+    evCache.current = { id: rec.id, r };
+    return r.events;
+  }, [states]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { width } = useWindowDimensions();
+  const wide = width >= 1100;
+  const [territory, setTerritory] = useState(false);
+  const [controlsOpen, setControlsOpen] = useState(false);
+  const [overlay, setOverlay] = useState<"board" | "feed" | null>(null);
+
+  const status = (
+    <View>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+        <View style={{ flexDirection: "row" }}>
+          <Btn label="Games" onPress={() => router.replace("/analyse" as never)} />
+          {running && <Btn label="Stop game" onPress={() => void arena.stopMatch(rec.id).catch(() => {})} testID="stop-match" />}
         </View>
-        {divergedAt !== null && (
-          <Text style={{ color: UI.coral, fontSize: 13, marginTop: 6 }}>
-            This game was played under older rules; the replay stops at move {divergedAt} of {rec.steps.length}.
+        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+          {running && (
+            <Pulse amount={0.5} period={1200} style={{ marginRight: 8 }}>
+              <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: UI.coral }} />
+            </Pulse>
+          )}
+          <Text style={{ color: UI.mist, fontSize: 16, fontWeight: "800" }}>
+            {running ? "LIVE  " : rec.stoppedAt ? "STOPPED  " : ""}Turn {s.turn}, move {k} of {states.length - 1}
           </Text>
-        )}
+        </View>
+      </View>
+      {divergedAt !== null && (
+        <Text style={{ color: UI.coral, fontSize: 13, marginTop: 6 }}>
+          This game was played under older rules; the replay stops at move {divergedAt} of {rec.steps.length}.
+        </Text>
+      )}
+      {!wide && (
         <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 6 }}>
           {s.players.map((p) => (
             <View key={p.id} style={{ flexDirection: "row", alignItems: "center", marginRight: 12, marginTop: 4 }}>
               <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color(p.id), marginRight: 5 }} />
               <Text style={{ color: p.id === s.current ? UI.mist : UI.muted, fontSize: 14, fontWeight: p.id === s.current ? "800" : "600" }}>
-                {seatLabel(rec.seats[p.id])} {scoreOf(s, p.id).toLocaleString("en")}
+                {who(p.id)} {scoreOf(s, p.id).toLocaleString("en")}
               </Text>
             </View>
           ))}
         </View>
-        <Text style={{ color: UI.muted, fontSize: 13, marginTop: 6 }} numberOfLines={1}>
-          {step
-            ? `${seatLabel(rec.seats[step.p])} (${name("clan", states[k - 1].players[step.p].clan)}): ${actionLabel(states[k - 1], step.a)}`
-            : "Start of the game"}
-        </Text>
-        <Text style={{ color: UI.muted, fontSize: 12, marginTop: 2 }}>
-          {view === "all"
-            ? "Whole map. Dots show who has explored a tile; pale tiles nobody has seen."
-            : `Seen through ${seatLabel(rec.seats[view === "mover" ? s.current : view])}'s eyes; clouds hide what they have not discovered.`}
+      )}
+      <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
+        {step && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color(step.p), marginRight: 6 }} />}
+        <Text style={{ color: UI.muted, fontSize: 13, flex: 1 }} numberOfLines={1}>
+          {step ? `${who(step.p)} (${name("clan", states[k - 1].players[step.p].clan)}): ${actionLabel(states[k - 1], step.a)}` : "Start of the game"}
         </Text>
       </View>
-      <Map
-        state={s}
-        viewer={view === "all" ? 0 : view === "mover" ? s.current : view}
-        reveal={view === "all"}
-        seenBy
-        highlights={{}}
-        onTilePress={() => {}}
-      />
-      {atEnd && (
-        <View style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#0a1020cc", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 30 }}>
-          <GameOverCard
-            title={`${seatLabel(rec.seats[s.winner ?? 0])} wins`}
-            good
-            subtitle={`The ${name("clan", s.players[s.winner ?? 0].clan)} rule the Square after ${s.turn} turns.`}
-            standings={[...s.players]
-              .sort((a, b) => (b.id === s.winner ? 1 : 0) - (a.id === s.winner ? 1 : 0) || scoreOf(s, b.id) - scoreOf(s, a.id))
-              .map((p) => ({ id: p.id, name: seatLabel(rec.seats[p.id]), clan: name("clan", p.clan), score: scoreOf(s, p.id), alive: p.alive }))}
-          >
-            <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8 }}>
-              <Btn label="See the final map" onPress={() => setClosedEnd(true)} testID="close-result" />
-              <Btn label="Watch from the start" onPress={() => { setClosedEnd(true); setFollow(false); setK(0); }} />
-              <Btn label="Games" onPress={() => router.replace("/analyse" as never)} />
-            </View>
-          </GameOverCard>
+      <Text style={{ color: UI.muted, fontSize: 12, marginTop: 2 }}>
+        {territory
+          ? "Territory view: each colour is one player's land; grey land belongs to nobody."
+          : view === "all"
+            ? "Whole map. Dots show who has explored a tile; pale tiles nobody has seen."
+            : `Seen through ${who(view === "mover" ? s.current : view)}'s eyes; clouds hide what they have not discovered.`}
+      </Text>
+    </View>
+  );
+
+  // always visible: following and the territory view; the rest folds away
+  const quickBar = (
+    <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+      {live && <Btn label="Follow live" on={follow} onPress={() => setFollow(!follow)} />}
+      <Btn label="Territory" on={territory} onPress={() => setTerritory(!territory)} testID="territory-view" />
+      <Btn label={controlsOpen ? "Replay & views ▾" : "Replay & views ▸"} on={controlsOpen} onPress={() => setControlsOpen(!controlsOpen)} />
+      {!wide && <Btn label="Leaderboard" on={overlay === "board"} onPress={() => setOverlay(overlay === "board" ? null : "board")} />}
+      {!wide && <Btn label="Events" on={overlay === "feed"} onPress={() => setOverlay(overlay === "feed" ? null : "feed")} />}
+    </View>
+  );
+  const controls = controlsOpen && (
+    <View style={{ marginTop: 4 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+        <Btn label="⏮ Turn" onPress={() => { setFollow(false); setK(prevTurn); }} disabled={k === 0} />
+        <Btn label="◀ Move" onPress={() => { setFollow(false); setK(Math.max(0, k - 1)); }} disabled={k === 0} testID="replay-back" />
+        <Btn label={playing ? "Pause" : "Play"} on={playing} onPress={() => setPlaying(!playing)} testID="replay-play" />
+        <Btn label="Move ▶" onPress={() => setK(Math.min(states.length - 1, k + 1))} disabled={k >= states.length - 1} testID="replay-next" />
+        <Btn label="Turn ⏭" onPress={() => setK(nextTurn)} disabled={k >= states.length - 1} />
+      </View>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 4 }}>
+        <Btn label="Mover's view" on={view === "mover"} onPress={() => setView("mover")} />
+        <Btn label="Whole map" on={view === "all"} onPress={() => setView("all")} />
+        {rec.seats.map((seat, i) => (
+          <Btn key={i} label={`${seatLabel(seat)}'s view`} on={view === i} onPress={() => setView(i)} />
+        ))}
+      </View>
+    </View>
+  );
+  const map = (
+    <Map
+      state={s}
+      viewer={view === "all" ? 0 : view === "mover" ? s.current : view}
+      reveal={view === "all"}
+      seenBy
+      territoryFocus={territory}
+      highlights={{}}
+      onTilePress={() => {}}
+    />
+  );
+  const endCard = atEnd && (
+    <View style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#0a1020cc", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 30 }}>
+      <GameOverCard
+        title={`${who(s.winner ?? 0)} wins`}
+        good
+        subtitle={`The ${name("clan", s.players[s.winner ?? 0].clan)} rule the Square after ${s.turn} turns.`}
+        standings={[...s.players]
+          .sort((a, b) => (b.id === s.winner ? 1 : 0) - (a.id === s.winner ? 1 : 0) || scoreOf(s, b.id) - scoreOf(s, a.id))
+          .map((p) => ({ id: p.id, name: who(p.id), clan: name("clan", p.clan), score: scoreOf(s, p.id), alive: p.alive }))}
+      >
+        <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8 }}>
+          <Btn label="See the final map" onPress={() => setClosedEnd(true)} testID="close-result" />
+          <Btn label="Watch from the start" onPress={() => { setClosedEnd(true); setFollow(false); setK(0); }} />
+          <Btn label="Games" onPress={() => router.replace("/analyse" as never)} />
         </View>
-      )}
+      </GameOverCard>
+    </View>
+  );
+
+  if (wide) {
+    // wide screens: controls and leaderboard on the left, the board at full height, events on the right
+    return (
+      <View style={{ flex: 1, flexDirection: "row", padding: 12 }}>
+        <ScrollView style={{ width: 460, flexGrow: 0 }} contentContainerStyle={{ paddingBottom: 12 }}>
+          <View style={{ backgroundColor: "#16213ee8", borderRadius: 16, padding: 12, borderWidth: 1, borderColor: "#ffffff1f", marginBottom: 12 }}>
+            {status}
+            <View style={{ marginTop: 8 }}>{quickBar}</View>
+            {controls}
+          </View>
+          <Leaderboard state={s} label={who} />
+        </ScrollView>
+        <View style={{ flex: 1 }}>{map}</View>
+        <View style={{ width: 330 }}>
+          <EventFeed events={events} upTo={k} />
+        </View>
+        {endCard}
+      </View>
+    );
+  }
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 12, width: "100%", maxWidth: 640, alignSelf: "center" }}>{status}</View>
+      <View style={{ flex: 1 }}>
+        {map}
+        {overlay && (
+          <View style={{ position: "absolute", left: 12, right: 12, top: 8, bottom: 8, zIndex: 20, maxWidth: 520, alignSelf: "center" }}>
+            {overlay === "board" ? (
+              <ScrollView>
+                <Leaderboard state={s} label={who} />
+              </ScrollView>
+            ) : (
+              <EventFeed events={events} upTo={k} />
+            )}
+          </View>
+        )}
+      </View>
+      {endCard}
       <View style={{ backgroundColor: "#223154f2", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 14, width: "100%", maxWidth: 640, alignSelf: "center" }}>
-        <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-          <Btn label="⏮ Turn" onPress={() => { setFollow(false); setK(prevTurn); }} disabled={k === 0} />
-          <Btn label="◀ Move" onPress={() => { setFollow(false); setK(Math.max(0, k - 1)); }} disabled={k === 0} testID="replay-back" />
-          <Btn label={playing ? "Pause" : "Play"} on={playing} onPress={() => setPlaying(!playing)} testID="replay-play" />
-          <Btn label="Move ▶" onPress={() => setK(Math.min(states.length - 1, k + 1))} disabled={k >= states.length - 1} testID="replay-next" />
-          <Btn label="Turn ⏭" onPress={() => setK(nextTurn)} disabled={k >= states.length - 1} />
-          {live && <Btn label="Follow live" on={follow} onPress={() => setFollow(!follow)} />}
-        </View>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 4 }}>
-          <Btn label="Mover's view" on={view === "mover"} onPress={() => setView("mover")} />
-          <Btn label="Whole map" on={view === "all"} onPress={() => setView("all")} />
-          {rec.seats.map((seat, i) => (
-            <Btn key={i} label={`${seatLabel(seat)}'s view`} on={view === i} onPress={() => setView(i)} />
-          ))}
-        </View>
+        {quickBar}
+        {controls}
       </View>
     </View>
   );

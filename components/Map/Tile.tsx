@@ -65,6 +65,7 @@ function Tile({
   animateReveal = false,
   showResource = true,
   ruinThroughClouds = false,
+  territoryFocus = false,
 }: {
   x: number;
   y: number;
@@ -84,6 +85,8 @@ function Tile({
   showResource?: boolean;
   /** Elyrion viewer: an unexplored ruin shows above the clouds */
   ruinThroughClouds?: boolean;
+  /** territory view: a strong owner fill with solid borders, unclaimed land greyed out */
+  territoryFocus?: boolean;
 }) {
   const TILE = size ?? TILE_BASE;
   // remember when this tile was revealed, so the clearing clouds survive quick re-renders
@@ -113,7 +116,7 @@ function Tile({
   }
   const ownerColor =
     territoryOwner !== null ? PLAYER_COLORS[territoryOwner % PLAYER_COLORS.length] : null;
-  const edge = (on: boolean) => (on && ownerColor ? 3 : 0);
+  const edge = (on: boolean) => (on && ownerColor ? (territoryFocus ? 4 : 3) : 0);
   // a building replaces the resource it was built on; ruins sit on bare terrain
   const overlay = tile.building ? (
     <BuildingArt id={tile.building} size={TILE} />
@@ -191,9 +194,9 @@ function Tile({
             top: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: ownerColor + "1a",
-            borderColor: ownerColor,
-            borderStyle: "dashed",
+            backgroundColor: ownerColor + (territoryFocus ? "a6" : "1a"),
+            borderColor: territoryFocus ? "#0b1220" : ownerColor,
+            borderStyle: territoryFocus ? "solid" : "dashed",
             borderTopWidth: edge(borders.top),
             borderRightWidth: edge(borders.right),
             borderBottomWidth: edge(borders.bottom),
@@ -284,6 +287,9 @@ function Tile({
             </View>
           </View>
         </>
+      )}
+      {territoryFocus && !ownerColor && (
+        <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#1b2333b3" }} />
       )}
       {watchers && watchers.length === 0 && (
         <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#e6e1efb0" }} />

@@ -19,6 +19,7 @@ export default function Map({
   onTilePress,
   reveal = false,
   seenBy,
+  territoryFocus = false,
 }: {
   state: GameState;
   viewer: number;
@@ -26,6 +27,8 @@ export default function Map({
   reveal?: boolean;
   /** with reveal: mark each tile with the colours of the players who have explored it */
   seenBy?: boolean;
+  /** territory view: owners' colours filled in strongly, unclaimed land greyed (no explored-by dots) */
+  territoryFocus?: boolean;
   highlights: Record<string, Highlight>;
   onTilePress: (x: number, y: number) => void;
 }) {
@@ -129,7 +132,7 @@ export default function Map({
             const x = i % n;
             const y = Math.floor(i / n);
             const seen = reveal || explored[i] === 1;
-            const watchers = reveal && seenBy ? state.players.filter((p) => p.explored[i] === 1).map((p) => p.id) : undefined;
+            const watchers = reveal && seenBy && !territoryFocus ? state.players.filter((p) => p.explored[i] === 1).map((p) => p.id) : undefined;
             const o = ownerOfTile[i];
             return (
               <Tile
@@ -153,6 +156,7 @@ export default function Map({
                 animateReveal={ready && sameView}
                 showResource={reveal || !tile.resource || resourceVisible(state, viewer, tile.resource)}
                 ruinThroughClouds={!seen && tile.ruin && state.players[viewer].clan === "elyrion"}
+                territoryFocus={territoryFocus}
               />
             );
           })}
