@@ -62,6 +62,7 @@ function runIds(): string[] {
   const ids = new Set<string>();
   for (const d of fs.existsSync(models) ? fs.readdirSync(models) : []) {
     if (fs.existsSync(path.join(models, d, "checkpoint.json"))) ids.add(d);
+    if (fs.existsSync(path.join(models, d, "sweep.jsonl")) && !fs.existsSync(path.join(models, d, "model.json"))) ids.add(d); // a sweep in progress
   }
   const logs = path.join(ROOT, "logs");
   for (const f of fs.existsSync(logs) ? fs.readdirSync(logs) : []) {
@@ -87,7 +88,7 @@ function processes(): { pid: number; cmd: string }[] {
 function trainerProcess(procs: { pid: number; cmd: string }[], id: string) {
   // the node process running the trainer script: not npm's wrapper, and not a shell
   // whose command line merely mentions it (a watcher loop calling pgrep, say)
-  return procs.find((p) => /^(\S*\/)?node\s.*scripts\/train-(es|hill|full)\.ts\s/.test(p.cmd) && new RegExp(`--id ${id}(\\s|$)`).test(p.cmd)) ?? null;
+  return procs.find((p) => /^(\S*\/)?node\s.*scripts\/(train-(es|hill|full)|sweep)\.ts\s/.test(p.cmd) && new RegExp(`--id ${id}(\\s|$)`).test(p.cmd)) ?? null;
 }
 const flag = (args: string, name: string) => args.match(new RegExp(`--${name}\\s+(\\S+)`))?.[1];
 
@@ -207,10 +208,11 @@ function runState(id: string, procs: { pid: number; cmd: string }[]) {
   const ck = readJson(path.join(dir, "checkpoint.json"));
   const model = readJson(path.join(dir, "model.json"));
   const curve = readJsonl(path.join(dir, "curve.jsonl")) ?? [];
+  const sweep = readJsonl(path.join(dir, "sweep.jsonl"));
   const log = readLog(id);
   const proc = trainerProcess(procs, id);
   const args: string = proc?.cmd ?? ck?.args ?? "";
-  const kind: "es" | "hill" | "unknown" = ck ? ("theta" in ck ? "es" : "round" in ck ? "hill" : "unknown") : model?.training?.method === "evolution-strategies" ? "es" : model?.training ? "hill" : "unknown";
+  const kind: "es" | "hill" | "sweep" | "unknown" = sweep ? "sweep" : ck ? ("theta" in ck ? "es" : "round" in ck ? "hill" : "unknown") : model?.training?.method === "evolution-strategies" ? "es" : model?.training ? "hill" : "unknown";
   const budget = Number(flag(args, "budget") ?? model?.training?.budget ?? 0) || null;
   const milestones = (flag(args, "milestones") ?? "")
     .split(",")
@@ -272,6 +274,7 @@ function runState(id: string, procs: { pid: number; cmd: string }[]) {
       : null,
     finished: !ck && !!model && !model?.training?.provisional,
     curve,
+    sweep: sweep ?? null,
     weights: { start, current, best, averaged },
     log: log.data ? { file: log.file, ...log.data } : null,
     samples: samples.get(id) ?? [],

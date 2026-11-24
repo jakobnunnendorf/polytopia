@@ -34,6 +34,15 @@ h3 { font-size: 13px; margin: 0 0 6px; font-weight: 600; color: var(--text-secon
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .seg button { font: inherit; border: 0; background: transparent; color: var(--text-secondary); padding: 4px 10px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--surface-1); color: var(--text-primary); font-weight: 600; box-shadow: inset 0 0 0 1px var(--border); }
+.sw-row { display: grid; grid-template-columns: 150px 1fr 150px; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--grid); font-size: 13px; }
+.sw-row .lab { font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sw-row .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.sw-track { position: relative; height: 18px; }
+.sw-track .base { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 2px dashed var(--muted); }
+.sw-track .axis { position: absolute; top: 8px; left: 0; right: 0; height: 2px; background: var(--grid); border-radius: 1px; }
+.sw-track .mk { position: absolute; top: 3px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface-1); }
+.sw-ticks { display: grid; grid-template-columns: 150px 1fr 150px; gap: 10px; font-size: 11px; color: var(--muted); }
+.sw-ticks .t { position: relative; height: 14px; } .sw-ticks .t span { position: absolute; transform: translateX(-50%); }
 .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
 .grid { display: grid; gap: 14px; }
 .cols-2 { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
@@ -96,6 +105,8 @@ pre { font: 11.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; backgroun
 
   <div class="card"><h3>Insights</h3><ul class="insights" id="insights"></ul></div>
 
+  <div id="sweeps"></div>
+
   <h2>Runs</h2>
   <div class="grid cols-2" id="cards"></div>
 
@@ -135,6 +146,53 @@ function panelFrom(st) {
 }
 let METRIC = "pointShare";
 let S = null;
+let SW = []; // strength sweeps (scripts/sweep.ts), shown in their own section
+
+// a sweep: the base and each hand-set strength against the panel, one dot per point on a
+// zoomed scale with the base as a dashed rule; then the final test of the best point
+function renderSweeps() {
+  const el = document.getElementById("sweeps");
+  if (!SW.length) { el.innerHTML = ""; return; }
+  const key = METRIC === "winRate" ? "meanWin" : "meanShare";
+  const okey = METRIC === "winRate" ? "winRate" : "pointShare";
+  el.innerHTML = `<h2>Strength sweeps</h2>` + SW.map((r, i) => {
+    const rows = r.sweep || [];
+    const head = rows.find((x) => x.start) || {};
+    const pts = rows.filter((x) => !x.start && x.final !== true);
+    const fin = rows.find((x) => x.final === true);
+    const names = head.points || pts.map((x) => x.point);
+    const base = pts.find((x) => x.point === "base");
+    const done = pts.filter((x) => x.point !== "base");
+    const best = done.length ? done.reduce((a, b) => (b[key] > a[key] ? b : a)) : null;
+    const vals = pts.map((x) => x[key]);
+    let lo = Math.min(...vals, 0.5), hi = Math.max(...vals, 0.5);
+    const span = Math.max(0.03, hi - lo); lo -= span * 0.15; hi += span * 0.15;
+    const pos = (v) => ((v - lo) / (hi - lo)) * 100;
+    const color = runColor(i);
+    const tip = (x) => Object.entries(x.vs || {}).map(([o, v]) => `${PANEL_LABEL[o] || o}: ${pct(v[okey])}`).join("\n");
+    const row = (n) => {
+      const x = pts.find((p) => p.point === n);
+      const measuring = !x && r.running && names.indexOf(n) === pts.length;
+      const mark = x ? `<div class="mk" style="left:${pos(x[key])}%;background:${n === "base" ? "var(--muted)" : color}"></div>` : "";
+      const delta = x && base && n !== "base" ? ` <span style="color:${x[key] >= base[key] ? "var(--good-text)" : "var(--text-secondary)"}">${pp(x[key] - base[key])}</span>` : "";
+      return `<div class="sw-row" title="${esc(x ? tip(x) : "")}"><div class="lab">${n === "base" ? `<b>base</b> (${esc(head.from || "")})` : esc(n)}${best && best.point === n ? " · <b>best</b>" : ""}</div>
+        <div class="sw-track"><div class="axis"></div>${base ? `<div class="base" style="left:${pos(base[key])}%"></div>` : ""}<div class="base" style="left:${pos(0.5)}%;border-left-style:dotted;opacity:.6"></div>${mark}</div>
+        <div class="val">${x ? `<b>${pct(x[key])}</b>${delta}` : measuring ? "measuring…" : "queued"}</div></div>`;
+    };
+    const ticks = [lo, (lo + hi) / 2, hi].map((v) => `<span style="left:${pos(v)}%">${pctTick(v, hi - lo)}</span>`).join("");
+    const finTxt = fin ? `<div class="note" style="margin-top:10px"><b>Final test of ${esc(fin.point)}</b> (${fin.games} unseen games against each): ` +
+        Object.entries(fin.vs).map(([o, v]) => `${PANEL_LABEL[o] || o} ${pct(v.pointShare)} pts, ${pct(v.winRate, 0)} won ± ${(196 * Math.sqrt((v.winRate * (1 - v.winRate)) / v.games)).toFixed(0)}%`).join(" · ") + `. Mean ${pct(fin[key])}.</div>`
+      : `<div class="note" style="margin-top:10px">${r.running ? "Final test of the best point follows the last point." : "No final test recorded."}</div>`;
+    const table = `<details><summary>Table view</summary><table><thead><tr><th>point</th>${(head.panel || []).map((o) => `<th class="num">${PANEL_LABEL[o] || o}</th>`).join("")}<th class="num">mean</th></tr></thead><tbody>${pts.map((x) => `<tr><td>${esc(x.point)}</td>${(head.panel || []).map((o) => `<td class="num">${pct(x.vs?.[o]?.[okey])}</td>`).join("")}<td class="num"><b>${pct(x[key])}</b></td></tr>`).join("")}</tbody></table></details>`;
+    return `<div class="card" style="margin-bottom:14px">
+      <div class="run-head"><span class="swatch" style="background:${color}"></span><span class="run-name">${esc(r.id)}</span>
+        <span class="pill"><span class="dot" style="background:var(${r.running ? "--good" : fin ? "--series-1" : "--critical"})"></span>${r.running ? "running" : fin ? "finished" : "stopped"}</span></div>
+      <div class="meta">Mean ${METRIC === "winRate" ? "win rate" : "point share"} against the panel, ${head.games || "?"} held-out games against each (the same maps as a training run's curve points). Dashed rule = base, dotted = 50%. Hover a row for each opponent.</div>
+      <div style="margin-top:10px">${names.map(row).join("")}</div>
+      <div class="sw-ticks"><div></div><div class="t">${ticks}</div><div></div></div>
+      ${finTxt}${table}</div>`;
+  }).join("");
+}
 
 // ---------- helpers ----------
 const $ = (id) => document.getElementById(id);
@@ -688,7 +746,10 @@ async function load() {
   try {
     const res = await fetch("/api/state", { cache: "no-store" });
     S = await res.json();
+    SW = S.runs.filter((r) => r.kind === "sweep");
+    S.runs = S.runs.filter((r) => r.kind !== "sweep");
     render();
+    renderSweeps();
   } catch (e) {
     $("meta").innerHTML = `<span class="err">■ can't reach the dashboard server (${esc(e.message)})</span>`;
   }
@@ -697,6 +758,7 @@ document.querySelectorAll("[data-metric]").forEach((b) => b.addEventListener("cl
   METRIC = b.dataset.metric;
   document.querySelectorAll("[data-metric]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
   render();
+  renderSweeps();
 }));
 let rt;
 addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(render, 150); });
