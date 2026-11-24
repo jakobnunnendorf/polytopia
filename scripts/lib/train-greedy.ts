@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
 import { DEFAULT_WEIGHTS, type GreedyWeights } from "../../logic/engine/bot";
+import { DEFAULT_FULL_WEIGHTS, fullWeights, type FullWeights } from "../../logic/engine/botFull";
 import { mapSizeFor } from "../../logic/engine/state";
 import { call } from "../../logic/engine/rust";
 import type { GameMode } from "../../logic/engine/types";
@@ -53,12 +54,16 @@ export function normal(): number {
 
 export type Result = { winner: number; scores: [number, number] };
 
+/** a side's weights: the greedy bot's, or the full-action-space bot's (logic/engine/botFull.ts) */
+export type AnyWeights = GreedyWeights | FullWeights;
+export const isFull = (w: AnyWeights): w is FullWeights => "centre" in w && "greedy" in w;
+
 /**
  * One free-for-all game of PLAYERS players. Side 0 (weights w0) takes the even seats, side 1 the odd
  * ones; every player still plays for itself. Returns the winning side and each side's total score.
  */
-export function play(w0: GreedyWeights, w1: GreedyWeights, gameSeed: number, size = SIZE): Result {
-  const sides = [{ kind: "greedy", weights: w0 }, { kind: "greedy", weights: w1 }];
+export function play(w0: AnyWeights, w1: AnyWeights, gameSeed: number, size = SIZE): Result {
+  const sides = [w0, w1].map((w) => ({ kind: isFull(w) ? "full" : "greedy", weights: w }));
   const [s] = call<{ winner: number | null; scores: number[] }[]>("playGames", [
     {
       opts: { mapSize: size, players: PLAYERS, mode: MODE, seed: gameSeed, humans: [], mapType: MAP_TYPE },
@@ -76,7 +81,7 @@ export function play(w0: GreedyWeights, w1: GreedyWeights, gameSeed: number, siz
 }
 
 // ---------- worker pool ----------
-export type Job = { w0: GreedyWeights; w1: GreedyWeights; seed: number; size: number };
+export type Job = { w0: AnyWeights; w1: AnyWeights; seed: number; size: number };
 
 class Pool {
   private idle: Worker[] = [];
@@ -178,7 +183,7 @@ export function runJob(job: Job, me?: number, label = ""): Promise<Result> {
   return (pool ? pool.run(job) : Promise.resolve(play(job.w0, job.w1, job.seed, job.size))).then((r) => {
     progress.done++;
     progress.phaseGames++;
-    if (me !== undefined) {
+    if (me !== undefined && label) {
       const t = (progress.tally[label] ??= [0, 0, 0]);
       const total = r.scores[0] + r.scores[1];
       t[0] += total ? r.scores[me] / total : 0.5;
@@ -193,7 +198,7 @@ export function runJob(job: Job, me?: number, label = ""): Promise<Result> {
  * One map played from both seats: b against a. Returns b's margin (its share of all points over
  * the two games minus 0.5) and its wins (0, 1 or 2).
  */
-export async function mapPair(a: GreedyWeights, b: GreedyWeights, mapSeed: number, label = ""): Promise<{ margin: number; wins: number; share: number }> {
+export async function mapPair(a: AnyWeights, b: AnyWeights, mapSeed: number, label = ""): Promise<{ margin: number; wins: number; share: number }> {
   const [x, y] = await Promise.all([runJob({ w0: b, w1: a, seed: mapSeed, size: SIZE }, 0, label), runJob({ w0: a, w1: b, seed: mapSeed, size: SIZE }, 1, label)]);
   const mine = x.scores[0] + y.scores[1];
   const total = x.scores[0] + x.scores[1] + y.scores[0] + y.scores[1];
@@ -202,7 +207,7 @@ export async function mapPair(a: GreedyWeights, b: GreedyWeights, mapSeed: numbe
 }
 
 /** b against a on games/2 map pairs from firstSeed on: b's win rate and share of all points */
-export async function match(a: GreedyWeights, b: GreedyWeights, games: number, firstSeed: number, label = ""): Promise<{ wins: number; share: number }> {
+export async function match(a: AnyWeights, b: AnyWeights, games: number, firstSeed: number, label = ""): Promise<{ wins: number; share: number }> {
   const pairs = await Promise.all(Array.from({ length: Math.ceil(games / 2) }, (_, i) => mapPair(a, b, firstSeed + i, label)));
   const n = pairs.length * 2;
   return { wins: pairs.reduce((s, p) => s + p.wins, 0) / n, share: pairs.reduce((s, p) => s + p.share, 0) / pairs.length };
@@ -218,22 +223,32 @@ export function weightsOf(id: string): GreedyWeights | null {
   return { ...DEFAULT_WEIGHTS, ...spec.weights, rewards: { ...DEFAULT_WEIGHTS.rewards, ...(spec.weights.rewards ?? {}) } };
 }
 
-export type Panel = { id: string; w: GreedyWeights }[];
+/** a saved model of either kind: "greedy" (weights) or "greedy-full" (full), null for anything else */
+export function anyWeightsOf(id: string): AnyWeights | null {
+  const f = path.join(process.cwd(), "models", id, "model.json");
+  if (id !== "greedy-v1" && fs.existsSync(f)) {
+    const spec = JSON.parse(fs.readFileSync(f, "utf8"));
+    if (spec.kind === "greedy-full" && spec.full) return fullWeights(spec.full);
+  }
+  return weightsOf(id);
+}
+
+export type Panel = { id: string; w: AnyWeights }[];
 export type PanelResult = Record<string, { winRate: number; pointShare: number; games: number }>;
 
 export function loadPanel(ids: string[]): Panel {
   return ids
-    .map((id) => ({ id, w: weightsOf(id) }))
-    .filter((p): p is { id: string; w: GreedyWeights } => {
-      if (!p.w) console.log(`panel: skipping ${p.id} (no greedy model.json)`);
+    .map((id) => ({ id, w: anyWeightsOf(id) }))
+    .filter((p): p is { id: string; w: AnyWeights } => {
+      if (!p.w) console.log(`panel: skipping ${p.id} (no greedy or greedy-full model.json)`);
       return !!p.w;
     });
 }
 
-export const short = (id: string) => (id === "greedy-v1" ? "greedy" : id.replace(/^greedy-hill-/, ""));
+export const short = (id: string) => (id === "greedy-v1" ? "greedy" : id.replace(/^greedy-(hill|full|es)-/, (_, g) => (g === "hill" ? "" : `${g}-`)));
 
 /** the champion against every panel opponent on the same held-out maps */
-export async function panelTest(panel: Panel, champ: GreedyWeights, games: number, firstSeed: number): Promise<PanelResult> {
+export async function panelTest(panel: Panel, champ: AnyWeights, games: number, firstSeed: number): Promise<PanelResult> {
   const res = await Promise.all(panel.map(async (p) => [p.id, await match(p.w, champ, games, firstSeed, `vs ${short(p.id)}`)] as const));
   return Object.fromEntries(res.map(([id, m]) => [id, { winRate: m.wins, pointShare: Math.round(m.share * 1000) / 1000, games }]));
 }
@@ -265,6 +280,122 @@ export function averageWeights(ws: GreedyWeights[]): GreedyWeights {
   for (const k of KNOBS) {
     const logs = ws.map((w) => Math.log(Math.max(w[k] as number, 1e-6)));
     (out as Record<string, unknown>)[k] = roundKnob(k, Math.exp(logs.reduce((a, x) => a + x, 0) / logs.length));
+  }
+  return out;
+}
+
+// ---------- weight spaces: what a trainer tunes ----------
+/**
+ * A weight space: the knobs a trainer may change (dotted names), how to read and set them, the
+ * defaults, how a --from model loads into it and how a model file stores it.
+ *   greedy  the greedy bot's ~20 scoring weights (kind "greedy", stored under "weights")
+ *   full    the full-action-space bot's ~200 knobs (kind "greedy-full", stored under "full"):
+ *           its greedy part plus one multiplier and one "open" knob per action type, one weight per
+ *           tech, unit, build/ability and city reward, and the centre pull. A greedy model given as
+ *           --from becomes the greedy part on top of the full defaults.
+ */
+export type Space = {
+  name: "greedy" | "full";
+  kind: "greedy" | "greedy-full";
+  field: "weights" | "full";
+  knobs: string[];
+  get(w: AnyWeights, k: string): number;
+  set(w: AnyWeights, k: string, v: number): void;
+  clone(w: AnyWeights): AnyWeights;
+  defaults(): AnyWeights;
+  load(id: string): AnyWeights | null;
+  round(k: string, v: number): number;
+};
+
+const GREEDY_SPACE: Space = {
+  name: "greedy",
+  kind: "greedy",
+  field: "weights",
+  knobs: KNOBS as string[],
+  get: (w, k) => (w as unknown as Record<string, number>)[k],
+  set: (w, k, v) => ((w as unknown as Record<string, number>)[k] = v),
+  clone: (w) => copyWeights(w as GreedyWeights),
+  defaults: () => copyWeights(DEFAULT_WEIGHTS),
+  load: weightsOf,
+  round: (k, v) => roundKnob(k as keyof GreedyWeights, v),
+};
+
+type FullGroup = "greedy" | "type" | "open" | "tech" | "unit" | "build" | "reward";
+const FULL_GROUPS: FullGroup[] = ["greedy", "type", "open", "tech", "unit", "build", "reward"];
+const cloneFull = (w: FullWeights): FullWeights => ({
+  greedy: copyWeights(w.greedy),
+  type: { ...w.type },
+  open: { ...w.open },
+  tech: { ...w.tech },
+  unit: { ...w.unit },
+  build: { ...w.build },
+  reward: { ...w.reward },
+  centre: w.centre,
+});
+let fullSpace: Space | null = null;
+function fullSpaceOf(): Space {
+  // built on first use: DEFAULT_FULL_WEIGHTS comes from the Rust engine
+  if (fullSpace) return fullSpace;
+  const knobs = [
+    // noise stays fixed; greedy.rewards are covered by the reward group
+    ...FULL_GROUPS.flatMap((g) =>
+      Object.keys(DEFAULT_FULL_WEIGHTS[g])
+        .filter((k) => !(g === "greedy" && (k === "noise" || k === "rewards")))
+        .map((k) => `${g}.${k}`),
+    ),
+    "centre",
+  ];
+  const whole = new Set(["greedy.richAt", "greedy.unitsPerCity"]);
+  const get = (w: AnyWeights, k: string) => {
+    const f = w as FullWeights;
+    if (k === "centre") return f.centre;
+    const [g, key] = k.split(".") as [FullGroup, string];
+    return (f[g] as unknown as Record<string, number>)[key];
+  };
+  const set = (w: AnyWeights, k: string, v: number) => {
+    const f = w as FullWeights;
+    if (k === "centre") f.centre = v;
+    else {
+      const [g, key] = k.split(".") as [FullGroup, string];
+      (f[g] as unknown as Record<string, number>)[key] = v;
+    }
+  };
+  fullSpace = {
+    name: "full",
+    kind: "greedy-full",
+    field: "full",
+    knobs,
+    get,
+    set,
+    clone: (w) => cloneFull(w as FullWeights),
+    defaults: () => cloneFull(DEFAULT_FULL_WEIGHTS),
+    load: (id) => {
+      const w = anyWeightsOf(id);
+      if (!w) return null;
+      return isFull(w) ? cloneFull(w) : { ...cloneFull(DEFAULT_FULL_WEIGHTS), greedy: copyWeights(w) };
+    },
+    round: (k, v) => (whole.has(k) ? Math.max(1, Math.round(v)) : Math.round(v * 1000) / 1000),
+  };
+  return fullSpace;
+}
+
+export const spaceOf = (name: string): Space => (name === "full" ? fullSpaceOf() : GREEDY_SPACE);
+
+/** the knobs that differ from the space's defaults */
+export function changesIn(space: Space, w: AnyWeights): string {
+  const d = space.defaults();
+  return space.knobs
+    .filter((k) => space.get(w, k) !== space.get(d, k))
+    .map((k) => `${k} ${space.get(d, k)}→${space.get(w, k)}`)
+    .join(", ");
+}
+
+/** the geometric mean of several weight sets of one space, knob by knob (weights are scale-like) */
+export function averageIn(space: Space, ws: AnyWeights[]): AnyWeights {
+  const out = space.clone(ws[ws.length - 1]);
+  for (const k of space.knobs) {
+    const logs = ws.map((w) => Math.log(Math.max(space.get(w, k), 1e-6)));
+    space.set(out, k, space.round(k, Math.exp(logs.reduce((a, x) => a + x, 0) / logs.length)));
   }
   return out;
 }
