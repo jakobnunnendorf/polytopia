@@ -206,6 +206,7 @@ fn full_weights_to_json(w: &polycore::bot_full::FullWeights) -> Value {
         "techUse": w.tech_use,
         "techUseless": w.tech_useless,
         "front": w.front,
+        "roads": w.roads,
     })
 }
 

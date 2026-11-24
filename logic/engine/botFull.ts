@@ -32,6 +32,8 @@ export type FullWeights = {
   techUseless: number;
   /** move bonus per tile closer to the nearest known enemy city or unit (0 = off) */
   front: number;
+  /** share of a move's progress measured in road-aware travel cost, roads counting half (0 = off) */
+  roads: number;
 };
 
 export type PartialFullWeights = { [K in keyof FullWeights]?: FullWeights[K] extends number ? number : Partial<FullWeights[K]> };

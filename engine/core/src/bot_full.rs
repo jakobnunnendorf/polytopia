@@ -22,6 +22,11 @@
 //! Front pull (issue #30): a move adds `front` per tile it brings the unit closer to the nearest
 //! known enemy city or unit (not at peace), also for moves the goal logic rejects, so idle units
 //! drift toward the action. Default 0 (off).
+//!
+//! Road-aware moves (issue #34): with `roads` > 0 a move's progress toward its goal is measured
+//! partly in travel cost, where a step between two road tiles (road, bridge, village or city on
+//! own, peace-partner or unclaimed land, as in movement.rs) costs half. Progress =
+//! tiles gained + roads * (road-aware gain - tiles gained). Default 0 (off).
 use crate::actions::{apply_action, legal_actions};
 use crate::bot::{cached_goal, find_unit, noise, score_with, GoalCache, GreedyWeights};
 use crate::diplomacy::at_peace;
@@ -117,6 +122,8 @@ pub struct FullWeights {
     pub tech_useless: f64,
     /// move bonus per tile closer to the nearest known enemy (0 = off)
     pub front: f64,
+    /// share of a move's progress measured in road-aware travel cost (0 = off, 1 = all)
+    pub roads: f64,
 }
 
 /// botFull.ts DEFAULT_FULL_WEIGHTS
@@ -135,6 +142,7 @@ pub fn default_full_weights() -> FullWeights {
         tech_use: 0.0,
         tech_useless: 0.0,
         front: 0.0,
+        roads: 0.0,
     }
 }
 
@@ -173,7 +181,7 @@ pub fn full_weights(p: &serde_json::Value) -> Result<FullWeights, String> {
     merge_table(&mut w.unit, o.get("unit"), "unit", |k| UnitType::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.build, o.get("build"), "build", |k| Build::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.reward, o.get("reward"), "reward", |k| Reward::from_id(k).map(|t| t as usize))?;
-    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius), ("techUse", &mut w.tech_use), ("techUseless", &mut w.tech_useless), ("front", &mut w.front)] {
+    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius), ("techUse", &mut w.tech_use), ("techUseless", &mut w.tech_useless), ("front", &mut w.front), ("roads", &mut w.roads)] {
         match o.get(key) {
             None | Some(serde_json::Value::Null) => {}
             Some(c) => *slot = c.as_f64().ok_or_else(|| format!("full.{key}: expected a number"))?,
@@ -198,12 +206,71 @@ pub fn centre_dist(n: i32, c: Coord) -> f64 {
 fn move_score(s: &GameState, unit: Id, to: Coord, w: &FullWeights, cache: &mut Option<GoalCache>) -> f64 {
     let u = find_unit(s, unit);
     let Some(g) = cached_goal(s, u, cache) else { return -1.0 };
-    let gain = dist(u.x, u.y, g.x, g.y) - dist(to.x, to.y, g.x, g.y);
-    if gain <= 0 {
+    let tiles = (dist(u.x, u.y, g.x, g.y) - dist(to.x, to.y, g.x, g.y)) as f64;
+    let gain = if w.roads == 0.0 {
+        tiles
+    } else {
+        let (from, at) = road_dist(s, u.owner, g, Coord::new(u.x, u.y), to);
+        tiles + w.roads * ((from - at) - tiles)
+    };
+    if gain <= 0.0 {
         return -1.0;
     }
     let to_centre = centre_dist(s.map_size, Coord::new(u.x, u.y)) - centre_dist(s.map_size, to);
-    w.greedy.move_ + gain as f64 + w.centre * to_centre + w.greedy.noise * noise(s, u.id as i64 * 13 + to.x as i64 + to.y as i64)
+    w.greedy.move_ + gain + w.centre * to_centre + w.greedy.noise * noise(s, u.id as i64 * 13 + to.x as i64 + to.y as i64)
+}
+
+thread_local! {
+    /// the last road-distance map: (owner, goal, road tiles) -> half-steps from every tile to the goal
+    static ROAD_MAP: std::cell::RefCell<(i32, Coord, Vec<bool>, Vec<u32>)> = std::cell::RefCell::new((-1, Coord::new(-1, -1), Vec::new(), Vec::new()));
+}
+
+/// road-aware distances (in tiles, roads count half) to `goal` from `a` and from `b`: a Dijkstra
+/// over Chebyshev neighbours from the goal, cached until the owner, the goal or the roads change
+fn road_dist(s: &GameState, owner: i32, goal: Coord, a: Coord, b: Coord) -> (f64, f64) {
+    let n = s.map_size;
+    let road: Vec<bool> = s
+        .tiles
+        .iter()
+        .map(|t| {
+            (t.road || t.building == Some(Build::Bridge) || t.village || t.city_id.is_some()) && {
+                let o = city_by_id(s, t.territory).map(|i| s.cities[i].owner);
+                o.is_none() || crate::diplomacy::friendly(s, owner, o)
+            }
+        })
+        .collect();
+    ROAD_MAP.with(|m| {
+        let mut m = m.borrow_mut();
+        if !(m.0 == owner && m.1 == goal && m.2 == road) {
+            let mut d = vec![u32::MAX; (n * n) as usize];
+            let mut heap = std::collections::BinaryHeap::new();
+            let gi = idx(n, goal.x, goal.y);
+            d[gi] = 0;
+            heap.push(std::cmp::Reverse((0u32, gi)));
+            while let Some(std::cmp::Reverse((c, i))) = heap.pop() {
+                if c > d[i] {
+                    continue;
+                }
+                let (x, y) = ((i as i32) % n, (i as i32) / n);
+                for dy in -1..=1 {
+                    for dx in -1..=1 {
+                        let (nx, ny) = (x + dx, y + dy);
+                        if (dx == 0 && dy == 0) || nx < 0 || ny < 0 || nx >= n || ny >= n {
+                            continue;
+                        }
+                        let j = idx(n, nx, ny);
+                        let nc = c + if road[i] && road[j] { 1 } else { 2 };
+                        if nc < d[j] {
+                            d[j] = nc;
+                            heap.push(std::cmp::Reverse((nc, j)));
+                        }
+                    }
+                }
+            }
+            *m = (owner, goal, road, d);
+        }
+        (m.3[idx(n, a.x, a.y)] as f64 / 2.0, m.3[idx(n, b.x, b.y)] as f64 / 2.0)
+    })
 }
 
 /// our city on (x, y) when an enemy unit we know of is within `radius` tiles of it
