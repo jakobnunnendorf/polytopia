@@ -269,7 +269,7 @@ export function actionLabel(_s: GameState, a: Action): string {
     case "explode":
       return "Explode";
     case "breakIce":
-      return `Break Ice at ${a.at.x},${a.at.y}`;
+      return "Break Ice";
     case "drain":
       return a.effect === "flooded" ? "Drain" : "Clear Algae";
     case "decompose":

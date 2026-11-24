@@ -681,7 +681,6 @@ export function createGame(opts: NewGameOptions): GameState {
     climates: clanIds.slice(),
     flooded: clanIds.map((c) => c === "aquarion"),
     polaris: clanIds.map((c) => c === "polaris"),
-    aquaCrops: clanIds.includes("aquarion"),
   });
   const humans = new Set(opts.humans ?? [0]);
 
@@ -737,19 +736,8 @@ export function createGame(opts: NewGameOptions): GameState {
     // the starting unit can act on turn 0 (§8)
     unit.done = false;
   }
-  // Polaris home climate (S1 tile climate): the land of a Polaris area is Polaris land, which the
-  // Ice Bank counts (mapgen area = nearest capital)
-  const polaris = s.players.filter((q) => q.clan === "polaris").map((q) => cityById(s, q.capitalId)!);
-  if (polaris.length) {
-    const caps = s.players.map((q) => cityById(s, q.capitalId)!);
-    s.tiles.forEach((t, i) => {
-      if (isWater(t)) return;
-      const at = { x: i % n, y: Math.floor(i / n) };
-      let best = caps[0];
-      for (const c of caps) if (dist(c, at) < dist(best, at)) best = c;
-      if (polaris.includes(best)) t.polar = true;
-    });
-  }
+  // Polaris home climate: map generation already marks the land around a Polaris capital as Polaris
+  // land (S1 mapgen_candidate populate: the 3×3 area); nothing more here
   startTurn(s);
   checkMeetings(s);
   return s;

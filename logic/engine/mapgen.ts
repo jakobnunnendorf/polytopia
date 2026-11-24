@@ -123,7 +123,7 @@ export type MapOptions = {
   polaris?: boolean[];
   /** per player: the climate's identity (the tribe id); two players of one tribe share a climate */
   climates?: string[];
-  /** Aqua Crops stay on the map (only when an Aquarion plays; only Aquarion sees them) */
+  /** ignored: Aqua Crops stay on every map (S1), only Aquarion sees them (kept for old callers) */
   aquaCrops?: boolean;
   /** map candidates drawn for the fairness pick (default: the preset's 50) */
   candidates?: number;
@@ -1066,8 +1066,8 @@ class Gen {
     const tiles: Tile[] = [];
     const villages: Coord[] = [];
     for (let i = 0; i < this.total; i++) {
-      let resource = this.resource[i];
-      if (resource === "aquaCrop" && !this.opts.aquaCrops) resource = null;
+      // Aqua Crops stay on every map (S1 keeps them; only Aquarion sees them, state.resourceVisible)
+      const resource = this.resource[i];
       const village = this.imp[i] === "city" && !capitals.has(i);
       if (village) villages.push({ x: this.x(i), y: this.y(i) });
       const t: Tile = {

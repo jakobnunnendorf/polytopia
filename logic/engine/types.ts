@@ -217,7 +217,8 @@ export type Action =
   | { type: "freezeArea"; unitId: number }
   | { type: "swarm"; unitId: number }
   | { type: "explode"; unitId: number }
-  | { type: "breakIce"; unitId: number; at: Coord }
+  /** break every breakable ice tile around the unit (S1 BreakIce) */
+  | { type: "breakIce"; unitId: number }
   /** clear a tile effect under the unit (2.18 "drain": Flooded, or Algae); free, ends the unit's turn */
   | { type: "drain"; unitId: number; effect: "flooded" | "algae" }
   /** Cymanti Recycling: mark an own building; refunded and removed at the end of the turn */
