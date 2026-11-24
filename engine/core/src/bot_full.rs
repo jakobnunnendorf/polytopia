@@ -8,9 +8,16 @@
 //! `centre` points per tile of Chebyshev distance to the map centre removed.
 //! With centre 0, every multiplier 1 and every open knob 0 it plays exactly like
 //! bot_step with the same greedy weights.
+//!
+//! City defence (issue #28): a city of ours is threatened when a known enemy unit (not at
+//! peace) is within `defend_radius` tiles. A move into an empty threatened city of ours adds
+//! `defend`; a move that leaves one empty subtracts it. With defend 0 (the default, and every
+//! model trained before) nothing changes.
 use crate::actions::{apply_action, legal_actions};
 use crate::bot::{cached_goal, find_unit, noise, score_with, GoalCache, GreedyWeights};
-use crate::grid::dist;
+use crate::diplomacy::at_peace;
+use crate::grid::{dist, idx};
+use crate::state::city_by_id;
 use crate::types::*;
 
 /// botFull.ts FULL_ACTION_TYPES (every action type but endTurn), in order;
@@ -91,6 +98,10 @@ pub struct FullWeights {
     /// REWARD_IDS order == Reward::ALL order
     pub reward: [f64; Reward::COUNT],
     pub centre: f64,
+    /// city defence bonus / penalty (0 = off)
+    pub defend: f64,
+    /// how near (tiles) an enemy makes a city threatened
+    pub defend_radius: f64,
 }
 
 /// botFull.ts DEFAULT_FULL_WEIGHTS
@@ -104,6 +115,8 @@ pub fn default_full_weights() -> FullWeights {
         build: [1.0; Build::COUNT],
         reward: [1.0; Reward::COUNT],
         centre: 1.0,
+        defend: 0.0,
+        defend_radius: 2.0,
     }
 }
 
@@ -142,9 +155,11 @@ pub fn full_weights(p: &serde_json::Value) -> Result<FullWeights, String> {
     merge_table(&mut w.unit, o.get("unit"), "unit", |k| UnitType::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.build, o.get("build"), "build", |k| Build::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.reward, o.get("reward"), "reward", |k| Reward::from_id(k).map(|t| t as usize))?;
-    match o.get("centre") {
-        None | Some(serde_json::Value::Null) => {}
-        Some(c) => w.centre = c.as_f64().ok_or("full.centre: expected a number")?,
+    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius)] {
+        match o.get(key) {
+            None | Some(serde_json::Value::Null) => {}
+            Some(c) => *slot = c.as_f64().ok_or_else(|| format!("full.{key}: expected a number"))?,
+        }
     }
     Ok(w)
 }
@@ -173,6 +188,38 @@ fn move_score(s: &GameState, unit: Id, to: Coord, w: &FullWeights, cache: &mut O
     w.greedy.move_ + gain as f64 + w.centre * to_centre + w.greedy.noise * noise(s, u.id as i64 * 13 + to.x as i64 + to.y as i64)
 }
 
+/// our city on (x, y) when an enemy unit we know of is within `radius` tiles of it
+fn threatened_city_at(s: &GameState, owner: i32, x: i32, y: i32, radius: i32) -> bool {
+    let n = s.map_size;
+    let t = &s.tiles[idx(n, x, y)];
+    let Some(ci) = city_by_id(s, t.city_id) else { return false };
+    if s.cities[ci].owner != owner {
+        return false;
+    }
+    let explored = &s.players[owner as usize].explored;
+    s.units.iter().any(|e| {
+        e.owner != owner && !at_peace(s, owner, e.owner) && explored[idx(n, e.x, e.y)] == 1 && dist(x, y, e.x, e.y) <= radius
+    })
+}
+
+/// the city-defence term of a move: +defend into an empty threatened city of ours,
+/// -defend for leaving one (one unit per tile, so leaving empties it)
+fn defend_term(s: &GameState, unit: Id, to: Coord, w: &FullWeights) -> f64 {
+    if w.defend == 0.0 {
+        return 0.0;
+    }
+    let u = find_unit(s, unit);
+    let r = w.defend_radius.round().max(1.0) as i32;
+    let mut d = 0.0;
+    if threatened_city_at(s, u.owner, to.x, to.y, r) && !s.units.iter().any(|o| o.x == to.x && o.y == to.y) {
+        d += w.defend;
+    }
+    if threatened_city_at(s, u.owner, u.x, u.y, r) {
+        d -= w.defend;
+    }
+    d
+}
+
 fn id_weight(a: &Action, w: &FullWeights) -> f64 {
     match *a {
         Action::Research { tech } => w.tech[tech as usize],
@@ -195,10 +242,10 @@ fn score_full_with(s: &GameState, a: &Action, w: &FullWeights, cache: &mut Optio
         _ => score_with(s, a, &w.greedy, cache),
     };
     let id = id_weight(a, w);
-    if base > 0.0 {
-        base * w.ty[t] * id
-    } else {
-        w.open[t] * id - 1.0
+    let score = if base > 0.0 { base * w.ty[t] * id } else { w.open[t] * id - 1.0 };
+    match *a {
+        Action::Move { unit, to } => score + defend_term(s, unit, to, w),
+        _ => score,
     }
 }
 
