@@ -1,0 +1,53 @@
+{
+  "id": "greedy-hill-v5",
+  "name": "Hill climber v5 (training, 32k games)",
+  "kind": "greedy",
+  "description": "Provisional: the best champion so far of a training run in progress (curve point 2, 32k games).",
+  "created": "2026-11-24",
+  "weights": {
+    "capture": 100,
+    "examine": 81.23,
+    "promote": 90,
+    "harvestStarfish": 40,
+    "monument": 125.65,
+    "kill": 95.58,
+    "hit": 5.31,
+    "special": 30,
+    "growBase": 25,
+    "growPerPop": 6,
+    "otherBuild": 8,
+    "richAt": 10,
+    "research": 23.24,
+    "train": 12,
+    "unitsPerCity": 3,
+    "move": 10,
+    "recover": 15,
+    "healOthers": 15,
+    "upgrade": 6,
+    "noise": 1,
+    "rewards": {
+      "workshop": 5,
+      "explorer": 3,
+      "cityWall": 2,
+      "resources": 5,
+      "populationGrowth": 5,
+      "borderGrowth": 3,
+      "park": 4,
+      "superUnit": 6
+    }
+  },
+  "training": {
+    "provisional": true,
+    "method": "hill-climbing",
+    "test": "margin",
+    "mode": "domination",
+    "players": 4,
+    "mapSize": 16,
+    "round": 96,
+    "trainingGames": 31770,
+    "kept": 2,
+    "startedAt": "2026-11-24T11:48:29.666Z",
+    "seconds": 284,
+    "duration": "4m44s"
+  }
+}
