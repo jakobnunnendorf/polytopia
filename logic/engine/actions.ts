@@ -118,6 +118,13 @@ function canBuild(s: GameState, p: number, b: string, x: number, y: number): boo
   if (b === "fish" && pl.clan === "polaris" && !pl.techs.includes("ramming")) return false;
   if (b === "mountainTemple" && pl.clan === "cymanti" && !pl.techs.includes("philosophy")) return false;
   if (pl.stars < def.cost) return false;
+  // Canal: built by an own unit standing on the tile, which can still attack and has not moved;
+  // any territory (freelance + manual), even over a building or city (discrete); not on a flooded tile
+  if (b === "canal") {
+    const u = occupant(s, x, y);
+    if (!u || u.owner !== p || u.done || u.moved || !u.canAttack || u.frozen) return false;
+    return !isWater(t) && !t.flooded && (t.terrain === "field" || t.terrain === "forest");
+  }
   if (t.cityId !== null || t.village || t.ruin || t.lighthouse) return false;
   if (def.kind === "embassy") return false; // embassies are built inside cities, see legalActions
   const own = ownTile(s, p, x, y);
@@ -138,16 +145,30 @@ function canBuild(s: GameState, p: number, b: string, x: number, y: number): boo
     return (land(0, -1) && land(0, 1)) || (land(-1, 0) && land(1, 0));
   }
   if (!own) return false;
-  // Aquarion flooded tiles (rules doc, Tribes > Aquarion): Flood, Landfill, Fertilize, ports on flooded land
-  if (b === "flood" || b === "landfill") {
-    const dryLand = !isWater(t) && t.terrain !== "mountain";
-    return dryLand && !t.building && (b === "flood" ? !t.flooded : !!t.flooded);
-  }
-  if (b === "fertilize") return t.terrain === "field" && !!t.flooded && !t.building && !t.resource;
+  // 2.18 "wetland" terrain: a flooded tile or algae water, never a forest (S1 can_build)
+  const wetland = (!!t.flooded || !!t.algae) && t.terrain !== "forest";
+  // Fertilize: a crop on wetland that has none (it replaces another resource there)
+  if (b === "fertilize") return wetland && !t.building && t.resource !== "crop";
   if (b === "port" && t.flooded && !isWater(t)) return t.terrain !== "mountain" && !t.building && !t.resource;
   if (def.kind === "destroy") return t.building !== null;
+  // Cymanti Algae: open water without algae (it may sit on a building: discrete)
+  if (b === "algae") return isWater(t) && !t.ice && !t.algae && t.resource !== "fruit";
   if (t.building) return false;
-  if (!def.terrain.includes(t.terrain as never)) return false;
+  // Atoll on wetland; Mycelium on wetland; Ice Bank on ice (Polaris)
+  const extraTerrain =
+    ((b === "atoll" || b === "mycelium") && wetland) ||
+    // Aquarion Pontoon (Aquabase): field buildings may stand on water (not roads, temples, canals, Grow Forest)
+    (pl.clan === "aquarion" && isWater(t) && !t.ice && ["windmill", "sawmill", "forge", "market"].includes(b));
+  if (!extraTerrain && !def.terrain.includes(t.terrain as never)) return false;
+  if (b === "iceBank" && isWater(t) && !t.ice) return false;
+  if ((b === "atoll" || b === "aquaFarm") && t.ice) return false;
+  if (b === "iceBank" && (pl.builtUnique ?? []).includes(b)) return false;
+  if (def.nextToTerrain) {
+    const ok = around(s.mapSize, { x, y }, 1).some(
+      (q) => tileAt(s, q.x, q.y).terrain === def.nextToTerrain && ownTile(s, p, q.x, q.y),
+    );
+    if (!ok) return false;
+  }
   if (def.resource && t.resource !== def.resource) return false;
   // 2.18: a building that needs no resource may stand on an unharvested one (the resource stays
   // underneath, hidden, and can't be harvested while the building stands)
@@ -206,8 +227,16 @@ export function legalActions(s: GameState): Action[] {
     if (o !== null && o !== p) continue;
     for (const b of Object.keys(BUILDS)) {
       const def = BUILDS[b];
+      if (b === "canal") continue; // unit-built, listed with the units below
       if (o === null && def.kind !== "road" && def.kind !== "bridge") continue;
       if (canBuild(s, p, b, x, y)) out.push({ type: "build", at: { x, y }, building: b });
+    }
+    // Cymanti Decompose (Recycling): an own building not decomposing yet, with no enemy unit on it
+    const t = s.tiles[i];
+    if (o === p && t.building && !t.decomposing && pl.clan === "cymanti" && pl.techs.includes("construction")) {
+      const occ = occupant(s, x, y);
+      const blocked = occ && occ.owner !== p && canSee(s, p, occ) && !atPeace(s, p, occ.owner);
+      if (!blocked && !(t.building === "bridge" && occ)) out.push({ type: "decompose", at: { x, y } });
     }
   }
   // embassies (2.18): inside a met tribe's original capital that it still holds; peace not needed,
@@ -286,6 +315,23 @@ export function legalActions(s: GameState): Action[] {
         if (qt.ice && !qt.building && qt.cityId === null && !occupant(s, q.x, q.y)) {
           out.push({ type: "breakIce", unitId: u.id, at: { x: q.x, y: q.y } });
         }
+      }
+    }
+    // Canal (Waterways): built by this unit on its own tile
+    if (canBuild(s, p, "canal", u.x, u.y)) out.push({ type: "build", at: { x: u.x, y: u.y }, building: "canal" });
+    // 2.18 Clear Tile Effect ("drain", S1 clear_options): Algae, for a unit that can move or attack and
+    // swims, flies or is amphibious; Flooded, for a unit that can move and attack, of a tribe that does not
+    // flood (not Aquarion), that is amphibious or does not swim. Free; the unit is spent.
+    if (!u.done && !u.frozen) {
+      const swims = UNITS[u.type].naval || has(u, "water");
+      if (tile.algae && (u.canMove || u.canAttack) && (has(u, "amphibious") || swims || has(u, "fly"))) {
+        out.push({ type: "drain", unitId: u.id, effect: "algae" });
+      }
+      if (
+        tile.flooded && !isWater(tile) && u.canMove && u.canAttack && pl.clan !== "aquarion" &&
+        (has(u, "amphibious") || !swims)
+      ) {
+        out.push({ type: "drain", unitId: u.id, effect: "flooded" });
       }
     }
     if (u.kills >= 3 && !u.veteran && !has(u, "static")) out.push({ type: "promote", unitId: u.id });
@@ -404,6 +450,20 @@ export function applyAction(prev: GameState, a: Action): GameState {
       u.canMove = false;
       break;
     }
+    case "drain": {
+      const u = unitById(s, a.unitId)!;
+      const t = tileAt(s, u.x, u.y);
+      if (a.effect === "algae") t.algae = false;
+      else t.flooded = false;
+      u.hidden = false;
+      endUnit(u);
+      u.moved = true;
+      u.attacked = true;
+      break;
+    }
+    case "decompose":
+      tileAt(s, a.at.x, a.at.y).decomposing = true;
+      break;
     case "boost": {
       const u = unitById(s, a.unitId)!;
       for (const o of s.units) {
@@ -435,7 +495,7 @@ export function applyAction(prev: GameState, a: Action): GameState {
       breakPeace(s, p, a.player);
       break;
   }
-  for (const u of s.units) if (u.owner === p && actsOn(a, u)) u.idle = false;
+  for (const u of s.units) if (u.owner === p && (actsOn(a, u) || builtBy(a, u))) u.idle = false;
   updateConnections(s, p);
   checkMeetings(s);
   checkTasks(s, p);
@@ -445,6 +505,11 @@ export function applyAction(prev: GameState, a: Action): GameState {
 
 function actsOn(a: Action, u: Unit): boolean {
   return "unitId" in a && a.unitId === u.id;
+}
+
+/** a Canal is built by the unit standing on the tile */
+function builtBy(a: Action, u: Unit): boolean {
+  return a.type === "build" && a.building === "canal" && u.x === a.at.x && u.y === a.at.y;
 }
 
 function endUnit(u: Unit) {
@@ -496,6 +561,7 @@ function endTurn(s: GameState) {
     if (idle && (u.hp < u.maxHp || u.poisoned)) heal(s, u);
     if (u.frozen) u.frozen = false;
   }
+  improvementUpkeep(s, p);
   if (pl.techs.includes("meditation")) pl.pacifistTurns = pl.attackedThisTurn ? 0 : pl.pacifistTurns + 1;
   checkTasks(s, p);
   // offers this player did not answer on its turn lapse (count as declined)
@@ -510,6 +576,43 @@ function endTurn(s: GameState) {
   checkGameEnd(s, true);
   if (s.over) return;
   startTurn(s);
+}
+
+/**
+ * End-of-turn upkeep of p's own buildings (S1 cymanti::improvement_upkeep): a Mycelium heals 4 HP
+ * to p's unit on it and p's units next to it (a poisoned unit is cured instead); a decomposing
+ * building pays back its full cost and is removed (not a bridge with a unit on it).
+ */
+function improvementUpkeep(s: GameState, p: number) {
+  const n = s.mapSize;
+  s.tiles.forEach((t, i) => {
+    if (!t.building || territoryOwner(s, t) !== p) return;
+    const at = { x: i % n, y: Math.floor(i / n) };
+    if (t.building === "mycelium") {
+      for (const u of s.units) if (u.owner === p && dist(u, at) <= 1) healBy(u, 4);
+    }
+    if (t.decomposing && !(t.building === "bridge" && occupant(s, at.x, at.y))) {
+      s.players[p].stars += BUILDS[t.building]?.cost ?? 0;
+      removeBuilding(s, p, at);
+    }
+  });
+}
+
+/**
+ * Remove the building on `at` (Decompose): its city loses the population it gave, a building that
+ * needs a resource gives it back (S1 economy::destroy), and adjacent level buildings drop.
+ */
+function removeBuilding(s: GameState, p: number, at: Coord) {
+  const t = tileAt(s, at.x, at.y);
+  const old = t.building!;
+  const def = BUILDS[old];
+  const city = cityById(s, t.territory);
+  if (city) city.pop -= (def?.pop ?? 0) + (FEEDS[old] ? 0 : levelPop(old, t.buildingLevel));
+  if (def?.resource) t.resource = def.resource as typeof t.resource;
+  t.building = null;
+  t.buildingLevel = 0;
+  t.decomposing = false;
+  unfeed(s, p, at, old);
 }
 
 /* ---------- moves ---------- */
@@ -577,23 +680,37 @@ function doMove(s: GameState, u: Unit, to: Coord) {
   if (!stompsLeaving && has(u, "stomp")) stomp(s, u);
   if (has(u, "autoFreeze")) freezeSurrounding(s, u, false);
   aquarionAfterMove(s, u);
-  // Cymanti Fungi and Clathrus poison enemy units stepping onto them
-  const destTile = tileAt(s, u.x, u.y);
-  const fungiOwner = territoryOwner(s, destTile);
-  if (
-    (destTile.building === "fungi" || destTile.building === "clathrus") &&
-    fungiOwner !== null && fungiOwner !== u.owner && canHarm(s, fungiOwner, u.owner)
-  ) {
-    u.poisoned = true;
-  }
+  poisonTile(s, u);
+}
+
+/**
+ * Cymanti poison buildings (Fungi, Clathrus): a unit stepping onto one is poisoned, unless its tribe
+ * resists poison (Cymanti) or it flies (S1 cymanti::poison_tile; no owner or peace check).
+ */
+function poisonTile(s: GameState, u: Unit) {
+  if (!s.units.includes(u)) return;
+  const t = tileAt(s, u.x, u.y);
+  if (t.building !== "fungi" && t.building !== "clathrus") return;
+  if (s.players[u.owner].clan === "cymanti" || has(u, "fly")) return;
+  u.poisoned = true;
 }
 
 /* ---------- Aquarion: flooding, Bubbles, Tentacles ---------- */
 
-/** flood a land tile (fields and forests; mountains and water stay as they are) */
-function floodTile(s: GameState, x: number, y: number) {
+/** Aquarion's Bubble ability comes with Waterways (the Roads slot) */
+const hasBubble = (s: GameState, p: number) => s.players[p].clan === "aquarion" && s.players[p].techs.includes("roads");
+
+/**
+ * Flood (S1 aquarion::flood, by Canal, Drench, Auto Flood): a floodable tile (land that is not a
+ * mountain and not flooded yet; water, ocean and ice never flood) floods, and an amphibious unit on it
+ * gains Bubble when the flooding player has the Bubble ability (whoever owns the unit).
+ */
+function floodAt(s: GameState, actor: number, x: number, y: number) {
   const t = tileAt(s, x, y);
-  if (!isWater(t) && t.terrain !== "mountain") t.flooded = true;
+  if (isWater(t) || t.terrain === "mountain" || t.flooded) return;
+  t.flooded = true;
+  const occ = occupant(s, x, y);
+  if (occ && has(occ, "amphibious") && hasBubble(s, actor)) occ.bubble = true;
 }
 
 /**
@@ -605,13 +722,14 @@ function floodTile(s: GameState, x: number, y: number) {
  */
 function aquarionAfterMove(s: GameState, u: Unit) {
   if (!s.units.includes(u)) return;
-  if (has(u, "autoFlood")) floodTile(s, u.x, u.y);
   const t = tileAt(s, u.x, u.y);
   if (has(u, "amphibious")) {
+    // an amphibious unit of a Bubble player gains Bubble on a flooded tile, and loses it on dry land
     if (!isWater(t) && t.flooded) {
-      if (s.players[u.owner].clan === "aquarion" && s.players[u.owner].techs.includes("roads")) u.bubble = true;
-    } else if (!isWater(t)) u.bubble = false;
+      if (hasBubble(s, u.owner)) u.bubble = true;
+    } else if (!isWater(t) && !t.algae) u.bubble = false;
   }
+  if (has(u, "autoFlood")) floodAt(s, u.owner, u.x, u.y);
   if (has(u, "tentacles") && !u.frozen) {
     for (const e of s.units.slice()) {
       if (e.owner === u.owner || dist(e, u) !== 1) continue;
@@ -646,13 +764,14 @@ function freezeSurrounding(s: GameState, u: Unit, area: boolean) {
   }
 }
 
-/** a poisoned unit's death or an explosion leaves spores on land, algae on water */
+/**
+ * A poisoned unit's death or an explosion leaves spores (S1 cymanti::spores: a new resource on the
+ * tile, replacing one there), and on water algae too. Not on a city or village.
+ */
 function leaveSporesOrAlgae(t: ReturnType<typeof tileAt>) {
-  if (isWater(t)) {
-    if (!t.ice) t.algae = true;
-  } else if (t.resource === null && t.building === null && t.cityId === null && !t.village && t.terrain !== "mountain") {
-    t.resource = "spores";
-  }
+  if (t.cityId !== null || t.village) return;
+  t.resource = "spores";
+  if (isWater(t) && !t.ice) t.algae = true;
 }
 
 function doExplode(s: GameState, u: Unit) {
@@ -702,12 +821,60 @@ function damage(s: GameState, target: Unit, amount: number, by: Unit | null): bo
   if (target.hp > 0) return false;
   s.units = s.units.filter((x) => x !== target);
   if (target.poisoned) leaveSporesOrAlgae(tileAt(s, target.x, target.y));
+  if (has(target, "eat")) headDied(s, target);
   s.players[target.owner].losses += 1;
   if (by) {
     s.players[by.owner].kills += 1;
     if (!has(by, "static") && !has(by, "carry")) by.kills += 1;
   }
   return true;
+}
+
+/**
+ * Centipede head killed (S1 attack::kill): the first Segment of its body becomes the Centipede (it
+ * keeps its damage and the head's spent flags) and leads the rest of the body.
+ */
+function headDied(s: GameState, head: Unit) {
+  const body = s.units.filter((o) => o.bodyOf === head.id);
+  if (!body.length) return;
+  const next = body[0];
+  next.type = "centipede";
+  next.maxHp = UNITS.centipede.hp! + (next.veteran ? 5 : 0);
+  delete next.bodyOf;
+  next.moved = head.moved;
+  next.attacked = head.attacked;
+  for (const o of body.slice(1)) o.bodyOf = next.id;
+}
+
+/** the 8 directions clockwise from north-west (S1 linked::FAN order) */
+const FAN: Coord[] = [
+  { x: -1, y: -1 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: 1 },
+  { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: -1 },
+];
+
+/**
+ * Eat (S1 linked::eat): a Segment is placed behind the body's tail (the last Segment, or the head),
+ * on the first free tile it may stand on, fanning out from the opposite of the head's facing.
+ */
+function growSegment(s: GameState, head: Unit) {
+  const body = s.units.filter((o) => o.bodyOf === head.id);
+  const tail = body.length ? body[body.length - 1] : head;
+  const facing = head.lastDir ?? { x: 0, y: -1 };
+  const dir = FAN.findIndex((d) => d.x === facing.x && d.y === facing.y);
+  const opposite = ((dir < 0 ? 7 : dir) + 4) % 8;
+  const probe: Unit = { ...tail, type: "segment", carried: null };
+  for (let i = 1; i <= 8; i++) {
+    const offset = (i - 1) % 2 === 0 ? Math.floor(i / 2) : -(i >> 1);
+    const d = FAN[(((offset + opposite) % 8) + 8) % 8];
+    const x = tail.x + d.x;
+    const y = tail.y + d.y;
+    if (x < 0 || y < 0 || x >= s.mapSize || y >= s.mapSize || occupant(s, x, y)) continue;
+    if (enterKind(s, probe, tileAt(s, x, y)) !== "normal") continue;
+    const seg = makeUnit(s, "segment", head.owner, { x, y }, null);
+    seg.bodyOf = head.id;
+    explore(s, head.owner, seg, 1);
+    return;
+  }
 }
 
 function doAttack(s: GameState, u: Unit, target: Unit) {
@@ -744,9 +911,9 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
   const from = { x: target.x, y: target.y };
   const prevPos = { x: u.x, y: u.y };
   const killed = damage(s, target, r.damage, u);
-  // Aquarion: Drench floods the attacked tile; being attacked pops a Bubble
-  if (has(u, "drench")) floodTile(s, from.x, from.y);
+  // Aquarion: being attacked pops a Bubble; Drench floods the attacked tile (and may bubble its unit)
   target.bubble = false;
+  if (has(u, "drench")) floodAt(s, p, from.x, from.y);
   // special on-hit effects: freeze (Ice Archer) & poison (Phychi, Exida, Kiton)
   if (!killed && has(u, "freeze")) target.frozen = true;
   if (!killed && has(u, "poison")) target.poisoned = true;
@@ -797,12 +964,11 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
       u.y = from.y;
       explore(s, p, u, sightRadius(s, u));
       if (kind === "embark") embark(u);
-      // Cymanti Centipede eat: spawns a Segment behind it on kill
-      if (has(u, "eat") && !occupant(s, prevPos.x, prevPos.y)) {
-        makeUnit(s, "segment", p, prevPos, null).bodyOf = u.id;
-      }
     }
   }
+  // Cymanti Centipede Eat: every kill by attack grows a Segment behind the body's tail
+  if (killed && has(u, "eat")) growSegment(s, u);
+  void prevPos;
   if (killed && has(u, "persist") && attackTargets(s, { ...u, canAttack: true }).length) u.canAttack = true;
 }
 
@@ -814,12 +980,6 @@ function doCapture(s: GameState, u: Unit) {
   u.hidden = false;
   if (t.village) {
     const c = newCity(s, u, p);
-    if (t.lostCity) {
-      // Aquarion Lost City: a level-3 city with a wall
-      c.level = 3;
-      c.walls = true;
-      t.lostCity = false;
-    }
     claimTerritory(s, c, 1);
     explore(s, p, c, 1);
     if (!has(u, "independent")) u.homeCity = c.id;
@@ -866,6 +1026,11 @@ function doCapture(s: GameState, u: Unit) {
     updateConnections(s, p);
     log(s, `captured ${c.name} from player ${old}`);
   }
+  // the city tile becomes field, flooded by a flooding tribe (Aquarion) and drained by any other
+  // (S1 capture::capture_city, villages too)
+  t.terrain = "field";
+  if (s.players[p].clan === "aquarion") t.flooded = true;
+  else if (t.flooded) t.flooded = false;
   endUnit(u);
 }
 
@@ -882,8 +1047,8 @@ function doExamine(s: GameState, u: Unit) {
   if (capitalOf(s, p)) options.push("population");
   const fogNear = around(s.mapSize, u, 2).some((q) => pl.explored[idx(s.mapSize, q.x, q.y)] !== 1);
   if (t.terrain !== "mountain" && fogNear) options.push("explorer");
-  if (pl.clan === "aquarion" && t.terrain === "ocean") options.push("lostCity");
-  const pick = withRng(s, (r) => r.pick(options));
+  // 2.18 (S1 ruins::select_reward): an Aquarion examining a valid ocean ruin always raises the Lost City
+  const pick = pl.clan === "aquarion" && validLostCity(s, u) ? "lostCity" : withRng(s, (r) => r.pick(options));
   switch (pick) {
     case "resources":
       pl.stars += RUIN_STARS;
@@ -927,26 +1092,42 @@ function doExamine(s: GameState, u: Unit) {
 }
 
 /**
- * Aquarion Lost City (rules doc, Ruins): the ocean ruin becomes a city with 4
- * shallow-water tiles around it. It stands as a village any tribe can capture;
- * capturing it gives a level-3 city with a wall (see doCapture).
+ * A valid Lost City (S1 ruins::valid_lost_city): an unowned ocean tile off the board's edge with no
+ * other city, village or ruin within two tiles.
+ */
+function validLostCity(s: GameState, at: Coord): boolean {
+  const t = tileAt(s, at.x, at.y);
+  const n = s.mapSize;
+  if (at.x <= 0 || at.y <= 0 || at.x >= n - 1 || at.y >= n - 1) return false;
+  if (t.terrain !== "ocean" || t.territory !== null) return false;
+  return !around(n, at, 2).some((q) => {
+    const o = tileAt(s, q.x, q.y);
+    return o.cityId !== null || o.village || o.ruin;
+  });
+}
+
+/**
+ * Aquarion Lost City (S1 ruins::lost_city): the 8 tiles around turn to shallow water (not ice), a
+ * level-1 city rises on a flooded field and the examining player owns it at once. (S1 also places
+ * resources around it with its map hash; the engine does not.)
  */
 function raiseLostCity(s: GameState, u: Unit) {
+  const p = u.owner;
   const at = { x: u.x, y: u.y };
   const t = tileAt(s, at.x, at.y);
+  for (const q of around(s.mapSize, at, 1)) {
+    const o = tileAt(s, q.x, q.y);
+    if (!o.ice && o.cityId === null && !o.village) o.terrain = "water";
+  }
   t.terrain = "field";
   t.resource = null;
-  t.village = true;
-  t.lostCity = true;
-  for (const d of [{ x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }]) {
-    const x = at.x + d.x;
-    const y = at.y + d.y;
-    if (x < 0 || y < 0 || x >= s.mapSize || y >= s.mapSize) continue;
-    const q = tileAt(s, x, y);
-    if (q.terrain === "ocean") q.terrain = "water";
-  }
+  t.flooded = true;
+  const c = newCity(s, at, p);
+  claimTerritory(s, c, 1);
+  explore(s, p, c, 1);
+  if (!has(u, "independent")) u.homeCity = c.id;
   // a water-only unit can't stand on the new land
-  if (UNITS[u.type].naval && !has(u, "carry")) pushUnit(s, u, u.owner);
+  if (UNITS[u.type].naval && !has(u, "carry") && enterKind(s, u, t) === null) pushUnit(s, u, p);
 }
 
 /**
@@ -1072,14 +1253,23 @@ function doInfiltrate(s: GameState, u: Unit, c: City) {
 /** Moth: poisons the defender and lays Insect Eggs on free land; steals no stars, no riot */
 function mothInfiltrate(s: GameState, u: Unit, c: City) {
   const p = u.owner;
+  // (S1 infiltrate::reward, the Poison reward) the city rebels (no income next turn) but pays no
+  // stars; the defender takes the Moth's hit and is poisoned when it survives
+  c.riot = true;
   const occ = occupant(s, c.x, c.y);
-  if (occ && occ.owner !== p) occ.poisoned = true;
+  if (occ && occ.owner !== p) {
+    const killed = damage(s, occ, computeDamageRounded(s, u, occ).damage, null);
+    if (!killed) occ.poisoned = true;
+  }
+  // Insect Eggs (city level, at most 5) on free land of the city's territory, the city tile too
+  // when the defender died
   const count = Math.min(c.level, 5);
   let made = 0;
   s.tiles.forEach((t, i) => {
     const x = i % s.mapSize;
     const y = Math.floor(i / s.mapSize);
     if (made >= count || t.territory !== c.id || isWater(t) || occupant(s, x, y)) return;
+    if (t.terrain === "mountain" && !s.players[p].techs.includes("climbing")) return;
     makeUnit(s, "insectEgg", p, { x, y }, null);
     made++;
   });
@@ -1097,9 +1287,25 @@ function doBuild(s: GameState, p: number, b: string, at: Coord) {
   const city = cityById(s, t.territory);
   switch (def.kind) {
     case "harvest":
-      if (b === "flood" || b === "landfill" || b === "fertilize") {
-        if (b === "fertilize") t.resource = "crop";
-        else t.flooded = b === "flood";
+      if (b === "fertilize") {
+        t.resource = "crop";
+        break;
+      }
+      if (b === "canal") {
+        // the builder is spent (a hidden one revealed), then the tile floods
+        const u = occupant(s, at.x, at.y);
+        if (u) {
+          u.hidden = false;
+          endUnit(u);
+          u.moved = true;
+          u.attacked = true;
+        }
+        floodAt(s, p, at.x, at.y);
+        break;
+      }
+      if (b === "algae") {
+        t.algae = true;
+        if (!t.resource) t.resource = "fruit";
         break;
       }
       if (b === "enchantAnimal") {
@@ -1145,22 +1351,26 @@ function doBuild(s: GameState, p: number, b: string, at: Coord) {
       }
       t.building = null;
       t.buildingLevel = 0;
+      t.decomposing = false;
       unfeed(s, p, at, old);
       break;
     }
     default: {
       t.building = b;
       t.builtTurn = s.turn;
+      t.buildingLevel = 0;
+      t.decomposing = false;
+      if (b === "iceBank") pl.builtUnique = [...(pl.builtUnique ?? []), b];
       if (def.kind === "monument") pl.monuments.push(b);
       if (city && def.pop) addPop(s, city, def.pop);
       // leveling buildings (§5.5)
       const levelKind = Object.values(FEEDS).find((f) => f.building === b);
       if (levelKind) {
-        const feeder = Object.keys(FEEDS).find((k) => FEEDS[k].building === b)!;
+        const feeders = Object.keys(FEEDS).filter((k) => FEEDS[k].building === b);
         const lvl = Math.min(
           LEVEL_CAP,
           around(s.mapSize, at, 1).filter(
-            (q) => tileAt(s, q.x, q.y).building === feeder && ownTile(s, p, q.x, q.y),
+            (q) => tileAt(s, q.x, q.y).building !== null && feeders.includes(tileAt(s, q.x, q.y).building!) && ownTile(s, p, q.x, q.y),
           ).length,
         );
         t.buildingLevel = lvl;
@@ -1172,6 +1382,7 @@ function doBuild(s: GameState, p: number, b: string, at: Coord) {
 }
 
 function levelPop(building: string, level: number): number {
+  if (building === "fungi") return level; // +1 population per growth level
   const f = Object.values(FEEDS).find((x) => x.building === building);
   return f ? f.popPerLevel * level : 0;
 }
@@ -1184,9 +1395,14 @@ function feed(s: GameState, p: number, at: Coord, feeder: string) {
     if (n.building !== f.building || !ownTile(s, p, q.x, q.y)) continue;
     const before = n.buildingLevel;
     // level = adjacent own feeders, at most 8 (recounted, so a 9th feeder's removal keeps level 8)
+    // (a Windmill counts Farms and Aqua Farms)
+    const feeders = Object.keys(FEEDS).filter((k) => FEEDS[k].building === f.building);
     n.buildingLevel = Math.min(
       LEVEL_CAP,
-      around(s.mapSize, q, 1).filter((r) => tileAt(s, r.x, r.y).building === feeder && ownTile(s, p, r.x, r.y)).length,
+      around(s.mapSize, q, 1).filter((r) => {
+        const b = tileAt(s, r.x, r.y).building;
+        return b !== null && feeders.includes(b) && ownTile(s, p, r.x, r.y);
+      }).length,
     );
     const gained = (n.buildingLevel - before) * f.popPerLevel;
     const c = cityById(s, n.territory);

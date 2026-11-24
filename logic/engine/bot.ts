@@ -148,6 +148,8 @@ export function scoreAction(s: GameState, a: Action, w: GreedyWeights = DEFAULT_
       if (def.kind === "road" || def.kind === "bridge" || def.kind === "embassy") return pl.stars > 15 ? 3 : -1;
       if (def.kind === "temple") return pl.stars > 30 ? 4 : -1;
       if (a.building === "clearForest") return -1;
+      // Canal (unit-built, free): only when the unit has nothing better to do
+      if (a.building === "canal") return 1;
       if (def.pop > 0) return w.growBase + w.growPerPop * def.pop - def.cost + w.noise * noise(s, a.at.x * 31 + a.at.y);
       return pl.stars > w.richAt ? w.otherBuild : -1;
     }
@@ -189,6 +191,14 @@ export function scoreAction(s: GameState, a: Action, w: GreedyWeights = DEFAULT_
     }
     case "upgrade":
       return pl.stars > 20 ? w.upgrade : -1;
+    // drain an Aquarion flood in own territory when the unit has nothing better; never decompose
+    case "drain": {
+      const u = s.units.find((x) => x.id === a.unitId)!;
+      const own = s.cities.find((c) => c.id === s.tiles[idx(s.mapSize, u.x, u.y)].territory)?.owner === p;
+      return a.effect === "flooded" && own ? 1 : -1;
+    }
+    case "decompose":
+      return -1;
     // diplomacy (rules doc, What bots think of you): accept and offer peace only at a great
     // opinion; answer every offer first; never break a treaty (not found in any source)
     case "acceptPeace":

@@ -421,9 +421,11 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         case "boost":
         case "explode":
         case "breakIce":
+        case "drain":
           return unitAtSel !== null && a.unitId === unitAtSel.id;
         case "train":
           return citySel !== null && a.cityId === citySel.id;
+        case "decompose":
         case "build":
           return a.at.x === selected.x && a.at.y === selected.y;
         // a tribe's diplomacy options show when one of its cities or units is selected

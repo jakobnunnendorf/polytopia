@@ -241,7 +241,8 @@ describe("Cymanti", () => {
   it("Mycelium replaces roads (Network) and links cities within 3 tiles", () => {
     expect(buildAllowedFor("cymanti", "road")).toBe(false);
     expect(buildAllowedFor("cymanti", "mycelium")).toBe(true);
-    expect(buildAllowedFor("cymanti", "windmill")).toBe(true);
+    // 2.18 (S1): Recycling replaces Construction, so no Windmill
+    expect(buildAllowedFor("cymanti", "windmill")).toBe(false);
     expect(BUILDS.mycelium.tech).toBe("roads");
     const s = blank(["cymanti", "romans", "romans"]);
     const c = s.cities[2];
@@ -257,22 +258,25 @@ describe("Cymanti", () => {
     expect(c.connected).toBe(true);
   });
 
-  it("Clathrus is built on spores and earns +1★ per adjacent algae, uncapped", () => {
-    expect(BUILDS.clathrus.resource).toBe("spores");
+  // 2.18 (S1): Clathrus needs no spores; it earns 1★ per adjacent own Fungi (max 8), not per algae
+  it("Clathrus earns +1★ per adjacent own Fungi; algae earn nothing", () => {
+    expect(BUILDS.clathrus.resource).toBeUndefined();
     expect(BUILDS.fungi.resource).toBe("spores");
     const s = blank(["cymanti", "romans"]);
+    claimTerritory(s, s.cities[0], 2);
     const base = income(s, 0);
     tileAt(s, 2, 2).building = "clathrus";
-    tileAt(s, 2, 2).territory = s.cities[0].id;
-    for (const [x, y] of [[3, 3], [3, 2], [3, 1], [2, 3], [1, 3]]) {
+    for (const [x, y] of [[3, 3], [3, 2]]) {
       water(s, x, y);
       tileAt(s, x, y).algae = true;
     }
     tileAt(s, 1, 2).building = "fungi";
-    expect(income(s, 0) - base).toBe(5);
+    tileAt(s, 2, 1).building = "fungi";
+    expect(income(s, 0) - base).toBe(2);
   });
 
-  it("Moth infiltration poisons the defender, lays Insect Eggs and steals nothing; eggs grow into Larva then Moth", () => {
+  // 2.18 (S1 Poison reward): the city rebels (no income next turn) but pays no stars
+  it("Moth infiltration poisons the defender, lays Insect Eggs, the city rebels, no stars; eggs grow into Larva then Moth", () => {
     const s = blank(["cymanti", "romans"]);
     const ec = s.cities[1];
     ec.level = 2;
@@ -281,7 +285,7 @@ describe("Cymanti", () => {
     const stars = s.players[0].stars;
     let st = applyAction(s, { type: "infiltrate", unitId: moth.id, cityId: ec.id });
     expect(st.players[0].stars).toBe(stars);
-    expect(st.cities[1].riot).toBe(false);
+    expect(st.cities[1].riot).toBe(true);
     expect(st.units.find((u) => u.id === def.id)!.poisoned).toBe(true);
     const eggs = st.units.filter((u) => u.type === "insectEgg" && u.owner === 0);
     expect(eggs).toHaveLength(2);
@@ -398,9 +402,10 @@ describe("Elyrion", () => {
     expect(buildAllowedFor("elyrion", "sawmill")).toBe(true);
     expect(buildAllowedFor("elyrion", "sanctuary")).toBe(true);
     const s = blank(["elyrion", "romans"]);
+    // 2.18 (S1): only own tiles count and receive animals
+    claimTerritory(s, s.cities[0], 2);
     const base = income(s, 0);
     tileAt(s, 2, 2).building = "sanctuary";
-    tileAt(s, 2, 2).territory = s.cities[0].id;
     tileAt(s, 2, 2).builtTurn = s.turn;
     for (const [x, y] of [[3, 3], [3, 2], [2, 3]]) tileAt(s, x, y).terrain = "forest";
     tileAt(s, 3, 3).resource = "animal";
