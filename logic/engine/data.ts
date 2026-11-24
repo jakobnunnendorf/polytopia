@@ -1,3 +1,4 @@
+import type { ResourceId } from "./types";
 /**
  * Rules data, matching The Battle of Polytopia 2.18 (regular tribes) as
  * documented in docs/shardlands/RULES.md. Section numbers (§) refer to it.
@@ -34,7 +35,16 @@ export type Skill =
   | "boost"
   | "explode"
   | "eat"
-  | "grow";
+  | "grow"
+  // Aquarion (rules doc, Unit skills)
+  | "tentacles"
+  | "drench"
+  | "autoFlood"
+  | "sneak"
+  | "doubleAttack"
+  | "algae"
+  /** Kiton: poisons units that attack it */
+  | "poisonDefence";
 
 export type UnitDef = {
   id: string;
@@ -52,6 +62,8 @@ export type UnitDef = {
   /** tech that unlocks training / upgrading; null = none needed */
   tech: string | null;
   naval: boolean;
+  /** Skate: movement when the move starts on ice (Battle Sled: 3) */
+  iceMovement?: number;
 };
 
 const u = (
@@ -78,60 +90,71 @@ export const UNITS: Record<string, UnitDef> = {
   mindBender: u("mindBender", 5, true, 10, 0, 1, 1, 1, ["heal", "convert", "stiff"], "philosophy"),
   catapult: u("catapult", 8, true, 10, 4, 0, 1, 3, ["stiff"], "mathematics"),
   knight: u("knight", 8, true, 10, 3.5, 1, 3, 1, ["dash", "persist", "fortify"], "chivalry"),
-  cloak: u("cloak", 8, true, 5, 0, 0.5, 2, 1, ["hide", "infiltrate", "dash", "scout", "creep", "stiff", "static"], "diplomacy"),
+  cloak: u("cloak", 8, true, 5, 2, 0.5, 2, 1, ["hide", "infiltrate", "dash", "scout", "creep", "stiff", "static"], "diplomacy"),
   dagger: u("dagger", 2, false, 10, 2, 2, 1, 1, ["dash", "surprise", "independent", "static"], null),
   giant: u("giant", 10, false, 40, 5, 4, 1, 1, ["static"], null),
   // boats: HP = passenger's (null) unless they carry their own
-  raft: u("raft", 0, false, null, 0, 1, 2, 0, ["water", "carry", "stiff", "static"], "fishing", true),
+  raft: u("raft", 0, false, null, 0, 1, 2, 2, ["water", "carry", "stiff", "static"], "fishing", true),
   scout: u("scout", 5, false, null, 2, 1, 3, 2, ["water", "carry", "dash", "scout", "static"], "sailing", true),
   rammer: u("rammer", 5, false, null, 3, 3, 3, 1, ["water", "carry", "dash", "static"], "ramming", true),
   bomber: u("bomber", 15, false, null, 3, 2, 2, 3, ["water", "carry", "splash", "stiff", "static"], "navigation", true),
   juggernaut: u("juggernaut", 0, false, 40, 4, 4, 2, 1, ["water", "carry", "stomp", "stiff", "static"], null, true),
-  dinghy: u("dinghy", 0, false, 5, 0, 0.5, 2, 1, ["water", "carry", "hide", "infiltrate", "dash", "scout", "stiff", "static"], null, true),
-  pirate: u("pirate", 0, false, 10, 2, 2, 2, 1, ["water", "carry", "dash", "surprise", "independent", "static"], null, true),
+  dinghy: u("dinghy", 0, false, 5, 2, 0.5, 2, 1, ["water", "carry", "hide", "infiltrate", "dash", "scout", "stiff", "static"], null, true),
+  pirate: u("pirate", 0, false, 10, 2, 2, 2, 1, ["water", "carry", "dash", "surprise", "static"], null, true),
 
   // ---- Special tribe units (exact Polytopia 2.18 stats) ----
   // Aquarion (2.10 rework)
   mermaid: u("mermaid", 2, true, 10, 2, 2, 1, 1, ["dash", "fortify", "amphibious"], null),
-  amphibian: u("amphibian", 3, true, 10, 2, 1, 2, 1, ["dash", "escape", "fortify", "amphibious"], "riding"),
+  amphibian: u("amphibian", 3, true, 10, 2, 1, 2, 1, ["dash", "escape", "amphibious"], "riding"),
   shark: u("shark", 8, true, 10, 3.5, 2, 3, 1, ["dash", "surprise", "water"], "sailing", true),
-  jelly: u("jelly", 8, true, 20, 2, 2, 2, 1, ["water", "stiff", "static"], "navigation", true),
-  puffer: u("puffer", 8, true, 10, 4, 0, 2, 3, ["water", "stiff"], "mathematics", true),
+  jelly: u("jelly", 8, true, 20, 2, 2, 2, 1, ["tentacles", "water", "stiff", "static"], "navigation", true),
+  puffer: u("puffer", 8, true, 10, 4, 0, 2, 3, ["drench", "water", "stiff"], "mathematics", true),
   tridention: u("tridention", 8, true, 10, 2.5, 1, 2, 2, ["dash", "persist", "amphibious"], "chivalry"),
-  crab: u("crab", 10, false, 40, 4, 4, 1, 1, ["escape", "static", "amphibious"], null),
+  crab: u("crab", 10, false, 40, 4, 4, 2, 1, ["escape", "static", "amphibious", "autoFlood"], null),
+  mermaidArcher: u("mermaidArcher", 3, true, 10, 2, 1, 1, 2, ["dash", "fortify", "amphibious"], "archery"),
+  mermaidDefender: u("mermaidDefender", 3, true, 15, 1, 3, 1, 1, ["fortify", "amphibious"], "strategy"),
+  swordsmaid: u("swordsmaid", 5, true, 15, 3, 3, 1, 1, ["dash", "amphibious"], "smithery"),
+  siren: u("siren", 5, true, 10, 0, 1, 1, 1, ["heal", "convert", "amphibious", "stiff"], "philosophy"),
+  scuba: u("scuba", 8, true, 5, 2, 0.5, 2, 1, ["hide", "infiltrate", "dash", "scout", "creep", "stiff", "static", "amphibious"], "diplomacy"),
+  /** Dagger spawned by a Scuba's infiltration: Dagger stats plus Amphibious (engine choice) */
+  mermaidDagger: u("mermaidDagger", 2, false, 10, 2, 2, 1, 1, ["dash", "surprise", "independent", "static", "amphibious"], null),
 
   // Elyrion (2.15 balance pass)
   polytaur: u("polytaur", 3, false, 15, 3, 1, 1, 1, ["dash", "fortify", "independent", "static"], null),
-  dragonEgg: u("dragonEgg", 10, false, 10, 0, 2, 1, 0, ["fortify", "stiff", "static", "grow"], null),
+  dragonEgg: u("dragonEgg", 10, false, 10, 0, 2, 1, 1, ["fortify", "stiff", "static", "grow"], null),
   babyDragon: u("babyDragon", 10, false, 15, 3, 3, 2, 1, ["dash", "escape", "fly", "scout", "static", "grow"], null),
   fireDragon: u("fireDragon", 10, false, 20, 4, 3, 3, 2, ["dash", "splash", "fly", "scout", "static"], null),
 
   // Polaris (2.15 balance pass)
-  mooni: u("mooni", 5, true, 10, 0, 1, 1, 1, ["autoFreeze", "freezeArea", "skate", "stiff", "static"], "fishing"),
+  mooni: u("mooni", 5, true, 10, 0, 1, 2, 1, ["autoFreeze", "skate", "stiff"], "fishing"),
   iceArcher: u("iceArcher", 3, true, 10, 1, 1, 1, 2, ["dash", "fortify", "freeze", "stiff"], "archery"),
-  battleSled: u("battleSled", 5, true, 15, 3, 2, 2, 1, ["dash", "escape", "skate"], "sailing"),
-  iceFortress: u("iceFortress", 15, true, 20, 4, 3, 1, 2, ["escape", "scout", "skate", "static"], "navigation"),
+  battleSled: { ...u("battleSled", 5, true, 15, 3, 2, 3, 1, ["dash", "escape", "skate"], "sailing"), iceMovement: 3 },
+  iceFortress: u("iceFortress", 15, true, 20, 4, 3, 2, 2, ["escape", "scout", "skate", "static"], "navigation"),
   gaami: u("gaami", 10, false, 30, 4, 3, 1, 1, ["autoFreeze", "freezeArea", "static"], null),
 
   // Cymanti (2.15 rework)
-  shaman: u("shaman", 5, true, 10, 1, 1, 1, 1, ["convert", "boost", "stiff"], "meditation"),
-  hexapod: u("hexapod", 3, true, 5, 3, 1, 2, 1, ["dash", "escape", "creep", "hide"], "riding"),
-  kiton: u("kiton", 3, true, 15, 1, 3, 1, 1, ["creep", "poison"], "strategy"),
-  phychi: u("phychi", 3, true, 5, 0.7, 1, 2, 2, ["dash", "fly", "poison", "surprise"], "archery"),
+  shaman: u("shaman", 5, true, 10, 1, 1, 1, 1, ["convert", "boost"], "meditation"),
+  hexapod: u("hexapod", 3, true, 5, 3, 1, 2, 1, ["dash", "escape", "creep", "sneak"], "riding"),
+  kiton: u("kiton", 3, true, 15, 1, 3, 1, 1, ["creep", "poisonDefence"], "strategy"),
+  phychi: u("phychi", 3, true, 5, 0.7, 1, 2, 2, ["dash", "fly", "poison", "surprise", "doubleAttack"], "archery"),
   mantis: u("mantis", 5, true, 15, 3, 3, 1, 1, ["dash", "creep"], "smithery"),
-  moth: u("moth", 5, true, 10, 0, 0.1, 2, 1, ["fly", "dash", "infiltrate", "poison", "static", "stiff"], "diplomacy"),
+  moth: u("moth", 5, true, 10, 2, 0.1, 2, 1, ["fly", "dash", "sneak", "infiltrate", "poison", "scout", "static", "stiff"], "diplomacy"),
   raychi: u("raychi", 5, true, 10, 3, 2, 3, 1, ["water", "dash"], "sailing", true),
-  boomchi: u("boomchi", 5, true, 10, 3, 3, 1, 1, ["dash", "explode", "stiff", "amphibious"], "ramming"),
+  boomchi: u("boomchi", 5, true, 10, 3, 3, 2, 0, ["dash", "explode", "stiff", "amphibious"], "ramming"),
   exida: u("exida", 8, true, 10, 3, 1, 2, 3, ["creep", "splash", "poison"], "mathematics"),
   doomux: u("doomux", 10, true, 20, 3.5, 2, 3, 1, ["dash", "creep", "explode", "static"], "chivalry"),
-  livingIsland: u("livingIsland", 20, true, 20, 4, 4, 2, 1, ["water", "stomp", "poison", "static"], "navigation", true),
+  livingIsland: u("livingIsland", 20, true, 20, 4, 4, 2, 1, ["water", "stomp", "algae", "poison", "static"], "navigation", true),
   centipede: u("centipede", 10, false, 20, 4, 3, 2, 1, ["dash", "creep", "eat", "static"], null),
   segment: u("segment", 2, false, 10, 2, 2, 1, 1, ["creep", "dash", "explode", "independent", "stiff", "static"], null),
+  // Moth infiltration: Insect Egg -> Larva (1 turn) -> Moth (3 turns later)
+  insectEgg: u("insectEgg", 2, false, 10, 2, 3, 0, 0, ["grow", "stiff", "explode", "static"], null),
+  larva: u("larva", 2, false, 10, 2, 2, 1, 1, ["dash", "creep", "surprise", "independent", "static", "grow"], null),
 };
 
 /** Special-tribe-only trainable units (filtered by tribe in legalActions) */
 export const TRIBE_ONLY_UNITS = new Set([
   "mermaid", "amphibian", "shark", "jelly", "puffer", "tridention",
+  "mermaidArcher", "mermaidDefender", "swordsmaid", "siren", "scuba",
   "mooni", "iceArcher", "battleSled", "iceFortress",
   "shaman", "hexapod", "kiton", "phychi", "mantis", "moth", "raychi", "boomchi", "exida", "doomux", "livingIsland",
 ]);
@@ -216,6 +239,8 @@ export type BuildDef = {
   gain?: number;
   /** adjacency requirement: an own neighbour with this building */
   nextTo?: string[];
+  /** adjacency requirement: an own neighbour of this terrain (Sanctuary: forest) */
+  nextToTerrain?: string;
   /** at most one per city territory */
   onePerCity?: boolean;
 };
@@ -223,7 +248,7 @@ export type BuildDef = {
 export const BUILDS: Record<string, BuildDef> = {
   harvestFruit: { id: "harvestFruit", cost: 2, tech: "organization", kind: "harvest", terrain: ["field"], resource: "fruit", pop: 1 },
   hunt: { id: "hunt", cost: 2, tech: "hunting", kind: "harvest", terrain: ["forest"], resource: "animal", pop: 1 },
-  fish: { id: "fish", cost: 2, tech: "fishing", kind: "harvest", terrain: ["water"], resource: "fish", pop: 1 },
+  fish: { id: "fish", cost: 2, tech: "fishing", kind: "harvest", terrain: ["water", "ocean"], resource: "fish", pop: 1 },
   clearForest: { id: "clearForest", cost: 0, gain: 1, tech: "forestry", kind: "harvest", terrain: ["forest"], pop: 0 },
   burnForest: { id: "burnForest", cost: 3, tech: "construction", kind: "harvest", terrain: ["forest"], pop: 0 },
   growForest: { id: "growForest", cost: 5, tech: "spiritualism", kind: "harvest", terrain: ["field"], pop: 0 },
@@ -231,7 +256,7 @@ export const BUILDS: Record<string, BuildDef> = {
   farm: { id: "farm", cost: 5, tech: "farming", kind: "building", terrain: ["field"], resource: "crop", pop: 2 },
   mine: { id: "mine", cost: 5, tech: "mining", kind: "building", terrain: ["mountain"], resource: "metal", pop: 2 },
   lumberHut: { id: "lumberHut", cost: 3, tech: "forestry", kind: "building", terrain: ["forest"], pop: 1 },
-  windmill: { id: "windmill", cost: 5, tech: "construction", kind: "building", terrain: ["field"], pop: 0, nextTo: ["farm"], onePerCity: true },
+  windmill: { id: "windmill", cost: 5, tech: "construction", kind: "building", terrain: ["field"], pop: 0, nextTo: ["farm", "aquaFarm"], onePerCity: true },
   sawmill: { id: "sawmill", cost: 5, tech: "mathematics", kind: "building", terrain: ["field"], pop: 0, nextTo: ["lumberHut"], onePerCity: true },
   forge: { id: "forge", cost: 5, tech: "smithery", kind: "building", terrain: ["field", "forest"], pop: 0, nextTo: ["mine"], onePerCity: true },
   market: { id: "market", cost: 5, tech: "trade", kind: "building", terrain: ["field"], pop: 0, nextTo: ["windmill", "sawmill", "forge"], onePerCity: true },
@@ -241,28 +266,49 @@ export const BUILDS: Record<string, BuildDef> = {
   mountainTemple: { id: "mountainTemple", cost: 20, tech: "meditation", kind: "temple", terrain: ["mountain"], pop: 1 },
   forestTemple: { id: "forestTemple", cost: 15, tech: "spiritualism", kind: "temple", terrain: ["forest"], pop: 1 },
   waterTemple: { id: "waterTemple", cost: 20, tech: "aquatism", kind: "temple", terrain: ["water", "ocean"], pop: 1 },
+  /** Polaris (Polarism): on ice, replaces the Water Temple (ice checked in canBuild) */
+  iceTemple: { id: "iceTemple", cost: 20, tech: "aquatism", kind: "temple", terrain: ["water", "ocean"], pop: 1 },
 
   road: { id: "road", cost: 3, tech: "roads", kind: "road", terrain: ["field", "forest"], pop: 0 },
   bridge: { id: "bridge", cost: 5, tech: "roads", kind: "bridge", terrain: ["water"], pop: 0 },
   destroy: { id: "destroy", cost: 0, tech: "chivalry", kind: "destroy", terrain: ["field", "forest", "mountain", "water", "ocean"], pop: 0 },
-  embassy: { id: "embassy", cost: 5, tech: "diplomacy", kind: "embassy", terrain: ["field"], pop: 0 },
+  /** base price; the real price is embassyCost (4★ + 2★ per embassy the builder already has) */
+  embassy: { id: "embassy", cost: 4, tech: "diplomacy", kind: "embassy", terrain: ["field"], pop: 0 },
 
-  // ---- Special tribe builds & buildings ----
+  // ---- Special tribe builds & buildings (2.18 data, docs/RULES_PARITY.md "2.18 data corrections") ----
   // Elyrion
   enchantAnimal: { id: "enchantAnimal", cost: 3, tech: "hunting", kind: "harvest", terrain: ["forest"], resource: "animal", pop: 0 },
-  sanctuary: { id: "sanctuary", cost: 5, tech: "forestry", kind: "building", terrain: ["field", "forest"], pop: 0, onePerCity: true },
+  /** Forestry, replaces Clear Forest: next to own forest, 1★ per adjacent free wild animal (max 8) */
+  sanctuary: { id: "sanctuary", cost: 5, tech: "forestry", kind: "building", terrain: ["field", "forest", "mountain"], pop: 0, onePerCity: true, nextToTerrain: "forest" },
   // Polaris
+  // outpost: only on ice (checked in canBuild); links cities like a port over ice (range 5)
   outpost: { id: "outpost", cost: 5, tech: "fishing", kind: "building", terrain: ["water", "ocean"], pop: 1 },
-  iceBank: { id: "iceBank", cost: 20, tech: "trade", kind: "building", terrain: ["field"], pop: 0, onePerCity: true },
+  // ice bank (Trade, replaces Market): on field or ice, once per player ever (checked in canBuild)
+  iceBank: { id: "iceBank", cost: 20, tech: "trade", kind: "building", terrain: ["field", "water", "ocean"], pop: 0 },
   // Cymanti
-  fungi: { id: "fungi", cost: 5, tech: "farming", kind: "building", terrain: ["field"], resource: "crop", pop: 3 },
-  mycelium: { id: "mycelium", cost: 5, tech: "construction", kind: "building", terrain: ["field"], pop: 0, onePerCity: true },
-  clathrus: { id: "clathrus", cost: 5, tech: "trade", kind: "building", terrain: ["field"], pop: 0, onePerCity: true },
+  /** Farming, replaces Farm: on spores, +1 population, grows one level a turn (+1 each) to 1, 2 with Microbes */
+  fungi: { id: "fungi", cost: 5, tech: "farming", kind: "building", terrain: ["field", "forest", "mountain", "water", "ocean"], resource: "spores", pop: 1 },
+  /** Roads, replaces Road: one per city, links cities within 3 tiles, heals own units on and next to it at turn end */
+  mycelium: { id: "mycelium", cost: 5, tech: "roads", kind: "building", terrain: ["field", "forest"], pop: 0, onePerCity: true },
+  /** Trade, replaces Market: any terrain, next to own Fungi, 1★ per adjacent own Fungi (max 8) */
+  clathrus: { id: "clathrus", cost: 5, tech: "trade", kind: "building", terrain: ["field", "forest", "mountain", "water", "ocean"], pop: 0, nextTo: ["fungi"], onePerCity: true },
+  /** Fishing, replaces Port: algae on water, with a fruit */
+  algae: { id: "algae", cost: 5, tech: "fishing", kind: "harvest", terrain: ["water", "ocean"], pop: 0 },
+  // Aquarion
+  /** Waterways (roads), unit-built: floods the field or forest the unit stands on; ends its turn */
+  canal: { id: "canal", cost: 0, tech: "roads", kind: "harvest", terrain: ["field", "forest"], pop: 0 },
+  /** Aquaculture (ramming): network node, links cities within 3 tiles; water, ocean or flooded land */
+  atoll: { id: "atoll", cost: 5, tech: "ramming", kind: "building", terrain: ["water", "ocean"], pop: 0 },
+  /** Aquaculture: on Aqua Crops, +2 population; feeds Windmills like a Farm */
+  aquaFarm: { id: "aquaFarm", cost: 5, tech: "ramming", kind: "building", terrain: ["water", "ocean"], resource: "aquaCrop", pop: 2 },
+  /** Construction, replaces Burn Forest: a crop on a flooded field (or algae water) without one */
+  fertilize: { id: "fertilize", cost: 5, tech: "construction", kind: "harvest", terrain: ["field", "water", "ocean"], pop: 0 },
 };
 
 /** Special-tribe-only builds (filtered by tribe in canBuild) */
 export const TRIBE_ONLY_BUILDS = new Set([
-  "enchantAnimal", "sanctuary", "outpost", "iceBank", "fungi", "mycelium", "clathrus",
+  "enchantAnimal", "sanctuary", "outpost", "iceBank", "iceTemple", "fungi", "mycelium", "clathrus", "algae",
+  "canal", "atoll", "aquaFarm", "fertilize",
 ]);
 
 /** feeder -> leveling building it raises, and population per level (§5.5) */
@@ -270,6 +316,8 @@ export const FEEDS: Record<string, { building: string; popPerLevel: number }> = 
   farm: { building: "windmill", popPerLevel: 1 },
   lumberHut: { building: "sawmill", popPerLevel: 1 },
   mine: { building: "forge", popPerLevel: 2 },
+  /** Aquarion: Windmills count Aqua Farms like Farms */
+  aquaFarm: { building: "windmill", popPerLevel: 1 },
 };
 export const LEVEL_CAP = 8;
 export const MARKET_CAP = 8;
@@ -297,11 +345,35 @@ export function rewardOptions(level: number): [string, string] {
 }
 
 export const START_STARS = 5;
-export const EXPLORER_STEPS = 12;
+export const EXPLORER_STEPS = 15;
 export const PERFECTION_TURNS = 30;
 export const STARFISH_STARS = 8;
 export const RUIN_STARS = 10;
 export const EMBASSY_INCOME = 2;
+/** embassy price (game data, 2.18): 4★ plus 2★ for every embassy the builder already has */
+export const embassyCost = (existing: number) => 4 + 2 * existing;
+/** ports link to own ports within this range (rules doc, The capital and connections) */
+export const PORT_RANGE = 5;
+/** Glory: first to this score wins (rules doc, Modes) */
+export const GLORY_TARGET = 10_000;
+/**
+ * Capital income bonus over a plain city of the same level (rules doc, Income per turn and AI and difficulty):
+ * a human's capital +1; a bot's level-1 capital makes 1/2/3/5★ by difficulty, i.e. +0/+1/+2/+4.
+ */
+export const HUMAN_CAPITAL_BONUS = 1;
+export const BOT_CAPITAL_BONUS = { easy: 0, normal: 1, hard: 2, crazy: 4 } as const;
+/** bot handicap by difficulty (2.18): Easy 0, Normal 1, Hard 2, Crazy 4 */
+export const HANDICAP = { easy: 0, normal: 1, hard: 2, crazy: 4 } as const;
+/** Perfection bonus difficulty part d = handicap / 5 */
+export const PERFECTION_DIFFICULTY_BONUS = { easy: 0, normal: 0.2, hard: 0.4, crazy: 0.8 } as const;
+/** Domination rating difficulty part (2.18 end screen) */
+export const DOMINATION_DIFFICULTY = { easy: 0.25, normal: 0.5, hard: 0.75, crazy: 1 } as const;
+/** Domination rating that earns 1, 2, 3 stars and a halo */
+export const DOMINATION_STARS = [0.2, 0.7, 0.95, 1];
+/** Perfection rating that earns 1, 2, 3 stars and a halo (rules doc, Modes) */
+export const PERFECTION_STARS = [3_000, 10_000, 50_000, 100_000];
+/** most tribes per map size (rules doc, Map sizes): Tiny 9, every other size 16 */
+export const maxPlayersFor = (mapSize: number) => (mapSize <= 11 ? 9 : 16);
 
 /** score (§7.1) */
 export const SCORE = {
@@ -310,7 +382,12 @@ export const SCORE = {
   territoryTile: 20,
   exploredTile: 5,
   city: 100,
-  cityLevel: 50,
+  /** per point of population a city has gained (levels and current population; negative counts against) */
+  cityPop: 5,
+  /** a city scores 50 × (level + 1) (game data, 2.18) */
+  cityPerLevel: 50,
+  /** extra cost per point of negative population (game data, 2.18); the city score floors at 0 */
+  cityNegativePop: 100,
   park: 250,
   monument: 400,
   templeLevel: 100,
@@ -329,7 +406,14 @@ export type ClanDef = {
   startUnit: string;
   startStars: number;
   capitalLevel: number;
-  mod: Partial<Record<"mountain" | "forest" | "fruit" | "crop" | "animal" | "fish" | "metal", number>>;
+  /**
+   * map generation modifiers of the tribe's climate (2.18 data): terrain weights
+   * (mountain, forest) and resource chances (fruit, crop, animal, fish, metal,
+   * spores, aquaCrop). "water" is in the game's data but its generator never reads it.
+   */
+  mod: Partial<Record<"mountain" | "forest" | "fruit" | "crop" | "animal" | "fish" | "metal" | "water" | "spores" | "aquaCrop", number>>;
+  /** resources placed next to the capital at map generation (2.18 data) */
+  startResources: ResourceId[];
   /** true for the 4 special tribes (Aquarion, Elyrion, Polaris, Cymanti) */
   special?: boolean;
   /** super unit spawned by the level 5+ city reward (default: "giant") */
@@ -350,39 +434,57 @@ export type ClanDef = {
 
 export const CLANS: ClanDef[] = [
   // ---- 12 Regular Tribes ----
-  { id: "inca", startTech: "climbing", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 1.5, metal: 1.5 }, color: "#e63946" },
-  { id: "romans", startTech: "organization", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { animal: 0.5, fruit: 2 }, color: "#2589f5" },
-  { id: "norse", startTech: "hunting", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { forest: 0.8, crop: 0 }, color: "#3b4252" },
-  { id: "mongols", startTech: "riding", startUnit: "rider", startStars: 6, capitalLevel: 1, mod: { forest: 0.2, animal: 0.2, mountain: 0.5 }, color: "#f4c430" },
-  { id: "polynesians", startTech: "fishing", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, fish: 1.5 }, color: "#2db84d" },
-  { id: "welsh", startTech: "archery", startUnit: "archer", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 1.5 }, color: "#8c6239" },
-  { id: "lydians", startTech: null, startUnit: "warrior", startStars: 2, capitalLevel: 3, mod: {}, color: "#9b5de5" },
-  { id: "hittites", startTech: "smithery", startUnit: "swordsman", startStars: 5, capitalLevel: 1, mod: { metal: 2, animal: 0.1, fruit: 0.1, fish: 0.1 }, color: "#4a4e69" },
-  { id: "sumerians", startTech: "farming", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 0.5 }, color: "#f97316" },
-  { id: "tibetans", startTech: "philosophy", startUnit: "mindBender", startStars: 5, capitalLevel: 1, mod: { mountain: 1.5, crop: 0.1 }, color: "#14b8a6" },
-  { id: "spartans", startTech: "strategy", startUnit: "defender", startStars: 7, capitalLevel: 1, mod: { fruit: 2, crop: 0.1 }, color: "#0d9488" },
-  { id: "persians", startTech: "roads", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 1.5 }, color: "#b91c1c" },
+  { id: "xinxi", startTech: "climbing", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 1.5, metal: 1.5 }, startResources: ["metal", "metal"], color: "#e63946" },
+  { id: "imperius", startTech: "organization", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { animal: 0.5, fruit: 2 }, startResources: ["fruit", "fruit"], color: "#2589f5" },
+  { id: "bardur", startTech: "hunting", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { forest: 0.8, crop: 0 }, startResources: ["animal", "animal"], color: "#3b4252" },
+  { id: "oumaji", startTech: "riding", startUnit: "rider", startStars: 6, capitalLevel: 1, mod: { forest: 0.2, animal: 0.2, mountain: 0.5, water: 0.5 }, startResources: ["fruit", "fruit"], color: "#f4c430" },
+  { id: "kickoo", startTech: "fishing", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { water: 2, fish: 1.5, mountain: 0.5 }, startResources: ["fish", "fish"], color: "#2db84d" },
+  { id: "hoodrick", startTech: "archery", startUnit: "archer", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 1.5 }, startResources: ["animal", "animal"], color: "#8c6239" },
+  { id: "luxidoor", startTech: null, startUnit: "warrior", startStars: 2, capitalLevel: 3, mod: {}, startResources: ["animal", "animal", "fruit", "fruit", "fish", "fish", "crop", "metal"], color: "#9b5de5" },
+  { id: "vengir", startTech: "smithery", startUnit: "swordsman", startStars: 5, capitalLevel: 1, mod: { metal: 2, animal: 0.1, fruit: 0.1, fish: 0.1 }, startResources: ["metal"], color: "#4a4e69" },
+  { id: "zebasi", startTech: "farming", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 0.5 }, startResources: ["crop", "crop"], color: "#f97316" },
+  { id: "aimo", startTech: "philosophy", startUnit: "mindBender", startStars: 5, capitalLevel: 1, mod: { mountain: 1.5, crop: 0.1 }, startResources: ["animal", "animal"], color: "#14b8a6" },
+  { id: "quetzali", startTech: "strategy", startUnit: "defender", startStars: 7, capitalLevel: 1, mod: { fruit: 2, crop: 0.1 }, startResources: ["fruit", "fruit"], color: "#0d9488" },
+  { id: "yadakk", startTech: "roads", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 1.5 }, startResources: ["fruit", "fruit"], color: "#b91c1c" },
 
   // ---- 4 Special Tribes ----
   {
     id: "aquarion",
     special: true,
+    // the starting tech Aquabase (no tree slot here) gives shallow-water movement and Pontoon (movement.ts, canBuild)
     startTech: null,
     startUnit: "mermaid",
     startStars: 5,
     capitalLevel: 1,
-    mod: { forest: 0.5, fish: 1.5 },
+    mod: { forest: 0.5, crop: 0.5, aquaCrop: 1.5 },
+    startResources: ["fish", "fish"],
     superUnit: "crab",
-    unitReplacements: { warrior: "mermaid", rider: "amphibian", catapult: "puffer", knight: "tridention" },
-    extraUnits: ["shark", "jelly"],
+    unitReplacements: {
+      warrior: "mermaid",
+      rider: "amphibian",
+      archer: "mermaidArcher",
+      defender: "mermaidDefender",
+      swordsman: "swordsmaid",
+      mindBender: "siren",
+      catapult: "puffer",
+      knight: "tridention",
+      cloak: "scuba",
+      dagger: "mermaidDagger",
+      rammer: "shark",
+      bomber: "jelly",
+    },
+    // Waterways replaces Roads (Canal, no road or bridge); Aquafishing has no Port; Fertilize replaces Burn Forest
+    buildReplacements: { road: null, bridge: null, port: null, burnForest: "fertilize" },
+    extraBuilds: ["canal", "atoll", "aquaFarm"],
     techOverrides: {
-      riding: { name: "Riding", unlocks: "Amphibian (amphibious)" },
-      roads: { name: "Waterways", unlocks: "Flooding land, Bubbles" },
+      riding: { name: "Riding", unlocks: "Amphibian" },
+      construction: { name: "Construction", unlocks: "Windmill, Fertilize" },
+      roads: { name: "Waterways", unlocks: "Canal, Bubble" },
       ramming: { name: "Aquaculture", unlocks: "Aqua Farm, Atoll" },
-      sailing: { name: "Marine Life", unlocks: "Shark" },
-      freeSpirit: { name: "Free Diving", unlocks: "Temple, ocean movement, Disband" },
+      fishing: { name: "Aquafishing", unlocks: "Fishing" },
+      sailing: { name: "Marine Life", unlocks: "Shark, ocean movement" },
       chivalry: { name: "Spearing", unlocks: "Tridention, Destroy" },
-      mathematics: { name: "Mathematics", unlocks: "Puffer, Sawmill" },
+      mathematics: { name: "Mathematics", unlocks: "Aquapult, Sawmill" },
       navigation: { name: "Navigation", unlocks: "Jelly, Starfish" },
     },
     color: "#ff6b6b",
@@ -395,11 +497,11 @@ export const CLANS: ClanDef[] = [
     startStars: 5,
     capitalLevel: 1,
     mod: { crop: 1.5, mountain: 0.5 },
+    startResources: ["animal", "animal"],
     superUnit: "dragonEgg",
     buildReplacements: {
       hunt: "enchantAnimal",
-      sawmill: "sanctuary",
-      clearForest: null,
+      clearForest: "sanctuary",
       burnForest: null,
     },
     techOverrides: {
@@ -415,16 +517,17 @@ export const CLANS: ClanDef[] = [
     startUnit: "mooni",
     startStars: 5,
     capitalLevel: 1,
-    mod: { forest: 0.8, fish: 1.2 },
+    mod: {},
+    startResources: ["animal", "animal"],
     superUnit: "gaami",
     unitReplacements: {
       archer: "iceArcher",
-      catapult: "iceFortress",
     },
-    extraUnits: ["mooni", "battleSled"],
+    extraUnits: ["mooni", "battleSled", "iceFortress"],
     buildReplacements: {
       port: "outpost",
       market: "iceBank",
+      waterTemple: "iceTemple",
     },
     techOverrides: {
       fishing: { name: "Frostwork", unlocks: "Mooni, Outpost, shallow water" },
@@ -433,7 +536,7 @@ export const CLANS: ClanDef[] = [
       aquatism: { name: "Polarism", unlocks: "Ice Temple, Glide" },
       navigation: { name: "Polar Warfare", unlocks: "Ice Fortress, Starfish" },
       archery: { name: "Archery", unlocks: "Ice Archer (freezes enemies)" },
-      trade: { name: "Trade", unlocks: "Ice Bank (+2★ per 20 frozen tiles)" },
+      trade: { name: "Trade", unlocks: "Ice Bank (2★ per level, a level per 20 ice or Polaris tiles)" },
     },
     color: "#38bdf8",
   },
@@ -444,7 +547,9 @@ export const CLANS: ClanDef[] = [
     startUnit: "shaman",
     startStars: 5,
     capitalLevel: 1,
-    mod: { mountain: 1.2, crop: 1.5 },
+    // 2.18 data: spores (field, forest) at 0.3, no crops; 2 spores at the capital
+    mod: { mountain: 1.2, spores: 0.3, crop: 0 },
+    startResources: ["spores", "spores"],
     superUnit: "centipede",
     unitReplacements: {
       rider: "hexapod",
@@ -457,13 +562,18 @@ export const CLANS: ClanDef[] = [
       cloak: "moth",
     },
     extraUnits: ["raychi", "boomchi", "livingIsland"],
+    // Recycling replaces Construction (no Windmill or Burn Forest); no bridges
     buildReplacements: {
       farm: "fungi",
-      windmill: "mycelium",
+      road: "mycelium",
       market: "clathrus",
+      port: "algae",
+      bridge: null,
+      windmill: null,
+      burnForest: null,
     },
     techOverrides: {
-      farming: { name: "Farming", unlocks: "Fungi (+3 pop, poisons enemies)" },
+      farming: { name: "Farming", unlocks: "Fungi (+1 pop, grows, poisons)" },
       riding: { name: "Riding", unlocks: "Hexapod (creep, sneak, escape)" },
       roads: { name: "Network", unlocks: "Mycelium (links & heals bugs)" },
       strategy: { name: "Strategy", unlocks: "Kiton (poisons attackers)" },
@@ -474,12 +584,12 @@ export const CLANS: ClanDef[] = [
       philosophy: { name: "Mysticism", unlocks: "Mountain Temple, Deep Insight" },
       chivalry: { name: "Shock Tactics", unlocks: "Doomux (explodes)" },
       mathematics: { name: "Mathematics", unlocks: "Exida (splash poison)" },
-      fishing: { name: "Hydrology", unlocks: "Algae, Fishing, water movement" },
+      fishing: { name: "Fishing", unlocks: "Algae, Fishing, water movement" },
       ramming: { name: "Inflation", unlocks: "Boomchi (amphibious, explodes)" },
       sailing: { name: "Pescetism", unlocks: "Raychi, ocean movement" },
       navigation: { name: "Oceanology", unlocks: "Living Island, Starfish" },
       construction: { name: "Recycling", unlocks: "Decompose, Microbes" },
-      trade: { name: "Trade", unlocks: "Clathrus (+★ per Algae/Fungi)" },
+      trade: { name: "Trade", unlocks: "Clathrus (+1★ per adjacent Fungi)" },
     },
     color: "#84cc16",
   },

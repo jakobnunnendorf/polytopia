@@ -16,12 +16,12 @@ describe("All 16 Polytopia tribes", () => {
     expect(superUnitFor("elyrion")).toBe("dragonEgg");
     expect(superUnitFor("polaris")).toBe("gaami");
     expect(superUnitFor("cymanti")).toBe("centipede");
-    expect(superUnitFor("romans")).toBe("giant");
+    expect(superUnitFor("imperius")).toBe("giant");
 
     expect(trainableUnitsFor("aquarion").map((u) => u.id)).toContain("tridention");
     expect(trainableUnitsFor("polaris").map((u) => u.id)).toContain("mooni");
     expect(trainableUnitsFor("cymanti").map((u) => u.id)).toContain("hexapod");
-    expect(trainableUnitsFor("romans").map((u) => u.id)).not.toContain("hexapod");
+    expect(trainableUnitsFor("imperius").map((u) => u.id)).not.toContain("hexapod");
   });
 
   it("enforces Elyrion forest protection and enchantAnimal build", () => {
@@ -29,22 +29,26 @@ describe("All 16 Polytopia tribes", () => {
     expect(buildAllowedFor("elyrion", "sanctuary")).toBe(true);
     expect(buildAllowedFor("elyrion", "clearForest")).toBe(false);
     expect(buildAllowedFor("elyrion", "burnForest")).toBe(false);
-    expect(buildAllowedFor("romans", "enchantAnimal")).toBe(false);
+    expect(buildAllowedFor("imperius", "enchantAnimal")).toBe(false);
   });
 
-  it("Polaris Mooni freezes surrounding tiles and enemies", () => {
-    const s = createGame({ mapSize: 11, players: 2, mode: "domination", seed: 7, clans: ["polaris", "romans"] });
+  it("Polaris Mooni auto-freezes adjacent water after moving (no Freeze Area action)", () => {
+    const s = createGame({ mapSize: 11, players: 2, mode: "domination", seed: 7, clans: ["polaris", "imperius"] });
     const mooni = s.units.find((u) => u.owner === 0)!;
     expect(mooni.type).toBe("mooni");
     const acts = legalActions(s);
-    const freeze = acts.find((a) => a.type === "freezeArea" && a.unitId === mooni.id);
-    expect(freeze).toBeTruthy();
-    const next = applyAction(s, freeze!);
-    expect(next.tiles[mooni.y * next.mapSize + mooni.x].ice).toBe(true);
+    expect(acts.some((a) => a.type === "freezeArea" && a.unitId === mooni.id)).toBe(false);
+    const move = acts.find((a) => a.type === "move" && a.unitId === mooni.id);
+    expect(move).toBeTruthy();
+    const to = (move as { to: { x: number; y: number } }).to;
+    const n = s.mapSize;
+    s.tiles[(to.y) * n + Math.min(n - 1, to.x + 1)].terrain = "water";
+    const next = applyAction(s, move!);
+    expect(next.tiles[to.y * n + Math.min(n - 1, to.x + 1)].ice).toBe(true);
   });
 
   it("Cymanti poison halves defence bonuses (1->0.5, 1.5->0.7, 4->2)", () => {
-    const s = createGame({ mapSize: 11, players: 2, mode: "domination", seed: 11, clans: ["cymanti", "romans"] });
+    const s = createGame({ mapSize: 11, players: 2, mode: "domination", seed: 11, clans: ["cymanti", "imperius"] });
     const u = s.units[1];
     u.poisoned = true;
     expect(defenceBonus(s, u)).toBe(0.7); // in own capital (1.5 -> 0.7)

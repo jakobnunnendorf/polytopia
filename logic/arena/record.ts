@@ -9,7 +9,7 @@
 import { applyAction } from "../engine/actions";
 import { cloneState } from "../engine/grid";
 import { createGame, scoreOf } from "../engine/state";
-import type { Action, GameMode, GameState } from "../engine/types";
+import type { Action, Difficulty, GameMode, GameState } from "../engine/types";
 import type { MapType } from "../engine/mapgen";
 
 export type Seat =
@@ -20,6 +20,8 @@ export type GameOptions = {
   mapSize: number;
   players: number;
   mode: GameMode;
+  /** bot difficulty; records saved before it existed have none and mean "normal" */
+  difficulty?: Difficulty;
   seed: number;
   mapType?: MapType;
   /** the clans that were dealt (for reading); replay re-deals them from the seed */
@@ -66,6 +68,7 @@ export function startRecord(s: GameState, seats: Seat[], source: GameRecord["sou
       mapSize: s.mapSize,
       players: s.players.length,
       mode: s.mode,
+      difficulty: s.difficulty ?? "normal",
       seed: s.seed,
       mapType,
       clans: s.players.map((p) => p.clan),
@@ -97,12 +100,17 @@ export function finishRecord(rec: GameRecord, s: GameState): GameRecord {
 
 /** rebuild the initial state of a record (uses the stored turn-0 snapshot when present so replays stay valid across tribe/mapgen additions) */
 export function initialState(rec: GameRecord): GameState {
-  if (rec.turnStates && rec.turnStates.length > 0) return cloneState(rec.turnStates[0]);
+  if (rec.turnStates && rec.turnStates.length > 0) {
+    const s = cloneState(rec.turnStates[0]);
+    s.difficulty = s.difficulty ?? rec.options.difficulty ?? "normal";
+    return s;
+  }
   const o = rec.options;
   return createGame({
     mapSize: o.mapSize,
     players: o.players,
     mode: o.mode,
+    difficulty: o.difficulty ?? "normal",
     seed: o.seed,
     mapType: o.mapType,
     clans: (o.explicitClans ?? (o.clans?.length ? o.clans : undefined)) as never,

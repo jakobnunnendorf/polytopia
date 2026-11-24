@@ -9,18 +9,23 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import Map from "@/components/Map/Map";
 import type { Highlight } from "@/components/Map/Tile";
 import { CityArt, ShardIcon, TribeEmblem, UnitArt } from "@/components/art/Art";
-import { BUILDS, UNITS } from "@/logic/engine/data";
+import { BUILDS, UNITS, embassyCost } from "@/logic/engine/data";
 import {
   applyAction,
   createGame,
+  dominationRating,
+  dominationStars,
   income,
   legalActions,
+  resourceVisible,
+  perfectionRating,
+  perfectionStars,
   scoreOf,
   techCost,
 } from "@/logic/engine";
 import TechTree from "@/components/game/TechTree";
 import { actionLabel, name } from "@/logic/engine/names";
-import type { Action, GameMode, GameState } from "@/logic/engine/types";
+import type { Action, Difficulty, GameMode, GameState } from "@/logic/engine/types";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
 import { arena, serverChat } from "@/components/game/arenaClient";
 import { BUILTIN_MODELS, DEFAULT_MODEL, createAgent } from "@/logic/agents/registry";
@@ -177,6 +182,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     mapSize?: string;
     players?: string;
     mode?: string;
+    difficulty?: string;
     seed?: string;
     watch?: string;
     seats?: string;
@@ -199,12 +205,13 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     if (resumed) return replayStates(resumed).pop()!;
     const hasExplicitTribes = seats.some((s) => !!s.clan);
     const chosenClans = hasExplicitTribes
-      ? seats.map((s, i) => s.clan ?? ["romans", "norse", "aquarion", "elyrion", "polaris", "cymanti"][i % 6])
+      ? seats.map((s, i) => s.clan ?? ["imperius", "bardur", "aquarion", "elyrion", "polaris", "cymanti"][i % 6])
       : undefined;
     return createGame({
-      mapSize: Number(params.mapSize ?? 11),
+      mapSize: params.mapSize ? Number(params.mapSize) : undefined,
       players: seats.length,
       mode: (params.mode as GameMode) ?? "perfection",
+      difficulty: (params.difficulty as Difficulty) ?? "normal",
       seed: Number(params.seed ?? 1),
       humans: humanSeats,
       clans: chosenClans,
@@ -413,16 +420,25 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         case "freezeArea":
         case "boost":
         case "explode":
+        case "breakIce":
+        case "drain":
           return unitAtSel !== null && a.unitId === unitAtSel.id;
         case "train":
           return citySel !== null && a.cityId === citySel.id;
+        case "decompose":
         case "build":
           return a.at.x === selected.x && a.at.y === selected.y;
+        // a tribe's diplomacy options show when one of its cities or units is selected
+        case "offerPeace":
+        case "breakPeace":
+          return (citySel !== null && citySel.owner === a.player) || (unitAtSel !== null && unitAtSel.owner === a.player);
         default:
           return false;
       }
     });
   }, [actions, selected, unitAtSel, citySel]);
+  // peace offers waiting for an answer this turn
+  const peaceReplies = actions.filter((a) => a.type === "acceptPeace" || a.type === "declinePeace");
 
   const rewardActions = actions.filter((a) => a.type === "reward");
   // nothing left that moves a unit or spends shards wisely: nudge toward End turn
@@ -442,7 +458,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   const tileWords =
     tileSel && seen
       ? [
-          tileSel.resource ? name("resource", tileSel.resource) : null,
+          tileSel.resource && resourceVisible(state, me.id, tileSel.resource) ? name("resource", tileSel.resource) : null,
           tileSel.building ? name("building", tileSel.building) : null,
           tileSel.village ? "Village" : null,
           tileSel.ruin ? "Ruins" : null,
@@ -534,6 +550,13 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           alignSelf: "center",
         }}
       >
+        {peaceReplies.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
+            {peaceReplies.map((a, i) => (
+              <Button key={`peace-${i}`} label={actionLabel(state, a)} onPress={() => act(a)} />
+            ))}
+          </ScrollView>
+        )}
         <View style={{ height: 108, justifyContent: "center" }}>
           {selected && seen && tileSel ? (
             <>
@@ -576,7 +599,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
                   {selActions.map((a, i) => {
                     const cost =
                       a.type === "train" ? UNITS[a.unit]?.cost :
-                      a.type === "build" ? BUILDS[a.building]?.cost :
+                      a.type === "build" ? (a.building === "embassy" ? embassyCost(state.players[state.current].embassies.length) : BUILDS[a.building]?.cost) :
                       a.type === "upgrade" ? UNITS[a.to]?.cost : 0;
                     const label = cost && cost > 0 ? `${actionLabel(state, a)} (${cost}★)` : actionLabel(state, a);
                     return <Button key={i} label={label} onPress={() => act(a)} />;
@@ -698,7 +721,18 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           <GameOverCard
             title={humanSeats.length !== 1 ? `${seatName(state.winner ?? 0)} wins` : state.winner === viewer ? "Victory" : "Defeat"}
             good={humanSeats.length !== 1 || state.winner === viewer}
-            subtitle={`The ${winnerClan} rule the Square.`}
+            subtitle={
+              `The ${winnerClan} rule the Square.` +
+              (state.mode === "perfection"
+                ? ` Your rating: ${perfectionRating(state, viewer).toLocaleString("en")} (${
+                    ["no stars", "1 star", "2 stars", "3 stars", "a halo"][perfectionStars(perfectionRating(state, viewer))]
+                  }).`
+                : state.mode === "domination"
+                  ? ` Your rating: ${Math.round(dominationRating(state, viewer) * 100)}% (${
+                      ["no stars", "1 star", "2 stars", "3 stars", "a halo"][dominationStars(dominationRating(state, viewer))]
+                    }).`
+                  : "")
+            }
             standings={ranking.map(({ p, score }) => ({
               id: p.id,
               name: seatName(p.id),

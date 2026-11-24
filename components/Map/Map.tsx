@@ -6,6 +6,7 @@ import Tile, { type Highlight } from "./Tile";
 import { FxLayer, UnitSprite, diffEvents, type Fx, type Lunge } from "./Units";
 import { AnimateNew, useMountedOnce } from "@/components/anim";
 import type { City, GameState, Unit } from "@/logic/engine/types";
+import { resourceVisible } from "@/logic/engine/state";
 
 /**
  * Renders the map from one player's point of view (fog of war applies).
@@ -150,6 +151,8 @@ export default function Map({
                 size={TILE}
                 watchers={watchers}
                 animateReveal={ready && sameView}
+                showResource={reveal || !tile.resource || resourceVisible(state, viewer, tile.resource)}
+                ruinThroughClouds={!seen && tile.ruin && state.players[viewer].clan === "elyrion"}
               />
             );
           })}

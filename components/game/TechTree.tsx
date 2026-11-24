@@ -144,7 +144,7 @@ export default function TechTree({
               justifyContent: "center",
             }}
           >
-            <TribeEmblem clan={clanId ?? "romans"} size={node * 1.1} />
+            <TribeEmblem clan={clanId ?? "imperius"} size={node * 1.1} />
           </View>
 
           {nodes.map((n) => {

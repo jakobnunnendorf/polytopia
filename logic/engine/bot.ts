@@ -9,6 +9,8 @@ import { computeDamageRounded } from "./combat";
 import { BUILDS, TECH_BY_ID, UNITS } from "./data";
 import { dist, idx } from "./grid";
 import { reachable } from "./movement";
+import { atPeace } from "./diplomacy";
+import { opinionOf } from "./opinion";
 import { capitalOf, cityById, techCost } from "./state";
 import type { Action, Coord, GameState, Unit } from "./types";
 
@@ -103,10 +105,11 @@ function goal(s: GameState, u: Unit): Coord | null {
     const c = { x: i % n, y: Math.floor(i / n) };
     if (t.village) consider(c, 0);
     if (t.ruin) consider(c, 1);
-    if (t.cityId !== null && cityById(s, t.cityId)?.owner !== u.owner) consider(c, 1);
+    const cityOwner = t.cityId !== null ? cityById(s, t.cityId)?.owner : undefined;
+    if (cityOwner !== undefined && cityOwner !== u.owner && !atPeace(s, u.owner, cityOwner)) consider(c, 1);
   });
   for (const e of s.units) {
-    if (e.owner !== u.owner && pl.explored[idx(n, e.x, e.y)] === 1) consider(e, 2);
+    if (e.owner !== u.owner && !atPeace(s, u.owner, e.owner) && pl.explored[idx(n, e.x, e.y)] === 1) consider(e, 2);
   }
   if (best) return best;
   // frontier: an explored tile next to fog
@@ -145,6 +148,8 @@ export function scoreAction(s: GameState, a: Action, w: GreedyWeights = DEFAULT_
       if (def.kind === "road" || def.kind === "bridge" || def.kind === "embassy") return pl.stars > 15 ? 3 : -1;
       if (def.kind === "temple") return pl.stars > 30 ? 4 : -1;
       if (a.building === "clearForest") return -1;
+      // Canal (unit-built, free): only when the unit has nothing better to do
+      if (a.building === "canal") return 1;
       if (def.pop > 0) return w.growBase + w.growPerPop * def.pop - def.cost + w.noise * noise(s, a.at.x * 31 + a.at.y);
       return pl.stars > w.richAt ? w.otherBuild : -1;
     }
@@ -170,7 +175,9 @@ export function scoreAction(s: GameState, a: Action, w: GreedyWeights = DEFAULT_
     }
     case "recover": {
       const u = s.units.find((x) => x.id === a.unitId)!;
-      return u.hp < u.maxHp / 2 ? w.recover : -1;
+      // idle damaged units heal at the end of the turn anyway; recover early when badly hurt
+      if (u.hp < u.maxHp / 2 && !u.poisoned) return w.recover;
+      return u.hp < u.maxHp || u.poisoned ? 1 : -1;
     }
     case "healOthers":
       return w.healOthers;
@@ -184,6 +191,24 @@ export function scoreAction(s: GameState, a: Action, w: GreedyWeights = DEFAULT_
     }
     case "upgrade":
       return pl.stars > 20 ? w.upgrade : -1;
+    // drain an Aquarion flood in own territory when the unit has nothing better; never decompose
+    case "drain": {
+      const u = s.units.find((x) => x.id === a.unitId)!;
+      const own = s.cities.find((c) => c.id === s.tiles[idx(s.mapSize, u.x, u.y)].territory)?.owner === p;
+      return a.effect === "flooded" && own ? 1 : -1;
+    }
+    case "decompose":
+      return -1;
+    // diplomacy (rules doc, What bots think of you): accept and offer peace only at a great
+    // opinion; answer every offer first; never break a treaty (not found in any source)
+    case "acceptPeace":
+      return opinionOf(s, p, a.player) === "great" ? 1000 : -1;
+    case "declinePeace":
+      return opinionOf(s, p, a.player) === "great" ? -1 : 1000;
+    case "offerPeace":
+      return opinionOf(s, p, a.player) === "great" ? 50 : -1;
+    case "breakPeace":
+      return -1;
     default:
       return -1;
   }

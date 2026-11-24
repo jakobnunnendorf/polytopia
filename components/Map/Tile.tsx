@@ -63,6 +63,8 @@ function Tile({
   size,
   watchers,
   animateReveal = false,
+  showResource = true,
+  ruinThroughClouds = false,
 }: {
   x: number;
   y: number;
@@ -78,6 +80,10 @@ function Tile({
   watchers?: number[];
   /** play the clouds-clearing animation when this tile becomes explored */
   animateReveal?: boolean;
+  /** false while the viewer lacks the tech that reveals this resource (crops, metal) */
+  showResource?: boolean;
+  /** Elyrion viewer: an unexplored ruin shows above the clouds */
+  ruinThroughClouds?: boolean;
 }) {
   const TILE = size ?? TILE_BASE;
   // remember when this tile was revealed, so the clearing clouds survive quick re-renders
@@ -101,6 +107,7 @@ function Tile({
         }}
       >
         <CloudArt x={x} y={y} size={TILE} />
+        {ruinThroughClouds && tile.ruin ? <BuildingArt id="ruin" size={TILE} /> : null}
       </Pressable>
     );
   }
@@ -112,7 +119,7 @@ function Tile({
     <BuildingArt id={tile.building} size={TILE} />
   ) : tile.ruin ? (
     <BuildingArt id="ruin" size={TILE} />
-  ) : tile.resource ? (
+  ) : tile.resource && showResource ? (
     <ResourceArt id={tile.resource} size={TILE} />
   ) : null;
 
@@ -143,6 +150,19 @@ function Tile({
             backgroundColor: "#cceeffaa",
             borderWidth: 1,
             borderColor: "#ffffffcc",
+          }}
+        />
+      )}
+      {tile.flooded && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "#4fb3e855",
           }}
         />
       )}
@@ -196,7 +216,7 @@ function Tile({
         />
       )}
       {!city && overlay && (
-        <Pop key={tile.building ?? (tile.ruin ? "ruin" : (tile.resource ?? ""))} style={fill}>
+        <Pop key={tile.building ?? (tile.ruin ? "ruin" : showResource ? (tile.resource ?? "") : "")} style={fill}>
           {overlay}
         </Pop>
       )}

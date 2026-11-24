@@ -8,7 +8,17 @@
 
 export type Terrain = "field" | "forest" | "mountain" | "water" | "ocean";
 
-export type ResourceId = "fruit" | "crop" | "animal" | "fish" | "metal" | "starfish";
+export type ResourceId =
+  | "fruit"
+  | "crop"
+  | "animal"
+  | "fish"
+  | "metal"
+  | "starfish"
+  /** Aquarion: crop on water, seen only by Aquarion (Aqua Farm) */
+  | "aquaCrop"
+  /** Cymanti: replaces crops in Cymanti areas */
+  | "spores";
 
 export type Coord = { x: number; y: number };
 
@@ -30,10 +40,18 @@ export type Tile = {
   lighthouse: boolean;
   /** id of the city whose territory this tile belongs to */
   territory: number | null;
-  /** Polaris: frozen water/land tile */
+  /** Polaris: frozen water tile (ice) */
   ice?: boolean;
+  /** Polaris: land turned into Polaris terrain by Freeze Area */
+  polar?: boolean;
   /** Cymanti: walkable algae on water */
   algae?: boolean;
+  /** Aquarion: flooded land tile (land and water units move on it; ships stop on it) */
+  flooded?: boolean;
+  /** Aquarion Lost City: this village becomes a level-3 walled city when captured */
+  lostCity?: boolean;
+  /** Cymanti Decompose: the building is refunded and removed at the end of its owner's turn */
+  decomposing?: boolean;
 };
 
 export type Unit = {
@@ -69,10 +87,18 @@ export type Unit = {
   frozen?: boolean;
   /** Cymanti: poisoned (loses defence bonuses) */
   poisoned?: boolean;
-  /** Cymanti: boosted by Shaman (+0.5 atk, +1 mov) */
+  /** Cymanti: Swarm from a Shaman (+1 movement until attacked) */
   boosted?: boolean;
+  /** Aquarion Bubbles: +1 movement after entering a flooded tile; lost when attacked or on dry land */
+  bubble?: boolean;
+  /** Double Attack: the second attack of this turn is used */
+  secondAttack?: boolean;
+  /** Centipede segment: id of the Centipede head it belongs to */
+  bodyOf?: number;
   /** Elyrion: turns lived (for Dragon Egg -> Baby Dragon -> Fire Dragon) */
   age?: number;
+  /** was hidden when its owner's turn began (a Cloak that hides this turn can't infiltrate) */
+  startedHidden?: boolean;
 };
 
 export type City = {
@@ -123,15 +149,38 @@ export type Player = {
   embassies: number[];
   /** the city this player started with */
   capitalId: number;
+  /** Cymanti: enemy units converted by Shamans (replaces the Altar of Peace task) */
+  conversions?: number;
+  /** "unique" buildings this player has ever built (Polaris Ice Bank): never again */
+  builtUnique?: string[];
 };
 
-export type GameMode = "perfection" | "domination";
+export type GameMode = "perfection" | "domination" | "creative" | "glory" | "might";
+
+/** bot difficulty (rules doc, AI and difficulty): bot capital income and the Perfection bonus */
+export type Difficulty = "easy" | "normal" | "hard" | "crazy";
+
+/** tribe relations (rules doc, Diplomacy); see diplomacy.ts */
+export type Diplomacy = {
+  /** pairs at peace, [low id, high id] */
+  peace: [number, number][];
+  /** pending peace offers; the receiver answers on its next turn */
+  offers: { from: number; to: number }[];
+  /** last turn number in which `by` attacked `on` (war = an attack either way this turn or the last) */
+  attacks: { by: number; on: number; turn: number }[];
+  /** after a broken treaty: no attacks between the two while ordinal(state) < until */
+  ceasefires: { breaker: number; victim: number; until: number }[];
+  /** [victim, breaker]: treaties broken, remembered forever */
+  broken: [number, number][];
+};
 
 export type GameState = {
   seed: number;
   rng: number;
   mapSize: number;
   mode: GameMode;
+  /** bot difficulty; missing in states saved before it existed (read as "normal") */
+  difficulty?: Difficulty;
   /** turn limit for perfection mode */
   maxTurns: number;
   turn: number;
@@ -144,6 +193,8 @@ export type GameState = {
   winner: number | null;
   over: boolean;
   log: string[];
+  /** missing in states saved before diplomacy existed (read as no relations) */
+  diplomacy?: Diplomacy;
 };
 
 export type Action =
@@ -165,4 +216,13 @@ export type Action =
   | { type: "reward"; cityId: number; reward: string }
   | { type: "freezeArea"; unitId: number }
   | { type: "boost"; unitId: number }
-  | { type: "explode"; unitId: number };
+  | { type: "explode"; unitId: number }
+  | { type: "breakIce"; unitId: number; at: Coord }
+  /** clear a tile effect under the unit (2.18 "drain": Flooded, or Algae); free, ends the unit's turn */
+  | { type: "drain"; unitId: number; effect: "flooded" | "algae" }
+  /** Cymanti Recycling: mark an own building; refunded and removed at the end of the turn */
+  | { type: "decompose"; at: Coord }
+  | { type: "offerPeace"; player: number }
+  | { type: "acceptPeace"; player: number }
+  | { type: "declinePeace"; player: number }
+  | { type: "breakPeace"; player: number };

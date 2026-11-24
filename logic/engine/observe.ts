@@ -6,12 +6,14 @@
  */
 import { TECHS, UNITS } from "./data";
 import { canSee } from "./movement";
-import { cityById, income, scoreOf, techCost } from "./state";
+import { hasOffer, relation } from "./diplomacy";
+import { cityById, income, resourceVisible, scoreOf, techCost } from "./state";
 import type { GameState } from "./types";
 
 const TERRAINS = ["field", "forest", "mountain", "water", "ocean"] as const;
-const RESOURCES = ["fruit", "crop", "animal", "fish", "metal", "starfish"] as const;
+const RESOURCES = ["fruit", "crop", "animal", "fish", "metal", "starfish", "aquaCrop", "spores"] as const;
 export const UNIT_TYPES = Object.keys(UNITS);
+const RELATION_CODE = { self: 0, peace: 1, neutral: 0, war: -1, hostile: -2 } as const;
 
 export const CHANNELS = [
   "explored",
@@ -21,6 +23,8 @@ export const CHANNELS = [
   "road",
   "village",
   "ruin",
+  "flooded",
+  "decomposing",
   "territory:own",
   "territory:enemy",
   "city:own_level",
@@ -48,6 +52,10 @@ export type Observation = {
     techs: number[];
     techCosts: number[];
     opponentsAlive: number;
+    /** per player id: 1 peace, 0 neutral or self, -1 war, -2 hostile (cease-fire after a broken treaty) */
+    relations: number[];
+    /** per player id: 1 if that player's peace offer to p awaits an answer */
+    peaceOffers: number[];
   };
 };
 
@@ -62,15 +70,21 @@ export function observe(s: GameState, p: number): Observation {
   };
   const pl = s.players[p];
   for (let i = 0; i < N; i++) {
-    if (pl.explored[i] !== 1) continue;
+    // Elyrion see ruins through clouds
+    if (pl.explored[i] !== 1) {
+      if (pl.clan === "elyrion" && s.tiles[i].ruin) set("ruin", i, 1);
+      continue;
+    }
     const t = s.tiles[i];
     set("explored", i, 1);
     set(`terrain:${t.terrain}`, i, 1);
-    if (t.resource) set(`resource:${t.resource}`, i, 1);
+    if (t.resource && resourceVisible(s, p, t.resource)) set(`resource:${t.resource}`, i, 1);
     if (t.building) set("building", i, 1);
     if (t.road) set("road", i, 1);
     if (t.village) set("village", i, 1);
     if (t.ruin) set("ruin", i, 1);
+    if (t.flooded) set("flooded", i, 1);
+    if (t.decomposing) set("decomposing", i, 1);
     const owner = cityById(s, t.territory)?.owner;
     if (owner === p) set("territory:own", i, 1);
     else if (owner !== undefined) set("territory:enemy", i, 1);
@@ -102,6 +116,8 @@ export function observe(s: GameState, p: number): Observation {
       techs: TECHS.map((t) => (pl.techs.includes(t.id) ? 1 : 0)),
       techCosts: TECHS.map((t) => techCost(s, p, t.id)),
       opponentsAlive: s.players.filter((o) => o.alive && o.id !== p).length,
+      relations: s.players.map((o) => RELATION_CODE[relation(s, p, o.id)]),
+      peaceOffers: s.players.map((o) => (hasOffer(s, o.id, p) ? 1 : 0)),
     },
   };
 }

@@ -7,18 +7,18 @@ import React from "react";
 import { Image, type ImageSourcePropType } from "react-native";
 
 const TRIBE_EMBLEMS: Record<string, ImageSourcePropType> = {
-  inca: require("@/assets/sprites/tribe-inca.png"),
-  romans: require("@/assets/sprites/tribe-romans.png"),
-  norse: require("@/assets/sprites/tribe-norse.png"),
-  mongols: require("@/assets/sprites/tribe-mongols.png"),
-  polynesians: require("@/assets/sprites/tribe-polynesians.png"),
-  welsh: require("@/assets/sprites/tribe-welsh.png"),
-  lydians: require("@/assets/sprites/tribe-lydians.png"),
-  hittites: require("@/assets/sprites/tribe-hittites.png"),
-  sumerians: require("@/assets/sprites/tribe-sumerians.png"),
-  tibetans: require("@/assets/sprites/tribe-tibetans.png"),
-  spartans: require("@/assets/sprites/tribe-spartans.png"),
-  persians: require("@/assets/sprites/tribe-persians.png"),
+  xinxi: require("@/assets/sprites/tribe-xinxi.png"),
+  imperius: require("@/assets/sprites/tribe-imperius.png"),
+  bardur: require("@/assets/sprites/tribe-bardur.png"),
+  oumaji: require("@/assets/sprites/tribe-oumaji.png"),
+  kickoo: require("@/assets/sprites/tribe-kickoo.png"),
+  hoodrick: require("@/assets/sprites/tribe-hoodrick.png"),
+  luxidoor: require("@/assets/sprites/tribe-luxidoor.png"),
+  vengir: require("@/assets/sprites/tribe-vengir.png"),
+  zebasi: require("@/assets/sprites/tribe-zebasi.png"),
+  aimo: require("@/assets/sprites/tribe-aimo.png"),
+  quetzali: require("@/assets/sprites/tribe-quetzali.png"),
+  yadakk: require("@/assets/sprites/tribe-yadakk.png"),
   aquarion: require("@/assets/sprites/tribe-aquarion.png"),
   elyrion: require("@/assets/sprites/tribe-elyrion.png"),
   polaris: require("@/assets/sprites/tribe-polaris.png"),
@@ -59,6 +59,9 @@ const SPECIAL_UNIT_SPRITES: Record<string, ImageSourcePropType> = {
   livingIsland: require("@/assets/sprites/livingIsland.png"),
   centipede: require("@/assets/sprites/centipede.png"),
   segment: require("@/assets/sprites/segment.png"),
+  // no own art yet: reuse the closest sprites
+  insectEgg: require("@/assets/sprites/dragonEgg.png"),
+  larva: require("@/assets/sprites/segment.png"),
 };
 
 const SPECIAL_BUILDING_SPRITES: Record<string, ImageSourcePropType> = {
@@ -68,10 +71,12 @@ const SPECIAL_BUILDING_SPRITES: Record<string, ImageSourcePropType> = {
   fungi: require("@/assets/sprites/fungi.png"),
   mycelium: require("@/assets/sprites/mycelium.png"),
   clathrus: require("@/assets/sprites/clathrus.png"),
+  // no own art yet: reuse the Water Temple sprite
+  iceTemple: require("@/assets/sprites/waterTemple.png"),
 };
 
 export function TribeEmblem({ clan, size }: { clan: string; size: number }) {
-  const src = TRIBE_EMBLEMS[clan] ?? TRIBE_EMBLEMS.romans;
+  const src = TRIBE_EMBLEMS[clan] ?? TRIBE_EMBLEMS.imperius;
   return <Image source={src} resizeMode="contain" style={{ width: size, height: size }} />;
 }
 

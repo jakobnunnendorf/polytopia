@@ -36,14 +36,14 @@ describe("map generation", () => {
     }
   });
 
-  it("uses the 48/38/14 land split on drylands", () => {
+  it("uses the 2.18 land split field 0.5 : mountain 0.15 : forest 0.4 on drylands", () => {
     const n = 30;
     const m = generateMap(createRng(7), n, 4, "drylands");
     const land = m.tiles.filter((t) => t.terrain !== "water" && t.terrain !== "ocean");
     const share = (k: string) => land.filter((t) => t.terrain === k).length / land.length;
-    expect(share("mountain")).toBeCloseTo(0.14, 1);
-    expect(share("forest")).toBeCloseTo(0.38, 1);
-    expect(share("field")).toBeCloseTo(0.48, 1);
+    expect(share("mountain")).toBeCloseTo(0.15 / 1.05, 1);
+    expect(share("forest")).toBeCloseTo(0.4 / 1.05, 1);
+    expect(share("field")).toBeCloseTo(0.5 / 1.05, 1);
   });
 
   it("puts resources only within 2 tiles of a settlement (except starfish)", () => {

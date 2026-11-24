@@ -69,6 +69,12 @@ const NAMES: Record<Kind, Record<string, string>> = {
     puffer: "Puffer",
     tridention: "Tridention",
     crab: "Crab",
+    mermaidArcher: "Mermaid Archer",
+    mermaidDefender: "Mermaid Defender",
+    swordsmaid: "Swordsmaid",
+    siren: "Siren",
+    scuba: "Scuba",
+    mermaidDagger: "Mermaid Dagger",
     // Elyrion
     polytaur: "Polytaur",
     dragonEgg: "Dragon Egg",
@@ -94,6 +100,8 @@ const NAMES: Record<Kind, Record<string, string>> = {
     livingIsland: "Living Island",
     centipede: "Centipede",
     segment: "Segment",
+    insectEgg: "Insect Egg",
+    larva: "Larva",
   },
   building: {
     farm: "Farm",
@@ -107,6 +115,7 @@ const NAMES: Record<Kind, Record<string, string>> = {
     temple: "Temple",
     forestTemple: "Forest Temple",
     waterTemple: "Water Temple",
+    iceTemple: "Ice Temple",
     mountainTemple: "Mountain Temple",
     customsHouse: "Customs House",
     embassy: "Embassy",
@@ -136,6 +145,11 @@ const NAMES: Record<Kind, Record<string, string>> = {
     fungi: "Fungi",
     mycelium: "Mycelium",
     clathrus: "Clathrus",
+    canal: "Canal",
+    algae: "Algae",
+    atoll: "Atoll",
+    aquaFarm: "Aqua Farm",
+    fertilize: "Fertilize",
   },
   terrain: {
     field: "Field",
@@ -151,20 +165,22 @@ const NAMES: Record<Kind, Record<string, string>> = {
     fish: "Fish",
     metal: "Metal",
     starfish: "Starfish",
+    aquaCrop: "Aqua Crop",
+    spores: "Spores",
   },
   clan: {
-    inca: "Xin-xi",
-    romans: "Imperius",
-    norse: "Bardur",
-    mongols: "Oumaji",
-    polynesians: "Kickoo",
-    welsh: "Hoodrick",
-    lydians: "Luxidoor",
-    hittites: "Vengir",
-    sumerians: "Zebasi",
-    tibetans: "Ai-Mo",
-    spartans: "Quetzali",
-    persians: "Yădakk",
+    xinxi: "Xin-xi",
+    imperius: "Imperius",
+    bardur: "Bardur",
+    oumaji: "Oumaji",
+    kickoo: "Kickoo",
+    hoodrick: "Hoodrick",
+    luxidoor: "Luxidoor",
+    vengir: "Vengir",
+    zebasi: "Zebasi",
+    aimo: "Ai-Mo",
+    quetzali: "Quetzali",
+    yadakk: "Yădakk",
     aquarion: "Aquarion",
     elyrion: "∑∫ỹriȱŋ",
     polaris: "Polaris",
@@ -237,8 +253,27 @@ export function actionLabel(_s: GameState, a: Action): string {
     case "freezeArea":
       return "Freeze Area";
     case "boost":
-      return "Boost Allies";
+      return "Swarm";
     case "explode":
       return "Explode";
+    case "breakIce":
+      return `Break Ice at ${a.at.x},${a.at.y}`;
+    case "drain":
+      return a.effect === "flooded" ? "Drain" : "Clear Algae";
+    case "decompose":
+      return "Decompose";
+    case "offerPeace":
+      return `Offer Peace to ${tribeName(_s, a.player)}`;
+    case "acceptPeace":
+      return `Accept Peace from ${tribeName(_s, a.player)}`;
+    case "declinePeace":
+      return `Decline Peace from ${tribeName(_s, a.player)}`;
+    case "breakPeace":
+      return `Break Peace with ${tribeName(_s, a.player)}`;
   }
+}
+
+function tribeName(s: GameState, p: number): string {
+  const pl = s.players[p];
+  return pl ? name("clan", pl.clan) : `player ${p}`;
 }

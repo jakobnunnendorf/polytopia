@@ -1,3 +1,4 @@
+import { cloneDiplomacy } from "./diplomacy";
 import type { Coord, GameState, Tile } from "./types";
 
 export const idx = (size: number, x: number, y: number) => y * size + x;
@@ -51,5 +52,6 @@ export function cloneState(s: GameState): GameState {
       embassies: p.embassies.slice(),
     })),
     log: s.log.slice(-50),
+    ...(s.diplomacy ? { diplomacy: cloneDiplomacy(s.diplomacy) } : {}),
   };
 }

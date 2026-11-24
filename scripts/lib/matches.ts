@@ -6,7 +6,7 @@
  */
 import { applyAction } from "../../logic/engine/actions";
 import { createGame } from "../../logic/engine/state";
-import type { GameMode } from "../../logic/engine/types";
+import type { Difficulty, GameMode } from "../../logic/engine/types";
 import type { MapType } from "../../logic/engine/mapgen";
 import { createAgent, directChat } from "../../logic/agents/registry";
 import { finishRecord, recordStep, replayStates, startRecord, type GameRecord, type Seat } from "../../logic/arena/record";
@@ -58,9 +58,16 @@ async function run(rec: GameRecord): Promise<void> {
   }
 }
 
-export function startMatch(opts: { mapSize: number; mode: GameMode; seed: number; mapType?: MapType; seats: Seat[] }): GameRecord {
+export function startMatch(opts: {
+  mapSize: number;
+  mode: GameMode;
+  difficulty?: Difficulty;
+  seed: number;
+  mapType?: MapType;
+  seats: Seat[];
+}): GameRecord {
   if (opts.seats.length < 2 || opts.seats.some((s) => s.kind !== "model")) throw new Error("A server match needs two or more model seats");
-  const s = createGame({ mapSize: opts.mapSize, players: opts.seats.length, mode: opts.mode, seed: opts.seed, humans: [], mapType: opts.mapType });
+  const s = createGame({ mapSize: opts.mapSize, players: opts.seats.length, mode: opts.mode, difficulty: opts.difficulty, seed: opts.seed, humans: [], mapType: opts.mapType });
   const rec = startRecord(s, opts.seats, "arena", opts.mapType);
   saveGame(rec);
   void run(rec);
