@@ -4,6 +4,7 @@
  */
 import { legalActions } from "../engine/actions";
 import { DEFAULT_WEIGHTS, botStep, type GreedyWeights } from "../engine/bot";
+import { fullBotStep, fullWeights } from "../engine/botFull";
 import type { GameState } from "../engine/types";
 import { llmAgent } from "./llm";
 import type { Agent, ChatFn, ModelSpec } from "./types";
@@ -35,6 +36,12 @@ export function greedyAgent(spec: ModelSpec): Agent {
   return { spec, act: async (s) => botStep(s, w) };
 }
 
+/** the full-action-space greedy bot (kind "greedy-full") */
+export function greedyFullAgent(spec: ModelSpec): Agent {
+  const w = fullWeights(spec.full);
+  return { spec, act: async (s) => fullBotStep(s, w) };
+}
+
 export function randomAgent(spec: ModelSpec): Agent {
   return {
     spec,
@@ -55,6 +62,8 @@ export function createAgent(spec: ModelSpec, chat: ChatFn, all: ModelSpec[] = BU
   switch (spec.kind) {
     case "greedy":
       return greedyAgent(spec);
+    case "greedy-full":
+      return greedyFullAgent(spec);
     case "random":
       return randomAgent(spec);
     case "llm": {

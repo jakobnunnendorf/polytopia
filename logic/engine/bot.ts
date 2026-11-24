@@ -81,14 +81,14 @@ export const DEFAULT_WEIGHTS: GreedyWeights = {
 };
 
 /** deterministic small noise so bots don't all behave identically */
-function noise(s: GameState, k: number): number {
+export function noise(s: GameState, k: number): number {
   let h = (s.seed ^ (s.turn * 7919) ^ (k * 104729)) >>> 0;
   h = Math.imul(h ^ (h >>> 13), 0x5bd1e995) >>> 0;
   return (h % 1000) / 1000;
 }
 
 /** where should this unit go? nearest claimable village/enemy city, else fog, else enemies */
-function goal(s: GameState, u: Unit): Coord | null {
+export function goal(s: GameState, u: Unit): Coord | null {
   const n = s.mapSize;
   const pl = s.players[u.owner];
   let best: Coord | null = null;
