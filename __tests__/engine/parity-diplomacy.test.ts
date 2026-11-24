@@ -316,21 +316,21 @@ describe("war, neutral and embassies", () => {
     expect(relation(t, 0, 1)).toBe("neutral");
   });
 
-  it("no embassy while at war; one is allowed when neutral, and the host meets the sender", () => {
+  it("an embassy (4★ first) is allowed when neutral and at war (2.18), and the host meets the sender", () => {
     const s = blank();
     s.players[0].techs.push("diplomacy");
     s.players[1].met = [];
     const isEmbassy = (a: Action) => a.type === "build" && a.building === "embassy";
     expect(has(s, isEmbassy)).toBe(true);
     const built = applyAction(s, legalActions(s).find(isEmbassy)!);
-    expect(built.players[0].stars).toBe(50 - 5);
+    expect(built.players[0].stars).toBe(50 - 4);
     expect(built.players[1].met).toContain(0);
     expect(built.players[1].stars).toBeGreaterThan(50);
 
     const w = put(s, "warrior", 0, 5, 5);
     const e = put(s, "warrior", 1, 6, 6);
     const war = applyAction(s, { type: "attack", unitId: w.id, targetId: e.id });
-    expect(has(war, isEmbassy)).toBe(false);
+    expect(has(war, isEmbassy)).toBe(true);
   });
 
   it("an attack either way destroys both embassies", () => {

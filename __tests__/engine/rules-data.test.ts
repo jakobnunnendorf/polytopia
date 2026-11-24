@@ -46,7 +46,7 @@ describe("unit stats (wiki infoboxes)", () => {
     ["catapult", 8, 10, 4, 0, 1, 3],
     ["knight", 8, 10, 3.5, 1, 3, 1],
     ["mindBender", 5, 10, 0, 1, 1, 1],
-    ["cloak", 8, 5, 0, 0.5, 2, 1],
+    ["cloak", 8, 5, 2, 0.5, 2, 1], // game data: attack 2, never used on units (infiltrate only)
   ])("%s costs %i, hp %i, atk %d, def %d, move %i, range %i", (id, cost, hp, atk, def, mv, rng) => {
     const u = UNITS[id as string];
     expect([u.cost, u.hp, u.attack, u.defence, u.movement, u.range]).toEqual([

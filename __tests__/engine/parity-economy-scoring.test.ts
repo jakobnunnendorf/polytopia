@@ -184,10 +184,10 @@ describe("ports (The capital and connections: range 5, ocean links need Sailing)
 });
 
 describe("setup and stars", () => {
-  it("Luxidoor starts with a level-2 capital and 2 stars", () => {
-    expect(CLAN_BY_ID.lydians.capitalLevel).toBe(2);
+  it("Luxidoor starts with a level-3 capital and 2 stars (2.14)", () => {
+    expect(CLAN_BY_ID.lydians.capitalLevel).toBe(3);
     const s = createGame({ mapSize: 11, players: 2, mode: "domination", seed: 3, clans: ["lydians", "romans"] });
-    expect(s.cities.find((c) => c.owner === 0)!.level).toBe(2);
+    expect(s.cities.find((c) => c.owner === 0)!.level).toBe(3);
   });
 
   it("meeting a tribe pays 1 + 2 per 1,000 of its score, with no extra stars in 2-player games", () => {
@@ -214,7 +214,7 @@ describe("improvements", () => {
     expect(builds).toContainEqual({ type: "build", at: { x: 3, y: 3 }, building: "fish" });
   });
 
-  it("a Forge, like every building that needs no resource, goes only on a tile without one", () => {
+  it("a Forge may stand on a tile with an unharvested resource (2.18 game data)", () => {
     const s = blank(2);
     city(s, 0, 2, 2, true);
     city(s, 1, 12, 12, true);
@@ -228,7 +228,7 @@ describe("improvements", () => {
       .filter((a) => a.type === "build" && a.building === "forge")
       .map((a) => (a as { at: { x: number; y: number } }).at);
     expect(forges).toContainEqual({ x: 1, y: 2 }); // forest without a resource
-    expect(forges).not.toContainEqual({ x: 2, y: 1 }); // forest with an animal
+    expect(forges).toContainEqual({ x: 2, y: 1 }); // forest with an animal
   });
 
   it("an upgrade building's level is recounted from its adjacent feeders", () => {
@@ -258,14 +258,14 @@ describe("scoring", () => {
     expect(scoreOf(s, 0) - base).toBe(10);
   });
 
-  it("a city scores 100 + 5 per population point + level bonuses (40 at 2, 35 at 3); negative population costs", () => {
+  it("a city scores 50 x (level + 1) + 5 per population point; negative population costs 105 per point, floor 0", () => {
     const s = blank(2);
     const c = city(s, 0, 2, 2, true);
     expect(cityScore(c)).toBe(100);
     c.pop = 1;
     expect(cityScore(c)).toBe(105);
     c.pop = -2;
-    expect(cityScore(c)).toBe(90);
+    expect(cityScore(c)).toBe(0);
     c.pop = 0;
     c.level = 2;
     expect(cityScore(c)).toBe(150); // 2 population (10) + 40
@@ -273,10 +273,10 @@ describe("scoring", () => {
     expect(cityScore(c)).toBe(200); // + 3 population (15) + 35
   });
 
-  it("Perfection rating = score x (1 + 0.41 ln(opponents) + d) with the star thresholds", () => {
+  it("Perfection rating = score x (1 + round(handicap/5 + ln(opponents)/ln(11.4), 2)) with the star thresholds", () => {
     const s = blank(4, { mode: "perfection", difficulty: "hard" });
     city(s, 0, 2, 2, true);
-    expect(perfectionRating(s, 0)).toBe(Math.round(scoreOf(s, 0) * (1 + 0.41 * Math.log(3) + 0.4)));
+    expect(perfectionRating(s, 0)).toBe(Math.round(scoreOf(s, 0) * (1 + 0.85)));
     expect([2_999, 3_000, 10_000, 50_000, 100_000].map(perfectionStars)).toEqual([0, 1, 2, 3, 4]);
   });
 });

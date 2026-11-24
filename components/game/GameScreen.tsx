@@ -9,10 +9,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import Map from "@/components/Map/Map";
 import type { Highlight } from "@/components/Map/Tile";
 import { CityArt, ShardIcon, TribeEmblem, UnitArt } from "@/components/art/Art";
-import { BUILDS, UNITS } from "@/logic/engine/data";
+import { BUILDS, UNITS, embassyCost } from "@/logic/engine/data";
 import {
   applyAction,
   createGame,
+  dominationRating,
+  dominationStars,
   income,
   legalActions,
   resourceVisible,
@@ -595,7 +597,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
                   {selActions.map((a, i) => {
                     const cost =
                       a.type === "train" ? UNITS[a.unit]?.cost :
-                      a.type === "build" ? BUILDS[a.building]?.cost :
+                      a.type === "build" ? (a.building === "embassy" ? embassyCost(state.players[state.current].embassies.length) : BUILDS[a.building]?.cost) :
                       a.type === "upgrade" ? UNITS[a.to]?.cost : 0;
                     const label = cost && cost > 0 ? `${actionLabel(state, a)} (${cost}★)` : actionLabel(state, a);
                     return <Button key={i} label={label} onPress={() => act(a)} />;
@@ -723,7 +725,11 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
                 ? ` Your rating: ${perfectionRating(state, viewer).toLocaleString("en")} (${
                     ["no stars", "1 star", "2 stars", "3 stars", "a halo"][perfectionStars(perfectionRating(state, viewer))]
                   }).`
-                : "")
+                : state.mode === "domination"
+                  ? ` Your rating: ${Math.round(dominationRating(state, viewer) * 100)}% (${
+                      ["no stars", "1 star", "2 stars", "3 stars", "a halo"][dominationStars(dominationRating(state, viewer))]
+                    }).`
+                  : "")
             }
             standings={ranking.map(({ p, score }) => ({
               id: p.id,

@@ -56,8 +56,8 @@ const find = (s: GameState, pred: (a: Action) => boolean) => legalActions(s).fin
 const reach = (s: GameState, u: Unit) => reachable(s, u).map((m) => `${m.x},${m.y}`);
 
 describe("Polaris", () => {
-  it("Mooni has Skate, Auto Freeze, Stiff, Static and no Freeze Area", () => {
-    expect(UNITS.mooni.skills.sort()).toEqual(["autoFreeze", "skate", "static", "stiff"]);
+  it("Mooni has Skate, Auto Freeze, Stiff (not Static: game data) and no Freeze Area", () => {
+    expect(UNITS.mooni.skills.sort()).toEqual(["autoFreeze", "skate", "stiff"]);
     expect(UNITS.gaami.skills).toContain("freezeArea");
   });
 
