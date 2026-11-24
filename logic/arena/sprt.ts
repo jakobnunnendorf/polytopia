@@ -58,3 +58,28 @@ export function sprtVerdict(pairs: number[], elo0: number, elo1: number, alpha =
   const { lower, upper } = sprtBounds(alpha, beta);
   return { verdict: l >= upper ? "accept" : l <= lower ? "reject" : "continue", llr: l };
 }
+
+/**
+ * The same test on score margins instead of results. A sample is one map pair's
+ * margin: the challenger's share of all points over the two games minus 0.5
+ * (in [-0.5, 0.5]). Points are a much finer signal than who won: a game the
+ * challenger lost narrowly still counts in its favour, and games stopped at the
+ * turn cap still carry information. Hypotheses about the mean margin:
+ *   H0: margin = m0 (no better)    H1: margin = m1 (better by m1)
+ * With sample mean m and variance v over n pairs (normal approximation):
+ *   LLR = n (m1 - m0) (2m - m0 - m1) / (2v)
+ */
+export function marginLlr(margins: number[], m0: number, m1: number): number {
+  const n = margins.length;
+  if (n < 2) return 0;
+  const mean = margins.reduce((a, x) => a + x, 0) / n;
+  // identical play gives zero variance; the floor (a 1% margin spread) rejects such a challenger fast
+  const variance = Math.max(margins.reduce((a, x) => a + (x - mean) ** 2, 0) / n, 1e-4);
+  return (n * (m1 - m0) * (2 * mean - m0 - m1)) / (2 * variance);
+}
+
+export function marginVerdict(margins: number[], m0: number, m1: number, alpha = 0.05, beta = 0.05): { verdict: SprtVerdict; llr: number } {
+  const l = marginLlr(margins, m0, m1);
+  const { lower, upper } = sprtBounds(alpha, beta);
+  return { verdict: l >= upper ? "accept" : l <= lower ? "reject" : "continue", llr: l };
+}
