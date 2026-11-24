@@ -46,6 +46,33 @@ export type GameRecord = {
   result: { over: boolean; winner: number | null; turns: number; scores: number[]; alive: boolean[] } | null;
 };
 
+/** tribe ids used before 24 Nov 2026 (real-world codenames) → the real tribe names used now */
+export const LEGACY_CLAN_IDS: Record<string, string> = {
+  inca: "xinxi", romans: "imperius", norse: "bardur", mongols: "oumaji",
+  polynesians: "kickoo", welsh: "hoodrick", lydians: "luxidoor", hittites: "vengir",
+  sumerians: "zebasi", tibetans: "aimo", spartans: "quetzali", persians: "yadakk",
+};
+
+/** rewrite legacy tribe ids in a record (its `clan`, `clans` and `explicitClans` fields, also inside the turn snapshots) */
+export function migrateClanIds<T>(rec: T): T {
+  const fix = (v: unknown) => (typeof v === "string" ? (LEGACY_CLAN_IDS[v] ?? v) : v);
+  const walk = (o: unknown): void => {
+    if (Array.isArray(o)) {
+      for (const x of o) walk(x);
+    } else if (o && typeof o === "object") {
+      const r = o as Record<string, unknown>;
+      for (const k of Object.keys(r)) {
+        const v = r[k];
+        if (k === "clan") r[k] = fix(v);
+        else if ((k === "clans" || k === "explicitClans") && Array.isArray(v)) r[k] = v.map(fix);
+        else walk(v);
+      }
+    }
+  };
+  walk(rec);
+  return rec;
+}
+
 export function seatKey(seat: Seat): string {
   return seat.kind === "human" ? `human:${seat.profileId}` : `model:${seat.modelId}`;
 }
@@ -100,6 +127,7 @@ export function finishRecord(rec: GameRecord, s: GameState): GameRecord {
 
 /** rebuild the initial state of a record (uses the stored turn-0 snapshot when present so replays stay valid across tribe/mapgen additions) */
 export function initialState(rec: GameRecord): GameState {
+  migrateClanIds(rec);
   if (rec.turnStates && rec.turnStates.length > 0) {
     const s = cloneState(rec.turnStates[0]);
     s.difficulty = s.difficulty ?? rec.options.difficulty ?? "normal";

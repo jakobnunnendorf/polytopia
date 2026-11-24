@@ -12,7 +12,7 @@ import type { MapType } from "../../logic/engine/mapgen";
 const types: MapType[] = ["drylands", "lakes", "continents", "pangea", "archipelago", "waterworld"];
 const lineups = [
   ["aquarion", "polaris", "cymanti", "elyrion"],
-  ["polynesians", "aquarion", "welsh", "lydians"],
+  ["kickoo", "aquarion", "hoodrick", "luxidoor"],
 ];
 let games = 0;
 let illegal = 0;

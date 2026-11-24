@@ -79,14 +79,14 @@ describe("Aquarion units (rules doc, Aquarion units table)", () => {
     for (const def of trainableUnitsFor("aquarion")) {
       if (!def.naval) expect(def.skills).toContain("amphibious");
     }
-    expect(trainableUnitsFor("romans").map((u) => u.id)).not.toContain("swordsmaid");
+    expect(trainableUnitsFor("imperius").map((u) => u.id)).not.toContain("swordsmaid");
   });
 
   // 2.18 (S1): Canal replaces Flood, there is no Landfill (other tribes drain with a unit), no Port
   it("no roads, bridges, ports or Burn Forest for Aquarion; Atoll, Fertilize, Canal and Aqua Farm instead", () => {
     for (const b of ["road", "bridge", "burnForest", "port"]) expect(buildAllowedFor("aquarion", b)).toBe(false);
     for (const b of ["atoll", "fertilize", "canal", "aquaFarm"]) expect(buildAllowedFor("aquarion", b)).toBe(true);
-    for (const b of ["atoll", "fertilize", "canal", "aquaFarm"]) expect(buildAllowedFor("romans", b)).toBe(false);
+    for (const b of ["atoll", "fertilize", "canal", "aquaFarm"]) expect(buildAllowedFor("imperius", b)).toBe(false);
   });
 });
 
@@ -94,7 +94,7 @@ describe("Aquarion units (rules doc, Aquarion units table)", () => {
 
 describe("Aquarion movement", () => {
   it("amphibious units stop on dry land and get no road bonus", () => {
-    const s = world(["aquarion", "romans"], [["riding"], []]);
+    const s = world(["aquarion", "imperius"], [["riding"], []]);
     for (let x = 2; x <= 8; x++) tile(s, x, 5).road = true;
     const a = put(s, "amphibian", 0, 4, 5);
     expect(canReach(s, a, 5, 5)).toBe(true);
@@ -107,7 +107,7 @@ describe("Aquarion movement", () => {
   // 2.18 (S1): the starting tech Aquabase gives shallow water, Marine Life (sailing) ocean;
   // Riding and Free Spirit give no water movement
   it("Aquabase gives shallow water from the start, Marine Life ocean; Riding and Free Spirit nothing", () => {
-    const s = world(["aquarion", "romans"]);
+    const s = world(["aquarion", "imperius"]);
     set(s, 6, 5, "water");
     set(s, 6, 6, "ocean");
     const m = put(s, "mermaid", 0, 5, 5);
@@ -120,7 +120,7 @@ describe("Aquarion movement", () => {
   });
 
   it("ships may enter flooded tiles but stop there; never dry land", () => {
-    const s = world(["aquarion", "romans"], [["sailing"], []]);
+    const s = world(["aquarion", "imperius"], [["sailing"], []]);
     set(s, 5, 5, "water");
     set(s, 6, 5, "field", { flooded: true });
     set(s, 7, 5, "field", { flooded: true });
@@ -131,7 +131,7 @@ describe("Aquarion movement", () => {
   });
 
   it("Bubbles: +1 movement after entering a flooded tile (with Waterways), lost on dry land or when attacked", () => {
-    const s = world(["aquarion", "romans"], [["riding", "roads"], []]);
+    const s = world(["aquarion", "imperius"], [["riding", "roads"], []]);
     for (let x = 4; x <= 9; x++) set(s, x, 5, "field", { flooded: true });
     const a = put(s, "amphibian", 0, 3, 5);
     let next = applyAction(s, { type: "move", unitId: a.id, to: { x: 4, y: 5 } });
@@ -143,7 +143,7 @@ describe("Aquarion movement", () => {
     next = applyAction(next, { type: "move", unitId: a.id, to: { x: 4, y: 6 } });
     expect(unit(next, a.id)!.bubble).toBe(false);
     // being attacked pops it
-    const s2 = world(["aquarion", "romans"], [["riding", "roads"], []]);
+    const s2 = world(["aquarion", "imperius"], [["riding", "roads"], []]);
     const v = put(s2, "amphibian", 0, 5, 5);
     v.bubble = true;
     s2.current = 1;
@@ -157,14 +157,14 @@ describe("Aquarion movement", () => {
 
 describe("Auto Flood, Drench and Tentacles", () => {
   it("the Crab floods each tile it moves onto", () => {
-    const s = world(["aquarion", "romans"]);
+    const s = world(["aquarion", "imperius"]);
     const c = put(s, "crab", 0, 5, 5);
     const next = applyAction(s, { type: "move", unitId: c.id, to: { x: 6, y: 5 } });
     expect(tile(next, 6, 5).flooded).toBe(true);
   });
 
   it("the Puffer floods the tile it attacks", () => {
-    const s = world(["aquarion", "romans"], [["mathematics"], []]);
+    const s = world(["aquarion", "imperius"], [["mathematics"], []]);
     set(s, 4, 5, "water");
     const p = put(s, "puffer", 0, 4, 5);
     const e = put(s, "defender", 1, 6, 5);
@@ -173,7 +173,7 @@ describe("Auto Flood, Drench and Tentacles", () => {
   });
 
   it("a Jelly damages enemies it moves next to, and enemies that move next to it, unless frozen", () => {
-    const s = world(["aquarion", "romans"], [["navigation"], []]);
+    const s = world(["aquarion", "imperius"], [["navigation"], []]);
     set(s, 5, 5, "water");
     set(s, 6, 5, "water");
     const j = put(s, "jelly", 0, 5, 5);
@@ -186,7 +186,7 @@ describe("Auto Flood, Drench and Tentacles", () => {
     next = applyAction(next, { type: "move", unitId: e.id, to: { x: 7, y: 5 } });
     expect(unit(next, e.id)!.hp).toBeLessThan(15);
     // Jelly moving next to an enemy
-    const s2 = world(["aquarion", "romans"], [["navigation"], []]);
+    const s2 = world(["aquarion", "imperius"], [["navigation"], []]);
     set(s2, 5, 5, "water");
     set(s2, 6, 5, "water");
     const j2 = put(s2, "jelly", 0, 5, 5);
@@ -194,7 +194,7 @@ describe("Auto Flood, Drench and Tentacles", () => {
     const n2 = applyAction(s2, { type: "move", unitId: j2.id, to: { x: 6, y: 5 } });
     expect(unit(n2, e2.id)!.hp).toBeLessThan(15);
     // frozen Jelly: no tentacles
-    const s3 = world(["aquarion", "romans"], [["navigation"], []]);
+    const s3 = world(["aquarion", "imperius"], [["navigation"], []]);
     set(s3, 6, 5, "water");
     const j3 = put(s3, "jelly", 0, 6, 5);
     j3.frozen = true;
@@ -213,7 +213,7 @@ describe("Aquarion builds", () => {
 
   // 2.18 (S1): a unit builds the Canal (0★) on its tile; others drain with a unit (no Landfill)
   it("Waterways: a unit's Canal floods its tile; Fertilize grows a crop on a flooded field; others drain it", () => {
-    const s = world(["aquarion", "romans"], [["roads", "construction"], []]);
+    const s = world(["aquarion", "imperius"], [["roads", "construction"], []]);
     expect(has(s, "canal", { x: 2, y: 1 })).toBe(false); // nobody stands there
     const m = put(s, "mermaid", 0, 2, 1);
     expect(has(s, "canal", { x: 2, y: 1 })).toBe(true);
@@ -226,7 +226,7 @@ describe("Aquarion builds", () => {
     expect(has(s, "road", { x: 2, y: 1 })).toBe(false);
     expect(has(s, "burnForest", { x: 2, y: 1 })).toBe(false);
     // the other tribe drains it with a unit standing there
-    const r = world(["aquarion", "romans"]);
+    const r = world(["aquarion", "imperius"]);
     r.current = 1;
     set(r, 8, 8, "field", { flooded: true });
     const w = put(r, "warrior", 1, 8, 8);
@@ -238,7 +238,7 @@ describe("Aquarion builds", () => {
   });
 
   it("ports go on flooded tiles, and land units entering one embark", () => {
-    const s = world(["romans", "aquarion"], [["fishing"], []]);
+    const s = world(["imperius", "aquarion"], [["fishing"], []]);
     set(s, 2, 2, "field", { flooded: true });
     expect(has(s, "port", { x: 2, y: 2 })).toBe(true);
     const next = applyAction(s, { type: "build", at: { x: 2, y: 2 }, building: "port" });
@@ -248,7 +248,7 @@ describe("Aquarion builds", () => {
   });
 
   it("Aqua Crops: only Aquarion sees them; Aqua Farm (Aquaculture) gives +2 population", () => {
-    const s = world(["aquarion", "romans"], [["ramming"], []]);
+    const s = world(["aquarion", "imperius"], [["ramming"], []]);
     set(s, 2, 2, "water", { resource: "aquaCrop" });
     expect(resourceVisible(s, 0, "aquaCrop")).toBe(true);
     expect(resourceVisible(s, 1, "aquaCrop")).toBe(false);
@@ -261,7 +261,7 @@ describe("Aquarion builds", () => {
   });
 
   it("an Atoll links cities within 3 tiles over water", () => {
-    const s = world(["aquarion", "romans"], [["ramming"], []]);
+    const s = world(["aquarion", "imperius"], [["ramming"], []]);
     const c2 = newCity(s, { x: 5, y: 1 }, 0);
     claimTerritory(s, c2, 1);
     set(s, 3, 1, "water");
@@ -281,7 +281,7 @@ describe("Lost City ruin reward", () => {
   // examining Aquarion on a flooded field, the 8 tiles around turn shallow
   it("an Aquarion ocean ruin always raises an own level-1 city on a flooded field with 8 shallow-water tiles", () => {
     for (let seed = 1; seed < 20; seed++) {
-      const s = world(["aquarion", "romans"], [["sailing"], []]);
+      const s = world(["aquarion", "imperius"], [["sailing"], []]);
       for (let y = 2; y <= 8; y++) for (let x = 3; x <= 7; x++) set(s, x, y, "ocean");
       tile(s, 5, 5).ruin = true;
       const m = put(s, "mermaid", 0, 5, 5);
@@ -298,7 +298,7 @@ describe("Lost City ruin reward", () => {
 
   it("other tribes never get it", () => {
     for (let seed = 1; seed < 100; seed++) {
-      const s = world(["romans", "aquarion"], [["sailing"], []]);
+      const s = world(["imperius", "aquarion"], [["sailing"], []]);
       set(s, 5, 5, "ocean", { ruin: true });
       const b = put(s, "scout", 0, 5, 5);
       b.carried = "warrior";
@@ -313,11 +313,11 @@ describe("Lost City ruin reward", () => {
 
 describe("tribe spawn modifiers (2.18 data; map generation in parity-218-mapgen.test.ts)", () => {
   it("clan mods equal the 2.18 data", () => {
-    expect(CLAN_BY_ID.polynesians.mod).toEqual({ water: 2, fish: 1.5, mountain: 0.5 });
+    expect(CLAN_BY_ID.kickoo.mod).toEqual({ water: 2, fish: 1.5, mountain: 0.5 });
     expect(CLAN_BY_ID.aquarion.mod).toEqual({ forest: 0.5, crop: 0.5, aquaCrop: 1.5 });
     expect(CLAN_BY_ID.polaris.mod).toEqual({});
     expect(CLAN_BY_ID.cymanti.mod).toEqual({ mountain: 1.2, spores: 0.3, crop: 0 });
-    expect(CLAN_BY_ID.norse.mod).toEqual({ forest: 0.8, crop: 0 });
+    expect(CLAN_BY_ID.bardur.mod).toEqual({ forest: 0.8, crop: 0 });
     expect(CLAN_BY_ID.aquarion.startResources).toEqual(["fish", "fish"]);
     expect(CLAN_BY_ID.cymanti.startResources).toEqual(["spores", "spores"]);
   });
@@ -354,7 +354,7 @@ describe("tribe spawn modifiers (2.18 data; map generation in parity-218-mapgen.
 
 describe("Scuba", () => {
   it("infiltrating spawns amphibious Mermaid Daggers", () => {
-    const s = world(["aquarion", "romans"], [["diplomacy"], []]);
+    const s = world(["aquarion", "imperius"], [["diplomacy"], []]);
     const sc = put(s, "scuba", 0, 8, 8);
     const city = s.cities[1];
     const next = applyAction(s, { type: "infiltrate", unitId: sc.id, cityId: city.id });

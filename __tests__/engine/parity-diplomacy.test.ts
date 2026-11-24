@@ -17,7 +17,7 @@ const N = 12;
 
 /** a 12x12 open field map, all explored, two cities in opposite corners, no units, tribes met */
 function blank(): GameState {
-  const s = createGame({ mapSize: N, players: 2, mode: "domination", seed: 3, clans: ["romans", "romans"] });
+  const s = createGame({ mapSize: N, players: 2, mode: "domination", seed: 3, clans: ["imperius", "imperius"] });
   for (const t of s.tiles) {
     Object.assign(t, {
       terrain: "field",

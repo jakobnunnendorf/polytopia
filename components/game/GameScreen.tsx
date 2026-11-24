@@ -205,7 +205,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     if (resumed) return replayStates(resumed).pop()!;
     const hasExplicitTribes = seats.some((s) => !!s.clan);
     const chosenClans = hasExplicitTribes
-      ? seats.map((s, i) => s.clan ?? ["romans", "norse", "aquarion", "elyrion", "polaris", "cymanti"][i % 6])
+      ? seats.map((s, i) => s.clan ?? ["imperius", "bardur", "aquarion", "elyrion", "polaris", "cymanti"][i % 6])
       : undefined;
     return createGame({
       mapSize: params.mapSize ? Number(params.mapSize) : undefined,

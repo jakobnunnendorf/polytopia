@@ -62,7 +62,7 @@ describe("Polaris", () => {
   });
 
   it("Auto Freeze turns adjacent water to ice (not land) and freezes enemies; freezing counts as an attack", () => {
-    const s = blank(["polaris", "romans"]);
+    const s = blank(["polaris", "imperius"]);
     water(s, 5, 5, true);
     water(s, 6, 5);
     water(s, 6, 6);
@@ -78,7 +78,7 @@ describe("Polaris", () => {
   });
 
   it("Freeze Area turns water to ice and land to Polaris terrain, never inside enemy territory", () => {
-    const s = blank(["polaris", "romans"]);
+    const s = blank(["polaris", "imperius"]);
     const g = unit(s, "gaami", 0, 8, 8); // (9,9) is inside the enemy capital's territory
     water(s, 7, 7);
     const a = find(s, (x) => x.type === "freezeArea" && x.unitId === g.id)!;
@@ -90,7 +90,7 @@ describe("Polaris", () => {
   });
 
   it("Skate: ice steps cost 1, Battle Sled moves 3 from ice, Glide (Polarism) adds about one tile", () => {
-    const s = blank(["polaris", "romans"]);
+    const s = blank(["polaris", "imperius"]);
     for (let x = 2; x <= 9; x++) water(s, x, 5, true);
     for (let y = 2; y <= 9; y++) for (let x = 2; x <= 9; x++) if (y !== 5) tileAt(s, x, y).terrain = "mountain";
     const sled = unit(s, "battleSled", 0, 2, 5);
@@ -101,7 +101,7 @@ describe("Polaris", () => {
   });
 
   it("Skate: on land at most 1 tile, no attack after ending on land, no road bonus", () => {
-    const s = blank(["polaris", "romans"]);
+    const s = blank(["polaris", "imperius"]);
     for (let x = 3; x <= 8; x++) tileAt(s, x, 5).road = true;
     const sled = unit(s, "battleSled", 0, 4, 5);
     const r = reachable(s, sled);
@@ -112,7 +112,7 @@ describe("Polaris", () => {
   });
 
   it("roads give no bonus on ice", () => {
-    const s = blank(["romans", "polaris"]);
+    const s = blank(["imperius", "polaris"]);
     // bridge on frozen water between two road tiles: a rider can't chain road steps through it
     for (let x = 2; x <= 9; x++) tileAt(s, x, 5).road = true;
     water(s, 5, 5, true);
@@ -128,9 +128,9 @@ describe("Polaris", () => {
   it("Ice Temple replaces the Water Temple and needs ice; Outpost needs ice; one Ice Bank per tribe", () => {
     expect(buildAllowedFor("polaris", "iceTemple")).toBe(true);
     expect(buildAllowedFor("polaris", "waterTemple")).toBe(false);
-    expect(buildAllowedFor("romans", "iceTemple")).toBe(false);
+    expect(buildAllowedFor("imperius", "iceTemple")).toBe(false);
     expect(BUILDS.iceTemple).toMatchObject({ cost: 20, tech: "aquatism", kind: "temple", pop: 1 });
-    const s = blank(["polaris", "romans"]);
+    const s = blank(["polaris", "imperius"]);
     s.players[0].techs.push("aquatism", "roads", "trade");
     water(s, 2, 1, true);
     water(s, 2, 2);
@@ -144,7 +144,7 @@ describe("Polaris", () => {
   });
 
   it("Polaris fish with Ice Fishing (ramming); keeps the Catapult; Ice Fortress from Polar Warfare", () => {
-    const s = blank(["polaris", "romans"]);
+    const s = blank(["polaris", "imperius"]);
     water(s, 2, 2, true);
     tileAt(s, 2, 2).resource = "fish";
     const canFish = (st: GameState) => legalActions(st).some((a) => a.type === "build" && a.building === "fish");
@@ -158,7 +158,7 @@ describe("Polaris", () => {
   });
 
   it("Outposts link cities like ports", () => {
-    const s = blank(["polaris", "romans", "romans"]);
+    const s = blank(["polaris", "imperius", "imperius"]);
     // third city at (10,1) belongs to Polaris; frozen sea between the two
     const c = s.cities[2];
     c.owner = 0;
@@ -174,7 +174,7 @@ describe("Polaris", () => {
   });
 
   it("Dash breaks ice; a captured Polaris city's land loses the Polaris style", () => {
-    const s = blank(["romans", "polaris"]);
+    const s = blank(["imperius", "polaris"]);
     water(s, 6, 5, true);
     const w = unit(s, "warrior", 0, 5, 5);
     const a = find(s, (x) => x.type === "breakIce" && x.unitId === w.id)!;
@@ -182,7 +182,7 @@ describe("Polaris", () => {
     const next = applyAction(s, a);
     expect(tileAt(next, 6, 5).ice).toBe(false);
 
-    const t = blank(["romans", "polaris"]);
+    const t = blank(["imperius", "polaris"]);
     const pc = t.cities[1];
     tileAt(t, 9, 9).polar = true;
     const cap = unit(t, "warrior", 0, pc.x, pc.y);
@@ -204,7 +204,7 @@ describe("Cymanti", () => {
   });
 
   it("Swarm gives +1 movement, no attack bonus, and ends when the unit is attacked", () => {
-    const s = blank(["cymanti", "romans"]);
+    const s = blank(["cymanti", "imperius"]);
     s.players[0].techs.push("meditation");
     const sh = unit(s, "shaman", 0, 5, 5);
     const m = unit(s, "mantis", 0, 5, 6);
@@ -226,7 +226,7 @@ describe("Cymanti", () => {
   });
 
   it("conversions don't count as attacks; Cymanti earn the Altar of Peace by 3 Shaman conversions", () => {
-    const s = blank(["cymanti", "romans"]);
+    const s = blank(["cymanti", "imperius"]);
     let st = s;
     for (let k = 0; k < 3; k++) {
       const sh = unit(st, "shaman", 0, 5, 5 + k);
@@ -244,7 +244,7 @@ describe("Cymanti", () => {
     // 2.18 (S1): Recycling replaces Construction, so no Windmill
     expect(buildAllowedFor("cymanti", "windmill")).toBe(false);
     expect(BUILDS.mycelium.tech).toBe("roads");
-    const s = blank(["cymanti", "romans", "romans"]);
+    const s = blank(["cymanti", "imperius", "imperius"]);
     const c = s.cities[2];
     c.owner = 0;
     c.capital = false;
@@ -262,7 +262,7 @@ describe("Cymanti", () => {
   it("Clathrus earns +1★ per adjacent own Fungi; algae earn nothing", () => {
     expect(BUILDS.clathrus.resource).toBeUndefined();
     expect(BUILDS.fungi.resource).toBe("spores");
-    const s = blank(["cymanti", "romans"]);
+    const s = blank(["cymanti", "imperius"]);
     claimTerritory(s, s.cities[0], 2);
     const base = income(s, 0);
     tileAt(s, 2, 2).building = "clathrus";
@@ -277,7 +277,7 @@ describe("Cymanti", () => {
 
   // 2.18 (S1 Poison reward): the city rebels (no income next turn) but pays no stars
   it("Moth infiltration poisons the defender, lays Insect Eggs, the city rebels, no stars; eggs grow into Larva then Moth", () => {
-    const s = blank(["cymanti", "romans"]);
+    const s = blank(["cymanti", "imperius"]);
     const ec = s.cities[1];
     ec.level = 2;
     const moth = unit(s, "moth", 0, 9, 8);
@@ -305,7 +305,7 @@ describe("Cymanti", () => {
   });
 
   it("Phychi attacks twice per turn", () => {
-    const s = blank(["cymanti", "romans"]);
+    const s = blank(["cymanti", "imperius"]);
     const ph = unit(s, "phychi", 0, 5, 5);
     const e = unit(s, "giant", 1, 6, 6);
     let st = applyAction(s, { type: "attack", unitId: ph.id, targetId: e.id });
@@ -316,7 +316,7 @@ describe("Cymanti", () => {
   });
 
   it("Kiton poisons units that attack it, ranged ones too", () => {
-    const s = blank(["romans", "cymanti"]);
+    const s = blank(["imperius", "cymanti"]);
     const ar = unit(s, "archer", 0, 5, 5);
     const k = unit(s, "kiton", 1, 7, 5);
     const st = applyAction(s, { type: "attack", unitId: ar.id, targetId: k.id });
@@ -324,7 +324,7 @@ describe("Cymanti", () => {
   });
 
   it("Centipede: segments belong to the body, it moves 1 tile with segments, segments exert no ZoC, converting one converts all", () => {
-    const s = blank(["cymanti", "romans"]);
+    const s = blank(["cymanti", "imperius"]);
     const c = unit(s, "centipede", 0, 5, 5);
     const e = unit(s, "warrior", 1, 6, 5);
     e.hp = 1;
@@ -345,7 +345,7 @@ describe("Cymanti", () => {
   });
 
   it("Centipede segments exert no zone of control", () => {
-    const s = blank(["romans", "cymanti"]);
+    const s = blank(["imperius", "cymanti"]);
     for (let x = 2; x <= 9; x++) for (let y = 2; y <= 9; y++) if (y !== 5) tileAt(s, x, y).terrain = "mountain";
     const r = unit(s, "rider", 0, 3, 5);
     const seg = unit(s, "segment", 1, 5, 6);
@@ -355,7 +355,7 @@ describe("Cymanti", () => {
   });
 
   it("algae ends a land unit's move; a poisoned unit's death leaves spores on land", () => {
-    const s = blank(["romans", "cymanti"]);
+    const s = blank(["imperius", "cymanti"]);
     for (let x = 2; x <= 9; x++) for (let y = 2; y <= 9; y++) if (y !== 5) tileAt(s, x, y).terrain = "mountain";
     water(s, 5, 5);
     tileAt(s, 5, 5).algae = true;
@@ -363,7 +363,7 @@ describe("Cymanti", () => {
     expect(reach(s, r)).toContain("5,5");
     expect(reach(s, r)).not.toContain("6,5");
 
-    const t = blank(["romans", "cymanti"]);
+    const t = blank(["imperius", "cymanti"]);
     const sw = unit(t, "swordsman", 0, 5, 5);
     const v = unit(t, "phychi", 1, 6, 5);
     v.poisoned = true;
@@ -373,7 +373,7 @@ describe("Cymanti", () => {
   });
 
   it("Living Island leaves algae on the water it passes", () => {
-    const s = blank(["cymanti", "romans"]);
+    const s = blank(["cymanti", "imperius"]);
     for (let x = 3; x <= 7; x++) water(s, x, 5);
     s.players[0].techs.push("fishing");
     const li = unit(s, "livingIsland", 0, 3, 5);
@@ -383,7 +383,7 @@ describe("Cymanti", () => {
   });
 
   it("Raychi trains only in cities next to water; Mountain Temple needs Mysticism", () => {
-    const s = blank(["cymanti", "romans"]);
+    const s = blank(["cymanti", "imperius"]);
     s.players[0].techs.push("sailing", "meditation", "climbing");
     const trains = (st: GameState) => legalActions(st).some((a) => a.type === "train" && a.unit === "raychi");
     expect(trains(s)).toBe(false);
@@ -401,7 +401,7 @@ describe("Elyrion", () => {
   it("Sanctuary: +1★ per adjacent wild animal, a new animal every 2 turns, Sawmill kept", () => {
     expect(buildAllowedFor("elyrion", "sawmill")).toBe(true);
     expect(buildAllowedFor("elyrion", "sanctuary")).toBe(true);
-    const s = blank(["elyrion", "romans"]);
+    const s = blank(["elyrion", "imperius"]);
     // 2.18 (S1): only own tiles count and receive animals
     claimTerritory(s, s.cities[0], 2);
     const base = income(s, 0);
@@ -423,7 +423,7 @@ describe("Elyrion", () => {
   });
 
   it("Elyrion see ruins through clouds in the observation", () => {
-    const s = blank(["elyrion", "romans"]);
+    const s = blank(["elyrion", "imperius"]);
     for (const p of s.players) p.explored = new Array(N * N).fill(0);
     tileAt(s, 6, 6).ruin = true;
     const plane = (p: number) => observe(s, p).planes[CHANNELS.indexOf("ruin") * N * N + idx(N, 6, 6)];
@@ -432,7 +432,7 @@ describe("Elyrion", () => {
   });
 
   it("grown dragons keep their damage", () => {
-    const s = blank(["elyrion", "romans"]);
+    const s = blank(["elyrion", "imperius"]);
     const egg = unit(s, "dragonEgg", 0, 5, 5);
     egg.hp = 6;
     egg.age = 2;

@@ -20,7 +20,7 @@ let s = createGame({
   seed: 123,
   humans: [0],          // players NOT played by the built-in bot ([] = all bots)
   mapType: "drylands",  // drylands | lakes | continents | pangea | archipelago | waterworld
-  clans: ["romans", "norse"], // optional; default random distinct clans
+  clans: ["imperius", "bardur"], // optional; default random distinct clans
 });
 
 const actions = legalActions(s);   // every legal action for s.current

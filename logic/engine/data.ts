@@ -434,18 +434,18 @@ export type ClanDef = {
 
 export const CLANS: ClanDef[] = [
   // ---- 12 Regular Tribes ----
-  { id: "inca", startTech: "climbing", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 1.5, metal: 1.5 }, startResources: ["metal", "metal"], color: "#e63946" },
-  { id: "romans", startTech: "organization", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { animal: 0.5, fruit: 2 }, startResources: ["fruit", "fruit"], color: "#2589f5" },
-  { id: "norse", startTech: "hunting", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { forest: 0.8, crop: 0 }, startResources: ["animal", "animal"], color: "#3b4252" },
-  { id: "mongols", startTech: "riding", startUnit: "rider", startStars: 6, capitalLevel: 1, mod: { forest: 0.2, animal: 0.2, mountain: 0.5, water: 0.5 }, startResources: ["fruit", "fruit"], color: "#f4c430" },
-  { id: "polynesians", startTech: "fishing", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { water: 2, fish: 1.5, mountain: 0.5 }, startResources: ["fish", "fish"], color: "#2db84d" },
-  { id: "welsh", startTech: "archery", startUnit: "archer", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 1.5 }, startResources: ["animal", "animal"], color: "#8c6239" },
-  { id: "lydians", startTech: null, startUnit: "warrior", startStars: 2, capitalLevel: 3, mod: {}, startResources: ["animal", "animal", "fruit", "fruit", "fish", "fish", "crop", "metal"], color: "#9b5de5" },
-  { id: "hittites", startTech: "smithery", startUnit: "swordsman", startStars: 5, capitalLevel: 1, mod: { metal: 2, animal: 0.1, fruit: 0.1, fish: 0.1 }, startResources: ["metal"], color: "#4a4e69" },
-  { id: "sumerians", startTech: "farming", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 0.5 }, startResources: ["crop", "crop"], color: "#f97316" },
-  { id: "tibetans", startTech: "philosophy", startUnit: "mindBender", startStars: 5, capitalLevel: 1, mod: { mountain: 1.5, crop: 0.1 }, startResources: ["animal", "animal"], color: "#14b8a6" },
-  { id: "spartans", startTech: "strategy", startUnit: "defender", startStars: 7, capitalLevel: 1, mod: { fruit: 2, crop: 0.1 }, startResources: ["fruit", "fruit"], color: "#0d9488" },
-  { id: "persians", startTech: "roads", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 1.5 }, startResources: ["fruit", "fruit"], color: "#b91c1c" },
+  { id: "xinxi", startTech: "climbing", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 1.5, metal: 1.5 }, startResources: ["metal", "metal"], color: "#e63946" },
+  { id: "imperius", startTech: "organization", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { animal: 0.5, fruit: 2 }, startResources: ["fruit", "fruit"], color: "#2589f5" },
+  { id: "bardur", startTech: "hunting", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { forest: 0.8, crop: 0 }, startResources: ["animal", "animal"], color: "#3b4252" },
+  { id: "oumaji", startTech: "riding", startUnit: "rider", startStars: 6, capitalLevel: 1, mod: { forest: 0.2, animal: 0.2, mountain: 0.5, water: 0.5 }, startResources: ["fruit", "fruit"], color: "#f4c430" },
+  { id: "kickoo", startTech: "fishing", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { water: 2, fish: 1.5, mountain: 0.5 }, startResources: ["fish", "fish"], color: "#2db84d" },
+  { id: "hoodrick", startTech: "archery", startUnit: "archer", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 1.5 }, startResources: ["animal", "animal"], color: "#8c6239" },
+  { id: "luxidoor", startTech: null, startUnit: "warrior", startStars: 2, capitalLevel: 3, mod: {}, startResources: ["animal", "animal", "fruit", "fruit", "fish", "fish", "crop", "metal"], color: "#9b5de5" },
+  { id: "vengir", startTech: "smithery", startUnit: "swordsman", startStars: 5, capitalLevel: 1, mod: { metal: 2, animal: 0.1, fruit: 0.1, fish: 0.1 }, startResources: ["metal"], color: "#4a4e69" },
+  { id: "zebasi", startTech: "farming", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 0.5 }, startResources: ["crop", "crop"], color: "#f97316" },
+  { id: "aimo", startTech: "philosophy", startUnit: "mindBender", startStars: 5, capitalLevel: 1, mod: { mountain: 1.5, crop: 0.1 }, startResources: ["animal", "animal"], color: "#14b8a6" },
+  { id: "quetzali", startTech: "strategy", startUnit: "defender", startStars: 7, capitalLevel: 1, mod: { fruit: 2, crop: 0.1 }, startResources: ["fruit", "fruit"], color: "#0d9488" },
+  { id: "yadakk", startTech: "roads", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 1.5 }, startResources: ["fruit", "fruit"], color: "#b91c1c" },
 
   // ---- 4 Special Tribes ----
   {

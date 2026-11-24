@@ -160,7 +160,7 @@ describe("2.18 tribe map features", () => {
 
   it("starting resources: Bardur 2 game, Luxidoor 8 resources next to the capital", () => {
     for (const seed of SEEDS.slice(0, 6)) {
-      const s = createGame({ mapSize: 16, players: 2, mode: "domination", seed, clans: ["norse", "lydians"] });
+      const s = createGame({ mapSize: 16, players: 2, mode: "domination", seed, clans: ["bardur", "luxidoor"] });
       const caps = [0, 1].map((p) => s.cities.find((c) => c.owner === p && c.capital)!);
       const near = (p: number, r: string) => ring(16, caps[p]).filter((i) => s.tiles[i].resource === r).length;
       expect(near(0, "animal")).toBeGreaterThanOrEqual(2);
@@ -171,7 +171,7 @@ describe("2.18 tribe map features", () => {
 
   it("Kickoo starts with 2 fish even on Drylands", () => {
     for (const seed of SEEDS.slice(0, 6)) {
-      const s = createGame({ mapSize: 16, players: 2, mode: "domination", seed, mapType: "drylands", clans: ["polynesians", "romans"] });
+      const s = createGame({ mapSize: 16, players: 2, mode: "domination", seed, mapType: "drylands", clans: ["kickoo", "imperius"] });
       const cap = s.cities.find((c) => c.owner === 0 && c.capital)!;
       const fish = ring(16, cap).filter((i) => s.tiles[i].resource === "fish" && s.tiles[i].terrain === "water");
       expect(fish.length).toBeGreaterThanOrEqual(2);
@@ -180,7 +180,7 @@ describe("2.18 tribe map features", () => {
 
   it("Aquarion: its home climate's fields and forests start flooded, never mountains or water", () => {
     for (const seed of SEEDS.slice(0, 6)) {
-      const s = createGame({ mapSize: 16, players: 2, mode: "domination", seed, clans: ["aquarion", "romans"] });
+      const s = createGame({ mapSize: 16, players: 2, mode: "domination", seed, clans: ["aquarion", "imperius"] });
       const cap = s.cities.find((c) => c.owner === 0 && c.capital)!;
       const other = s.cities.find((c) => c.owner === 1 && c.capital)!;
       const flooded = s.tiles.map((t, i) => [t, at(16, i)] as const).filter(([t]) => t.flooded);
@@ -195,10 +195,10 @@ describe("2.18 tribe map features", () => {
 
   it("Cymanti: 2 starting spores; no spores without Cymanti", () => {
     for (const seed of SEEDS.slice(0, 6)) {
-      const s = createGame({ mapSize: 16, players: 2, mode: "domination", seed, clans: ["cymanti", "romans"] });
+      const s = createGame({ mapSize: 16, players: 2, mode: "domination", seed, clans: ["cymanti", "imperius"] });
       const cap = s.cities.find((c) => c.owner === 0 && c.capital)!;
       expect(ring(16, cap).filter((i) => s.tiles[i].resource === "spores").length).toBeGreaterThanOrEqual(2);
-      const plain = createGame({ mapSize: 16, players: 2, mode: "domination", seed, clans: ["romans", "norse"] });
+      const plain = createGame({ mapSize: 16, players: 2, mode: "domination", seed, clans: ["imperius", "bardur"] });
       expect(plain.tiles.some((t) => t.resource === "spores")).toBe(false);
     }
     expect(CLAN_BY_ID.cymanti.mod).toMatchObject({ spores: 0.3, crop: 0 });
@@ -206,7 +206,7 @@ describe("2.18 tribe map features", () => {
 
   it("Polaris: the water next to its capital is ice, its dry neighbours Polaris land", () => {
     for (const seed of SEEDS.slice(0, 6)) {
-      const s = createGame({ mapSize: 16, players: 2, mode: "domination", seed, mapType: "archipelago", clans: ["polaris", "romans"] });
+      const s = createGame({ mapSize: 16, players: 2, mode: "domination", seed, mapType: "archipelago", clans: ["polaris", "imperius"] });
       const cap = s.cities.find((c) => c.owner === 0 && c.capital)!;
       for (const i of ring(16, cap)) {
         const t = s.tiles[i];

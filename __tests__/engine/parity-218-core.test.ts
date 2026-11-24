@@ -26,7 +26,7 @@ const N = 12;
 
 /** a 12x12 open field map, all explored, two capitals in opposite corners, no units, tribes met */
 function blank(): GameState {
-  const s = createGame({ mapSize: N, players: 2, mode: "domination", seed: 3, clans: ["romans", "romans"] });
+  const s = createGame({ mapSize: N, players: 2, mode: "domination", seed: 3, clans: ["imperius", "imperius"] });
   for (const t of s.tiles) {
     Object.assign(t, {
       terrain: "field",
@@ -144,16 +144,16 @@ describe("poison and movement (polybots-engine movement_range)", () => {
 
 describe("tribe setup (2.14 balance patch, game tribe data)", () => {
   it("Luxidoor starts with a level-3 capital and 2 stars", () => {
-    expect(CLAN_BY_ID.lydians).toMatchObject({ capitalLevel: 3, startStars: 2 });
-    const s = createGame({ mapSize: 11, players: 2, mode: "domination", seed: 3, clans: ["lydians", "romans"] });
+    expect(CLAN_BY_ID.luxidoor).toMatchObject({ capitalLevel: 3, startStars: 2 });
+    const s = createGame({ mapSize: 11, players: 2, mode: "domination", seed: 3, clans: ["luxidoor", "imperius"] });
     expect(s.cities.find((c) => c.owner === 0)!.level).toBe(3);
     expect(s.players[0].stars).toBe(2);
   });
 
   it("starting stars: Xin-xi, Hoodrick, Quetzali, Yadakk 7; Oumaji 6; Luxidoor 2; the rest 5", () => {
-    const want: Record<string, number> = { inca: 7, welsh: 7, spartans: 7, persians: 7, mongols: 6, lydians: 2 };
+    const want: Record<string, number> = { xinxi: 7, hoodrick: 7, quetzali: 7, yadakk: 7, oumaji: 6, luxidoor: 2 };
     for (const c of Object.values(CLAN_BY_ID)) expect([c.id, c.startStars]).toEqual([c.id, want[c.id] ?? 5]);
-    expect(CLAN_BY_ID.tibetans).toMatchObject({ startTech: "philosophy", startUnit: "mindBender" });
+    expect(CLAN_BY_ID.aimo).toMatchObject({ startTech: "philosophy", startUnit: "mindBender" });
   });
 });
 
@@ -253,7 +253,7 @@ describe("scoring (game data 2.18)", () => {
 
   it("Perfection bonus = round(handicap/5 + ln(opponents)/ln(11.4), 2) on top of 100%", () => {
     for (const [difficulty, h] of [["easy", 0], ["normal", 1], ["hard", 2], ["crazy", 4]] as const) {
-      const s = createGame({ mapSize: 16, players: 4, mode: "perfection", difficulty, seed: 1, clans: ["romans", "romans", "romans", "romans"] });
+      const s = createGame({ mapSize: 16, players: 4, mode: "perfection", difficulty, seed: 1, clans: ["imperius", "imperius", "imperius", "imperius"] });
       const bonus = 1 + Math.round((h / 5 + Math.log(3) / Math.log(11.4)) * 100) / 100;
       expect(perfectionRating(s, 0)).toBe(Math.round(scoreOf(s, 0) * bonus));
     }
@@ -285,7 +285,7 @@ describe("Domination end rating (2.18 end screen)", () => {
 
 describe("Weekly Challenge: Perfection with a turn limit", () => {
   it("turnLimit sets the last turn (default 30)", () => {
-    const base = { mapSize: 16, players: 2, mode: "perfection" as const, seed: 7, clans: ["romans", "romans"] };
+    const base = { mapSize: 16, players: 2, mode: "perfection" as const, seed: 7, clans: ["imperius", "imperius"] };
     expect(createGame(base).maxTurns).toBe(30);
     expect(createGame({ ...base, turnLimit: 20 }).maxTurns).toBe(20);
   });

@@ -30,7 +30,7 @@ function blank(players = 2, opts: { humans?: number[]; mode?: GameMode; difficul
     mode: opts.mode ?? "domination",
     difficulty: opts.difficulty,
     seed: 1,
-    clans: Array(players).fill("romans"),
+    clans: Array(players).fill("imperius"),
     humans: opts.humans ?? [],
   });
   for (const t of s.tiles) {
@@ -185,8 +185,8 @@ describe("ports (The capital and connections: range 5, ocean links need Sailing)
 
 describe("setup and stars", () => {
   it("Luxidoor starts with a level-3 capital and 2 stars (2.14)", () => {
-    expect(CLAN_BY_ID.lydians.capitalLevel).toBe(3);
-    const s = createGame({ mapSize: 11, players: 2, mode: "domination", seed: 3, clans: ["lydians", "romans"] });
+    expect(CLAN_BY_ID.luxidoor.capitalLevel).toBe(3);
+    const s = createGame({ mapSize: 11, players: 2, mode: "domination", seed: 3, clans: ["luxidoor", "imperius"] });
     expect(s.cities.find((c) => c.owner === 0)!.level).toBe(3);
   });
 

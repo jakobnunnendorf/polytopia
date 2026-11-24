@@ -76,7 +76,7 @@ describe("Aquarion (2.18)", () => {
   });
 
   it("Aquarion ships swim ocean and flooded land with no tech", () => {
-    const s = blank(["aquarion", "romans"]);
+    const s = blank(["aquarion", "imperius"]);
     set(s, 5, 5, { terrain: "water" });
     set(s, 6, 5, { terrain: "ocean" });
     const shark = put(s, "shark", 0, 5, 5);
@@ -84,7 +84,7 @@ describe("Aquarion (2.18)", () => {
   });
 
   it("Canal: any territory, not on a flooded tile, needs a unit that has not moved and can attack", () => {
-    const s = blank(["aquarion", "romans"], [["roads"], []]);
+    const s = blank(["aquarion", "imperius"], [["roads"], []]);
     // neutral and enemy land
     const a = put(s, "mermaid", 0, 6, 6);
     const b = put(s, "mermaid", 0, 9, 9);
@@ -96,13 +96,13 @@ describe("Aquarion (2.18)", () => {
     expect(canBuildAt(s, "canal", 6, 6)).toBe(false);
     void b;
     // no Waterways, no Canal
-    const t = blank(["aquarion", "romans"]);
+    const t = blank(["aquarion", "imperius"]);
     put(t, "mermaid", 0, 6, 6);
     expect(canBuildAt(t, "canal", 6, 6)).toBe(false);
   });
 
   it("a tile's flooding gives the amphibious unit on it a Bubble (with Waterways)", () => {
-    const s = blank(["aquarion", "romans"], [["roads"], []]);
+    const s = blank(["aquarion", "imperius"], [["roads"], []]);
     const m = put(s, "mermaid", 0, 2, 2);
     const next = applyAction(s, { type: "build", at: { x: 2, y: 2 }, building: "canal" });
     expect(tileAt(next, 2, 2).flooded).toBe(true);
@@ -110,11 +110,11 @@ describe("Aquarion (2.18)", () => {
   });
 
   it("drain: Aquarion can't; other land units and amphibious units can; algae need a swimmer, flyer or amphibian", () => {
-    const s = blank(["aquarion", "romans"]);
+    const s = blank(["aquarion", "imperius"]);
     set(s, 2, 2, { flooded: true });
     put(s, "mermaid", 0, 2, 2);
     expect(acts(s, (a) => a.type === "drain")).toHaveLength(0);
-    const r = blank(["romans", "aquarion"]);
+    const r = blank(["imperius", "aquarion"]);
     set(r, 2, 2, { flooded: true });
     const w = put(r, "warrior", 0, 2, 2);
     expect(acts(r, (a) => a.type === "drain")).toEqual([{ type: "drain", unitId: w.id, effect: "flooded" }]);
@@ -122,7 +122,7 @@ describe("Aquarion (2.18)", () => {
     w.canMove = false;
     expect(acts(r, (a) => a.type === "drain")).toHaveLength(0);
     // algae: a land unit standing on it can't clear it, a ship can
-    const c = blank(["romans", "cymanti"], [["sailing"], []]);
+    const c = blank(["imperius", "cymanti"], [["sailing"], []]);
     set(c, 5, 5, { terrain: "water", algae: true });
     put(c, "warrior", 0, 5, 5);
     expect(acts(c, (a) => a.type === "drain")).toHaveLength(0);
@@ -134,7 +134,7 @@ describe("Aquarion (2.18)", () => {
   });
 
   it("Fertilize (5★) needs wetland without a crop; Atoll goes on flooded land and water", () => {
-    const s = blank(["aquarion", "romans"], [["construction", "ramming"], []]);
+    const s = blank(["aquarion", "imperius"], [["construction", "ramming"], []]);
     expect(canBuildAt(s, "fertilize", 2, 2)).toBe(false);
     set(s, 2, 2, { flooded: true });
     expect(canBuildAt(s, "fertilize", 2, 2)).toBe(true);
@@ -151,7 +151,7 @@ describe("Aquarion (2.18)", () => {
   });
 
   it("Windmills count Aqua Farms; Pontoon lets Aquarion build field buildings on water", () => {
-    const s = blank(["aquarion", "romans"], [["construction", "ramming"], []]);
+    const s = blank(["aquarion", "imperius"], [["construction", "ramming"], []]);
     s.cities[0].level = 9; // no level-up reward in between
     set(s, 2, 2, { terrain: "water", resource: "aquaCrop" });
     let next = applyAction(s, { type: "build", at: { x: 2, y: 2 }, building: "aquaFarm" });
@@ -160,19 +160,19 @@ describe("Aquarion (2.18)", () => {
     next = applyAction(next, { type: "build", at: { x: 3, y: 2 }, building: "windmill" });
     expect(tileAt(next, 3, 2).buildingLevel).toBe(1);
     // no Pontoon for others
-    const r = blank(["romans", "aquarion"], [["construction"], []]);
+    const r = blank(["imperius", "aquarion"], [["construction"], []]);
     set(r, 2, 2, { terrain: "water" });
     set(r, 2, 1, { building: "farm" });
     expect(canBuildAt(r, "windmill", 2, 2)).toBe(false);
   });
 
   it("a city captured by Aquarion floods; captured by another tribe it drains", () => {
-    const s = blank(["aquarion", "romans"]);
+    const s = blank(["aquarion", "imperius"]);
     const c = s.cities[1];
     const m = put(s, "mermaid", 0, c.x, c.y);
     const after = applyAction(s, { type: "capture", unitId: m.id });
     expect(tileAt(after, c.x, c.y).flooded).toBe(true);
-    const r = blank(["romans", "aquarion"]);
+    const r = blank(["imperius", "aquarion"]);
     const d = r.cities[1];
     set(r, d.x, d.y, { flooded: true });
     const w = put(r, "warrior", 0, d.x, d.y);
@@ -190,7 +190,7 @@ describe("Cymanti (2.18)", () => {
   });
 
   it("Mycelium heals the own unit on it and next to it at the end of the turn (a poisoned one is cured)", () => {
-    const s = blank(["cymanti", "romans"]);
+    const s = blank(["cymanti", "imperius"]);
     set(s, 2, 2, { building: "mycelium" });
     const on = put(s, "kiton", 0, 2, 2);
     const next = put(s, "kiton", 0, 3, 3);
@@ -212,7 +212,7 @@ describe("Cymanti (2.18)", () => {
   });
 
   it("Fungi: +1 population, one level (+1) a turn later, a second with Microbes (Recycling)", () => {
-    const s = blank(["cymanti", "romans"], [["farming"], []]);
+    const s = blank(["cymanti", "imperius"], [["farming"], []]);
     set(s, 2, 2, { resource: "spores" });
     const cap = s.cities[0];
     const pop0 = cap.level * 100 + cap.pop;
@@ -232,20 +232,20 @@ describe("Cymanti (2.18)", () => {
   });
 
   it("Fungi poison every non-Cymanti unit that steps on them, unless it flies", () => {
-    const s = blank(["romans", "cymanti"]);
+    const s = blank(["imperius", "cymanti"]);
     set(s, 9, 9, { building: "fungi" });
     set(s, 9, 8, { building: "fungi" });
     const w = put(s, "warrior", 0, 8, 8);
     const after = applyAction(s, { type: "move", unitId: w.id, to: { x: 9, y: 9 } });
     expect(unitIn(after, w.id)!.poisoned).toBe(true);
-    const c = blank(["cymanti", "romans"]);
+    const c = blank(["cymanti", "imperius"]);
     set(c, 2, 2, { building: "fungi" });
     const k = put(c, "kiton", 0, 2, 3);
     expect(unitIn(applyAction(c, { type: "move", unitId: k.id, to: { x: 2, y: 2 } }), k.id)!.poisoned).toBeFalsy();
   });
 
   it("Clathrus needs an adjacent own Fungi, goes on any terrain, one per city, 8★ at most", () => {
-    const s = blank(["cymanti", "romans"], [["trade"], []]);
+    const s = blank(["cymanti", "imperius"], [["trade"], []]);
     set(s, 2, 2, { terrain: "water" });
     expect(canBuildAt(s, "clathrus", 2, 2)).toBe(false);
     set(s, 2, 3, { building: "fungi" });
@@ -259,7 +259,7 @@ describe("Cymanti (2.18)", () => {
   });
 
   it("Decompose (Recycling): refunds the full cost at turn end, removes the building and its population", () => {
-    const s = blank(["cymanti", "romans"], [["construction", "farming"], []]);
+    const s = blank(["cymanti", "imperius"], [["construction", "farming"], []]);
     set(s, 2, 2, { resource: "spores" });
     let st = applyAction(s, { type: "build", at: { x: 2, y: 2 }, building: "fungi" });
     const stars = st.players[0].stars;
@@ -276,13 +276,13 @@ describe("Cymanti (2.18)", () => {
     expect(tileAt(st, 2, 2).resource).toBe("spores");
     expect(st.cities[0].level * 100 + st.cities[0].pop).toBe(popAfterBuild - 1);
     // no Recycling, no Decompose
-    const r = blank(["cymanti", "romans"]);
+    const r = blank(["cymanti", "imperius"]);
     set(r, 2, 2, { building: "mycelium" });
     expect(acts(r, (a) => a.type === "decompose")).toHaveLength(0);
   });
 
   it("a poisoned unit killed on water leaves spores and algae", () => {
-    const s = blank(["cymanti", "romans"], [[], ["sailing"]]);
+    const s = blank(["cymanti", "imperius"], [[], ["sailing"]]);
     set(s, 5, 5, { terrain: "water" });
     const e = put(s, "scout", 1, 5, 5);
     e.carried = "warrior";
@@ -295,7 +295,7 @@ describe("Cymanti (2.18)", () => {
   });
 
   it("Centipede: a kill grows a Segment even without advancing; when the head dies the first Segment leads", () => {
-    const s = blank(["cymanti", "romans"]);
+    const s = blank(["cymanti", "imperius"]);
     const c = put(s, "centipede", 0, 5, 5);
     const e = put(s, "warrior", 1, 6, 5);
     e.hp = 1;
@@ -320,7 +320,7 @@ describe("Cymanti (2.18)", () => {
   });
 
   it("Algae (Fishing): open water, algae with a fruit", () => {
-    const s = blank(["cymanti", "romans"], [["fishing"], []]);
+    const s = blank(["cymanti", "imperius"], [["fishing"], []]);
     set(s, 2, 2, { terrain: "water" });
     expect(canBuildAt(s, "algae", 2, 2)).toBe(true);
     const st = applyAction(s, { type: "build", at: { x: 2, y: 2 }, building: "algae" });
@@ -332,7 +332,7 @@ describe("Cymanti (2.18)", () => {
 
 describe("Polaris (2.18)", () => {
   it("Ice Bank: 2★ per level, a level per 20 ice or Polaris-land tiles, at most 30 levels", () => {
-    const s = blank(["polaris", "romans"], [["trade"], []]);
+    const s = blank(["polaris", "imperius"], [["trade"], []]);
     for (let i = 0; i < 45; i++) s.tiles[i + 40].polar = true;
     expect(iceBankLevel(s)).toBe(2);
     const base = income(s, 0);
@@ -343,7 +343,7 @@ describe("Polaris (2.18)", () => {
   });
 
   it("Ice Bank on field or ice, once per player even after it is gone", () => {
-    const s = blank(["polaris", "romans"], [["trade"], []]);
+    const s = blank(["polaris", "imperius"], [["trade"], []]);
     set(s, 2, 2, { terrain: "water", ice: true });
     set(s, 3, 3, { terrain: "water" });
     expect(canBuildAt(s, "iceBank", 2, 2)).toBe(true);
@@ -354,7 +354,7 @@ describe("Polaris (2.18)", () => {
   });
 
   it("a new game marks the land of the Polaris area as Polaris land", () => {
-    const s = createGame({ mapSize: 16, players: 2, mode: "domination", seed: 7, clans: ["polaris", "romans"] });
+    const s = createGame({ mapSize: 16, players: 2, mode: "domination", seed: 7, clans: ["polaris", "imperius"] });
     const cap = s.cities[0];
     expect(tileAt(s, cap.x, cap.y).polar).toBe(true);
     const other = s.cities[1];
@@ -365,7 +365,7 @@ describe("Polaris (2.18)", () => {
 describe("Elyrion (2.18)", () => {
   it("Sanctuary replaces Clear Forest; needs adjacent own forest; field, forest or mountain; one per city", () => {
     expect(buildAllowedFor("elyrion", "clearForest")).toBe(false);
-    const s = blank(["elyrion", "romans"], [["forestry"], []]);
+    const s = blank(["elyrion", "imperius"], [["forestry"], []]);
     expect(canBuildAt(s, "sanctuary", 2, 2)).toBe(false);
     set(s, 3, 3, { terrain: "forest" });
     set(s, 2, 2, { terrain: "mountain" });
@@ -376,14 +376,14 @@ describe("Elyrion (2.18)", () => {
   });
 
   it("Sanctuary: 1★ per adjacent own animal without a building (8 at most); animals on the first free forest, x-major", () => {
-    const s = blank(["elyrion", "romans"]);
+    const s = blank(["elyrion", "imperius"]);
     const base = income(s, 0);
     set(s, 2, 2, { building: "sanctuary", builtTurn: s.turn });
     for (const [x, y] of [[1, 2], [1, 3], [2, 1], [2, 3], [3, 1], [3, 2], [3, 3]]) set(s, x, y, { resource: "animal" });
     set(s, 3, 3, { building: "lumberHut" });
     expect(income(s, 0) - base).toBe(6);
     // spawning
-    const t = blank(["elyrion", "romans"]);
+    const t = blank(["elyrion", "imperius"]);
     set(t, 2, 2, { building: "sanctuary", builtTurn: t.turn });
     for (const [x, y] of [[3, 3], [2, 3], [3, 1]]) set(t, x, y, { terrain: "forest" });
     let st = round(t);
