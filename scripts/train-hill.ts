@@ -33,7 +33,12 @@
  *
  *   npm run train-hill                                          # 60 rounds, about a minute
  *   npm run train-hill -- --id greedy-hill-v4 --budget 3600000  # stop after 3.6M training games
- *   npm run train-hill -- --id greedy-hill-v5 --from greedy-hill-v4  # fine-tune v4 (Domination is the default --mode)
+ *   npm run train-hill -- --id greedy-hill-v5 --from greedy-hill-v4  # fine-tune v4
+ *
+ * Games: --mode (default domination), --players (default 4, even), --size (default the
+ * game's suggestion for mode and players), --map-type (default drylands). With more than
+ * two players the challenger and the champion take alternate seats (C H C H, and on the
+ * same map H C H C), every player for itself; the side whose player wins takes the game.
  *
  * Training games are not recorded and do not touch the Elo table. The result
  * is saved as models/<id>/model.json (kind "greedy"), so it appears in the
@@ -46,7 +51,7 @@ import path from "node:path";
 import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
 import { applyAction } from "../logic/engine/actions";
 import { DEFAULT_WEIGHTS, botStep, type GreedyWeights } from "../logic/engine/bot";
-import { createGame } from "../logic/engine/state";
+import { createGame, mapSizeFor } from "../logic/engine/state";
 import { scoreOf } from "../logic/engine";
 import type { GameMode, GameState } from "../logic/engine/types";
 import type { MapType } from "../logic/engine/mapgen";
@@ -62,9 +67,12 @@ const BUDGET = Number(arg("budget", "0")); // training games in total; 0 = stop 
 const ROUNDS = Number(arg("rounds", BUDGET ? "Infinity" : "60"));
 const SIGMA = Number(arg("sigma", "0.5"));
 const PICK = Number(arg("pick", "3")); // weights nudged per round
-const SIZE = Number(arg("size", "11"));
-// every training game is played in this mode (Domination by default since 2026-11-24)
+// every training game is played in this mode, with this many players (Domination, 4 players by default since 2026-11-24)
 const MODE = arg("mode", "domination") as GameMode;
+const PLAYERS = Number(arg("players", "4"));
+if (PLAYERS < 2 || PLAYERS % 2 !== 0) throw new Error("--players must be even: the two sides take alternate seats");
+// default: the size the game suggests for the mode and player count (Domination: 11 for 2, 16 for 4)
+const SIZE = Number(arg("size", String(mapSizeFor(MODE, PLAYERS - 1) ?? 16)));
 const MAP_TYPE = arg("map-type", "drylands") as MapType;
 // fine-tune: start from this model's weights instead of the greedy defaults
 const FROM = arg("from", "");
@@ -117,19 +125,27 @@ function mutate(w: GreedyWeights): { next: GreedyWeights; nudged: string } {
   return { next, nudged: keys.map((k) => `${k} ${w[k]}→${next[k]}`).join(", ") };
 }
 
-/** one 2-player game; returns the winner's seat and both scores */
+/**
+ * One free-for-all game of PLAYERS players. Side 0 (weights w0) takes the even seats, side 1 the odd
+ * ones, so with 4 players it is w0, w1, w0, w1 in turn order; every player still plays for itself.
+ * Returns the winning side and each side's total score. With 2 players this is a plain 1v1.
+ */
 function play(w0: GreedyWeights, w1: GreedyWeights, gameSeed: number, size = SIZE): { winner: number; scores: [number, number] } {
-  let s: GameState = createGame({ mapSize: size, players: 2, mode: MODE, seed: gameSeed, humans: [], mapType: MAP_TYPE });
+  let s: GameState = createGame({ mapSize: size, players: PLAYERS, mode: MODE, seed: gameSeed, humans: [], mapType: MAP_TYPE });
   const ws = [w0, w1];
   let moves = 0;
   while (!s.over && moves < MAX_MOVES) {
-    s = applyAction(s, botStep(s, ws[s.current]));
+    s = applyAction(s, botStep(s, ws[s.current % 2]));
     moves++;
   }
-  const scores: [number, number] = [scoreOf(s, 0), scoreOf(s, 1)];
-  // unfinished (move cap): the higher score wins; a tie goes to the second seat, which moves last
-  const winner = s.winner ?? (scores[0] > scores[1] ? 0 : 1);
-  return { winner, scores };
+  const seatScores = s.players.map((p) => scoreOf(s, p.id));
+  const scores: [number, number] = [0, 0];
+  seatScores.forEach((v, i) => (scores[i % 2] += v));
+  // unfinished (move cap): the highest-scoring seat wins; a tie goes to the later seat
+  let top = 0;
+  seatScores.forEach((v, i) => v >= seatScores[top] && (top = i));
+  const winner = s.winner ?? top;
+  return { winner: winner % 2, scores };
 }
 
 // ---------- worker pool: each worker runs this file and plays one game per message ----------
@@ -281,7 +297,7 @@ async function main() {
   const start = FROM ? weightsOf(FROM) : null;
   if (FROM && !start) throw new Error(`--from ${FROM}: no greedy model.json in models/${FROM}`);
   let champ: GreedyWeights = start ?? { ...DEFAULT_WEIGHTS, rewards: { ...DEFAULT_WEIGHTS.rewards } };
-  console.log(`mode ${MODE}, ${MAP_TYPE} ${SIZE}x${SIZE}; ${FROM ? `fine-tuning from ${FROM}` : "starting from the greedy defaults"}`);
+  console.log(`mode ${MODE}, ${PLAYERS} players (the two sides on alternate seats), ${MAP_TYPE} ${SIZE}x${SIZE}; ${FROM ? `fine-tuning from ${FROM}` : "starting from the greedy defaults"}`);
   let accepted = 0;
   let capped = 0;
   let trainGames = 0;
@@ -369,7 +385,7 @@ async function main() {
     name,
     kind: "greedy",
     description:
-      `The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts): ${how} in ${MODE} on ${MAP_TYPE} ${SIZE}x${SIZE} maps${FROM ? `, fine-tuned from ${FROM}` : ""}, ${accepted} challengers kept.` +
+      `The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts): ${how} in ${PLAYERS}-player ${MODE} on ${MAP_TYPE} ${SIZE}x${SIZE} maps${FROM ? `, fine-tuned from ${FROM}` : ""}, ${accepted} challengers kept.` +
       // early stopping may save an earlier champion than the last one: say which
       (best.round !== rounds ? ` Saved the champion of the best learning-curve point (round ${best.round}, ${count(best.trainingGames)} games, ${best.kept} kept).` : "") +
       (final["greedy-v1"] ? ` Won ${pct(final["greedy-v1"].winRate)} against greedy-v1` : "") +
@@ -388,6 +404,7 @@ async function main() {
       sigma: SIGMA,
       weightsPerNudge: PICK,
       mode: MODE,
+      players: PLAYERS,
       mapType: MAP_TYPE,
       from: FROM || undefined,
       mapSize: SIZE,
