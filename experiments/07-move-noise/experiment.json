@@ -5,7 +5,7 @@
   "kind": "mechanism",
   "issue": 130,
   "date": "2026-11-25",
-  "status": "running",
+  "status": "done",
   "verdict": "kept",
   "base": "greedy-full-peacebreak",
   "result": "greedy-full-movenoise",
@@ -53,6 +53,18 @@
       "label": "Finish score, 6-model panel, 4 players",
       "base": 78.8,
       "new": 81.3,
+      "unit": "%"
+    },
+    {
+      "label": "Finish vs base, final test, 8 players",
+      "base": 50.0,
+      "new": 59.4,
+      "unit": "%"
+    },
+    {
+      "label": "Finish score, 6-model panel, 8 players",
+      "base": 81.0,
+      "new": 83.7,
       "unit": "%"
     },
     {

@@ -23,7 +23,7 @@ Values sized against a move score of about 25 plus the tiles gained: 1, 2, 4, 8.
 
 \textbf{4 players.} Every tested value beats the base in the sweep, on the panel and head to head; 4 is best (79.2\,\% finish on seven models against 74.5\,\%). In the final test \knob{moveNoise} $=4$ beats the champion clearly: finish 60.1\,\%, points 56.9\,\%, won 62\,\% ($\pm$5). Against the fixed six on the final-test maps the finish score rises from 78.8 to 81.3\,\% (the base's figure is from experiment 6, same maps), conquest wins from 76.5 to 80.5\,\%, and games are four turns shorter.
 
-\todo{claude}{8 players: read the second sweep once it has finished.}
+\textbf{8 players.} The same picture on 20$\times$20 maps: every value beats the base, 4 and 8 most. In the final test \knob{moveNoise} $=4$ scores finish 59.4\,\%, points 57.6\,\%, won 61\,\% ($\pm$5) against the champion, and 83.7\,\% against 81.0\,\% on the fixed six (the base's figure is from experiment 6, same maps), with conquest wins up from 69.7 to 73.4\,\% and games four turns shorter. The self-play check before the sweep had looked mixed in this setup (25 to 29 of 40 games finished, against 30); the panel measurement does not bear that out.
 
 \section{Behaviour}
 The six stalled 8-player games of the diagnosis, replayed with \knob{moveNoise} $=4$: four now finish, at turns 50 to 75; none did before. In the two that still stall, the leader's army is as jammed as before (55\,\% of its units cannot move or attack, against 42\,\% for the champion over all six; 72\,\% have six or more own neighbours). The noise keeps most jams from forming; it does not dissolve one that has formed.
@@ -42,6 +42,7 @@ One caveat on the design: the knob does two things at once, zero-mean noise on a
 \item Noise and the sideways permission are confounded in one knob (see above). A variant with permission but no noise would separate them.
 \item The opponents are all greedy bots that jam the same way; part of the gain is exploiting their jams.
 \item The prediction was not fixed as numbers before the first sweep.
+\item Self-play finish counts on 40 maps (the check before the sweep) pointed the wrong way for 8 players; such small checks are useful for sizing a knob, not for judging it.
 \end{itemize}
 
 \section{Verdict and next step}

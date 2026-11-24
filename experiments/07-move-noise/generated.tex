@@ -9,7 +9,7 @@
 \fact{Base}{\model{greedy-full-peacebreak} $\rightarrow$ result \model{greedy-full-movenoise}}
 \fact{Method}{Diagnosis of stalled games, then strength sweeps in two setups (200 games per point, final test 400); metric: finish score}
 \fact{Setups}{4 players, 16$\times$16, drylands, turn cap 150; 8 players, 20$\times$20, drylands, turn cap 300}
-\fact{Record}{issue \issue{130}; status: running}
+\fact{Record}{issue \issue{130}; status: done}
 \end{tabular}\par\medskip
 \begin{center}\begin{tikzpicture}[node distance=5mm]
     \node[flowbox] (n0) {{\sffamily\bfseries\scriptsize\color{expgrey}BASE}\\[1pt]\model{full-peacebreak}};
@@ -25,6 +25,8 @@ Finish vs base, final test & 50.0\,\% & 60.1\,\% & +10.1\\
 Won vs base, final test & 50.0\,\% & 62.5\,\% & +12.5\\
 Points vs base, final test & 50.0\,\% & 56.9\,\% & +6.9\\
 Finish score, 6-model panel, 4 players & 78.8\,\% & 81.3\,\% & +2.5\\
+Finish vs base, final test, 8 players & 50.0\,\% & 59.4\,\% & +9.4\\
+Finish score, 6-model panel, 8 players & 81.0\,\% & 83.7\,\% & +2.7\\
 Conquest wins, 4 players & 76.5\,\% & 80.5\,\% & +4.0\\
 Game length in turns, 4 players & 62.9 & 58.6 & $-$4.3\\
 \bottomrule\end{tabular}\end{center}
@@ -59,5 +61,30 @@ Opponent & Won (\%) & Points (\%) & Finish (\%) & Conquest (\%) & Turns\\\midrul
 \bottomrule\end{tabular}\\[3pt]{\footnotesize\color{expgrey}Final test of moveNoise=4: 400 unseen games against each.}\end{center}
 
 \subsection{Sweep, 8 players {\normalfont\small(\model{greedy-full-movenoise-big})}}
-{\small\color{expgrey}No points measured yet.}
+\begin{center}\sffamily\small\begin{tabular}{@{}lrrrrrr@{}}\toprule
+Point & Finish (\%) & Points (\%) & Won (\%) & Conquest (\%) & Turns & vs base: points (\%)\\\midrule
+base & 77.77 & 73.16 & 84.1 & 69.5 & 77.9 & 50.0\\
+moveNoise=1 & 78.77 & 74.70 & 86.0 & 67.5 & 78.3 & 53.6\\
+moveNoise=2 & 79.26 & 75.60 & 87.1 & 68.2 & 77.1 & 55.7\\
+moveNoise=4 & 81.30 & 76.69 & 88.4 & 72.2 & 75.3 & 58.6\\
+moveNoise=8 & 80.97 & 76.11 & 87.3 & 73.6 & 73.3 & 59.3\\
+\bottomrule\end{tabular}\\[3pt]{\footnotesize\color{expgrey}Panel means; 200 games against each of 7 panel models per point.}\end{center}
+\begin{center}\begin{tikzpicture}\begin{axis}[expplot,height=4.6cm,xtick={0,1,2,3,4},xticklabels={{base},{1},{2},{4},{8}},
+  xlabel={\texttt{moveNoise}},ylabel={Finish score, panel mean (\%)},enlarge x limits=0.12,enlarge y limits=0.25]
+\addplot[dashed,expgrey,line width=0.7pt,forget plot] coordinates {(0,77.771) (4,77.771)};
+\addplot[only marks,mark=*,mark size=2.6pt,expblue] coordinates { (1,78.771) (2,79.257) (3,81.300) (4,80.971)};
+\addplot[only marks,mark=*,mark size=2.6pt,expgrey] coordinates {(0,77.771)};
+\end{axis}\end{tikzpicture}\\[-2pt]{\footnotesize\color{expgrey}Dashed: the base. Grey: base; blue: sweep points.}\end{center}
+\begin{center}\sffamily\small\begin{tabular}{@{}lrrrrr@{}}\toprule
+Opponent & Won (\%) & Points (\%) & Finish (\%) & Conquest (\%) & Turns\\\midrule
+\model{v1} & 98 $\pm$ 1 & 85.4 & 90.2 & 84 & 68\\
+\model{hill-v1} & 97 $\pm$ 2 & 83.9 & 88.7 & 80 & 73\\
+\model{hill-v2} & 97 $\pm$ 2 & 83.4 & 86.7 & 74 & 80\\
+\model{hill-v3} & 94 $\pm$ 2 & 78.9 & 85.2 & 76 & 77\\
+\model{hill-v4} & 96 $\pm$ 2 & 80.6 & 85.2 & 72 & 83\\
+\model{full-v1} & 70 $\pm$ 5 & 63.8 & 66.4 & 55 & 84\\
+\model{full-peacebreak} & 61 $\pm$ 5 & 57.6 & 59.4 & 49 & 84\\
+\midrule
+\textbf{Mean without \model{full-peacebreak}} & 91.9 & 79.3 & 83.7 & 73.4 & 77.6\\
+\bottomrule\end{tabular}\\[3pt]{\footnotesize\color{expgrey}Final test of moveNoise=4: 400 unseen games against each.}\end{center}
 }
