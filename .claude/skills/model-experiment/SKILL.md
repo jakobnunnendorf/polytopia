@@ -20,7 +20,7 @@ see gains under ~1 point. Run a long tuning run (`train-full`, settings below) o
 | Part | Value |
 |---|---|
 | Names | model id `greedy-full-<mechanism>` (e.g. `greedy-full-defend`); branch `model/<id>`; worktree `.claude/worktrees/<id>`; log `logs/<id>.log` |
-| Base | the current champion: the last experiment whose verdict was **kept** (see #31 comments), else `greedy-full-v1` |
+| Base | the current champion: the last experiment whose verdict was **kept** (see #31 comments; `greedy-full-peacebreak` since step 6) |
 | Change | exactly one mechanism or trainer change, **off by default** (old models play unchanged) |
 | Panel | `greedy-v1,greedy-hill-v1,greedy-hill-v2,greedy-hill-v3,greedy-hill-v4,greedy-full-v1` (fixed: curves stay comparable across steps). Add the base only when it is not `greedy-full-v1`, as a 7th entry, and compare means on the fixed six |
 | Metric | `--metric finish` on every sweep and tuning run (from step 5, #124): a conquest win scores 75-100% (the earlier, the more), a conquest loss 0-25%, a game stopped at the turn cap 25-75% by points. Report finish, points, won, conquest rate and turns |
@@ -71,10 +71,17 @@ not run `npm run arena` for it: arena writes `data/games/` and changes the share
    (A tuning run instead: `nohup npm run train-full -- --id <id> --from <base> <settings>
    --workers 10 --panel <panel> > logs/<id>.log 2>&1 &`.)
    Wait with a background `until grep -q "took" logs/<id>.log` loop, not polling.
-6. **Verdict**: **kept** when the final test against the base has a finish score above 50% and points above 50% with
-   the ±5% interval clear of 50%, and the best point's panel mean is at least the base row's
-   (tuning runs: the mean at 100k at least the base's and the control's). Otherwise **not kept**: the code still merges (off by default), and the
-   next step starts from the unchanged base.
+6. **Verdict**: **kept** when either holds (Jakob, 24 Nov, step 6 of #31):
+   - **head to head**: the final test against the base has a finish score above 50% and points
+     above 50% with the ±5% interval clear of 50%, and the best point's panel mean is at least
+     the base row's (tuning runs: the mean at 100k at least the base's and the control's); or
+   - **panel**: on the final-test maps the 6-model panel finish mean beats the base's by more
+     than 1.5 points and the head-to-head is not worse (won at least 45% at its lower bound).
+     Measure the base on the same maps: `npm run sweep -- --id <id>-base --from <base> --metric
+     finish --games 2` (no points: final test of the base alone). Use this for mechanisms that
+     act in situations a two-model match rarely has (e.g. the last rivals at peace).
+   Otherwise **not kept**: the code still merges (off by default), and the next step starts
+   from the unchanged base.
 7. **Record** on the experiment's issue and one line on #31:
 
    | | panel mean | vs base (panel test) | final test vs base |
