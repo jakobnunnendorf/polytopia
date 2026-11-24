@@ -42,13 +42,16 @@ export const SettingsContext = createContext<SettingsContextType>({
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [size, setSize] = useState(11);
+  // null = the size suggested for the mode and opponent count (mapSizeFor)
+  const [size, setSize] = useState<number | null>(null);
   const [gameMode, setGameMode] = useState<GameModeTypes>("perfection");
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
   const [seats, setSeats] = useState<Seat[]>(DEFAULT_SEATS);
-  // Perfection and Domination force the size; Huge/Massive only where the mode allows them
-  const forced = mapSizeFor(gameMode, seats.length - 1);
-  const mapSize = forced ?? (mapSizeAllowed(gameMode, size) && seats.length <= maxPlayersFor(size) ? size : 16);
+  // any size the mode allows (Huge/Massive only in Creative and multiplayer) that holds every tribe;
+  // without a choice, the suggested size for the mode and opponent count
+  const fits = (n: number) => mapSizeAllowed(gameMode, n) && seats.length <= maxPlayersFor(n);
+  const suggested = mapSizeFor(gameMode, seats.length - 1) ?? 16;
+  const mapSize = size !== null && fits(size) ? size : suggested;
   const setNumberOfPlayers = (n: number) => {
     const target = Math.max(2, Math.min(16, n));
     setSeats((cur) =>

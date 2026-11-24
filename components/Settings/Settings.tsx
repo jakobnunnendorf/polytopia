@@ -8,7 +8,7 @@ import type { ModelSpec } from "@/logic/agents/types";
 import type { Ratings } from "@/logic/arena/elo";
 import type { Seat } from "@/logic/arena/record";
 import { CLANS, maxPlayersFor } from "@/logic/engine/data";
-import { mapSizeAllowed, mapSizeFor } from "@/logic/engine/state";
+import { mapSizeAllowed } from "@/logic/engine/state";
 import { name as displayName } from "@/logic/engine/names";
 import { TribeEmblem } from "@/components/art/Art";
 
@@ -22,8 +22,8 @@ const MAP_SIZES = [
 ];
 
 const MODES = [
-  { id: "perfection", title: "Perfection", hint: "Highest score after 30 turns wins. Always a Normal map." },
-  { id: "domination", title: "Domination", hint: "The last tribe holding a city wins. The map size follows the opponent count." },
+  { id: "perfection", title: "Perfection", hint: "Highest score after 30 turns wins. Normal map unless you pick another size." },
+  { id: "domination", title: "Domination", hint: "The last tribe holding a city wins. The size is preset from the opponent count; pick another if you like." },
   { id: "creative", title: "Creative", hint: "Any size and opponents, no turn limit; the last tribe holding a city wins." },
   { id: "glory", title: "Glory", hint: "First to 10,000 points wins; if several reach it in one turn, the highest score." },
   { id: "might", title: "Might", hint: "Capture every tribe's capital to win; other cities don't count." },
@@ -291,7 +291,6 @@ export default function Settings() {
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
         {MAP_SIZES.filter(
           (m) =>
-            (mapSizeFor(mode.id, seats.length - 1) ?? m.size) === m.size &&
             mapSizeAllowed(mode.id, m.size) &&
             seats.length <= maxPlayersFor(m.size),
         ).map((m) => (
