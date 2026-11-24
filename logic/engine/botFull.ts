@@ -1,5 +1,5 @@
 /** botFull.ts on the Rust engine (see logic/engine/rust.ts) */
-import { call } from "./rust";
+import { call, engineConstant } from "./rust";
 import type { Action, Coord, GameState } from "./types";
 import { DEFAULT_WEIGHTS, type GreedyWeights } from "./bot";
 
@@ -26,11 +26,11 @@ export type FullWeights = {
 
 export type PartialFullWeights = { [K in keyof FullWeights]?: FullWeights[K] extends number ? number : Partial<FullWeights[K]> };
 
-export const FULL_ACTION_TYPES: FullActionType[] = call("FULL_ACTION_TYPES");
-export const REWARD_IDS: string[] = call("REWARD_IDS");
+export const FULL_ACTION_TYPES: FullActionType[] = engineConstant("FULL_ACTION_TYPES");
+export const REWARD_IDS: string[] = engineConstant("REWARD_IDS");
 
 /** the greedy part is the bot facade's DEFAULT_WEIGHTS object itself, as in botFull.ts */
-export const DEFAULT_FULL_WEIGHTS: FullWeights = { ...call<FullWeights>("DEFAULT_FULL_WEIGHTS"), greedy: DEFAULT_WEIGHTS };
+export const DEFAULT_FULL_WEIGHTS: FullWeights = engineConstant<FullWeights>("DEFAULT_FULL_WEIGHTS", (v) => ({ ...v, greedy: DEFAULT_WEIGHTS }));
 
 /** the default weights travel as null (Rust has its own copy) */
 const w8 = (w: FullWeights) => (w === DEFAULT_FULL_WEIGHTS ? null : w);

@@ -1,5 +1,5 @@
 /** bot.ts on the Rust engine (see logic/engine/rust.ts) */
-import { call } from "./rust";
+import { call, engineConstant } from "./rust";
 import type { Action, Coord, GameState, Unit } from "./types";
 import { reachable } from "./movement";
 import { capitalOf } from "./state";
@@ -37,7 +37,7 @@ export type GreedyWeights = {
   rewards: Record<string, number>;
 };
 
-export const DEFAULT_WEIGHTS: GreedyWeights = call("DEFAULT_WEIGHTS");
+export const DEFAULT_WEIGHTS: GreedyWeights = engineConstant("DEFAULT_WEIGHTS");
 
 /** the default weights travel as null (Rust has its own copy) */
 const w8 = (w: GreedyWeights) => (w === DEFAULT_WEIGHTS ? null : w);

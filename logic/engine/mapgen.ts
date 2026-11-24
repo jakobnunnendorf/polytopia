@@ -1,5 +1,5 @@
 /** mapgen.ts on the Rust engine (see logic/engine/rust.ts) */
-import { call } from "./rust";
+import { call, engineConstant } from "./rust";
 import type { Rng } from "./rng";
 import type { Coord, ResourceId, Tile } from "./types";
 
@@ -50,11 +50,11 @@ export type MapType =
   | "archipelago"
   | "waterworld";
 
-export const MAP_SETTINGS: Record<MapType, MapSettings> = call("MAP_SETTINGS");
-export const WETNESS: Record<MapType, number> = call("WETNESS");
-export const TERRAIN_WEIGHTS: { field: number; mountain: number; forest: number } = call("TERRAIN_WEIGHTS");
+export const MAP_SETTINGS: Record<MapType, MapSettings> = engineConstant("MAP_SETTINGS");
+export const WETNESS: Record<MapType, number> = engineConstant("WETNESS");
+export const TERRAIN_WEIGHTS: { field: number; mountain: number; forest: number } = engineConstant("TERRAIN_WEIGHTS");
 export const RESOURCE_CHANCES: Record<"animal" | "crop" | "fish" | "metal" | "fruit" | "spores" | "aquaCrop", number> =
-  call("RESOURCE_CHANCES");
+  engineConstant("RESOURCE_CHANCES");
 
 export const ruinCount = (size: number): number => call("ruinCount", size);
 export const inequality = (map: GeneratedMap, n: number): number => call("inequality", map, n);

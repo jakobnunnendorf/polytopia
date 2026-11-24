@@ -27,16 +27,29 @@ function isNode(): boolean {
 function loadNative(): RawCall {
   const g = globalThis as { __polyengineNative?: RawCall };
   if (g.__polyengineNative) return g.__polyengineNative;
-  // the addon's path: env override, else <repo root>/engine/node/polyengine.node
+  // the addon's path: env override, else <repo root>/engine/node/polyengine.node, where the
+  // repo root is found from this file (scripts, jest) or the working directory (bundled
+  // code, e.g. the web app's server-side render, whose __dirname is the bundler's)
   const override = process.env.POLYENGINE_NODE;
-  const dir = typeof __dirname === "string" ? __dirname : process.cwd() + "/logic/engine";
-  const file = override || dir.replace(/[\\/]logic[\\/]engine$/, "") + "/engine/node/polyengine.node";
+  const fromFile =
+    typeof __dirname === "string" && /[\\/]logic[\\/]engine$/.test(__dirname)
+      ? __dirname.replace(/[\\/]logic[\\/]engine$/, "") + "/engine/node/polyengine.node"
+      : null;
+  const candidates = override ? [override] : [fromFile, process.cwd() + "/engine/node/polyengine.node"].filter((f): f is string => !!f);
   const mod: { exports: { call?: RawCall } } = { exports: {} };
-  try {
-    (process as unknown as { dlopen(m: object, f: string): void }).dlopen(mod, file);
-  } catch (e) {
-    throw new Error(`Rust engine addon not loadable at ${file} (${(e as Error).message}); ${BUILD_HINT}`);
+  let file = candidates[0];
+  const errors: string[] = [];
+  for (const f of candidates) {
+    try {
+      (process as unknown as { dlopen(m: object, f: string): void }).dlopen(mod, f);
+      file = f;
+      errors.length = 0;
+      break;
+    } catch (e) {
+      errors.push(`${f}: ${(e as Error).message}`);
+    }
   }
+  if (errors.length) throw new Error(`Rust engine addon not loadable (${errors.join("; ")}); ${BUILD_HINT}`);
   const fn = mod.exports.call;
   if (typeof fn !== "function") throw new Error(`Rust engine addon at ${file} exports no call(); ${BUILD_HINT}`);
   g.__polyengineNative = fn;
@@ -97,6 +110,37 @@ function backend(): RawCall {
     throw new Error("Rust engine not loaded yet: await initRustEngine() before the first engine call");
   }
   throw new Error("Rust engine unavailable on this platform (no Node addon, no WebAssembly)");
+}
+
+/**
+ * A constant (object or array) the Rust engine owns, e.g. DEFAULT_WEIGHTS.
+ * Where the engine is reachable at once (Node addon, or WebAssembly already
+ * loaded) this is the plain value. In the browser, modules are imported before
+ * initRustEngine() has finished, so there it is a stand-in that fetches the
+ * value on first use (property access, spread, JSON, Object.keys, identity).
+ */
+export function engineConstant<T extends object>(name: string, build: (v: T) => T = (v) => v): T {
+  if (raw || isNode()) return build(call<T>(name));
+  let value: T | null = null;
+  const get = (): T => (value ??= build(call<T>(name)));
+  // an array target keeps Array.isArray true for array constants
+  const target = (name === "CHANNELS" || name.endsWith("_TYPES") || name.endsWith("_IDS") || name.endsWith("_FACTORS") ? [] : {}) as T;
+  return new Proxy(target, {
+    get: (_, k) => {
+      const v = get() as Record<string | symbol, unknown>;
+      const x = v[k];
+      return typeof x === "function" ? (x as (...a: unknown[]) => unknown).bind(v) : x;
+    },
+    has: (_, k) => k in get(),
+    ownKeys: () => Reflect.ownKeys(get()),
+    getOwnPropertyDescriptor: (_, k) => {
+      const d = Reflect.getOwnPropertyDescriptor(get(), k);
+      // a proxy may not report a property as non-configurable unless the target has it so
+      if (d && !Reflect.getOwnPropertyDescriptor(target, k)) d.configurable = true;
+      return d;
+    },
+    set: (_, k, x) => Reflect.set(get(), k, x),
+  });
 }
 
 /** call engine/api `name` with the TypeScript arguments; returns the parsed result */

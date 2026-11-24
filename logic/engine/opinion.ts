@@ -1,5 +1,5 @@
 /** opinion.ts on the Rust engine (see logic/engine/rust.ts) */
-import { call } from "./rust";
+import { call, engineConstant } from "./rust";
 import type { GameState } from "./types";
 
 export type OpinionFactor =
@@ -19,8 +19,9 @@ export type OpinionFactor =
 
 export type OpinionLevel = "horrible" | "poor" | "indifferent" | "decent" | "great";
 
-export const POSITIVE_FACTORS: OpinionFactor[] = call("POSITIVE_FACTORS");
-export const PEACEFUL_TURNS: number = call("PEACEFUL_TURNS");
+export const POSITIVE_FACTORS: OpinionFactor[] = engineConstant("POSITIVE_FACTORS");
+/** engine/core/src/opinion.rs PEACEFUL_TURNS (a number cannot be fetched lazily; __tests__/engine/rust-constants.test.ts checks it) */
+export const PEACEFUL_TURNS: number = 3;
 
 export const opinionFactors = (s: GameState, bot: number, other: number): OpinionFactor[] =>
   call("opinionFactors", s, bot, other);
