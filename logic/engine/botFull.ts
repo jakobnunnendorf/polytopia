@@ -42,6 +42,8 @@ export type FullWeights = {
    * TypeScript reference bot the parity tests compare with predates it, and they run at plan 0.
    */
   plan: number;
+  /** saving: a purchase that would leave us unable to afford next turn's best purchase loses reserve times that purchase's score (0 = off) */
+  reserve: number;
 };
 
 export type PartialFullWeights = { [K in keyof FullWeights]?: FullWeights[K] extends number ? number : Partial<FullWeights[K]> };

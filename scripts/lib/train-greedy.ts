@@ -367,6 +367,7 @@ const cloneFull = (w: FullWeights): FullWeights => ({
   roads: w.roads,
   breakPeace: w.breakPeace,
   plan: w.plan,
+  reserve: w.reserve,
 });
 let fullSpace: Space | null = null;
 function fullSpaceOf(): Space {
@@ -388,9 +389,10 @@ function fullSpaceOf(): Space {
     "roads",
     "breakPeace",
     "plan",
+    "reserve",
   ];
   const whole = new Set(["greedy.richAt", "greedy.unitsPerCity", "defendRadius"]);
-  const SCALARS = new Set(["centre", "defend", "defendRadius", "techUse", "techUseless", "front", "roads", "breakPeace", "plan"]);
+  const SCALARS = new Set(["centre", "defend", "defendRadius", "techUse", "techUseless", "front", "roads", "breakPeace", "plan", "reserve"]);
   const get = (w: AnyWeights, k: string) => {
     const f = w as FullWeights;
     if (SCALARS.has(k)) return (f as unknown as Record<string, number>)[k];
