@@ -33,6 +33,7 @@
  *
  *   npm run train-hill                                          # 60 rounds, about a minute
  *   npm run train-hill -- --id greedy-hill-v4 --budget 3600000  # stop after 3.6M training games
+ *   npm run train-hill -- --id greedy-hill-v5 --from greedy-hill-v4  # fine-tune v4 (Domination is the default --mode)
  *
  * Training games are not recorded and do not touch the Elo table. The result
  * is saved as models/<id>/model.json (kind "greedy"), so it appears in the
@@ -47,7 +48,8 @@ import { applyAction } from "../logic/engine/actions";
 import { DEFAULT_WEIGHTS, botStep, type GreedyWeights } from "../logic/engine/bot";
 import { createGame } from "../logic/engine/state";
 import { scoreOf } from "../logic/engine";
-import type { GameState } from "../logic/engine/types";
+import type { GameMode, GameState } from "../logic/engine/types";
+import type { MapType } from "../logic/engine/mapgen";
 import { eloFromScore, sprtVerdict } from "../logic/arena/sprt";
 
 function arg(name: string, def: string): string {
@@ -61,6 +63,13 @@ const ROUNDS = Number(arg("rounds", BUDGET ? "Infinity" : "60"));
 const SIGMA = Number(arg("sigma", "0.5"));
 const PICK = Number(arg("pick", "3")); // weights nudged per round
 const SIZE = Number(arg("size", "11"));
+// every training game is played in this mode (Domination by default since 2026-11-24)
+const MODE = arg("mode", "domination") as GameMode;
+const MAP_TYPE = arg("map-type", "drylands") as MapType;
+// fine-tune: start from this model's weights instead of the greedy defaults
+const FROM = arg("from", "");
+// a game still running after this many moves is decided on score (Domination has no turn limit)
+const MAX_MOVES = Number(arg("max-moves", "20000"));
 let seed = Number(arg("seed", "1000"));
 const WORKERS = Number(arg("workers", String(Math.max(1, os.cpus().length - 2))));
 
@@ -110,14 +119,17 @@ function mutate(w: GreedyWeights): { next: GreedyWeights; nudged: string } {
 
 /** one 2-player game; returns the winner's seat and both scores */
 function play(w0: GreedyWeights, w1: GreedyWeights, gameSeed: number, size = SIZE): { winner: number; scores: [number, number] } {
-  let s: GameState = createGame({ mapSize: size, players: 2, mode: "perfection", seed: gameSeed, humans: [], mapType: "drylands" });
+  let s: GameState = createGame({ mapSize: size, players: 2, mode: MODE, seed: gameSeed, humans: [], mapType: MAP_TYPE });
   const ws = [w0, w1];
   let moves = 0;
-  while (!s.over && moves < 20000) {
+  while (!s.over && moves < MAX_MOVES) {
     s = applyAction(s, botStep(s, ws[s.current]));
     moves++;
   }
-  return { winner: s.winner ?? 0, scores: [scoreOf(s, 0), scoreOf(s, 1)] };
+  const scores: [number, number] = [scoreOf(s, 0), scoreOf(s, 1)];
+  // unfinished (move cap): the higher score wins; a tie goes to the second seat, which moves last
+  const winner = s.winner ?? (scores[0] > scores[1] ? 0 : 1);
+  return { winner, scores };
 }
 
 // ---------- worker pool: each worker runs this file and plays one game per message ----------
@@ -266,7 +278,10 @@ async function main() {
 
   const curvePath = path.join(dir, "curve.jsonl");
   fs.writeFileSync(curvePath, "");
-  let champ: GreedyWeights = { ...DEFAULT_WEIGHTS, rewards: { ...DEFAULT_WEIGHTS.rewards } };
+  const start = FROM ? weightsOf(FROM) : null;
+  if (FROM && !start) throw new Error(`--from ${FROM}: no greedy model.json in models/${FROM}`);
+  let champ: GreedyWeights = start ?? { ...DEFAULT_WEIGHTS, rewards: { ...DEFAULT_WEIGHTS.rewards } };
+  console.log(`mode ${MODE}, ${MAP_TYPE} ${SIZE}x${SIZE}; ${FROM ? `fine-tuning from ${FROM}` : "starting from the greedy defaults"}`);
   let accepted = 0;
   let capped = 0;
   let trainGames = 0;
@@ -354,7 +369,7 @@ async function main() {
     name,
     kind: "greedy",
     description:
-      `The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts): ${how} on ${SIZE}x${SIZE} maps, ${accepted} challengers kept.` +
+      `The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts): ${how} in ${MODE} on ${MAP_TYPE} ${SIZE}x${SIZE} maps${FROM ? `, fine-tuned from ${FROM}` : ""}, ${accepted} challengers kept.` +
       // early stopping may save an earlier champion than the last one: say which
       (best.round !== rounds ? ` Saved the champion of the best learning-curve point (round ${best.round}, ${count(best.trainingGames)} games, ${best.kept} kept).` : "") +
       (final["greedy-v1"] ? ` Won ${pct(final["greedy-v1"].winRate)} against greedy-v1` : "") +
@@ -372,6 +387,9 @@ async function main() {
       seconds: secs(),
       sigma: SIGMA,
       weightsPerNudge: PICK,
+      mode: MODE,
+      mapType: MAP_TYPE,
+      from: FROM || undefined,
       mapSize: SIZE,
       accepted,
       capped: TEST === "sprt" ? capped : undefined,
