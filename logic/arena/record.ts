@@ -118,13 +118,25 @@ export function initialState(rec: GameRecord): GameState {
   });
 }
 
+/**
+ * Replays a record. A record made by an older engine (other rules) may contain a step the current
+ * rules can't apply; the replay stops before it and `divergedAt` gives that step's index.
+ */
+export function replay(rec: GameRecord): { states: GameState[]; divergedAt: number | null } {
+  let s = initialState(rec);
+  const states = [s];
+  for (let i = 0; i < rec.steps.length; i++) {
+    try {
+      s = applyAction(s, rec.steps[i].a);
+    } catch {
+      return { states, divergedAt: i };
+    }
+    states.push(s);
+  }
+  return { states, divergedAt: null };
+}
+
 /** the full state sequence: element 0 is the start, element k is the state after step k */
 export function replayStates(rec: GameRecord): GameState[] {
-  let s = initialState(rec);
-  const out = [s];
-  for (const { a } of rec.steps) {
-    s = applyAction(s, a);
-    out.push(s);
-  }
-  return out;
+  return replay(rec).states;
 }
