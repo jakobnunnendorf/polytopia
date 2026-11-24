@@ -55,7 +55,8 @@ Numbers in the prose are typed by hand: copy them from the generated tables, nev
 ## experiment.json
 
 `verdict`: `planned`, `pending` (running), `kept`, `not kept`, `tie`, `adopted` (for a method).
-`headline`: rows of `{label, base, new, unit}`; the first row is the one shown in the diagram.
+`headline`: rows of `{label, base, new, unit}` (add `"better": "lower"` when a smaller value is
+the good direction, e.g. game length); the first row is the one shown in the diagram.
 `measured`: a few words for the diagram's middle box. `knobs[].chosen`: the value kept, or the
 best value found when not kept.
 

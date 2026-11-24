@@ -54,7 +54,8 @@
       "label": "Game length in turns, 4 players",
       "base": 75.3,
       "new": 62.9,
-      "unit": ""
+      "unit": "",
+      "better": "lower"
     },
     {
       "label": "Points vs base, final test",

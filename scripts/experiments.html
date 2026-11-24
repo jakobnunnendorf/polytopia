@@ -128,7 +128,7 @@ const short = (id) => String(id ?? "").replace(/^greedy-/, "");
 const VERDICT = { kept: ["kept", "✓ Kept"], "not kept": ["notkept", "✕ Not kept"], tie: ["tie", "= Tie, not kept"], adopted: ["adopted", "◆ Adopted"], pending: ["pending", "● Running"], planned: ["planned", "○ Planned"] };
 const verdict = (v) => { const [c, t] = VERDICT[v] ?? ["planned", v]; return `<span class="vd ${c}">${esc(t)}</span>`; };
 const fmt = (h, x) => (x == null ? "–" : (Number.isInteger(x) && h.unit !== "%" ? x : x.toFixed(1)) + (h.unit === "%" ? "%" : ""));
-const delta = (h) => { if (h.base == null || h.new == null) return ""; const d = h.new - h.base; return `<span class="${Math.abs(d) < 0.05 ? "" : d > 0 ? "delta-pos" : "delta-neg"}">${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(1)}</span>`; };
+const delta = (h) => { if (h.base == null || h.new == null) return ""; const d = h.new - h.base; return `<span class="${Math.abs(d) < 0.05 ? "" : (d > 0) === (h.better !== "lower") ? "delta-pos" : "delta-neg"}">${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(1)}</span>`; };
 const mean = (vs, f, skip) => { const xs = Object.entries(vs).filter(([k]) => k !== skip).map(([, v]) => f(v)).filter((x) => x != null); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; };
 const openBy = (open) => { const by = {}; for (const o of open) by[o.who] = (by[o.who] ?? 0) + 1; return Object.entries(by).map(([w, n]) => `<span class="who">${esc(w.toUpperCase())}</span>${n}`).join(" &nbsp; ") || '<span class="status-good">✓ complete</span>'; };
 const dir = location.pathname.startsWith("/experiment/") ? decodeURIComponent(location.pathname.split("/")[2]) : null;
