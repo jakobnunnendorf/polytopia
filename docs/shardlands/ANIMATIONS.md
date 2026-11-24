@@ -30,7 +30,7 @@ replays all animate the same way, without touching the engine.
 | 10 | Clouds clear (exploring) | The cloud over a newly seen tile puffs up and fades | Discovery is the core joy of the first turns |
 | 11 | Move targets | Dots appear one after another and pulse softly | Shows reach, and that the unit is ready |
 | 12 | Attack targets | The ring pulses | Danger and opportunity stand out from moves |
-| 13 | Building or harvest | The new building pops up, plus a "+1" for population | Confirms the shards were well spent |
+| 13 | Building or harvest | The new building pops up, plus a "+1" for population | Confirms the stars were well spent |
 | 14 | City grows a level | The city bounces, with a gold burst | The game's main progress beat |
 | 15 | City captured | Burst in the new owner's colour, then the city pops in again | Conquest has to feel like an event |
 | 16 | Territory grows | New border tiles fade in | Shows the city's reach expanding |

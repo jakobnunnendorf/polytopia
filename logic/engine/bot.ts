@@ -29,10 +29,10 @@ export type GreedyWeights = {
   /** pop-giving build: base + perPop * pop - cost */
   growBase: number;
   growPerPop: number;
-  /** other buildings when shards > richAt */
+  /** other buildings when stars > richAt */
   otherBuild: number;
   richAt: number;
-  /** research: base - cost - tier, only if 2 shards remain afterwards */
+  /** research: base - cost - tier, only if 2 stars remain afterwards */
   research: number;
   /** train: base + strength - cost/2, while units <= cities * unitsPerCity */
   train: number;
@@ -182,7 +182,7 @@ export function scoreAction(s: GameState, a: Action, w: GreedyWeights = DEFAULT_
     case "healOthers":
       return w.healOthers;
     case "freezeArea":
-    case "boost":
+    case "swarm":
       return w.special;
     case "explode": {
       const u = s.units.find((x) => x.id === a.unitId)!;

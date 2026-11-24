@@ -32,7 +32,7 @@ export type Skill =
   | "autoFreeze"
   | "skate"
   | "poison"
-  | "boost"
+  | "swarm"
   | "explode"
   | "eat"
   | "grow"
@@ -133,7 +133,7 @@ export const UNITS: Record<string, UnitDef> = {
   gaami: u("gaami", 10, false, 30, 4, 3, 1, 1, ["autoFreeze", "freezeArea", "static"], null),
 
   // Cymanti (2.15 rework)
-  shaman: u("shaman", 5, true, 10, 1, 1, 1, 1, ["convert", "boost"], "meditation"),
+  shaman: u("shaman", 5, true, 10, 1, 1, 1, 1, ["convert", "swarm"], "meditation"),
   hexapod: u("hexapod", 3, true, 5, 3, 1, 2, 1, ["dash", "escape", "creep", "sneak"], "riding"),
   kiton: u("kiton", 3, true, 15, 1, 3, 1, 1, ["creep", "poisonDefence"], "strategy"),
   phychi: u("phychi", 3, true, 5, 0.7, 1, 2, 2, ["dash", "fly", "poison", "surprise", "doubleAttack"], "archery"),
@@ -197,13 +197,13 @@ export const TECHS: TechDef[] = [
   { id: "meditation", tier: 2, parent: "climbing", unlocks: "Mountain Temple, Pacifist task" },
   { id: "philosophy", tier: 3, parent: "meditation", unlocks: "Mind Bender, -33% tech cost" },
 
-  { id: "hunting", tier: 1, parent: null, unlocks: "Hunt Animal" },
+  { id: "hunting", tier: 1, parent: null, unlocks: "Hunting" },
   { id: "archery", tier: 2, parent: "hunting", unlocks: "Archer, Forest defence" },
   { id: "spiritualism", tier: 3, parent: "archery", unlocks: "Forest Temple, Grow Forest" },
   { id: "forestry", tier: 2, parent: "hunting", unlocks: "Lumber Hut, Clear Forest" },
   { id: "mathematics", tier: 3, parent: "forestry", unlocks: "Catapult, Sawmill" },
 
-  { id: "fishing", tier: 1, parent: null, unlocks: "Fish, Port, Raft, Water" },
+  { id: "fishing", tier: 1, parent: null, unlocks: "Fishing, Port, Raft, water movement" },
   { id: "sailing", tier: 2, parent: "fishing", unlocks: "Scout, Ocean" },
   { id: "navigation", tier: 3, parent: "sailing", unlocks: "Bomber, Starfish" },
   { id: "ramming", tier: 2, parent: "fishing", unlocks: "Rammer" },
@@ -322,9 +322,10 @@ export const FEEDS: Record<string, { building: string; popPerLevel: number }> = 
 export const LEVEL_CAP = 8;
 export const MARKET_CAP = 8;
 
-/** monuments (§7.3): task id -> monument building id */
+/** monuments (§7.3): task id -> monument building id (2.18 data: Cymanti's convert task gives the pacifist monument) */
 export const MONUMENTS: Record<string, string> = {
   pacifist: "altarOfPeace",
+  convert: "altarOfPeace",
   genius: "towerOfWisdom",
   wealth: "emperorsTomb",
   killer: "gateOfPower",
@@ -332,7 +333,7 @@ export const MONUMENTS: Record<string, string> = {
   network: "grandBazaar",
   explorer: "eyeOfGod",
 };
-for (const m of Object.values(MONUMENTS)) {
+for (const m of new Set(Object.values(MONUMENTS))) {
   BUILDS[m] = { id: m, cost: 0, tech: "", kind: "monument", terrain: ["field", "water"], pop: 3 };
 }
 
@@ -426,7 +427,10 @@ export type ClanDef = {
   buildReplacements?: Record<string, string | null>;
   /** extra builds unique to this tribe */
   extraBuilds?: string[];
-  /** tech tree display overrides for special tribes (techId -> { name, unlocks }) */
+  /**
+   * the tribe's own techs (2.18 data, tribes[].tech_overrides) shown in place of the regular tech
+   * of that slot (techId -> { name, unlocks }); an entry with the regular name only changes the unlock text
+   */
   techOverrides?: Record<string, { name: string; unlocks: string }>;
   /** signature tribe colour (used in UI & tribe badges) */
   color?: string;
@@ -479,12 +483,12 @@ export const CLANS: ClanDef[] = [
     techOverrides: {
       riding: { name: "Riding", unlocks: "Amphibian" },
       construction: { name: "Construction", unlocks: "Windmill, Fertilize" },
-      roads: { name: "Waterways", unlocks: "Canal, Bubble" },
+      roads: { name: "Waterways", unlocks: "Canal, Bubbles" },
       ramming: { name: "Aquaculture", unlocks: "Aqua Farm, Atoll" },
       fishing: { name: "Aquafishing", unlocks: "Fishing" },
       sailing: { name: "Marine Life", unlocks: "Shark, ocean movement" },
       chivalry: { name: "Spearing", unlocks: "Tridention, Destroy" },
-      mathematics: { name: "Mathematics", unlocks: "Aquapult, Sawmill" },
+      mathematics: { name: "Mathematics", unlocks: "Puffer, Sawmill" },
       navigation: { name: "Navigation", unlocks: "Jelly, Starfish" },
     },
     color: "#ff6b6b",
@@ -575,9 +579,9 @@ export const CLANS: ClanDef[] = [
     techOverrides: {
       farming: { name: "Farming", unlocks: "Fungi (+1 pop, grows, poisons)" },
       riding: { name: "Riding", unlocks: "Hexapod (creep, sneak, escape)" },
-      roads: { name: "Network", unlocks: "Mycelium (links & heals bugs)" },
+      roads: { name: "Roads", unlocks: "Mycelium (links & heals bugs)" },
       strategy: { name: "Strategy", unlocks: "Kiton (poisons attackers)" },
-      diplomacy: { name: "Synergy", unlocks: "Moth, Embassy, Capital Vision" },
+      diplomacy: { name: "Diplomacy", unlocks: "Moth, Embassy, Capital Vision" },
       archery: { name: "Archery", unlocks: "Phychi (flying, poison)" },
       smithery: { name: "Smithery", unlocks: "Mantis, Forge" },
       meditation: { name: "Rituals", unlocks: "Shaman (Swarm, Parasite)" },
@@ -585,9 +589,9 @@ export const CLANS: ClanDef[] = [
       chivalry: { name: "Shock Tactics", unlocks: "Doomux (explodes)" },
       mathematics: { name: "Mathematics", unlocks: "Exida (splash poison)" },
       fishing: { name: "Fishing", unlocks: "Algae, Fishing, water movement" },
-      ramming: { name: "Inflation", unlocks: "Boomchi (amphibious, explodes)" },
-      sailing: { name: "Pescetism", unlocks: "Raychi, ocean movement" },
-      navigation: { name: "Oceanology", unlocks: "Living Island, Starfish" },
+      ramming: { name: "Ramming", unlocks: "Boomchi (amphibious, explodes)" },
+      sailing: { name: "Sailing", unlocks: "Raychi, ocean movement" },
+      navigation: { name: "Navigation", unlocks: "Living Island, Starfish" },
       construction: { name: "Recycling", unlocks: "Decompose, Microbes" },
       trade: { name: "Trade", unlocks: "Clathrus (+1★ per adjacent Fungi)" },
     },

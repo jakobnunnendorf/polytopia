@@ -63,7 +63,13 @@ export const BUILDING_GLYPH: Record<string, string> = {
   forestTemple: "🛕",
   waterTemple: "🛕",
   mountainTemple: "🛕",
-  monument: "🗽",
+  altarOfPeace: "🗽",
+  towerOfWisdom: "🗽",
+  emperorsTomb: "🗽",
+  gateOfPower: "🗽",
+  parkOfFortune: "🗽",
+  grandBazaar: "🗽",
+  eyeOfGod: "🗽",
 };
 
 export const UNIT_GLYPH: Record<string, string> = {
@@ -76,16 +82,12 @@ export const UNIT_GLYPH: Record<string, string> = {
   knight: "🏇",
   giant: "🗿",
   mindBender: "🔮",
-  explorer: "🧭",
   cloak: "🥷",
   dagger: "🔪",
   raft: "🛶",
   scout: "⛵",
   rammer: "🚤",
   bomber: "🚢",
-  boat: "🛶",
-  ship: "⛵",
-  battleship: "🚢",
 };
 
 /** Vibrant Polytopia-style clan banner colours (index = player id). */

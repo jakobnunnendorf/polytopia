@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import Svg, { Circle, Line } from "react-native-svg";
-import { ShardIcon, TribeEmblem } from "@/components/art/Art";
+import { StarIcon, TribeEmblem } from "@/components/art/Art";
 import { TechIcon } from "@/components/art/TechIcons";
 import { UI } from "@/components/game/theme";
 import { Pop } from "@/components/anim";
@@ -69,7 +69,7 @@ export default function TechTree({
   onClose: () => void;
 }) {
   const overrides = clanId ? CLAN_BY_ID[clanId]?.techOverrides : undefined;
-  const techLabel = (id: string) => overrides?.[id]?.name ?? name("tech", id);
+  const techLabel = (id: string) => name("tech", id, clanId);
   const techUnlocks = (id: string, fallback: string) => overrides?.[id]?.unlocks ?? fallback;
   const { width, height } = useWindowDimensions();
   const size = Math.min(width - 16, height - 250, 640);
@@ -100,7 +100,7 @@ export default function TechTree({
       >
         <Text style={{ color: UI.mist, fontSize: 30, fontFamily: UI.display }}>Tech Tree</Text>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <ShardIcon size={20} />
+          <StarIcon size={20} />
           <Text style={{ color: UI.mist, fontSize: 20, fontWeight: "800", marginLeft: 4 }}>{stars}</Text>
         </View>
       </View>
@@ -155,7 +155,7 @@ export default function TechTree({
                 key={n.id}
                 testID={`tech-${n.id}`}
                 accessibilityRole="button"
-                accessibilityLabel={`${name("tech", n.id)}, ${st === "known" ? "researched" : `${costOf(n.id)} stars`}`}
+                accessibilityLabel={`${techLabel(n.id)}, ${st === "known" ? "researched" : `${costOf(n.id)} stars`}`}
                 onPress={() => setPicked(on ? null : n.id)}
                 style={{ position: "absolute", left: n.x - 40, top: n.y - node / 2, width: 80, alignItems: "center" }}
               >
@@ -195,7 +195,7 @@ export default function TechTree({
                 </Text>
                 {st !== "known" && (
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <ShardIcon size={9} color={st === "open" ? UI.gold : UI.muted} />
+                    <StarIcon size={9} color={st === "open" ? UI.gold : UI.muted} />
                     <Text style={{ color: st === "open" ? UI.gold : UI.muted, fontSize: 10, fontWeight: "800", marginLeft: 2 }}>
                       {costOf(n.id)}
                     </Text>
@@ -207,7 +207,7 @@ export default function TechTree({
         </View>
       </View>
 
-      {/* detail card for the tapped discovery */}
+      {/* detail card for the tapped tech */}
       <View
         style={{
           backgroundColor: UI.panel,
@@ -262,7 +262,7 @@ export default function TechTree({
                   ? `Research for ${pickedCost} stars`
                   : stars < pickedCost
                     ? `Needs ${pickedCost} stars, you have ${stars}`
-                    : `Research ${name("tech", pickedTech.parent ?? "")} first`}
+                    : `Research ${techLabel(pickedTech.parent ?? "")} first`}
               </Text>
             </Pressable>
           )}

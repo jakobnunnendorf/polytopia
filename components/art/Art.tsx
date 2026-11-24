@@ -27,14 +27,11 @@ const UNIT_SPRITES: Record<string, ImageSourcePropType> = {
   cloak: require("@/assets/sprites/cloak.png"),
   dagger: require("@/assets/sprites/dagger.png"),
   raft: require("@/assets/sprites/raft.png"),
-  boat: require("@/assets/sprites/raft.png"),
   dinghy: require("@/assets/sprites/dinghy.png"),
   scout: require("@/assets/sprites/scout.png"),
-  ship: require("@/assets/sprites/scout.png"),
   rammer: require("@/assets/sprites/rammer.png"),
   pirate: require("@/assets/sprites/rammer.png"),
   bomber: require("@/assets/sprites/bomber.png"),
-  battleship: require("@/assets/sprites/bomber.png"),
   juggernaut: require("@/assets/sprites/juggernaut.png"),
 };
 
@@ -369,7 +366,6 @@ export function BuildingArt({ id, size }: { id: string; size: number }) {
         </Box>
       );
     case "eyeOfGod":
-    case "monument":
       return (
         <Box size={size}>
           <Ellipse cx={50} cy={86} rx={28} ry={7} fill={PAL.shadow} opacity={0.24} />
@@ -721,7 +717,7 @@ export function UnitArt({ type, color, size }: { type: string; color: string; si
 }
 
 /** Battle of Polytopia 3D faceted golden Star currency icon */
-export function ShardIcon({ size, color }: { size: number; color?: string }) {
+export function StarIcon({ size, color }: { size: number; color?: string }) {
   if (!color || color === "#f6c453" || color === "#ffd23f") {
     return (
       <Image

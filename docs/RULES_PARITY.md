@@ -187,7 +187,7 @@ copied here. Each line: rule: old behaviour -> new behaviour.
 Aquarion
 - Water movement: Riding gave shallow water, Free Spirit ocean -> the starting
   tech Aquabase gives amphibious units shallow water, Marine Life (the Sailing
-  slot) ocean; Aquarion ships (Shark, Jelly, Aquapult) swim water, ocean and
+  slot) ocean; Aquarion ships (Shark, Jelly, Puffer) swim water, ocean and
   flooded land with no tech (their own terrain list). Riding and Free Spirit
   give no water.
 - Flood Tile (3★ build on own land) -> Canal (Waterways, 0★): built by an own

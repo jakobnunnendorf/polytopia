@@ -1,10 +1,11 @@
 /**
- * Battle of Polytopia display names. The engine uses plain descriptive ids
- * ("warrior", "climbing"); players see the standard Polytopia names below.
- * Purely cosmetic: changing a name here never changes a rule.
+ * Battle of Polytopia display names (2.18, English). The engine uses plain
+ * descriptive ids ("warrior", "climbing"); players see the game's names below,
+ * and a special tribe sees its own tech names (CLANS[].techOverrides) and
+ * building names (TRIBE_NAMES). Purely cosmetic: a name never changes a rule.
  */
 import type { Action, GameState } from "./types";
-import { BUILDS } from "./data";
+import { BUILDS, CLAN_BY_ID } from "./data";
 
 type Kind = "tech" | "unit" | "building" | "terrain" | "resource" | "clan" | "reward" | "ability";
 
@@ -51,7 +52,6 @@ const NAMES: Record<Kind, Record<string, string>> = {
     knight: "Knight",
     giant: "Giant",
     mindBender: "Mind Bender",
-    explorer: "Explorer",
     cloak: "Cloak",
     dagger: "Dagger",
     raft: "Raft",
@@ -117,17 +117,14 @@ const NAMES: Record<Kind, Record<string, string>> = {
     waterTemple: "Water Temple",
     iceTemple: "Ice Temple",
     mountainTemple: "Mountain Temple",
-    customsHouse: "Customs House",
     embassy: "Embassy",
-    monument: "Monument",
     road: "Road",
     bridge: "Bridge",
-    park: "Park",
     destroy: "Destroy",
     harvestFruit: "Harvest Fruit",
-    hunt: "Hunt Animal",
+    hunt: "Hunting",
     fish: "Fishing",
-    clearForest: "Clear Forest (+1 ★)",
+    clearForest: "Clear Forest",
     burnForest: "Burn Forest",
     growForest: "Grow Forest",
     altarOfPeace: "Altar of Peace",
@@ -161,7 +158,7 @@ const NAMES: Record<Kind, Record<string, string>> = {
   resource: {
     fruit: "Fruit",
     crop: "Crop",
-    animal: "Animal",
+    animal: "Wild Animal",
     fish: "Fish",
     metal: "Metal",
     starfish: "Starfish",
@@ -187,14 +184,14 @@ const NAMES: Record<Kind, Record<string, string>> = {
     cymanti: "Cymanti",
   },
   reward: {
-    workshop: "Workshop (+1 ★/turn)",
-    explorer: "Explorer (reveals map)",
+    workshop: "Workshop",
+    explorer: "Explorer",
     cityWall: "City Wall",
-    resources: "Resources (+5 ★)",
-    populationGrowth: "Population Growth (+3 pop)",
+    resources: "Resources",
+    populationGrowth: "Population Growth",
     borderGrowth: "Border Growth",
-    park: "Park (+250 pts)",
-    superUnit: "Super Unit (Giant)",
+    park: "Park",
+    superUnit: "Super Unit",
   },
   ability: {},
 };
@@ -206,7 +203,21 @@ function humanize(id: string) {
     .trim();
 }
 
-export function name(kind: Kind, id: string): string {
+/** special-tribe names of buildings that keep the regular id (wiki "Buildings": Cymanti's monument for the convert task) */
+const TRIBE_NAMES: Record<string, Partial<Record<Kind, Record<string, string>>>> = {
+  cymanti: { building: { altarOfPeace: "Cult of Ciru" } },
+};
+
+/** display name; with `clan`, the name that tribe sees (Polaris "Frostwork" for fishing, ...) */
+export function name(kind: Kind, id: string, clan?: string): string {
+  if (clan) {
+    if (kind === "tech") {
+      const own = CLAN_BY_ID[clan]?.techOverrides?.[id]?.name;
+      if (own) return own;
+    }
+    const own = TRIBE_NAMES[clan]?.[kind]?.[id];
+    if (own) return own;
+  }
   return NAMES[kind][id] ?? humanize(id);
 }
 
@@ -214,11 +225,12 @@ export const CLAN_IDS = Object.keys(NAMES.clan);
 
 /** Short button label for an action. */
 export function actionLabel(_s: GameState, a: Action): string {
+  const clan = _s.players[_s.current]?.clan;
   switch (a.type) {
     case "endTurn":
       return "End Turn";
     case "research":
-      return `Research ${name("tech", a.tech)}`;
+      return `Research ${name("tech", a.tech, clan)}`;
     case "move":
       return `Move to ${a.to.x},${a.to.y}`;
     case "attack":
@@ -236,9 +248,9 @@ export function actionLabel(_s: GameState, a: Action): string {
     case "promote":
       return "Promote";
     case "healOthers":
-      return "Heal";
+      return "Heal Others";
     case "harvestStarfish":
-      return "Harvest Starfish (+8 ★)";
+      return "Harvest Starfish";
     case "infiltrate":
       return "Infiltrate";
     case "train":
@@ -246,13 +258,13 @@ export function actionLabel(_s: GameState, a: Action): string {
     case "build": {
       const kind = BUILDS[a.building]?.kind;
       const verb = kind === "harvest" || kind === "destroy" ? "" : "Build ";
-      return `${verb}${name("building", a.building)}`;
+      return `${verb}${name("building", a.building, clan)}`;
     }
     case "reward":
       return name("reward", a.reward);
     case "freezeArea":
       return "Freeze Area";
-    case "boost":
+    case "swarm":
       return "Swarm";
     case "explode":
       return "Explode";
