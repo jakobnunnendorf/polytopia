@@ -9,7 +9,7 @@ import { createGame } from "../../logic/engine/state";
 import type { Difficulty, GameMode } from "../../logic/engine/types";
 import type { MapType } from "../../logic/engine/mapgen";
 import { createAgent, directChat } from "../../logic/agents/registry";
-import { finishRecord, recordStep, replayStates, startRecord, type GameRecord, type Seat } from "../../logic/arena/record";
+import { finishRecord, latestState, recordStep, startRecord, type GameRecord, type Seat } from "../../logic/arena/record";
 import { findGame, listModels, saveGame } from "./store";
 
 const running = new Set<string>();
@@ -44,7 +44,9 @@ async function run(rec: GameRecord): Promise<void> {
       if (!spec || spec.kind === "external") throw new Error(`Model ${seat.modelId} cannot play on the server`);
       return createAgent(spec, directChat, all);
     });
-    let s = replayStates(rec).pop()!;
+    // from the checkpoint: a long game continues at once, and under the position it really reached
+    let s = latestState(rec);
+    if (!rec.checkpoint) rec.checkpoint = { step: rec.steps.length, state: s };
     let perTurn = 0;
     while (!s.over && !stopRequests.has(rec.id)) {
       const t0 = Date.now();
@@ -104,7 +106,7 @@ export function stopMatch(id: string): { ok: boolean; reason?: string } {
   if (rec.result?.over) return { ok: false, reason: "finished" };
   if (rec.stoppedAt) return { ok: true, reason: "already stopped" };
   rec.stoppedAt = new Date().toISOString();
-  saveGame(finishRecord(rec, replayStates(rec).pop()!));
+  saveGame(finishRecord(rec, latestState(rec)));
   return { ok: true };
 }
 

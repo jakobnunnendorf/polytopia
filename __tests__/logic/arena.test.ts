@@ -1,7 +1,7 @@
 import { applyAction } from "../../logic/engine/actions";
 import { createGame } from "../../logic/engine/state";
 import { botStep } from "../../logic/engine/bot";
-import { finishRecord, recordStep, replayStates, startRecord, type GameRecord } from "../../logic/arena/record";
+import { finishRecord, latestState, liveWindow, recordStep, replayStates, slimRecord, startRecord, type GameRecord } from "../../logic/arena/record";
 import { facets, matchesFilter, rate, rebuild, resultRow, START_RATING, type ResultRow } from "../../logic/arena/elo";
 import { BUILTIN_MODELS, createAgent } from "../../logic/agents/registry";
 import { candidates, parseChoice } from "../../logic/agents/llm";
@@ -27,9 +27,54 @@ describe("game records", () => {
     const rec = playRecorded(7);
     const states = replayStates(rec);
     expect(states.length).toBe(rec.steps.length + 1);
-    // every turn snapshot appears in the replay
-    const replayed = new Set(states.map((x) => JSON.stringify(x)));
-    for (const t of rec.turnStates) expect(replayed.has(JSON.stringify(t))).toBe(true);
+  });
+  it("stores the start position, the moves and one cached current position, not a snapshot per turn", () => {
+    const rec = playRecorded(7);
+    const states = replayStates(rec);
+    expect(rec.turnStates.length).toBe(1);
+    // the checkpoint is the position after `step` moves, exactly as the replay rebuilds it
+    expect(rec.checkpoint).toBeDefined();
+    expect(JSON.stringify(rec.checkpoint!.state)).toBe(JSON.stringify(states[rec.checkpoint!.step]));
+  });
+  it("latestState gives the last position without replaying from the start", () => {
+    const rec = playRecorded(7);
+    const last = replayStates(rec).pop()!;
+    expect(rec.checkpoint!.step).toBeGreaterThan(0);
+    expect(JSON.stringify(latestState(rec))).toBe(JSON.stringify(last));
+    // and falls back to a full replay for a record without a checkpoint
+    expect(JSON.stringify(latestState({ ...rec, checkpoint: undefined }))).toBe(JSON.stringify(last));
+  });
+  it("slims an old record (a snapshot per turn) without losing anything", () => {
+    const rec = playRecorded(7);
+    const states = replayStates(rec);
+    // the old format: the state after every endTurn was pushed onto turnStates
+    const old: GameRecord = {
+      ...rec,
+      checkpoint: undefined,
+      turnStates: [states[0], ...rec.steps.flatMap((st, i) => (st.a.type === "endTurn" ? [states[i + 1]] : []))],
+    };
+    expect(old.turnStates.length).toBeGreaterThan(5);
+    const slim = slimRecord(old);
+    expect(slim.turnStates.length).toBe(1);
+    expect(slim.steps).toEqual(old.steps);
+    expect(JSON.stringify(replayStates(slim))).toBe(JSON.stringify(states));
+    // the newest old snapshot becomes the checkpoint, at the right move
+    expect(JSON.stringify(slim.checkpoint!.state)).toBe(JSON.stringify(states[slim.checkpoint!.step]));
+    expect(slim.checkpoint!.step).toBe(rec.checkpoint!.step);
+    // a slim record passes through unchanged
+    expect(slimRecord(slim)).toBe(slim);
+  });
+  it("liveWindow is a record that starts at the checkpoint", () => {
+    const rec = playRecorded(7);
+    const states = replayStates(rec);
+    const win = liveWindow(rec);
+    expect(win.base).toBe(rec.checkpoint!.step);
+    expect(win.steps).toEqual(rec.steps.slice(win.base));
+    expect(JSON.stringify(replayStates(win))).toBe(JSON.stringify(states.slice(win.base)));
+    // steps that arrive later extend the window like any record
+    const none = liveWindow({ ...rec, checkpoint: undefined });
+    expect(none.base).toBe(0);
+    expect(none.steps.length).toBe(rec.steps.length);
   });
   it("survives a JSON round trip (what the server stores)", () => {
     const rec = JSON.parse(JSON.stringify(playRecorded(11))) as GameRecord;
