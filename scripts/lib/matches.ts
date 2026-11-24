@@ -13,6 +13,8 @@ import { finishRecord, recordStep, replayStates, startRecord, type GameRecord, t
 import { findGame, listModels, saveGame } from "./store";
 
 const running = new Set<string>();
+/** running games asked to stop: the loop ends after the move in progress */
+const stopRequests = new Set<string>();
 
 /** every move takes at least this long, so fast bots and a thinking LLM look the same to a watcher */
 export const PACE_MS = Number(process.env.SHARDLANDS_PACE_MS ?? 550);
@@ -35,7 +37,7 @@ async function run(rec: GameRecord): Promise<void> {
     });
     let s = replayStates(rec).pop()!;
     let perTurn = 0;
-    while (!s.over) {
+    while (!s.over && !stopRequests.has(rec.id)) {
       const t0 = Date.now();
       const a = perTurn++ > 300 ? { type: "endTurn" as const } : await agents[s.current].act(s);
       await sleep(Math.max(0, PACE_MS - (Date.now() - t0)));
@@ -48,6 +50,13 @@ async function run(rec: GameRecord): Promise<void> {
       saveGame({ ...rec, endedAt: null, result: null });
       void turnEnded;
     }
+    if (!s.over) {
+      // stopped: keep the moves so far, no winner, no Elo (saveGame rates only finished games)
+      rec.stoppedAt = new Date().toISOString();
+      saveGame(finishRecord(rec, s));
+      console.log(`match ${rec.id} stopped at turn ${s.turn}`);
+      return;
+    }
     const out = saveGame(finishRecord(rec, s));
     console.log(`match ${rec.id} finished: winner seat ${s.winner}, Elo ${out.deltas.join(", ")}`);
     agents.forEach((ag) => ag.stats && console.log(`  ${ag.spec.id}: ${ag.stats.byModel}/${ag.stats.decisions} decisions by the model, ${ag.stats.fallbacks} fallbacks${ag.stats.lastError ? ` (last: ${ag.stats.lastError})` : ""}`));
@@ -55,6 +64,7 @@ async function run(rec: GameRecord): Promise<void> {
     console.error(`match ${rec.id} stopped: ${(e as Error).message}`);
   } finally {
     running.delete(rec.id);
+    stopRequests.delete(rec.id);
   }
 }
 
@@ -74,12 +84,28 @@ export function startMatch(opts: {
   return rec;
 }
 
-/** continue an unfinished model-only game (no-op when it is running or finished) */
+/** stop a model-only game: a running one ends after its current move; an unfinished idle one is marked stopped */
+export function stopMatch(id: string): { ok: boolean; reason?: string } {
+  if (running.has(id)) {
+    stopRequests.add(id);
+    return { ok: true };
+  }
+  const rec = findGame(id);
+  if (!rec) return { ok: false, reason: "no such game" };
+  if (rec.result?.over) return { ok: false, reason: "finished" };
+  if (rec.stoppedAt) return { ok: true, reason: "already stopped" };
+  rec.stoppedAt = new Date().toISOString();
+  saveGame(finishRecord(rec, replayStates(rec).pop()!));
+  return { ok: true };
+}
+
+/** continue an unfinished model-only game (no-op when it is running, finished or stopped) */
 export function resumeMatch(id: string): { ok: boolean; reason?: string } {
   if (running.has(id)) return { ok: true, reason: "already running" };
   const rec = findGame(id);
   if (!rec) return { ok: false, reason: "no such game" };
   if (rec.result?.over) return { ok: false, reason: "finished" };
+  if (rec.stoppedAt) return { ok: false, reason: "stopped" };
   if (rec.seats.some((s) => s.kind !== "model")) return { ok: false, reason: "has human seats" };
   // a record left by a browser may carry an unfinished result; the run sets it at the end
   rec.result = null;

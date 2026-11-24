@@ -72,6 +72,8 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
   }, [playing, k, states.length]);
 
   const s = states[k];
+  // a live model-only game the server is still playing (a stopped one is kept but never resumed)
+  const running = live && !rec.result?.over && !rec.stoppedAt;
   const step = k > 0 ? rec.steps[k - 1] : null;
   // the winner card shows on the last move of a finished game, until closed
   const [closedEnd, setClosedEnd] = useState(false);
@@ -83,15 +85,18 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
     <View style={{ flex: 1 }}>
       <View style={{ paddingHorizontal: 16, paddingTop: 12, width: "100%", maxWidth: 640, alignSelf: "center" }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Btn label="Games" onPress={() => router.replace("/analyse" as never)} />
+          <View style={{ flexDirection: "row" }}>
+            <Btn label="Games" onPress={() => router.replace("/analyse" as never)} />
+            {running && <Btn label="Stop game" onPress={() => void arena.stopMatch(rec.id).catch(() => {})} testID="stop-match" />}
+          </View>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            {live && !rec.result?.over && (
+            {running && (
               <Pulse amount={0.5} period={1200} style={{ marginRight: 8 }}>
                 <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: UI.coral }} />
               </Pulse>
             )}
             <Text style={{ color: UI.mist, fontSize: 16, fontWeight: "800" }}>
-              {live && !rec.result?.over ? "LIVE  " : ""}Turn {s.turn}, move {k} of {states.length - 1}
+              {running ? "LIVE  " : rec.stoppedAt ? "STOPPED  " : ""}Turn {s.turn}, move {k} of {states.length - 1}
             </Text>
           </View>
         </View>
