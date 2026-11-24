@@ -115,14 +115,14 @@ fn blocked_by_enemy(s: &GameState, p: i32, x: i32, y: i32) -> bool {
     }
 }
 
-/// can p build `b` on tile (x,y)?
-fn can_build(s: &GameState, p: i32, b: Build, x: i32, y: i32) -> bool {
+/// the part of can_build that does not depend on the tile: tribe, tech or
+/// earned monument, and enough stars
+fn player_may_build(s: &GameState, p: i32, b: Build) -> bool {
     let def = build_def(b);
     let pl = &s.players[p as usize];
     if !build_allowed_for(pl.tribe, b) {
         return false;
     }
-    let t = tile_at(s, x, y);
     if def.kind == BuildKind::Monument {
         let earned = MONUMENTS.iter().any(|&(k, m)| m == b && pl.tasks.contains(&k));
         if !earned || pl.monuments.contains(&b) {
@@ -134,30 +134,42 @@ fn can_build(s: &GameState, p: i32, b: Build, x: i32, y: i32) -> bool {
             _ => return false,
         }
     }
-    // tribe tech swaps: Polaris fish with Ice Fishing (ramming); Cymanti Mountain Temple with Mysticism (philosophy)
     if b == Build::Fish && pl.tribe == Tribe::Polaris && !pl.has_tech(Tech::Ramming) {
         return false;
     }
     if b == Build::MountainTemple && pl.tribe == Tribe::Cymanti && !pl.has_tech(Tech::Philosophy) {
         return false;
     }
-    if pl.stars < def.cost {
-        return false;
-    }
+    pl.stars >= def.cost
+}
+
+/// can p build `b` on tile (x,y)?
+fn can_build(s: &GameState, p: i32, b: Build, x: i32, y: i32) -> bool {
+    player_may_build(s, p, b) && can_build_on(s, p, b, x, y, occupant(s, x, y), territory_owner(s, tile_at(s, x, y)))
+}
+
+/// can_build without the player checks (player_may_build), with the tile's
+/// occupant and territory owner already looked up
+fn can_build_on(s: &GameState, p: i32, b: Build, x: i32, y: i32, occ: Option<usize>, o: Option<i32>) -> bool {
+    let def = build_def(b);
+    let pl = &s.players[p as usize];
+    let t = tile_at(s, x, y);
     // Canal: built by an own unit standing on the tile
     if b == Build::Canal {
-        let Some(ui) = occupant(s, x, y) else { return false };
+        let Some(ui) = occ else { return false };
         let u = &s.units[ui];
         if u.owner != p || u.done || u.moved || !u.can_attack || u.frozen {
             return false;
         }
         return !is_water(t) && !t.flooded && (t.terrain == Terrain::Field || t.terrain == Terrain::Forest);
     }
-    if blocked_by_enemy(s, p, x, y) {
-        return false;
+    if let Some(oi) = occ {
+        let u = &s.units[oi];
+        if u.owner != p && can_see(s, p, u) && !at_peace(s, p, u.owner) {
+            return false; // blocked_by_enemy
+        }
     }
     if def.kind == BuildKind::Road {
-        let o = territory_owner(s, t);
         if t.road || t.city_id.is_some() || t.village || t.building == Some(Build::Bridge) {
             return false;
         }
@@ -169,9 +181,8 @@ fn can_build(s: &GameState, p: i32, b: Build, x: i32, y: i32) -> bool {
     if def.kind == BuildKind::Embassy {
         return false; // embassies are built inside cities, see legal_actions
     }
-    let own = own_tile(s, p, x, y);
+    let own = o == Some(p);
     if def.kind == BuildKind::Bridge {
-        let o = territory_owner(s, t);
         if !(o.is_none() || o == Some(p)) || t.terrain != Terrain::Water || t.building.is_some() {
             return false;
         }
@@ -196,7 +207,7 @@ fn can_build(s: &GameState, p: i32, b: Build, x: i32, y: i32) -> bool {
         return t.terrain != Terrain::Mountain && t.building.is_none() && t.resource.is_none();
     }
     if def.kind == BuildKind::Destroy {
-        return t.building.is_some() && !(t.building == Some(Build::Bridge) && occupant(s, x, y).is_some());
+        return t.building.is_some() && !(t.building == Some(Build::Bridge) && occ.is_some());
     }
     if b == Build::Algae {
         return is_water(t) && !t.ice && !t.algae && t.resource != Some(Resource::Fruit);
@@ -310,6 +321,23 @@ pub fn legal_actions(s: &GameState) -> Vec<Action> {
 
     // tile builds: every tile in own territory, plus neutral tiles for roads/bridges
     let n = s.map_size;
+    // builds the player can afford and has unlocked (the tile-independent part
+    // of can_build), in Build::ALL order so the legal list keeps its order
+    let candidates: Vec<Build> = Build::ALL
+        .iter()
+        .copied()
+        .filter(|&b| b != Build::Canal && player_may_build(s, p, b)) // Canal: unit-built, listed with the units below
+        .collect();
+    // first unit on each tile, as occupant() finds it
+    let mut occupants: Vec<Option<usize>> = vec![None; s.tiles.len()];
+    for (ui, u) in s.units.iter().enumerate() {
+        if in_bounds(n, u.x, u.y) {
+            let k = idx(n, u.x, u.y);
+            if occupants[k].is_none() {
+                occupants[k] = Some(ui);
+            }
+        }
+    }
     for i in 0..s.tiles.len() {
         if pl.explored[i] != 1 {
             continue;
@@ -320,15 +348,13 @@ pub fn legal_actions(s: &GameState) -> Vec<Action> {
         if o.is_some() && o != Some(p) {
             continue;
         }
-        for b in Build::ALL {
-            if b == Build::Canal {
-                continue; // unit-built, listed with the units below
-            }
+        let occ = occupants[i];
+        for &b in &candidates {
             let def = build_def(b);
             if o.is_none() && def.kind != BuildKind::Road && def.kind != BuildKind::Bridge {
                 continue;
             }
-            if can_build(s, p, b, x, y) {
+            if can_build_on(s, p, b, x, y, occ, o) {
                 out.push(Action::Build { at: Coord::new(x, y), building: b });
             }
         }
