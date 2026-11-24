@@ -2458,8 +2458,8 @@ fn do_reward(s: &mut GameState, ci: usize, reward: Reward) {
         Reward::Workshop => s.cities[ci].workshop = true,
         Reward::Explorer => run_explorer(s, p, at),
         Reward::CityWall => s.cities[ci].walls = true,
-        Reward::Resources => s.players[p as usize].stars += 5,
-        Reward::PopulationGrowth => add_pop(s, ci, 3),
+        Reward::Resources => s.players[p as usize].stars += REWARD_RESOURCES_STARS,
+        Reward::PopulationGrowth => add_pop(s, ci, REWARD_POP_GROWTH),
         Reward::BorderGrowth => {
             claim_territory(s, ci, 2);
             explore(s, p, at, 2);

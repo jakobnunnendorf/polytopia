@@ -36,6 +36,12 @@ export type FullWeights = {
   roads: number;
   /** break peace in the endgame (every rival a peace partner) at this ratio of our cities to the partner's (0 = never) */
   breakPeace: number;
+  /**
+   * weight of the economy plan's advantage (issue #68, engine/core/src/econ_plan.rs) on research,
+   * pop builds, leveling buildings and markets (0 = off). Only the Rust bot implements it; the
+   * TypeScript reference bot the parity tests compare with predates it, and they run at plan 0.
+   */
+  plan: number;
 };
 
 export type PartialFullWeights = { [K in keyof FullWeights]?: FullWeights[K] extends number ? number : Partial<FullWeights[K]> };

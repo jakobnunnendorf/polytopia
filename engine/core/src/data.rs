@@ -67,6 +67,10 @@ pub const RUIN_STARS: i32 = 10;
 pub const EMBASSY_INCOME: i32 = 2;
 pub const LEVEL_CAP: i32 = 8;
 pub const MARKET_CAP: i32 = 8;
+/// stars of the Resources city reward (§5.3)
+pub const REWARD_RESOURCES_STARS: i32 = 5;
+/// free population of the Population Growth city reward (§5.3)
+pub const REWARD_POP_GROWTH: i32 = 3;
 /// embassy price: 4★ plus 2★ for every embassy the builder already has
 #[inline]
 pub fn embassy_cost(existing: i32) -> i32 {
