@@ -96,10 +96,11 @@ describe("greedy-full bot", () => {
 });
 
 describe("greedy bots are unchanged", () => {
-  // action-sequence hashes recorded on origin/main before botFull.ts existed (1500 actions, seed 4242)
+  // action-sequence hashes (1500 actions, seed 4242); botFull.ts only adds exports to bot.ts, so these follow main.
+  // Re-recorded on main cea452e after the second rules audit (PRs #12, #13) changed how the old bots play.
   it.each([
-    ["greedy-v1 (DEFAULT_WEIGHTS)", DEFAULT_WEIGHTS, 3830730974],
-    ["greedy-hill-v4", { ...DEFAULT_WEIGHTS, ...v4.weights, rewards: { ...DEFAULT_WEIGHTS.rewards, ...v4.weights.rewards } }, 715102172],
+    ["greedy-v1 (DEFAULT_WEIGHTS)", DEFAULT_WEIGHTS, 4133515050],
+    ["greedy-hill-v4", { ...DEFAULT_WEIGHTS, ...v4.weights, rewards: { ...DEFAULT_WEIGHTS.rewards, ...v4.weights.rewards } }, 2441928437],
   ] as [string, GreedyWeights, number][])("%s plays the same actions as before", (_name, w, expected) => {
     expect(hashActions(domination(4242), (s) => botStep(s, w), 1500).h).toBe(expected);
   });
