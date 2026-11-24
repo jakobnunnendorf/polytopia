@@ -82,11 +82,11 @@ describe("Aquarion units (rules doc, Aquarion units table)", () => {
     expect(trainableUnitsFor("romans").map((u) => u.id)).not.toContain("swordsmaid");
   });
 
-  it("no roads, bridges or Burn Forest for Aquarion; Atoll, Fertilize, Flood and Aqua Farm instead; Landfill for the others", () => {
-    for (const b of ["road", "bridge", "burnForest", "landfill"]) expect(buildAllowedFor("aquarion", b)).toBe(false);
-    for (const b of ["atoll", "fertilize", "flood", "aquaFarm"]) expect(buildAllowedFor("aquarion", b)).toBe(true);
-    expect(buildAllowedFor("romans", "landfill")).toBe(true);
-    for (const b of ["atoll", "fertilize", "flood", "aquaFarm"]) expect(buildAllowedFor("romans", b)).toBe(false);
+  // 2.18 (S1): Canal replaces Flood, there is no Landfill (other tribes drain with a unit), no Port
+  it("no roads, bridges, ports or Burn Forest for Aquarion; Atoll, Fertilize, Canal and Aqua Farm instead", () => {
+    for (const b of ["road", "bridge", "burnForest", "port"]) expect(buildAllowedFor("aquarion", b)).toBe(false);
+    for (const b of ["atoll", "fertilize", "canal", "aquaFarm"]) expect(buildAllowedFor("aquarion", b)).toBe(true);
+    for (const b of ["atoll", "fertilize", "canal", "aquaFarm"]) expect(buildAllowedFor("romans", b)).toBe(false);
   });
 });
 
@@ -104,16 +104,18 @@ describe("Aquarion movement", () => {
     expect(canReach(s, a, 6, 5)).toBe(true);
   });
 
-  it("Riding gives shallow water, Free Spirit (Free Diving) ocean", () => {
+  // 2.18 (S1): the starting tech Aquabase gives shallow water, Marine Life (sailing) ocean;
+  // Riding and Free Spirit give no water movement
+  it("Aquabase gives shallow water from the start, Marine Life ocean; Riding and Free Spirit nothing", () => {
     const s = world(["aquarion", "romans"]);
     set(s, 6, 5, "water");
     set(s, 6, 6, "ocean");
     const m = put(s, "mermaid", 0, 5, 5);
-    expect(canReach(s, m, 6, 5)).toBe(false);
-    s.players[0].techs = ["riding"];
     expect(canReach(s, m, 6, 5)).toBe(true);
     expect(canReach(s, m, 6, 6)).toBe(false);
     s.players[0].techs = ["riding", "freeSpirit"];
+    expect(canReach(s, m, 6, 6)).toBe(false);
+    s.players[0].techs = ["sailing"];
     expect(canReach(s, m, 6, 6)).toBe(true);
   });
 
@@ -209,23 +211,30 @@ describe("Aquarion builds", () => {
   const has = (s: GameState, b: string, at: Coord) =>
     legalActions(s).some((a) => a.type === "build" && a.building === b && a.at.x === at.x && a.at.y === at.y);
 
-  it("Waterways floods own land; Fertilize grows a crop on a flooded field; others Landfill it", () => {
-    const s = world(["aquarion", "romans"], [["roads", "construction"], ["construction"]]);
-    expect(has(s, "flood", { x: 2, y: 1 })).toBe(true);
+  // 2.18 (S1): a unit builds the Canal (0★) on its tile; others drain with a unit (no Landfill)
+  it("Waterways: a unit's Canal floods its tile; Fertilize grows a crop on a flooded field; others drain it", () => {
+    const s = world(["aquarion", "romans"], [["roads", "construction"], []]);
+    expect(has(s, "canal", { x: 2, y: 1 })).toBe(false); // nobody stands there
+    const m = put(s, "mermaid", 0, 2, 1);
+    expect(has(s, "canal", { x: 2, y: 1 })).toBe(true);
     expect(has(s, "fertilize", { x: 2, y: 1 })).toBe(false);
-    let next = applyAction(s, { type: "build", at: { x: 2, y: 1 }, building: "flood" });
+    let next = applyAction(s, { type: "build", at: { x: 2, y: 1 }, building: "canal" });
     expect(tile(next, 2, 1).flooded).toBe(true);
+    expect(unit(next, m.id)!.done).toBe(true);
     next = applyAction(next, { type: "build", at: { x: 2, y: 1 }, building: "fertilize" });
     expect(tile(next, 2, 1).resource).toBe("crop");
     expect(has(s, "road", { x: 2, y: 1 })).toBe(false);
     expect(has(s, "burnForest", { x: 2, y: 1 })).toBe(false);
-    // Landfill for the other tribe
-    const r = world(["aquarion", "romans"], [[], ["construction"]]);
+    // the other tribe drains it with a unit standing there
+    const r = world(["aquarion", "romans"]);
     r.current = 1;
     set(r, 8, 8, "field", { flooded: true });
-    expect(has(r, "landfill", { x: 8, y: 8 })).toBe(true);
-    const dry = applyAction(r, { type: "build", at: { x: 8, y: 8 }, building: "landfill" });
+    const w = put(r, "warrior", 1, 8, 8);
+    const drain = legalActions(r).find((a) => a.type === "drain" && a.unitId === w.id);
+    expect(drain).toEqual({ type: "drain", unitId: w.id, effect: "flooded" });
+    const dry = applyAction(r, drain!);
     expect(tile(dry, 8, 8).flooded).toBe(false);
+    expect(unit(dry, w.id)!.done).toBe(true);
   });
 
   it("ports go on flooded tiles, and land units entering one embark", () => {
@@ -268,30 +277,23 @@ describe("Aquarion builds", () => {
 /* ---------- Lost City ---------- */
 
 describe("Lost City ruin reward", () => {
-  it("an Aquarion ocean ruin can become a capturable level-3 walled city with 4 shallow-water tiles", () => {
-    let found: GameState | null = null;
-    let mid = 0;
-    for (let seed = 1; seed < 400 && !found; seed++) {
-      const s = world(["aquarion", "romans"], [["riding", "freeSpirit"], []]);
-      for (let y = 3; y <= 7; y++) for (let x = 3; x <= 7; x++) set(s, x, y, "ocean");
+  // 2.18 (S1 ruins::lost_city): always the reward on a valid ocean ruin; a level-1 city of the
+  // examining Aquarion on a flooded field, the 8 tiles around turn shallow
+  it("an Aquarion ocean ruin always raises an own level-1 city on a flooded field with 8 shallow-water tiles", () => {
+    for (let seed = 1; seed < 20; seed++) {
+      const s = world(["aquarion", "romans"], [["sailing"], []]);
+      for (let y = 2; y <= 8; y++) for (let x = 3; x <= 7; x++) set(s, x, y, "ocean");
       tile(s, 5, 5).ruin = true;
       const m = put(s, "mermaid", 0, 5, 5);
-      mid = m.id;
       s.rng = seed;
       const next = applyAction(s, { type: "examine", unitId: m.id });
-      if (next.log.some((l) => l.includes("ruin: lostCity"))) found = next;
+      expect(next.log.some((l) => l.includes("ruin: lostCity"))).toBe(true);
+      expect(tile(next, 5, 5)).toMatchObject({ terrain: "field", flooded: true });
+      for (const [x, y] of [[5, 4], [6, 5], [5, 6], [4, 5], [4, 4], [6, 6]]) expect(tile(next, x, y).terrain).toBe("water");
+      expect(tile(next, 7, 7).terrain).toBe("ocean");
+      const city = next.cities.find((c) => c.x === 5 && c.y === 5)!;
+      expect(city).toMatchObject({ owner: 0, level: 1 });
     }
-    expect(found).not.toBeNull();
-    const s = found!;
-    expect(tile(s, 5, 5)).toMatchObject({ terrain: "field", village: true, lostCity: true });
-    for (const [x, y] of [[5, 4], [6, 5], [5, 6], [4, 5]]) expect(tile(s, x, y).terrain).toBe("water");
-    expect(tile(s, 6, 6).terrain).toBe("ocean");
-    const m = unit(s, mid)!;
-    Object.assign(m, { done: false, moved: false, attacked: false, canMove: true });
-    const after = applyAction(s, { type: "capture", unitId: m.id });
-    const city = after.cities.find((c) => c.x === 5 && c.y === 5)!;
-    expect(city.level).toBe(3);
-    expect(city.walls).toBe(true);
   });
 
   it("other tribes never get it", () => {

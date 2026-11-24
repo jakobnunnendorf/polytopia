@@ -238,6 +238,8 @@ export type BuildDef = {
   gain?: number;
   /** adjacency requirement: an own neighbour with this building */
   nextTo?: string[];
+  /** adjacency requirement: an own neighbour of this terrain (Sanctuary: forest) */
+  nextToTerrain?: string;
   /** at most one per city territory */
   onePerCity?: boolean;
 };
@@ -253,7 +255,7 @@ export const BUILDS: Record<string, BuildDef> = {
   farm: { id: "farm", cost: 5, tech: "farming", kind: "building", terrain: ["field"], resource: "crop", pop: 2 },
   mine: { id: "mine", cost: 5, tech: "mining", kind: "building", terrain: ["mountain"], resource: "metal", pop: 2 },
   lumberHut: { id: "lumberHut", cost: 3, tech: "forestry", kind: "building", terrain: ["forest"], pop: 1 },
-  windmill: { id: "windmill", cost: 5, tech: "construction", kind: "building", terrain: ["field"], pop: 0, nextTo: ["farm"], onePerCity: true },
+  windmill: { id: "windmill", cost: 5, tech: "construction", kind: "building", terrain: ["field"], pop: 0, nextTo: ["farm", "aquaFarm"], onePerCity: true },
   sawmill: { id: "sawmill", cost: 5, tech: "mathematics", kind: "building", terrain: ["field"], pop: 0, nextTo: ["lumberHut"], onePerCity: true },
   forge: { id: "forge", cost: 5, tech: "smithery", kind: "building", terrain: ["field", "forest"], pop: 0, nextTo: ["mine"], onePerCity: true },
   market: { id: "market", cost: 5, tech: "trade", kind: "building", terrain: ["field"], pop: 0, nextTo: ["windmill", "sawmill", "forge"], onePerCity: true },
@@ -271,37 +273,40 @@ export const BUILDS: Record<string, BuildDef> = {
   destroy: { id: "destroy", cost: 0, tech: "chivalry", kind: "destroy", terrain: ["field", "forest", "mountain", "water", "ocean"], pop: 0 },
   embassy: { id: "embassy", cost: 5, tech: "diplomacy", kind: "embassy", terrain: ["field"], pop: 0 },
 
-  // ---- Special tribe builds & buildings ----
+  // ---- Special tribe builds & buildings (2.18 data, docs/RULES_PARITY.md "2.18 data corrections") ----
   // Elyrion
   enchantAnimal: { id: "enchantAnimal", cost: 3, tech: "hunting", kind: "harvest", terrain: ["forest"], resource: "animal", pop: 0 },
-  sanctuary: { id: "sanctuary", cost: 5, tech: "forestry", kind: "building", terrain: ["field", "forest"], pop: 0, onePerCity: true },
+  /** Forestry, replaces Clear Forest: next to own forest, 1★ per adjacent free wild animal (max 8) */
+  sanctuary: { id: "sanctuary", cost: 5, tech: "forestry", kind: "building", terrain: ["field", "forest", "mountain"], pop: 0, onePerCity: true, nextToTerrain: "forest" },
   // Polaris
-  // outpost: only on ice (checked in canBuild); links cities like a port
+  // outpost: only on ice (checked in canBuild); links cities like a port over ice (range 5)
   outpost: { id: "outpost", cost: 5, tech: "fishing", kind: "building", terrain: ["water", "ocean"], pop: 1 },
-  // ice bank: one per tribe (checked in canBuild)
-  iceBank: { id: "iceBank", cost: 20, tech: "trade", kind: "building", terrain: ["field"], pop: 0 },
+  // ice bank (Trade, replaces Market): on field or ice, once per player ever (checked in canBuild)
+  iceBank: { id: "iceBank", cost: 20, tech: "trade", kind: "building", terrain: ["field", "water", "ocean"], pop: 0 },
   // Cymanti
-  fungi: { id: "fungi", cost: 5, tech: "farming", kind: "building", terrain: ["field", "forest"], resource: "spores", pop: 3 },
-  // mycelium replaces roads (Network): links cities within 3 tiles, heals adjacent units
-  mycelium: { id: "mycelium", cost: 5, tech: "roads", kind: "building", terrain: ["field", "forest"], pop: 0 },
-  clathrus: { id: "clathrus", cost: 5, tech: "trade", kind: "building", terrain: ["field", "forest"], resource: "spores", pop: 0 },
-  // Aquarion (rules doc, Tribes > Aquarion). Costs the doc doesn't give are engine choices (docs/RULES_PARITY.md).
-  /** Waterways: flood a dry field or forest in own territory */
-  flood: { id: "flood", cost: 3, tech: "roads", kind: "harvest", terrain: ["field", "forest"], pop: 0 },
-  /** Aquaculture: replaces roads, links cities within 3 tiles over water, +1 population */
-  atoll: { id: "atoll", cost: 5, tech: "ramming", kind: "building", terrain: ["water", "ocean"], pop: 1 },
-  /** Aquaculture: on Aqua Crops, +2 population */
+  /** Farming, replaces Farm: on spores, +1 population, grows one level a turn (+1 each) to 1, 2 with Microbes */
+  fungi: { id: "fungi", cost: 5, tech: "farming", kind: "building", terrain: ["field", "forest", "mountain", "water", "ocean"], resource: "spores", pop: 1 },
+  /** Roads, replaces Road: one per city, links cities within 3 tiles, heals own units on and next to it at turn end */
+  mycelium: { id: "mycelium", cost: 5, tech: "roads", kind: "building", terrain: ["field", "forest"], pop: 0, onePerCity: true },
+  /** Trade, replaces Market: any terrain, next to own Fungi, 1★ per adjacent own Fungi (max 8) */
+  clathrus: { id: "clathrus", cost: 5, tech: "trade", kind: "building", terrain: ["field", "forest", "mountain", "water", "ocean"], pop: 0, nextTo: ["fungi"], onePerCity: true },
+  /** Fishing, replaces Port: algae on water, with a fruit */
+  algae: { id: "algae", cost: 5, tech: "fishing", kind: "harvest", terrain: ["water", "ocean"], pop: 0 },
+  // Aquarion
+  /** Waterways (roads), unit-built: floods the field or forest the unit stands on; ends its turn */
+  canal: { id: "canal", cost: 0, tech: "roads", kind: "harvest", terrain: ["field", "forest"], pop: 0 },
+  /** Aquaculture (ramming): network node, links cities within 3 tiles; water, ocean or flooded land */
+  atoll: { id: "atoll", cost: 5, tech: "ramming", kind: "building", terrain: ["water", "ocean"], pop: 0 },
+  /** Aquaculture: on Aqua Crops, +2 population; feeds Windmills like a Farm */
   aquaFarm: { id: "aquaFarm", cost: 5, tech: "ramming", kind: "building", terrain: ["water", "ocean"], resource: "aquaCrop", pop: 2 },
-  /** Construction: replaces Burn Forest, grows a crop on an empty flooded field */
-  fertilize: { id: "fertilize", cost: 3, tech: "construction", kind: "harvest", terrain: ["field"], pop: 0 },
-  /** every other tribe: turns a flooded tile in own territory dry again */
-  landfill: { id: "landfill", cost: 3, tech: "construction", kind: "harvest", terrain: ["field", "forest"], pop: 0 },
+  /** Construction, replaces Burn Forest: a crop on a flooded field (or algae water) without one */
+  fertilize: { id: "fertilize", cost: 5, tech: "construction", kind: "harvest", terrain: ["field", "water", "ocean"], pop: 0 },
 };
 
 /** Special-tribe-only builds (filtered by tribe in canBuild) */
 export const TRIBE_ONLY_BUILDS = new Set([
-  "enchantAnimal", "sanctuary", "outpost", "iceBank", "iceTemple", "fungi", "mycelium", "clathrus",
-  "flood", "atoll", "aquaFarm", "fertilize",
+  "enchantAnimal", "sanctuary", "outpost", "iceBank", "iceTemple", "fungi", "mycelium", "clathrus", "algae",
+  "canal", "atoll", "aquaFarm", "fertilize",
 ]);
 
 /** feeder -> leveling building it raises, and population per level (§5.5) */
@@ -309,6 +314,8 @@ export const FEEDS: Record<string, { building: string; popPerLevel: number }> = 
   farm: { building: "windmill", popPerLevel: 1 },
   lumberHut: { building: "sawmill", popPerLevel: 1 },
   mine: { building: "forge", popPerLevel: 2 },
+  /** Aquarion: Windmills count Aqua Farms like Farms */
+  aquaFarm: { building: "windmill", popPerLevel: 1 },
 };
 export const LEVEL_CAP = 8;
 export const MARKET_CAP = 8;
@@ -425,6 +432,7 @@ export const CLANS: ClanDef[] = [
   {
     id: "aquarion",
     special: true,
+    // the starting tech Aquabase (no tree slot here) gives shallow-water movement and Pontoon (movement.ts, canBuild)
     startTech: null,
     startUnit: "mermaid",
     startStars: 5,
@@ -441,20 +449,22 @@ export const CLANS: ClanDef[] = [
       catapult: "puffer",
       knight: "tridention",
       cloak: "scuba",
+      dagger: "mermaidDagger",
+      rammer: "shark",
+      bomber: "jelly",
     },
-    extraUnits: ["shark", "jelly"],
-    // no roads or bridges (Atoll replaces roads), Fertilize replaces Burn Forest, Landfill is for the others
-    buildReplacements: { road: "atoll", bridge: null, burnForest: "fertilize", landfill: null },
-    extraBuilds: ["flood", "aquaFarm"],
+    // Waterways replaces Roads (Canal, no road or bridge); Aquafishing has no Port; Fertilize replaces Burn Forest
+    buildReplacements: { road: null, bridge: null, port: null, burnForest: "fertilize" },
+    extraBuilds: ["canal", "atoll", "aquaFarm"],
     techOverrides: {
-      riding: { name: "Riding", unlocks: "Amphibian, shallow-water movement" },
+      riding: { name: "Riding", unlocks: "Amphibian" },
       construction: { name: "Construction", unlocks: "Windmill, Fertilize" },
-      roads: { name: "Waterways", unlocks: "Flooding land, Bubbles" },
+      roads: { name: "Waterways", unlocks: "Canal, Bubble" },
       ramming: { name: "Aquaculture", unlocks: "Aqua Farm, Atoll" },
-      sailing: { name: "Marine Life", unlocks: "Shark" },
-      freeSpirit: { name: "Free Diving", unlocks: "Temple, ocean movement, Disband" },
+      fishing: { name: "Aquafishing", unlocks: "Fishing" },
+      sailing: { name: "Marine Life", unlocks: "Shark, ocean movement" },
       chivalry: { name: "Spearing", unlocks: "Tridention, Destroy" },
-      mathematics: { name: "Mathematics", unlocks: "Puffer, Sawmill" },
+      mathematics: { name: "Mathematics", unlocks: "Aquapult, Sawmill" },
       navigation: { name: "Navigation", unlocks: "Jelly, Starfish" },
     },
     color: "#ff6b6b",
@@ -470,10 +480,9 @@ export const CLANS: ClanDef[] = [
     superUnit: "dragonEgg",
     buildReplacements: {
       hunt: "enchantAnimal",
-      clearForest: null,
+      clearForest: "sanctuary",
       burnForest: null,
     },
-    extraBuilds: ["sanctuary"],
     techOverrides: {
       hunting: { name: "Forest Magic", unlocks: "Enchant Animal -> Polytaur (3★)" },
       forestry: { name: "Forestry", unlocks: "Lumber Hut, Sanctuary (+★ per animal)" },
@@ -505,7 +514,7 @@ export const CLANS: ClanDef[] = [
       aquatism: { name: "Polarism", unlocks: "Ice Temple, Glide" },
       navigation: { name: "Polar Warfare", unlocks: "Ice Fortress, Starfish" },
       archery: { name: "Archery", unlocks: "Ice Archer (freezes enemies)" },
-      trade: { name: "Trade", unlocks: "Ice Bank (+2★ per 20 frozen tiles)" },
+      trade: { name: "Trade", unlocks: "Ice Bank (2★ per level, a level per 20 ice or Polaris tiles)" },
     },
     color: "#38bdf8",
   },
@@ -530,13 +539,18 @@ export const CLANS: ClanDef[] = [
       cloak: "moth",
     },
     extraUnits: ["raychi", "boomchi", "livingIsland"],
+    // Recycling replaces Construction (no Windmill or Burn Forest); no bridges
     buildReplacements: {
       farm: "fungi",
       road: "mycelium",
       market: "clathrus",
+      port: "algae",
+      bridge: null,
+      windmill: null,
+      burnForest: null,
     },
     techOverrides: {
-      farming: { name: "Farming", unlocks: "Fungi (+3 pop, poisons enemies)" },
+      farming: { name: "Farming", unlocks: "Fungi (+1 pop, grows, poisons)" },
       riding: { name: "Riding", unlocks: "Hexapod (creep, sneak, escape)" },
       roads: { name: "Network", unlocks: "Mycelium (links & heals bugs)" },
       strategy: { name: "Strategy", unlocks: "Kiton (poisons attackers)" },
@@ -547,12 +561,12 @@ export const CLANS: ClanDef[] = [
       philosophy: { name: "Mysticism", unlocks: "Mountain Temple, Deep Insight" },
       chivalry: { name: "Shock Tactics", unlocks: "Doomux (explodes)" },
       mathematics: { name: "Mathematics", unlocks: "Exida (splash poison)" },
-      fishing: { name: "Hydrology", unlocks: "Algae, Fishing, water movement" },
+      fishing: { name: "Fishing", unlocks: "Algae, Fishing, water movement" },
       ramming: { name: "Inflation", unlocks: "Boomchi (amphibious, explodes)" },
       sailing: { name: "Pescetism", unlocks: "Raychi, ocean movement" },
       navigation: { name: "Oceanology", unlocks: "Living Island, Starfish" },
       construction: { name: "Recycling", unlocks: "Decompose, Microbes" },
-      trade: { name: "Trade", unlocks: "Clathrus (+★ per adjacent Algae)" },
+      trade: { name: "Trade", unlocks: "Clathrus (+1★ per adjacent Fungi)" },
     },
     color: "#84cc16",
   },

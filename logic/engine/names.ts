@@ -145,11 +145,11 @@ const NAMES: Record<Kind, Record<string, string>> = {
     fungi: "Fungi",
     mycelium: "Mycelium",
     clathrus: "Clathrus",
-    flood: "Flood Tile",
+    canal: "Canal",
+    algae: "Algae",
     atoll: "Atoll",
     aquaFarm: "Aqua Farm",
     fertilize: "Fertilize",
-    landfill: "Landfill",
   },
   terrain: {
     field: "Field",
@@ -258,6 +258,10 @@ export function actionLabel(_s: GameState, a: Action): string {
       return "Explode";
     case "breakIce":
       return `Break Ice at ${a.at.x},${a.at.y}`;
+    case "drain":
+      return a.effect === "flooded" ? "Drain" : "Clear Algae";
+    case "decompose":
+      return "Decompose";
     case "offerPeace":
       return `Offer Peace to ${tribeName(_s, a.player)}`;
     case "acceptPeace":

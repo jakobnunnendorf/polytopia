@@ -24,6 +24,7 @@ export const CHANNELS = [
   "village",
   "ruin",
   "flooded",
+  "decomposing",
   "territory:own",
   "territory:enemy",
   "city:own_level",
@@ -83,6 +84,7 @@ export function observe(s: GameState, p: number): Observation {
     if (t.village) set("village", i, 1);
     if (t.ruin) set("ruin", i, 1);
     if (t.flooded) set("flooded", i, 1);
+    if (t.decomposing) set("decomposing", i, 1);
     const owner = cityById(s, t.territory)?.owner;
     if (owner === p) set("territory:own", i, 1);
     else if (owner !== undefined) set("territory:enemy", i, 1);

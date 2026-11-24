@@ -82,11 +82,13 @@ export function enterKind(s: GameState, u: Unit, t: Tile): StepKind | null {
 }
 
 /**
- * Aquarion and flooded-tile rules (rules doc, Tribes > Aquarion; Movement):
- * Aquarion units get shallow water from Riding and ocean from Free Spirit
- * (Free Diving); its water units swim shallow water from the start. Ships may
- * enter flooded land (and stop there); a port on a flooded tile embarks land
- * units. Returns undefined when the regular rules apply.
+ * Aquarion and flooded-tile rules (2.18 data; logic follows polybots-engine):
+ * Aquarion's starting tech Aquabase gives its amphibious units shallow water,
+ * Marine Life (the Sailing slot) gives ocean; Riding and Free Spirit give no
+ * water movement. Its ships (Shark, Jelly, Aquapult) have their own terrain
+ * list (water, ocean, flooded land) and need no tech. Ships may enter flooded
+ * land (and stop there); a port on a flooded tile embarks land units.
+ * Returns undefined when the regular rules apply.
  */
 function aquarionEnterKind(s: GameState, u: Unit, t: Tile): StepKind | null | undefined {
   const p = u.owner;
@@ -94,9 +96,8 @@ function aquarionEnterKind(s: GameState, u: Unit, t: Tile): StepKind | null | un
   if (s.players[p].clan === "aquarion" && isWater(t) && !t.ice && !t.algae && t.building !== "bridge") {
     const swims = def.naval || has(u, "amphibious");
     if (swims) {
-      if (t.terrain === "ocean") return techOf(s, p, "freeSpirit") ? "normal" : null;
-      if (def.naval || techOf(s, p, "riding")) return "normal";
-      return null;
+      if (def.naval) return "normal";
+      return t.terrain === "ocean" && !techOf(s, p, "sailing") ? null : "normal";
     }
   }
   if (!isWater(t) && t.flooded) {

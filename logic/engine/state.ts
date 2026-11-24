@@ -169,30 +169,39 @@ function marketIncome(s: GameState, p: number): number {
   return total;
 }
 
-/** Special tribe building income: Sanctuary (Elyrion), Ice Bank (Polaris), Clathrus (Cymanti). */
+/**
+ * Ice Bank level (S1 polaris::ice_bank_level): one level per 20 tiles of ice or Polaris-climate
+ * land over the whole board, at most 30. Polaris land is `polar` (its home climate and Freeze Area).
+ */
+export function iceBankLevel(s: GameState): number {
+  const count = s.tiles.filter((t) => t.ice || (t.polar && !isWater(t))).length;
+  return Math.min(30, Math.floor(count / 20));
+}
+
+/**
+ * Special tribe building income (S1 turns::work = work x level), from own-territory buildings:
+ * Sanctuary (Elyrion) 1★ per adjacent own tile with a wild animal and no building, at most 8;
+ * Clathrus (Cymanti) 1★ per adjacent own Fungi, at most 8; Ice Bank (Polaris) 2★ per level.
+ */
 function specialBuildingIncome(s: GameState, p: number): number {
   let total = 0;
-  let hasIceBank = false;
   s.tiles.forEach((t, i) => {
     if (!t.building) return;
     const c = cityById(s, t.territory);
     if (!c || c.owner !== p) return;
     const pos = { x: i % s.mapSize, y: Math.floor(i / s.mapSize) };
+    const ownAround = () =>
+      around(s.mapSize, pos, 1)
+        .map((q) => tileAt(s, q.x, q.y))
+        .filter((n) => cityById(s, n.territory)?.owner === p);
     if (t.building === "sanctuary") {
-      // +1 per adjacent wild animal
-      total += around(s.mapSize, pos, 1).filter((q) => tileAt(s, q.x, q.y).resource === "animal").length;
+      total += Math.min(8, ownAround().filter((n) => n.resource === "animal" && !n.building && n.cityId === null && !n.village).length);
     } else if (t.building === "iceBank") {
-      hasIceBank = true;
+      total += 2 * iceBankLevel(s);
     } else if (t.building === "clathrus") {
-      // +1 per adjacent algae
-      total += around(s.mapSize, pos, 1).filter((q) => tileAt(s, q.x, q.y).algae).length;
+      total += Math.min(8, ownAround().filter((n) => n.building === "fungi").length);
     }
   });
-  if (hasIceBank) {
-    // frozen tiles: ice and Polaris land
-    const frozenCount = s.tiles.filter((t) => t.ice || t.polar).length;
-    total += Math.min(30, Math.floor(frozenCount / 20) * 2);
-  }
   return total;
 }
 
@@ -694,6 +703,19 @@ export function createGame(opts: NewGameOptions): GameState {
     // the starting unit can act on turn 0 (§8)
     unit.done = false;
   }
+  // Polaris home climate (S1 tile climate): the land of a Polaris area is Polaris land, which the
+  // Ice Bank counts (mapgen area = nearest capital)
+  const polaris = s.players.filter((q) => q.clan === "polaris").map((q) => cityById(s, q.capitalId)!);
+  if (polaris.length) {
+    const caps = s.players.map((q) => cityById(s, q.capitalId)!);
+    s.tiles.forEach((t, i) => {
+      if (isWater(t)) return;
+      const at = { x: i % n, y: Math.floor(i / n) };
+      let best = caps[0];
+      for (const c of caps) if (dist(c, at) < dist(best, at)) best = c;
+      if (polaris.includes(best)) t.polar = true;
+    });
+  }
   startTurn(s);
   checkMeetings(s);
   return s;
@@ -722,17 +744,6 @@ export function startTurn(s: GameState) {
         u.hp = Math.max(1, u.maxHp - lost);
       }
     }
-    // Cymanti Mycelium: heals adjacent friendly units (4 HP); a heal on a poisoned unit only cures the poison
-    if (s.turn > 0 && pl.clan === "cymanti") {
-      const nearMyc = around(s.mapSize, u, 1, true).some((q) => {
-        const qt = tileAt(s, q.x, q.y);
-        return qt.building === "mycelium" && cityById(s, qt.territory)?.owner === p;
-      });
-      if (nearMyc) {
-        if (u.poisoned) u.poisoned = false;
-        else u.hp = Math.min(u.maxHp, u.hp + 4);
-      }
-    }
     u.secondAttack = false;
     const frozen = !!u.frozen;
     u.canMove = !frozen;
@@ -744,7 +755,10 @@ export function startTurn(s: GameState) {
     if (u.hidden) u.startedHidden = true;
     else delete u.startedHidden;
   }
-  if (s.turn > 0) sanctuaryAnimals(s, p);
+  if (s.turn > 0) {
+    sanctuaryAnimals(s, p);
+    growFungi(s, p);
+  }
   checkTasks(s, p);
 }
 
@@ -756,21 +770,48 @@ const GROWS: Record<string, { into: string; at: number }> = {
   larva: { into: "moth", at: 4 },
 };
 
-/** Elyrion Sanctuary: every 2 turns it draws a new wild animal into an adjacent empty forest */
+/**
+ * Elyrion Sanctuary (S1 elyrion::attract): every 2 turns of its age it puts a wild animal on the first
+ * adjacent tile (x-major from the north-west corner) that p owns, that is forest and holds no
+ * building and no resource.
+ */
 function sanctuaryAnimals(s: GameState, p: number) {
   const n = s.mapSize;
   s.tiles.forEach((t, i) => {
     if (t.building !== "sanctuary" || cityById(s, t.territory)?.owner !== p) return;
     const age = s.turn - t.builtTurn;
-    if (age <= 0 || age % 2 !== 0) return;
-    const spots = around(n, { x: i % n, y: Math.floor(i / n) }, 1).filter((q) => {
-      const qt = tileAt(s, q.x, q.y);
-      return qt.terrain === "forest" && qt.resource === null && qt.building === null && qt.cityId === null && !qt.village;
-    });
-    if (!spots.length) return;
-    const q = withRng(s, (r) => r.pick(spots));
-    tileAt(s, q.x, q.y).resource = "animal";
+    if (age % 2 !== 0) return;
+    const cx = i % n;
+    const cy = Math.floor(i / n);
+    for (let x = cx - 1; x <= cx + 1; x++) {
+      for (let y = cy - 1; y <= cy + 1; y++) {
+        if (!inBounds(n, x, y)) continue;
+        const qt = tileAt(s, x, y);
+        if (cityById(s, qt.territory)?.owner !== p) continue;
+        if (qt.terrain !== "forest" || qt.resource !== null || qt.building !== null || qt.cityId !== null || qt.village) continue;
+        qt.resource = "animal";
+        return;
+      }
+    }
   });
+}
+
+/**
+ * Cymanti Fungi grow (S1 economy::level_for, patina): level = turns since built, at most 1, 2 with
+ * Microbes (Recycling, the Construction slot); each new level gives its city +1 population.
+ */
+function growFungi(s: GameState, p: number) {
+  const cap = 1 + (s.players[p].techs.includes("construction") && s.players[p].clan === "cymanti" ? 1 : 0);
+  for (const t of s.tiles) {
+    if (t.building !== "fungi") continue;
+    const c = cityById(s, t.territory);
+    if (!c || c.owner !== p) continue;
+    const level = Math.min(cap, Math.max(0, s.turn - t.builtTurn));
+    if (level > t.buildingLevel) {
+      addPop(s, c, level - t.buildingLevel);
+      t.buildingLevel = level;
+    }
+  }
 }
 
 /** pending level-up rewards for the current player, as [city, level] */

@@ -50,6 +50,8 @@ export type Tile = {
   flooded?: boolean;
   /** Aquarion Lost City: this village becomes a level-3 walled city when captured */
   lostCity?: boolean;
+  /** Cymanti Decompose: the building is refunded and removed at the end of its owner's turn */
+  decomposing?: boolean;
 };
 
 export type Unit = {
@@ -149,6 +151,8 @@ export type Player = {
   capitalId: number;
   /** Cymanti: enemy units converted by Shamans (replaces the Altar of Peace task) */
   conversions?: number;
+  /** "unique" buildings this player has ever built (Polaris Ice Bank): never again */
+  builtUnique?: string[];
 };
 
 export type GameMode = "perfection" | "domination" | "creative" | "glory" | "might";
@@ -214,6 +218,10 @@ export type Action =
   | { type: "boost"; unitId: number }
   | { type: "explode"; unitId: number }
   | { type: "breakIce"; unitId: number; at: Coord }
+  /** clear a tile effect under the unit (2.18 "drain": Flooded, or Algae); free, ends the unit's turn */
+  | { type: "drain"; unitId: number; effect: "flooded" | "algae" }
+  /** Cymanti Recycling: mark an own building; refunded and removed at the end of the turn */
+  | { type: "decompose"; at: Coord }
   | { type: "offerPeace"; player: number }
   | { type: "acceptPeace"; player: number }
   | { type: "declinePeace"; player: number }
