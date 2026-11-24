@@ -36,6 +36,10 @@ export type FullWeights = {
   roads: number;
   /** break peace in the endgame (every rival a peace partner) at this ratio of our cities to the partner's (0 = never) */
   breakPeace: number;
+  /** half-width of a zero-mean random term on every move; also lets stuck units step sideways (0 = off) */
+  moveNoise: number;
+  /** bonus per own neighbouring unit fewer at a move's target than now: crowds thin out (0 = off) */
+  spread: number;
 };
 
 export type PartialFullWeights = { [K in keyof FullWeights]?: FullWeights[K] extends number ? number : Partial<FullWeights[K]> };

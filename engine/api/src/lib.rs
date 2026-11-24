@@ -208,6 +208,8 @@ fn full_weights_to_json(w: &polycore::bot_full::FullWeights) -> Value {
         "front": w.front,
         "roads": w.roads,
         "breakPeace": w.break_peace,
+        "moveNoise": w.move_noise,
+        "spread": w.spread,
     })
 }
 

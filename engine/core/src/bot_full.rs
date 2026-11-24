@@ -32,6 +32,16 @@
 //! whose last players are at peace can never end. With `breakPeace` > 0 the bot breaks peace with a
 //! partner when every other living player is at peace with it too (nobody left to fight) and it
 //! has at least `breakPeace` times that partner's cities. Default 0 (off).
+//!
+//! Unjamming moves (issue #130: armies jammed by their own units). Both default 0 (off), and with
+//! both at 0 moves score exactly as before. With either on, a move that gains nothing toward the
+//! goal (sideways, back) is no longer ruled out: it scores its gain (0 or less) plus the terms
+//! below and is taken when that is positive.
+//! - `moveNoise`: a zero-mean random term, uniform in [-moveNoise, +moveNoise], seeded by game,
+//!   turn, unit and target, so a stuck unit sometimes steps aside; on average every move keeps
+//!   its score.
+//! - `spread`: `spread` per own unit fewer next to the target than next to the unit now, so
+//!   crowds thin out.
 use crate::actions::{apply_action, legal_actions};
 use crate::bot::{cached_goal, find_unit, noise, score_with, GoalCache, GreedyWeights};
 use crate::diplomacy::at_peace;
@@ -131,6 +141,10 @@ pub struct FullWeights {
     pub roads: f64,
     /// break peace in the endgame at this ratio of our cities to the partner's (0 = never)
     pub break_peace: f64,
+    /// half-width of a zero-mean random term on every move (0 = off)
+    pub move_noise: f64,
+    /// bonus per own neighbouring unit fewer at the target than now (0 = off)
+    pub spread: f64,
 }
 
 /// botFull.ts DEFAULT_FULL_WEIGHTS
@@ -151,6 +165,8 @@ pub fn default_full_weights() -> FullWeights {
         front: 0.0,
         roads: 0.0,
         break_peace: 0.0,
+        move_noise: 0.0,
+        spread: 0.0,
     }
 }
 
@@ -189,7 +205,7 @@ pub fn full_weights(p: &serde_json::Value) -> Result<FullWeights, String> {
     merge_table(&mut w.unit, o.get("unit"), "unit", |k| UnitType::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.build, o.get("build"), "build", |k| Build::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.reward, o.get("reward"), "reward", |k| Reward::from_id(k).map(|t| t as usize))?;
-    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius), ("techUse", &mut w.tech_use), ("techUseless", &mut w.tech_useless), ("front", &mut w.front), ("roads", &mut w.roads), ("breakPeace", &mut w.break_peace)] {
+    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius), ("techUse", &mut w.tech_use), ("techUseless", &mut w.tech_useless), ("front", &mut w.front), ("roads", &mut w.roads), ("breakPeace", &mut w.break_peace), ("moveNoise", &mut w.move_noise), ("spread", &mut w.spread)] {
         match o.get(key) {
             None | Some(serde_json::Value::Null) => {}
             Some(c) => *slot = c.as_f64().ok_or_else(|| format!("full.{key}: expected a number"))?,
@@ -221,11 +237,22 @@ fn move_score(s: &GameState, unit: Id, to: Coord, w: &FullWeights, cache: &mut O
         let (from, at) = road_dist(s, u.owner, g, Coord::new(u.x, u.y), to);
         tiles + w.roads * ((from - at) - tiles)
     };
+    let unjam = if w.move_noise == 0.0 && w.spread == 0.0 {
+        0.0
+    } else {
+        let k = u.id as i64 * 7907 + to.x as i64 * 131 + to.y as i64;
+        let z = w.move_noise * (2.0 * noise(s, k) - 1.0);
+        let crowd = |c: Coord| s.units.iter().filter(|o| o.owner == u.owner && o.id != u.id && dist(o.x, o.y, c.x, c.y) <= 1).count() as f64;
+        let thin = if w.spread == 0.0 { 0.0 } else { w.spread * (crowd(Coord::new(u.x, u.y)) - crowd(to)) };
+        z + thin
+    };
     if gain <= 0.0 {
-        return -1.0;
+        // ruled out unless the unjamming terms make a sideways step worth it
+        let side = gain + unjam;
+        return if unjam != 0.0 && side > 0.0 { side } else { -1.0 };
     }
     let to_centre = centre_dist(s.map_size, Coord::new(u.x, u.y)) - centre_dist(s.map_size, to);
-    w.greedy.move_ + gain + w.centre * to_centre + w.greedy.noise * noise(s, u.id as i64 * 13 + to.x as i64 + to.y as i64)
+    w.greedy.move_ + gain + w.centre * to_centre + w.greedy.noise * noise(s, u.id as i64 * 13 + to.x as i64 + to.y as i64) + unjam
 }
 
 thread_local! {
