@@ -104,3 +104,7 @@ action like `cloneState`.
 - Parity is checked by replaying the corpus: `node -r sucrase/register
   scripts/rust/trace-gen.ts --games 60 --out engine/corpus/smoke`, then
   `cargo run --release -p polyengine -- replay engine/corpus/smoke`.
+
+## Reference after the swap
+
+The TypeScript rules engine was deleted once the Rust engine matched it (2,000/2,000 recorded games). Its last version is tagged `ts-engine-final` (commit 5d2846d, the oracle the corpus was recorded from); get it back with `git checkout ts-engine-final -- logic/engine`. From now on the reference is the recorded games, not the TypeScript code: rules change in engine/core only, and an intended change re-records the corpus from Rust and is reviewed in the corpus diff.
