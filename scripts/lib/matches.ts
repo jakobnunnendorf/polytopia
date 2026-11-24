@@ -17,7 +17,8 @@ const running = new Set<string>();
 const stopRequests = new Set<string>();
 
 /** every move takes at least this long, so fast bots and a thinking LLM look the same to a watcher */
-export const PACE_MS = Number(process.env.SHARDLANDS_PACE_MS ?? 550);
+// one move per second: the live view (app/analyse.tsx FOLLOW_MS) plays them back at the same pace
+export const PACE_MS = Number(process.env.SHARDLANDS_PACE_MS ?? 1000);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function isRunning(id: string): boolean {

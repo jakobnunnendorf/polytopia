@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ImageBackground, Pressable, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Map from "@/components/Map/Map";
@@ -7,7 +7,7 @@ import RankingsTable from "@/components/game/RankingsTable";
 import * as Font from "expo-font";
 import { arena } from "@/components/game/arenaClient";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
-import { replay, type GameRecord } from "@/logic/arena/record";
+import { extendReplay, replay, type GameRecord } from "@/logic/arena/record";
 import { scoreOf } from "@/logic/engine";
 import GameOverCard from "@/components/game/GameOverCard";
 import { Pulse } from "@/components/anim";
@@ -37,9 +37,20 @@ function Btn({ label, onPress, on, disabled, testID }: { label: string; onPress:
   );
 }
 
+// live playback: one move per FOLLOW_MS, kept a few moves behind the newest to smooth out polling.
+// Matches the server's pace (SHARDLANDS_PACE_MS, scripts/lib/matches.ts) so the buffer stays steady.
+const FOLLOW_MS = 1000;
+const FOLLOW_BUFFER = 2;
+
 function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
   const router = useRouter();
-  const { states, divergedAt } = useMemo(() => replay(rec), [rec]);
+  // live records grow move by move: extend the last replay instead of rebuilding the whole game
+  const cache = useRef<{ id: string; r: ReturnType<typeof replay> } | null>(null);
+  const { states, divergedAt } = useMemo(() => {
+    const r = extendReplay(cache.current?.id === rec.id ? cache.current.r : null, rec);
+    cache.current = { id: rec.id, r };
+    return r;
+  }, [rec]);
   // indices where a new player-turn starts, for the turn jump buttons
   const turnStarts = useMemo(
     () => states.flatMap((s, k) => (k === 0 || s.current !== states[k - 1].current || s.turn !== states[k - 1].turn ? [k] : [])),
@@ -51,15 +62,24 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
   const k = Math.min(kWanted, states.length - 1);
   // live: stay on the newest move while new moves arrive, unless the viewer stepped back
   const [follow, setFollow] = useState(live);
-  // following: step through new moves one at a time at an even pace; catch up faster when far behind
+  // following: step through new moves one at a time at an even pace. While the game runs, stay
+  // FOLLOW_BUFFER moves behind the newest one, so the moves that arrive in bursts (one poll can
+  // bring zero or two) still play back evenly; speed up only when far behind
+  const runningNow = live && !rec.result?.over && !rec.stoppedAt;
   useEffect(() => {
-    if (!follow || k >= states.length - 1) return;
-    const behind = states.length - 1 - k;
-    const t = setTimeout(() => setK((x) => Math.min(states.length - 1, x + (behind > 40 ? behind : 1))), behind > 8 ? 120 : 480);
+    const target = states.length - 1 - (runningNow ? FOLLOW_BUFFER : 0);
+    if (!follow || k >= target) return;
+    const behind = target - k;
+    if (behind > 60) {
+      setK(target);
+      return;
+    }
+    const t = setTimeout(() => setK((x) => Math.min(states.length - 1, x + 1)), behind > 20 ? 150 : behind > 6 ? FOLLOW_MS * 0.6 : FOLLOW_MS);
     return () => clearTimeout(t);
-  }, [follow, k, states.length]);
+  }, [follow, k, states.length, runningNow]);
   // "mover": the map as the player who is moving right now sees it (switches every turn)
-  const [view, setView] = useState<number | "all" | "mover">(live ? "mover" : "all");
+  // the whole map by default: "mover" switches perspective every turn, which is jarring with many players
+  const [view, setView] = useState<number | "all" | "mover">("all");
   const [playing, setPlaying] = useState(false);
   useEffect(() => {
     if (!playing) return;

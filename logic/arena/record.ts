@@ -138,6 +138,26 @@ export function replay(rec: GameRecord): { states: GameState[]; divergedAt: numb
   return { states, divergedAt: null };
 }
 
+/**
+ * Replay only the steps added since `prev` (a replay of an earlier, shorter copy of the same
+ * record), so a live view does not rebuild the whole game every time a move arrives.
+ * Falls back to a full replay when `prev` cannot be extended.
+ */
+export function extendReplay(prev: { states: GameState[]; divergedAt: number | null } | null, rec: GameRecord): { states: GameState[]; divergedAt: number | null } {
+  if (!prev || prev.divergedAt !== null || prev.states.length - 1 > rec.steps.length) return replay(rec);
+  const states = prev.states.slice();
+  let s = states[states.length - 1];
+  for (let i = states.length - 1; i < rec.steps.length; i++) {
+    try {
+      s = applyAction(s, rec.steps[i].a);
+    } catch {
+      return { states, divergedAt: i };
+    }
+    states.push(s);
+  }
+  return { states, divergedAt: null };
+}
+
 /** the full state sequence: element 0 is the start, element k is the state after step k */
 export function replayStates(rec: GameRecord): GameState[] {
   return replay(rec).states;
