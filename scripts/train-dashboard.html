@@ -315,6 +315,113 @@ function roundsChart(host, rounds) {
   }
 }
 
+// ---------- hill climber: knob history ----------
+// a kept round's change list: "unit.mindBender 1→1.995, build.forestTemple 1→0.911"
+function parseChanges(text) {
+  return (text || "").split(/,\s*/).map((c) => c.trim().match(/^(\S+)\s+(-?[\d.e+-]+)→(-?[\d.e+-]+)$/)).filter(Boolean).map((m) => ({ knob: m[1], from: +m[2], to: +m[3] }));
+}
+function knobHistory(r, kept) {
+  // training games at each keep: the round line's "% done" times the budget
+  const hist = new Map(); // knob -> [{games, value, round}]
+  for (const k of kept) {
+    const g = r.budget ? (k.pct / 100) * r.budget : k.round;
+    for (const c of parseChanges(k.changes)) {
+      if (!hist.has(c.knob)) hist.set(c.knob, [{ games: 0, value: c.from, round: 0 }]);
+      hist.get(c.knob).push({ games: g, value: c.to, round: k.round });
+    }
+  }
+  return hist;
+}
+function knobEvolution(host, r, kept) {
+  host.innerHTML = "";
+  const hist = knobHistory(r, kept);
+  if (!hist.size) { host.innerHTML = `<div class="empty">No kept update yet.</div>`; return; }
+  const now = games(r), W = Math.max(360, host.clientWidth || 700), rowH = 34, m = { l: 170, r: 120, t: 20, b: 4 };
+  const H = m.t + m.b + hist.size * rowH;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, height: H }, host);
+  const X = (g) => m.l + (g / Math.max(now, 1)) * (W - m.l - m.r);
+  for (const t of niceTicks(0, now, Math.max(3, Math.floor(W / 140)))) {
+    el("line", { x1: X(t), x2: X(t), y1: m.t - 4, y2: H - m.b, stroke: css("--grid") }, svg);
+    el("text", { x: X(t), y: 11, "text-anchor": "middle" }, svg).textContent = count(t);
+  }
+  el("text", { x: W - m.r, y: 11, "text-anchor": "start", dx: 8 }, svg).textContent = "start → now";
+  // keep markers across all rows
+  for (const k of kept) {
+    const g = r.budget ? (k.pct / 100) * r.budget : k.round;
+    el("line", { x1: X(g), x2: X(g), y1: m.t - 4, y2: H - m.b, stroke: css("--good"), "stroke-dasharray": "2 3", opacity: 0.6 }, svg);
+  }
+  [...hist.entries()].forEach(([knob, pts], i) => {
+    const y = m.t + i * rowH, top = y + 6, bot = y + rowH - 8;
+    const vals = pts.map((p) => p.value), lo = Math.min(...vals), hi = Math.max(...vals);
+    const Y = (v) => (hi === lo ? (top + bot) / 2 : bot - ((v - lo) / (hi - lo)) * (bot - top));
+    if (i) el("line", { x1: 0, x2: W, y1: y, y2: y, stroke: css("--grid") }, svg);
+    el("text", { class: "lbl", x: m.l - 10, y: y + rowH / 2 + 4, "text-anchor": "end" }, svg).textContent = knob;
+    // step line: hold each value until the next keep, then to now
+    let d = `M${X(0)},${Y(pts[0].value)}`;
+    for (let j = 1; j < pts.length; j++) d += `H${X(pts[j].games)}V${Y(pts[j].value)}`;
+    d += `H${X(now)}`;
+    const up = pts.at(-1).value >= pts[0].value;
+    const col = up ? css("--div-pos") : css("--div-neg");
+    el("path", { d, fill: "none", stroke: col, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+    for (const p of pts.slice(1)) {
+      el("circle", { cx: X(p.games), cy: Y(p.value), r: 4, fill: col, stroke: css("--surface-1"), "stroke-width": 2 }, svg);
+    }
+    const first = pts[0].value, last = pts.at(-1).value;
+    el("text", { class: "lbl", x: W - m.r + 8, y: y + rowH / 2 + 4 }, svg).textContent = `${+first.toFixed(3)} → ${+last.toFixed(3)}  (×${(last / first).toFixed(2)})`;
+    const hit = el("rect", { x: 0, y, width: W, height: rowH, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", (ev) => showTip(`<b>${esc(knob)}</b><br>${pts.map((p, j) => j === 0 ? `start: ${p.value}` : `round ${p.round} (~${count(p.games)} games): → ${p.value}`).join("<br>")}${knob.startsWith("open.") && last < 1 ? "<br><span style='color:var(--muted)'>open knob below 1: no effect on play yet</span>" : ""}`, ev));
+    hit.addEventListener("mouseleave", hideTip);
+  });
+  // round labels above the first row
+  for (const k of kept) {
+    const g = r.budget ? (k.pct / 100) * r.budget : k.round;
+    el("text", { x: X(g) + 3, y: m.t + 2, fill: css("--good-text") }, svg).textContent = `✓ r${k.round}`;
+  }
+}
+function knobGrid(host, legend, r) {
+  host.innerHTML = "";
+  const { start, current } = r.weights;
+  const keys = Object.keys(current);
+  if (!keys.length) { host.innerHTML = `<div class="empty">No weights yet.</div>`; return; }
+  const groups = new Map();
+  for (const k of keys) {
+    const parts = k.split(".");
+    const g = parts.length > 2 ? parts.slice(0, 2).join(".") : parts[0];
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(k);
+  }
+  const lr = (k) => (start[k] > 0 && current[k] > 0 ? Math.log2(current[k] / start[k]) : 0);
+  const lim = Math.max(0.5, ...keys.map((k) => Math.abs(lr(k))));
+  const mix = (a, b, t) => { const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); const A = p(a), B = p(b); return `rgb(${A.map((x, i) => Math.round(x + (B[i] - x) * t)).join(",")})`; };
+  const colorOf = (k) => { const v = lr(k); if (Math.abs(v) < 1e-9) return css("--div-mid"); const t = Math.min(1, 0.35 + 0.65 * (Math.abs(v) / lim)); return mix(css("--div-mid"), v > 0 ? css("--div-pos") : css("--div-neg"), t); };
+  legend.innerHTML = `<span><span class="swatch" style="background:var(--div-mid);border:1px solid var(--border)"></span>unchanged</span><span><span class="swatch" style="background:var(--div-pos)"></span>raised</span><span><span class="swatch" style="background:var(--div-neg)"></span>lowered (deeper colour = bigger change, up to ×${Math.pow(2, lim).toFixed(2)})</span>`;
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px 20px";
+  for (const [g, ks] of groups) {
+    const moved = ks.filter((k) => Math.abs(lr(k)) > 1e-9).length;
+    const box = document.createElement("div");
+    box.innerHTML = `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px"><b>${esc(g)}</b> · ${ks.length} knob${ks.length > 1 ? "s" : ""}${moved ? ` · <span class="status-good">${moved} moved</span>` : ""}</div>`;
+    const cells = document.createElement("div");
+    cells.style.cssText = "display:flex;flex-wrap:wrap;gap:2px";
+    for (const k of ks) {
+      const c = document.createElement("div");
+      const v = lr(k);
+      c.style.cssText = `width:16px;height:16px;border-radius:3px;background:${colorOf(k)};${Math.abs(v) > 1e-9 ? "outline:1.5px solid var(--text-primary);outline-offset:-1.5px;" : ""}`;
+      c.addEventListener("mousemove", (ev) => showTip(`<b>${esc(k)}</b><br>start ${+start[k]?.toFixed?.(3)} → now ${+current[k].toFixed(3)}${Math.abs(v) > 1e-9 ? ` (×${Math.pow(2, v).toFixed(2)})` : " · unchanged"}`, ev));
+      c.addEventListener("mouseleave", hideTip);
+      cells.appendChild(c);
+    }
+    box.appendChild(cells);
+    wrap.appendChild(box);
+  }
+  host.appendChild(wrap);
+  const total = keys.filter((k) => Math.abs(lr(k)) > 1e-9).length;
+  const n = document.createElement("div");
+  n.className = "note";
+  n.textContent = `${total} of ${keys.length} knobs moved so far (outlined). Hover a cell for its values. Groups follow the model's tables: type and open per action type, then one multiplier per tech, unit, build and reward, plus the 19 inherited greedy weights.`;
+  host.appendChild(n);
+}
+
 // ---------- derived numbers ----------
 function speedOf(r) {
   // games/min: prefer the server's own samples over the last ~5 minutes
@@ -491,6 +598,9 @@ function render() {
         <div class="note">A challenger is the champion with a few random knobs nudged. It is kept only when a sequential test (LLR ≥ 2.94) says it beats the champion; points near 50% mean "no different".</div></div>
       <div class="card"><h3>Knobs moved from the start (champion now ÷ start, log scale)</h3><div data-knobs="${esc(r.id)}"></div></div>
     </div>
+    <div class="card" style="margin-top:14px"><h3>How the knobs evolved: value over training games, one row per knob a kept update touched</h3><div data-evo="${esc(r.id)}"></div>
+      <div class="note">Each step is a kept update (round number above the dot). Rows are in the order the knobs were first changed. The start values are Hill v4's weights with every multiplier at 1.</div></div>
+    <div class="card" style="margin-top:14px"><h3>All ${Object.keys(r.weights.current).length} knobs: how far each has moved from the start</h3><div class="legend" data-gridlegend="${esc(r.id)}"></div><div data-grid="${esc(r.id)}"></div></div>
     <div class="card" style="margin-top:14px"><h3>Kept updates</h3><div data-kept="${esc(r.id)}"></div></div>`).join("");
   for (const { r } of hillRuns) {
     roundsChart(document.querySelector(`[data-rounds="${r.id}"]`), r.log?.rounds || []);
@@ -503,6 +613,8 @@ function render() {
     }).sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
     divergingBars(document.querySelector(`[data-knobs="${r.id}"]`), rows, { note: `${rows.length} of ${Object.keys(current).length} knobs differ from the start. Faded bars: open knobs still below 1, so they don't change play yet.` });
     const kept = (r.log?.rounds || []).filter((x) => x.verdict === "kept");
+    knobEvolution(document.querySelector(`[data-evo="${r.id}"]`), r, kept);
+    knobGrid(document.querySelector(`[data-grid="${r.id}"]`), document.querySelector(`[data-gridlegend="${r.id}"]`), r);
     document.querySelector(`[data-kept="${r.id}"]`).innerHTML = kept.length
       ? `<table><thead><tr><th class="num">round</th><th class="num">test games</th><th class="num">won</th><th class="num">points</th><th class="num">LLR</th><th>changes</th></tr></thead><tbody>${kept.map((k) => `<tr><td class="num">${k.round}</td><td class="num">${k.games}</td><td class="num">${k.won}%</td><td class="num">${k.points}%</td><td class="num">${k.llr ?? "–"}</td><td class="chg">${esc(k.changes)}</td></tr>`).join("")}</tbody></table>`
       : `<div class="empty">None yet.</div>`;
