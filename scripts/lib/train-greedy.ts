@@ -331,6 +331,8 @@ const cloneFull = (w: FullWeights): FullWeights => ({
   build: { ...w.build },
   reward: { ...w.reward },
   centre: w.centre,
+  defend: w.defend,
+  defendRadius: w.defendRadius,
 });
 let fullSpace: Space | null = null;
 function fullSpaceOf(): Space {
@@ -344,17 +346,20 @@ function fullSpaceOf(): Space {
         .map((k) => `${g}.${k}`),
     ),
     "centre",
+    "defend",
+    "defendRadius",
   ];
-  const whole = new Set(["greedy.richAt", "greedy.unitsPerCity"]);
+  const whole = new Set(["greedy.richAt", "greedy.unitsPerCity", "defendRadius"]);
+  const SCALARS = new Set(["centre", "defend", "defendRadius"]);
   const get = (w: AnyWeights, k: string) => {
     const f = w as FullWeights;
-    if (k === "centre") return f.centre;
+    if (SCALARS.has(k)) return (f as unknown as Record<string, number>)[k];
     const [g, key] = k.split(".") as [FullGroup, string];
     return (f[g] as unknown as Record<string, number>)[key];
   };
   const set = (w: AnyWeights, k: string, v: number) => {
     const f = w as FullWeights;
-    if (k === "centre") f.centre = v;
+    if (SCALARS.has(k)) (f as unknown as Record<string, number>)[k] = v;
     else {
       const [g, key] = k.split(".") as [FullGroup, string];
       (f[g] as unknown as Record<string, number>)[key] = v;

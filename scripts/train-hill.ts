@@ -112,6 +112,17 @@ const M0 = Number(arg("margin0", "0")); // --test margin: share of points above 
 const M1 = Number(arg("margin1", "0.01"));
 const BATCH = Number(arg("batch", "10")); // map pairs between two looks at the evidence
 const MAX_GAMES = Number(arg("max-games", "400")); // give up (reject) after this many games
+// --init "defend=12,defendRadius=2": set knobs of the start weights (new mechanisms start off at 0,
+// which a multiplicative nudge can never leave); --focus "defend,defendRadius": every round nudges
+// one of these plus PICK-1 random knobs, so a new mechanism gets tuned, not picked 2% of the time
+const INIT: [string, number][] = arg("init", "")
+  .split(",")
+  .filter(Boolean)
+  .map((kv) => {
+    const [k, v] = kv.split("=");
+    return [k.trim(), Number(v)];
+  });
+const FOCUS = arg("focus", "").split(",").filter(Boolean);
 const LEAGUE = arg("league", "self").split(",").filter(Boolean);
 
 const PANEL_IDS = arg("panel", "greedy-v1,greedy-hill-v1,greedy-hill-v2,greedy-hill-v3,greedy-hill-v4")
@@ -155,7 +166,8 @@ type Checkpoint = {
 /** nudge PICK randomly chosen weights by e^(sigma N(0,1)); the rest stay as they are */
 function mutate(w: AnyWeights, sigma: number): { next: AnyWeights; nudged: string } {
   const next = SPACE.clone(w);
-  const keys = [...SPACE.knobs].sort(() => Math.random() - 0.5).slice(0, PICK);
+  const focus = FOCUS.length ? [FOCUS[Math.floor(Math.random() * FOCUS.length)]] : [];
+  const keys = [...focus, ...[...SPACE.knobs].filter((k) => !focus.includes(k)).sort(() => Math.random() - 0.5).slice(0, PICK - focus.length)];
   for (const k of keys) SPACE.set(next, k, SPACE.round(k, SPACE.get(w, k) * Math.exp(sigma * normal())));
   return { next, nudged: keys.map((k) => `${k} ${SPACE.get(w, k)}→${SPACE.get(next, k)}`).join(", ") };
 }
@@ -202,6 +214,11 @@ async function main() {
       })()
     : undefined;
   let champ: AnyWeights = start ?? SPACE.defaults();
+  for (const [k, v] of INIT) {
+    if (!SPACE.knobs.includes(k) || !Number.isFinite(v)) throw new Error(`--init ${k}=${v}: no such knob or not a number`);
+    SPACE.set(champ, k, v);
+  }
+  for (const k of FOCUS) if (!SPACE.knobs.includes(k)) throw new Error(`--focus ${k}: no such knob`);
   console.log(`mode ${MODE}, ${PLAYERS} players (the two sides on alternate seats), ${MAP_TYPE} ${SIZE}x${SIZE}; ${FROM ? `fine-tuning from ${FROM}` : "starting from the greedy defaults"}`);
 
   let accepted = 0;

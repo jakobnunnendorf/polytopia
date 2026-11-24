@@ -201,6 +201,8 @@ fn full_weights_to_json(w: &polycore::bot_full::FullWeights) -> Value {
         "build": table(&w.build, &|i| Build::from_idx(i).id()),
         "reward": table(&w.reward, &|i| Reward::from_idx(i).id()),
         "centre": w.centre,
+        "defend": w.defend,
+        "defendRadius": w.defend_radius,
     })
 }
 

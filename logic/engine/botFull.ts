@@ -22,6 +22,10 @@ export type FullWeights = {
   reward: Record<string, number>;
   /** move score per tile of distance to the map centre removed */
   centre: number;
+  /** city defence: + into an empty threatened city of ours, - for leaving one (0 = off) */
+  defend: number;
+  /** tiles within which an enemy unit makes a city threatened */
+  defendRadius: number;
 };
 
 export type PartialFullWeights = { [K in keyof FullWeights]?: FullWeights[K] extends number ? number : Partial<FullWeights[K]> };
