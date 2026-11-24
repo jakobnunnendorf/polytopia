@@ -1,3 +1,4 @@
+// The oracle is the TypeScript engine at commit 5d2846d (git checkout it to regenerate a corpus); logic/engine is now the Rust engine.
 /**
  * Writes the parity corpus: games played by the TypeScript engine (the oracle)
  * with a policy that mixes the greedy bot and random legal actions. For every

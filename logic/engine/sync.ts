@@ -4,8 +4,8 @@
  * result back INTO the caller's object, keeping object identity (tests and the
  * UI hold references to units, cities, players and tiles across calls).
  */
-import { call } from "../rust";
-import type { City, GameState, Unit } from "../types";
+import { call } from "./rust";
+import type { City, GameState, Unit } from "./types";
 
 type Obj = Record<string, unknown>;
 

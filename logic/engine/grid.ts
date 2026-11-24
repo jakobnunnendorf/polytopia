@@ -1,4 +1,5 @@
-import { cloneDiplomacy } from "./diplomacy";
+/** grid helpers: the pure coordinate helpers are TypeScript, the state copy goes through the Rust engine */
+import { call } from "./rust";
 import type { Coord, GameState, Tile } from "./types";
 
 export const idx = (size: number, x: number, y: number) => y * size + x;
@@ -34,24 +35,5 @@ export function around(
 
 export const isWater = (t: Tile) => t.terrain === "water" || t.terrain === "ocean";
 
-/** Deep copy of a game state (plain JSON data, so this is safe and fast enough). */
-export function cloneState(s: GameState): GameState {
-  return {
-    ...s,
-    tiles: s.tiles.map((t) => ({ ...t })),
-    units: s.units.map((u) => ({ ...u, lastDir: u.lastDir ? { ...u.lastDir } : null })),
-    cities: s.cities.map((c) => ({ ...c, pendingRewards: c.pendingRewards.slice() })),
-    players: s.players.map((p) => ({
-      ...p,
-      techs: p.techs.slice(),
-      explored: p.explored.slice(),
-      met: p.met.slice(),
-      tasks: p.tasks.slice(),
-      monuments: p.monuments.slice(),
-      lighthouses: p.lighthouses.slice(),
-      embassies: p.embassies.slice(),
-    })),
-    log: s.log.slice(-50),
-    ...(s.diplomacy ? { diplomacy: cloneDiplomacy(s.diplomacy) } : {}),
-  };
-}
+/** deep copy of a game state (through the Rust engine's state) */
+export const cloneState = (s: GameState): GameState => call("cloneState", s);

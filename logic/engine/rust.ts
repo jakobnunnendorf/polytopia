@@ -30,7 +30,7 @@ function loadNative(): RawCall {
   // the addon's path: env override, else <repo root>/engine/node/polyengine.node
   const override = process.env.POLYENGINE_NODE;
   const dir = typeof __dirname === "string" ? __dirname : process.cwd() + "/logic/engine";
-  const file = override || dir.replace(/[\\/]logic[\\/]engine([\\/]rs)?$/, "") + "/engine/node/polyengine.node";
+  const file = override || dir.replace(/[\\/]logic[\\/]engine$/, "") + "/engine/node/polyengine.node";
   const mod: { exports: { call?: RawCall } } = { exports: {} };
   try {
     (process as unknown as { dlopen(m: object, f: string): void }).dlopen(mod, file);

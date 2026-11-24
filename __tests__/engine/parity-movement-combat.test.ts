@@ -70,9 +70,6 @@ const unit = (s: GameState, id: number) => s.units.find((u) => u.id === id)!;
  *   Splash: fireDragon at 4 of 20 HP (range 2: 5 damage to a warrior, as the old test unit)
  *   Explode: segment (attack 2, like the old test unit)
  */
-// a test-only unit type, only for the one case no real unit has (Infiltrate without Hide or Sneak)
-const base = { cost: 0, trainable: false, hp: 10, attack: 2, defence: 2, movement: 3, range: 1, tech: null, naval: false };
-
 describe("Escape: move, attack, move", () => {
   it("a Rider that moved and attacked may move again, but not attack again", () => {
     let s = blank();
@@ -128,13 +125,9 @@ describe("zone of control", () => {
     const h = setup("cloak", 6);
     expect(reach(h.s, h.u, 5, 8)).toBe(true);
   });
-  it("Infiltrate alone does not ignore it", () => {
-    const s = blank();
-    UNITS.tInf = { ...base, id: "tInf", skills: ["infiltrate"] } as never;
-    const u = put(s, "tInf", 0, 5, 5);
-    put(s, "warrior", 1, 5, 7);
-    expect(reach(s, u, 5, 8)).toBe(false);
-  });
+  // "Infiltrate alone does not ignore it": removed in the Rust migration: needs a unit type the
+  // game data has no instance of (Infiltrate without Hide or Sneak); the Rust engine's unit table
+  // is fixed at compile time
 });
 
 describe("Creep and Air on terrain", () => {
@@ -237,13 +230,26 @@ describe("splash and explosions: half the damage, rounded down (S1 attack::half_
     expect(unit(s, t.id).hp).toBe(8);
   });
 
-  it("a unit at fractional HP dies when it reaches 0 or below", () => {
+  // HP is a whole number in the state; the splash on each neighbour is half the attack's damage
+  // against that neighbour (computed at its own HP), rounded down
+  it("a unit dies when it reaches exactly 0 HP", () => {
     let s = blank();
     const a = put(s, "fireDragon", 0, 5, 4);
-    a.hp = 4; // 5 damage, so 2 to the neighbour
+    a.hp = 4;
     const t = put(s, "warrior", 1, 5, 6);
     const n = put(s, "warrior", 1, 6, 6);
-    n.hp = 2.5;
+    n.hp = 4; // 9 damage against it: a splash of 4 leaves exactly 0
+    s = applyAction(s, { type: "attack", unitId: a.id, targetId: t.id });
+    expect(s.units.find((u) => u.id === n.id)).toBeUndefined();
+  });
+
+  it("a unit dies when it falls below 0 HP", () => {
+    let s = blank();
+    const a = put(s, "fireDragon", 0, 5, 4);
+    a.hp = 4;
+    const t = put(s, "warrior", 1, 5, 6);
+    const n = put(s, "warrior", 1, 6, 6);
+    n.hp = 3; // 10 damage against it: a splash of 5 leaves -2
     s = applyAction(s, { type: "attack", unitId: a.id, targetId: t.id });
     expect(s.units.find((u) => u.id === n.id)).toBeUndefined();
   });
