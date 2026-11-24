@@ -1,0 +1,48 @@
+{
+  "n": 0,
+  "slug": "template",
+  "title": "Short title of the one change",
+  "kind": "mechanism | method | tuning",
+  "issue": 0,
+  "pr": 0,
+  "date": "YYYY-MM-DD",
+  "status": "planned | running | done",
+  "verdict": "planned | pending | kept | not kept | tie | adopted",
+  "base": "<current champion id>",
+  "result": null,
+  "question": "One question this experiment answers, ending in a question mark?",
+  "change": "The one change, in one or two sentences.",
+  "method": "Strength sweep, 200 games per point against each panel model, final test 400 games",
+  "measured": "Sweep, 200 games per point",
+  "metric": "finish score",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150",
+    "8 players, 20×20, drylands, turn cap 300"
+  ],
+  "knobs": [
+    {
+      "name": "knobName",
+      "tested": [
+        0.5,
+        1,
+        2,
+        4
+      ],
+      "chosen": null
+    }
+  ],
+  "headline": [
+    {
+      "label": "Finish score, 6-model panel, final-test maps",
+      "base": null,
+      "new": null,
+      "unit": "%"
+    }
+  ],
+  "runs": [
+    {
+      "id": "<models/ folder of a sweep or tuning run>",
+      "label": "Sweep, 4 players"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "n": 3,
+  "slug": "front-pull",
+  "title": "Pull idle units to the front",
+  "kind": "mechanism",
+  "issue": 30,
+  "pr": 62,
+  "date": "2026-11-24",
+  "status": "done",
+  "verdict": "kept",
+  "base": "greedy-full-v1",
+  "result": "greedy-full-front",
+  "question": "Does the bot get stronger when idle units drift toward the nearest enemy?",
+  "change": "A move scores +front per tile it brings the unit closer to the nearest known enemy city or unit. The centre pull remains the fallback when no enemy is known.",
+  "method": "Tuning run (100,000 games), then the first strength sweep (200 games per point, final test 400)",
+  "measured": "Tuning run, then the first strength sweep",
+  "metric": "points share",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150"
+  ],
+  "knobs": [
+    {
+      "name": "front",
+      "tested": [
+        0.5,
+        1,
+        2,
+        4,
+        8
+      ],
+      "chosen": 1.13
+    }
+  ],
+  "headline": [
+    {
+      "label": "Points vs base, final test",
+      "base": 50.0,
+      "new": 54.8,
+      "unit": "%"
+    },
+    {
+      "label": "Won vs base, final test",
+      "base": 50.0,
+      "new": 57.8,
+      "unit": "%"
+    },
+    {
+      "label": "Points share, 6-model panel",
+      "base": 67.7,
+      "new": 70.3,
+      "unit": "%"
+    }
+  ],
+  "runs": [
+    {
+      "id": "greedy-full-front",
+      "label": "Tuning run, 100,000 games (the new champion)"
+    },
+    {
+      "id": "greedy-full-front-sweep",
+      "label": "Strength sweep, untrained"
+    }
+  ]
+}
