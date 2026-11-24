@@ -295,6 +295,15 @@ async function main() {
   const curvePath = path.join(dir, "curve.jsonl");
   fs.writeFileSync(curvePath, "");
   const start = FROM ? weightsOf(FROM) : null;
+  // the source model's own training time (counted into a fine-tune's total)
+  const fromSeconds: number | undefined = FROM ? (() => {
+    try {
+      const t = JSON.parse(fs.readFileSync(path.join(process.cwd(), "models", FROM, "model.json"), "utf8")).training ?? {};
+      return t.totalSecondsIncludingFrom ?? t.seconds;
+    } catch {
+      return undefined;
+    }
+  })() : undefined;
   if (FROM && !start) throw new Error(`--from ${FROM}: no greedy model.json in models/${FROM}`);
   let champ: GreedyWeights = start ?? { ...DEFAULT_WEIGHTS, rewards: { ...DEFAULT_WEIGHTS.rewards } };
   console.log(`mode ${MODE}, ${PLAYERS} players (the two sides on alternate seats), ${MAP_TYPE} ${SIZE}x${SIZE}; ${FROM ? `fine-tuning from ${FROM}` : "starting from the greedy defaults"}`);
@@ -400,7 +409,12 @@ async function main() {
       budget: BUDGET || undefined,
       rounds,
       trainingGames: trainGames,
+      // every run records how long it took; a fine-tune also adds the source model's training time
+      startedAt: new Date(t0).toISOString(),
+      endedAt: new Date().toISOString(),
       seconds: secs(),
+      duration: dur(secs()),
+      ...(FROM ? { totalSecondsIncludingFrom: secs() + (fromSeconds ?? 0), totalDurationIncludingFrom: dur(secs() + (fromSeconds ?? 0)) } : {}),
       sigma: SIGMA,
       weightsPerNudge: PICK,
       mode: MODE,
@@ -419,6 +433,7 @@ async function main() {
   fs.writeFileSync(path.join(dir, "model.json"), JSON.stringify(spec, null, 2) + "\n");
   fs.rmSync(path.join(dir, "checkpoint.json"), { force: true });
   console.log(`saved models/${ID}/model.json and curve.jsonl`);
+  console.log(`training took ${dur(secs())} (${new Date(t0).toISOString()} to ${new Date().toISOString()})${FROM ? `; with ${FROM}'s own training ${dur(secs() + (fromSeconds ?? 0))} in total` : ""}`);
   pool?.close();
 }
 
