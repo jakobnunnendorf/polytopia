@@ -17,7 +17,8 @@
     "arena-server": "node -r sucrase/register scripts/arena-server.ts",
     "elo": "node -r sucrase/register scripts/elo.ts",
     "export-dataset": "node -r sucrase/register scripts/export-dataset.ts",
-    "train-hill": "node -r sucrase/register scripts/train-hill.ts"
+    "train-hill": "node -r sucrase/register scripts/train-hill.ts",
+    "train-full": "node -r sucrase/register scripts/train-full.ts"
   },
   "jest": {
     "preset": "jest-expo"
