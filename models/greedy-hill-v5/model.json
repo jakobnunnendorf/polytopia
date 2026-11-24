@@ -1,0 +1,148 @@
+{
+  "id": "greedy-hill-v5",
+  "name": "Hill climber v5",
+  "kind": "greedy",
+  "description": "The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts --space greedy, margin test, opponents self+past): 1021 challengers, 305k training games in 4-player domination on drylands 16x16 maps, 7 kept. Saved the averaged champion of the best learning-curve point (round 858, 252k games). Won 80% against greedy-v1 and 49% against greedy-hill-v4 on unseen maps at save time.",
+  "created": "2026-11-24",
+  "weights": {
+    "capture": 100,
+    "examine": 81.23,
+    "promote": 90,
+    "harvestStarfish": 40.53,
+    "monument": 133.81,
+    "kill": 51.74,
+    "hit": 5.31,
+    "special": 31.55,
+    "growBase": 25,
+    "growPerPop": 6,
+    "otherBuild": 6.98,
+    "richAt": 10,
+    "research": 26.27,
+    "train": 12.17,
+    "unitsPerCity": 6,
+    "move": 12.72,
+    "recover": 15,
+    "healOthers": 15,
+    "upgrade": 5.25,
+    "noise": 1,
+    "rewards": {
+      "workshop": 5,
+      "explorer": 3,
+      "cityWall": 2,
+      "resources": 5,
+      "populationGrowth": 5,
+      "borderGrowth": 3,
+      "park": 4,
+      "superUnit": 6
+    }
+  },
+  "training": {
+    "method": "hill-climbing",
+    "space": "greedy",
+    "knobs": 19,
+    "test": "margin",
+    "margin": {
+      "m0": 0,
+      "m1": 0.01,
+      "alpha": 0.05,
+      "beta": 0.05,
+      "mapPairsPerLook": 30,
+      "maxGames": 400
+    },
+    "league": [
+      "self",
+      "past"
+    ],
+    "budget": 305370,
+    "rounds": 1021,
+    "trainingGames": 305370,
+    "startedAt": "2026-11-24T11:48:29.666Z",
+    "endedAt": "2026-11-24T12:54:32.922Z",
+    "seconds": 3923,
+    "duration": "1h05m",
+    "sigma": {
+      "start": 0.5,
+      "end": 0.15,
+      "min": 0.15,
+      "decay": 0.85,
+      "patience": 50
+    },
+    "resumes": [
+      {
+        "at": "2026-11-24T12:17:07.463Z",
+        "round": 513,
+        "trainingGames": 147180,
+        "args": "--id greedy-hill-v5 --budget 1260160 --milestones 3600,36000,360000,1260160 --patience 0 --league self,past --workers 6 --resume --reset-sigma 0.3",
+        "sigma": 0.3
+      },
+      {
+        "at": "2026-11-24T12:48:50.965Z",
+        "round": 956,
+        "trainingGames": 283140,
+        "args": "--id greedy-hill-v5 --budget 1260160 --milestones 3600,36000,360000,1260160 --patience 0 --league self,past --workers 6 --batch 30 --resume",
+        "sigma": 0.15
+      },
+      {
+        "at": "2026-11-24T12:53:45.952Z",
+        "round": 1021,
+        "trainingGames": 305370,
+        "args": "--id greedy-hill-v5 --budget 305370 --milestones 3600,36000,360000,1260160 --patience 0 --league self,past --workers 6 --batch 30 --resume",
+        "sigma": 0.15
+      }
+    ],
+    "weightsPerNudge": 3,
+    "engine": "rust",
+    "mode": "domination",
+    "players": 4,
+    "mapType": "drylands",
+    "mapSize": 16,
+    "accepted": 7,
+    "capped": 623,
+    "curve": "curve.jsonl",
+    "milestones": [
+      3600,
+      36000,
+      360000,
+      1260160
+    ],
+    "earlyStop": {
+      "metric": "share",
+      "patience": 0,
+      "minGain": 0.003,
+      "converged": false,
+      "savedRound": 858,
+      "savedAtTrainingGames": 252120,
+      "savedKept": 7,
+      "savedAveraged": true,
+      "savedCurveScore": 0.559
+    },
+    "final": {
+      "greedy-v1": {
+        "winRate": 0.795,
+        "pointShare": 0.675,
+        "games": 400
+      },
+      "greedy-hill-v1": {
+        "winRate": 0.68,
+        "pointShare": 0.597,
+        "games": 400
+      },
+      "greedy-hill-v2": {
+        "winRate": 0.645,
+        "pointShare": 0.569,
+        "games": 400
+      },
+      "greedy-hill-v3": {
+        "winRate": 0.4775,
+        "pointShare": 0.472,
+        "games": 400
+      },
+      "greedy-hill-v4": {
+        "winRate": 0.4875,
+        "pointShare": 0.474,
+        "games": 400
+      }
+    },
+    "finalWinRateVsGreedyV1": 0.795
+  }
+}
