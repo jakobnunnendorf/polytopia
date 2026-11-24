@@ -11,6 +11,7 @@
  *   POST /api/games             save a GameRecord (gzipped into data/games/), update Elo
  *   POST /api/matches           start a model-only game that runs here (not in a browser tab)
  *   POST /api/matches/<id>/resume   continue an unfinished model-only game
+ *   POST /api/matches/<id>/stop     stop a model-only game (kept, not rated, never resumed)
  *   POST /api/chat              proxy an OpenAI-style chat call to the model's endpoint
  *
  *   node -r sucrase/register scripts/arena-server.ts      (started by relaunch-preview.sh)
@@ -19,7 +20,7 @@ import http from "node:http";
 import { directChat } from "../logic/agents/registry";
 import type { GameRecord } from "../logic/arena/record";
 import { createProfile, findGame, listGames, listModels, listProfiles, ratingFacets, ratingsFor, saveGame } from "./lib/store";
-import { isRunning, resumeMatch, startMatch } from "./lib/matches";
+import { isRunning, resumeMatch, startMatch, stopMatch } from "./lib/matches";
 
 const PORT = Number(process.env.ARENA_PORT ?? 8091);
 
@@ -70,6 +71,8 @@ const server = http.createServer(async (req, res) => {
     }
     const resume = url.match(/^\/api\/matches\/([^/]+)\/resume$/);
     if (req.method === "POST" && resume) return send(res, 200, resumeMatch(decodeURIComponent(resume[1])));
+    const stop = url.match(/^\/api\/matches\/([^/]+)\/stop$/);
+    if (req.method === "POST" && stop) return send(res, 200, stopMatch(decodeURIComponent(stop[1])));
     if (req.method === "GET" && url.startsWith("/api/games/")) {
       const rec = findGame(decodeURIComponent(url.slice("/api/games/".length)));
       return rec ? send(res, 200, rec) : send(res, 404, { error: "No such game" });
