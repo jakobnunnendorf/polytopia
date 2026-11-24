@@ -47,20 +47,19 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { isMainThread } from "node:worker_threads";
-import { DEFAULT_WEIGHTS, type GreedyWeights } from "../logic/engine/bot";
 import { eloFromScore, marginVerdict, sprtBounds, sprtVerdict } from "../logic/arena/sprt";
 import {
-  KNOBS,
   MAP_TYPE,
   MILESTONES,
   MODE,
   PLAYERS,
   SIZE,
   arg,
-  averageWeights,
+  averageIn,
+  anyWeightsOf,
+  type AnyWeights,
   changes,
   closePool,
-  copyWeights,
   count,
   dur,
   loadPanel,
@@ -73,23 +72,25 @@ import {
   panelTest,
   pct,
   progress,
-  roundKnob,
   saveMilestone,
   setPhase,
   signed,
   startPool,
   startProgress,
-  weightsOf,
+  spaceOf,
+  changesIn,
 } from "./lib/train-greedy";
 
-const ID = arg("id", "greedy-hill-v1");
+const SPACE = spaceOf(arg("space", "greedy")); // greedy: the greedy bot's weights; full: the full-action-space bot
+const FULL = SPACE.name === "full";
+const ID = arg("id", FULL ? "greedy-full-v1" : "greedy-hill-v1");
 const BUDGET = Number(arg("budget", "0")); // training games in total; 0 = stop after --rounds
 const ROUNDS = Number(arg("rounds", BUDGET ? "Infinity" : "60"));
 const SIGMA = Number(arg("sigma", "0.5"));
 const SIGMA_MIN = Number(arg("sigma-min", "0.05"));
 const SIGMA_DECAY = Number(arg("sigma-decay", "0.85"));
 const SIGMA_PATIENCE = Number(arg("sigma-patience", "20")); // rounds without a keep before sigma shrinks
-const PICK = Number(arg("pick", "3")); // weights nudged per round
+const PICK = Number(arg("pick", FULL ? "4" : "3")); // knobs nudged per round (of ~20 greedy, ~200 full)
 const FROM = arg("from", ""); // fine-tune: start from this model's weights
 const RESUME = process.argv.includes("--resume");
 const ARGS = process.argv.slice(2).filter((a) => a !== "--resume").join(" ");
@@ -120,7 +121,7 @@ const AVERAGE = Number(arg("average", "4")); // also test the mean of the last K
 const CURVE_SEED = 1_000_000_000;
 const FINAL_SEED = 1_500_000_000;
 
-type Best = { score: number; point: number; champ: GreedyWeights; round: number; trainingGames: number; kept: number; averaged: boolean };
+type Best = { score: number; point: number; champ: AnyWeights; round: number; trainingGames: number; kept: number; averaged: boolean };
 type Checkpoint = {
   args: string;
   startedAt: string;
@@ -137,18 +138,18 @@ type Checkpoint = {
   converged: boolean;
   sigma: number;
   sinceKeep: number;
-  past: GreedyWeights[];
+  past: AnyWeights[];
   milestone: number;
   best: Best;
-  weights: GreedyWeights;
+  weights: AnyWeights;
 };
 
 /** nudge PICK randomly chosen weights by e^(sigma N(0,1)); the rest stay as they are */
-function mutate(w: GreedyWeights, sigma: number): { next: GreedyWeights; nudged: string } {
-  const next = copyWeights(w);
-  const keys = [...KNOBS].sort(() => Math.random() - 0.5).slice(0, PICK);
-  for (const k of keys) (next as Record<string, unknown>)[k] = roundKnob(k, (w[k] as number) * Math.exp(sigma * normal()));
-  return { next, nudged: keys.map((k) => `${k} ${w[k]}→${next[k]}`).join(", ") };
+function mutate(w: AnyWeights, sigma: number): { next: AnyWeights; nudged: string } {
+  const next = SPACE.clone(w);
+  const keys = [...SPACE.knobs].sort(() => Math.random() - 0.5).slice(0, PICK);
+  for (const k of keys) SPACE.set(next, k, SPACE.round(k, SPACE.get(w, k) * Math.exp(sigma * normal())));
+  return { next, nudged: keys.map((k) => `${k} ${SPACE.get(w, k)}→${SPACE.get(next, k)}`).join(", ") };
 }
 
 type Test = { keep: boolean; games: number; wins: number; share: number; llr?: number; capped?: boolean };
@@ -159,7 +160,7 @@ async function main() {
   const dir = path.join(process.cwd(), "models", ID);
   fs.mkdirSync(dir, { recursive: true });
   const panel = loadPanel(PANEL_IDS);
-  const league = LEAGUE.map((x) => (x === "self" || x === "past" ? { id: x, w: null } : { id: x, w: weightsOf(x) })).filter((o) => {
+  const league = LEAGUE.map((x) => (x === "self" || x === "past" ? { id: x, w: null } : { id: x, w: anyWeightsOf(x) })).filter((o) => {
     if (o.id !== "self" && o.id !== "past" && !o.w) console.log(`league: skipping ${o.id} (no greedy model.json)`);
     return o.id === "self" || o.id === "past" || !!o.w;
   });
@@ -180,7 +181,7 @@ async function main() {
   if (RESUME && !resumed) throw new Error(`--resume: no checkpoint at ${ckPath}`);
   if (resumed && resumed.args !== ARGS) console.log(`note: resuming with other options than the run was started with:\n  then: ${resumed.args}\n  now:  ${ARGS}`);
   if (!resumed) fs.writeFileSync(curvePath, "");
-  const start = FROM ? weightsOf(FROM) : null;
+  const start = FROM ? SPACE.load(FROM) : null;
   if (FROM && !start) throw new Error(`--from ${FROM}: no greedy model.json in models/${FROM}`);
   const fromSeconds: number | undefined = FROM
     ? (() => {
@@ -192,7 +193,7 @@ async function main() {
         }
       })()
     : undefined;
-  let champ: GreedyWeights = start ?? copyWeights(DEFAULT_WEIGHTS);
+  let champ: AnyWeights = start ?? SPACE.defaults();
   console.log(`mode ${MODE}, ${PLAYERS} players (the two sides on alternate seats), ${MAP_TYPE} ${SIZE}x${SIZE}; ${FROM ? `fine-tuning from ${FROM}` : "starting from the greedy defaults"}`);
 
   let accepted = 0;
@@ -203,7 +204,7 @@ async function main() {
   let curveAt = -1; // training games at the last curve point
   let sigma = SIGMA;
   let sinceKeep = 0;
-  let past: GreedyWeights[] = [champ]; // kept champions, newest last (for "past" and averaging)
+  let past: AnyWeights[] = [champ]; // kept champions, newest last (for "past" and averaging)
   let milestone = 0; // index of the next milestone
   const t0 = Date.now();
   const runStart = resumed?.startedAt ?? new Date(t0).toISOString();
@@ -216,10 +217,10 @@ async function main() {
       // no training games yet: estimate from the game rate so far
       const perMin = progress.done / Math.max((Date.now() - progress.startedAt) / 60000, 1e-9);
       if (!BUDGET || progress.done < 5) return "ETA …";
-      const leftMin = (BUDGET - trainGames) / perMin;
+      const leftMin = Math.max(0, BUDGET - trainGames) / perMin;
       return `ETA ~${new Date(Date.now() + leftMin * 60000).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" })}, ~${dur(leftMin * 60)} left at most`;
     }
-    const left = (s * (1 - done)) / done;
+    const left = Math.max(0, (s * (1 - done)) / done);
     const at = new Date(Date.now() + left * 1000).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
     return `ETA ${at}, ${dur(left)} left at most`;
   };
@@ -248,15 +249,15 @@ async function main() {
   }
   if (!resumed) save();
 
-  const name = (games: number, provisional: boolean) => `${ID.replace(/^greedy-hill-v(\d+)$/, "Hill climber v$1")}${provisional ? ` (training, ${count(games)} games)` : ""}`;
-  const modelSpec = (w: GreedyWeights, games: number, note: string) => ({
+  const name = (games: number, provisional: boolean) => `${(FULL ? ID.replace(/^greedy-full-v(\d+)$/, "Full greedy climber v$1") : ID.replace(/^greedy-hill-v(\d+)$/, "Hill climber v$1"))}${provisional ? ` (training, ${count(games)} games)` : ""}`;
+  const modelSpec = (w: AnyWeights, games: number, note: string) => ({
     id: ID,
     name: name(games, true),
-    kind: "greedy",
+    kind: SPACE.kind,
     description: note,
     created: new Date().toISOString().slice(0, 10),
-    weights: w,
-    training: { provisional: true, method: "hill-climbing", test: TEST, mode: MODE, players: PLAYERS, mapSize: SIZE, round: rounds, trainingGames: games, kept: accepted, startedAt: runStart, seconds: secs(), duration: dur(secs()) },
+    [SPACE.field]: w,
+    training: { provisional: true, method: "hill-climbing", space: SPACE.name, test: TEST, mode: MODE, players: PLAYERS, mapSize: SIZE, round: rounds, trainingGames: games, kept: accepted, startedAt: runStart, seconds: secs(), duration: dur(secs()) },
   });
   // the best champion so far as a playable model while training runs (the final save overwrites it)
   const provisional = () => {
@@ -268,7 +269,7 @@ async function main() {
   const score = (r: Parameters<typeof meanShare>[0]) => (CURVE_METRIC === "share" ? meanShare(r) : meanWin(r));
 
   const curvePoint = async () => {
-    const avg = AVERAGE > 1 && past.length > 1 ? averageWeights(past.slice(-AVERAGE)) : null;
+    const avg = AVERAGE > 1 && past.length > 1 ? averageIn(SPACE, past.slice(-AVERAGE)) : null;
     const candidates = [{ w: champ, averaged: false }, ...(avg && JSON.stringify(avg) !== JSON.stringify(champ) ? [{ w: avg, averaged: true }] : [])];
     setPhase(`curve point ${points + 1} (vs panel${candidates.length > 1 ? ", champion and average" : ""})`, candidates.length * panel.length * CURVE_GAMES);
     const results = [];
@@ -293,7 +294,7 @@ async function main() {
   };
 
   /** one map pair against league opponent `o`: the challenger's margin over the champion */
-  const sample = async (o: (typeof league)[number], champ: GreedyWeights, chall: GreedyWeights, s: number) => {
+  const sample = async (o: (typeof league)[number], champ: AnyWeights, chall: AnyWeights, s: number) => {
     if (o.id === "self" || (o.id === "past" && past.length < 2)) {
       const p = await mapPair(champ, chall, s, "challenger vs champion");
       return { margin: p.margin, wins: p.wins, games: 2, share: p.share };
@@ -305,7 +306,7 @@ async function main() {
     return { margin: a.share - b.share, wins: a.wins, games: 4, share: 0.5 + (a.share - b.share) };
   };
 
-  const sequentialTest = async (champ: GreedyWeights, chall: GreedyWeights): Promise<Test> => {
+  const sequentialTest = async (champ: AnyWeights, chall: AnyWeights): Promise<Test> => {
     setPhase(`testing challenger (at most ${MAX_GAMES} games)`);
     const margins: number[] = [];
     const results: number[] = [];
@@ -332,7 +333,7 @@ async function main() {
       if (games >= MAX_GAMES) return { ...out, keep: false, capped: true };
     }
   };
-  const fixedTest = async (champ: GreedyWeights, chall: GreedyWeights): Promise<Test> => {
+  const fixedTest = async (champ: AnyWeights, chall: AnyWeights): Promise<Test> => {
     setPhase(`testing challenger (${GAMES} games)`);
     const m = await match(champ, chall, GAMES, seed, "challenger vs champion");
     seed += Math.ceil(GAMES / 2);
@@ -383,23 +384,25 @@ async function main() {
     const ci = 1.96 * Math.sqrt((v.winRate * (1 - v.winRate)) / v.games);
     console.log(`  vs ${id.padEnd(16)} won ${pct(v.winRate).padStart(4)} ± ${(ci * 100).toFixed(0)}%  (${signed(eloFromScore(v.winRate, v.games))} Elo)  points ${(v.pointShare * 100).toFixed(1)}%`);
   }
-  console.log(`changed: ${changes(champ) || "nothing"}`);
+  console.log(`changed: ${changesIn(SPACE, champ) || "nothing"}`);
 
   const strongest = panel[panel.length - 1]?.id;
   const spec = {
     id: ID,
     name: name(trainGames, false),
-    kind: "greedy",
+    kind: SPACE.kind,
     description:
-      `The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts, ${TEST} test, opponents ${league.map((o) => o.id).join("+")}): ${rounds} challengers, ${count(trainGames)} training games in ${PLAYERS}-player ${MODE} on ${MAP_TYPE} ${SIZE}x${SIZE} maps${FROM ? `, fine-tuned from ${FROM}` : ""}, ${accepted} kept.` +
+      `${FULL ? `The full-action-space greedy bot (logic/engine/botFull.ts) with ${SPACE.knobs.length} knobs` : "The greedy bot with weights"} tuned by hill climbing (scripts/train-hill.ts --space ${SPACE.name}, ${TEST} test, opponents ${league.map((o) => o.id).join("+")}): ${rounds} challengers, ${count(trainGames)} training games in ${PLAYERS}-player ${MODE} on ${MAP_TYPE} ${SIZE}x${SIZE} maps${FROM ? `, fine-tuned from ${FROM}` : ""}, ${accepted} kept.` +
       (best.round !== rounds || best.averaged ? ` Saved the ${best.averaged ? "averaged champion" : "champion"} of the best learning-curve point (round ${best.round}, ${count(best.trainingGames)} games).` : "") +
       (final["greedy-v1"] ? ` Won ${pct(final["greedy-v1"].winRate)} against greedy-v1` : "") +
       (strongest && strongest !== "greedy-v1" ? ` and ${pct(final[strongest].winRate)} against ${strongest}` : "") +
       " on unseen maps at save time.",
     created: new Date().toISOString().slice(0, 10),
-    weights: champ,
+    [SPACE.field]: champ,
     training: {
       method: "hill-climbing",
+      space: SPACE.name,
+      knobs: SPACE.knobs.length,
       test: TEST,
       ...(TEST === "margin" ? { margin: { m0: M0, m1: M1, alpha: 0.05, beta: 0.05, mapPairsPerLook: BATCH, maxGames: MAX_GAMES } } : TEST === "sprt" ? { sprt: { elo0: ELO0, elo1: ELO1, alpha: 0.05, beta: 0.05, mapPairsPerLook: BATCH, maxGames: MAX_GAMES } } : { gamesPerRound: GAMES, acceptPointShare: ACCEPT }),
       league: league.map((o) => o.id),

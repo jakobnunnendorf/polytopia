@@ -163,7 +163,7 @@ async function main() {
     const s = secs();
     const done = trainGames / BUDGET;
     if (done <= 0 || s < 1) return "ETA …";
-    const left = (s * (1 - done)) / done;
+    const left = Math.max(0, (s * (1 - done)) / done);
     return `ETA ${new Date(Date.now() + left * 1000).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" })}, ${dur(left)} left at most`;
   };
   progress.runEta = () => `iteration ${iteration}, ${count(trainGames)} of ${count(BUDGET)} training games, sigma ${sigma.toFixed(3)}, ${eta()}`;
