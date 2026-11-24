@@ -11,7 +11,8 @@ import { applyAction, legalActions } from "../logic/engine/actions";
 import { botStep } from "../logic/engine/bot";
 import { observe } from "../logic/engine/observe";
 import { scoreOf } from "../logic/engine/state";
-import type { GameMode } from "../logic/engine/types";
+import { call } from "../logic/engine/rust";
+import type { GameMode, GameState } from "../logic/engine/types";
 import type { MapType } from "../logic/engine/mapgen";
 
 function arg(name: string, def: string): string {
@@ -32,7 +33,26 @@ const wins = new Array(players).fill(0);
 const t0 = Date.now();
 let totalActions = 0;
 
+/** a bot-only game in one call into the Rust engine (the step loop below, without the JSON per action) */
+function playInRust(g: number): { s: GameState; actions: number } {
+  const [r] = call<{ state: GameState; moves: number }[]>("playGames", [
+    {
+      opts: { mapSize: size, players, mode, seed: seed0 + g, humans: [], mapType },
+      policies: [{ kind: "greedy", weights: null }],
+      maxTurn: 60,
+      maxMoves: Number.MAX_SAFE_INTEGER,
+      returnState: true,
+    },
+  ]);
+  return { s: r.state, actions: r.moves };
+}
+
 for (let g = 0; g < games; g++) {
+  if (!randomP0) {
+    const { s, actions } = playInRust(g);
+    report(g, s, actions);
+    continue;
+  }
   let s = createGame({ mapSize: size, players, mode, seed: seed0 + g, humans: [], mapType });
   let actions = 0;
   // simple xorshift for the random policy, seeded per game
@@ -54,6 +74,10 @@ for (let g = 0; g < games; g++) {
     s = applyAction(s, a);
     actions++;
   }
+  report(g, s, actions);
+}
+
+function report(g: number, s: GameState, actions: number) {
   totalActions += actions;
   if (s.winner !== null) wins[s.winner]++;
   const obs = observe(s, 0);
