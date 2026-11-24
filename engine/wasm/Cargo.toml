@@ -1,0 +1,11 @@
+[package]
+name = "polywasm"
+description = "WebAssembly build of the Rust engine for the web app (plain C ABI, no wasm-bindgen)"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+polyapi = { path = "../api" }

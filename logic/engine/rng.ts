@@ -14,6 +14,8 @@ export type Rng = {
   pick<T>(items: readonly T[]): T;
   /** current internal state, to store back into the game state */
   state(): number;
+  /** continue from internal state `s` (as returned by state()) */
+  setState?(s: number): void;
 };
 
 export function createRng(seed: number): Rng {
@@ -30,6 +32,9 @@ export function createRng(seed: number): Rng {
     int: (min, max) => min + Math.floor(next() * (max - min + 1)),
     pick: (items) => items[Math.floor(next() * items.length)],
     state: () => s,
+    setState: (v) => {
+      s = v >>> 0;
+    },
   };
 }
 

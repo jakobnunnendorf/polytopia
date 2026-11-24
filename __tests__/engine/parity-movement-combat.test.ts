@@ -60,20 +60,16 @@ const reach = (s: GameState, u: Unit, x: number, y: number) => reachable(s, u).s
 const find = (s: GameState, pred: (a: Action) => boolean) => legalActions(s).find(pred);
 const unit = (s: GameState, id: number) => s.units.find((u) => u.id === id)!;
 
-// test-only unit types isolating one generic skill each
-const base = { cost: 0, trainable: false, hp: 10, attack: 2, defence: 2, movement: 3, range: 1, tech: null, naval: false };
-beforeAll(() => {
-  Object.assign(UNITS, {
-    tCreep: { ...base, id: "tCreep", skills: ["creep"] },
-    tFly: { ...base, id: "tFly", skills: ["fly"] },
-    tSneak: { ...base, id: "tSneak", skills: ["sneak"] },
-    tHide: { ...base, id: "tHide", skills: ["hide"] },
-    tPlain: { ...base, id: "tPlain", skills: [] },
-    tSplash: { ...base, id: "tSplash", range: 3, skills: ["splash", "stiff"] },
-    tExplode: { ...base, id: "tExplode", skills: ["explode"] },
-  });
-});
-
+/*
+ * Real unit types stand in for one generic skill each (their other skills don't
+ * touch the asserted outcome):
+ *   Creep: doomux (movement 3; dash, explode, static act only on attacks)
+ *   Air:   fireDragon (movement 3; dash, splash, scout, static don't change where it may go)
+ *   plain: knight (movement 3; dash, persist, fortify are combat skills)
+ *   Sneak: hexapod, Hide: cloak (movement 2, so they start one tile nearer; see setup)
+ *   Splash: fireDragon at 4 of 20 HP (range 2: 5 damage to a warrior, as the old test unit)
+ *   Explode: segment (attack 2, like the old test unit)
+ */
 describe("Escape: move, attack, move", () => {
   it("a Rider that moved and attacked may move again, but not attack again", () => {
     let s = blank();
@@ -101,39 +97,37 @@ describe("Escape: move, attack, move", () => {
 });
 
 describe("zone of control", () => {
-  // enemy at (5,7); (5,8) behind it can only be reached by passing a controlled tile
-  const setup = (type: string) => {
+  // enemy at (5,7); (5,8) behind it can only be reached by passing a controlled tile.
+  // Movement-3 units start at (5,5), movement-2 ones at (5,6): still only controlled
+  // tiles, (4,7) and (6,7), lie between them and (5,8) (a Rider from there is stopped).
+  const setup = (type: string, y = 5) => {
     const s = blank();
-    const u = put(s, type, 0, 5, 5);
+    const u = put(s, type, 0, 5, y);
     put(s, "warrior", 1, 5, 7);
     return { s, u };
   };
   it("Creep does not ignore zone of control", () => {
-    const { s, u } = setup("tCreep");
+    const { s, u } = setup("doomux");
     expect(reach(s, u, 5, 8)).toBe(false);
     expect(reach(s, u, 5, 6)).toBe(true);
   });
   it("Air does not ignore zone of control", () => {
-    const { s, u } = setup("tFly");
+    const { s, u } = setup("fireDragon");
     expect(reach(s, u, 5, 8)).toBe(false);
   });
   it("a plain unit is stopped", () => {
-    const { s, u } = setup("tPlain");
+    const { s, u } = setup("knight");
     expect(reach(s, u, 5, 8)).toBe(false);
   });
   it("Sneak and Hide ignore it", () => {
-    const sn = setup("tSneak");
+    const sn = setup("hexapod", 6);
     expect(reach(sn.s, sn.u, 5, 8)).toBe(true);
-    const h = setup("tHide");
+    const h = setup("cloak", 6);
     expect(reach(h.s, h.u, 5, 8)).toBe(true);
   });
-  it("Infiltrate alone does not ignore it", () => {
-    const s = blank();
-    UNITS.tInf = { ...base, id: "tInf", skills: ["infiltrate"] } as never;
-    const u = put(s, "tInf", 0, 5, 5);
-    put(s, "warrior", 1, 5, 7);
-    expect(reach(s, u, 5, 8)).toBe(false);
-  });
+  // "Infiltrate alone does not ignore it": removed in the Rust migration: needs a unit type the
+  // game data has no instance of (Infiltrate without Hide or Sneak); the Rust engine's unit table
+  // is fixed at compile time
 });
 
 describe("Creep and Air on terrain", () => {
@@ -145,20 +139,20 @@ describe("Creep and Air on terrain", () => {
   };
   it("mountains stop Creep (since 2.15)", () => {
     const s = wall("mountain");
-    const u = put(s, "tCreep", 0, 5, 5);
+    const u = put(s, "doomux", 0, 5, 5);
     expect(reach(s, u, 5, 6)).toBe(true);
     expect(reach(s, u, 5, 7)).toBe(false);
   });
   it("Air ignores the mountain stop", () => {
     const s = wall("mountain");
-    const u = put(s, "tFly", 0, 5, 5);
+    const u = put(s, "fireDragon", 0, 5, 5);
     expect(reach(s, u, 5, 7)).toBe(true);
   });
   it("forests don't stop Creep but stop a plain unit", () => {
     const s = wall("forest");
-    expect(reach(s, put(s, "tCreep", 0, 5, 5), 5, 7)).toBe(true);
+    expect(reach(s, put(s, "doomux", 0, 5, 5), 5, 7)).toBe(true);
     const s2 = wall("forest");
-    expect(reach(s2, put(s2, "tPlain", 0, 5, 5), 5, 7)).toBe(false);
+    expect(reach(s2, put(s2, "knight", 0, 5, 5), 5, 7)).toBe(false);
   });
 });
 
@@ -217,30 +211,45 @@ describe("healing", () => {
 describe("splash and explosions: half the damage, rounded down (S1 attack::half_damage)", () => {
   it("splash gives neighbours of the target half the damage, rounded down", () => {
     let s = blank();
-    const a = put(s, "tSplash", 0, 5, 3);
+    const a = put(s, "fireDragon", 0, 5, 4);
+    a.hp = 4;
     const t = put(s, "warrior", 1, 5, 6);
     const n = put(s, "warrior", 1, 6, 6);
     s = applyAction(s, { type: "attack", unitId: a.id, targetId: t.id });
-    // attack 2 vs warrior: 5 damage; neighbour floor(5 / 2) = 2
+    // a Fire Dragon at 4 HP vs warrior: 5 damage; neighbour floor(5 / 2) = 2
     expect(unit(s, t.id).hp).toBe(5);
     expect(unit(s, n.id).hp).toBe(8);
   });
 
   it("an explosion deals half its damage, rounded down", () => {
     let s = blank();
-    const e = put(s, "tExplode", 0, 5, 5);
+    const e = put(s, "segment", 0, 5, 5);
     e.createdTurn = s.turn - 1; // no Explode in the turn of creation
     const t = put(s, "warrior", 1, 5, 6);
     s = applyAction(s, find(s, (a) => a.type === "explode" && a.unitId === e.id)!);
     expect(unit(s, t.id).hp).toBe(8);
   });
 
-  it("a unit at fractional HP dies when it reaches 0 or below", () => {
+  // HP is a whole number in the state; the splash on each neighbour is half the attack's damage
+  // against that neighbour (computed at its own HP), rounded down
+  it("a unit dies when it reaches exactly 0 HP", () => {
     let s = blank();
-    const a = put(s, "tSplash", 0, 5, 3);
+    const a = put(s, "fireDragon", 0, 5, 4);
+    a.hp = 4;
     const t = put(s, "warrior", 1, 5, 6);
     const n = put(s, "warrior", 1, 6, 6);
-    n.hp = 2.5;
+    n.hp = 4; // 9 damage against it: a splash of 4 leaves exactly 0
+    s = applyAction(s, { type: "attack", unitId: a.id, targetId: t.id });
+    expect(s.units.find((u) => u.id === n.id)).toBeUndefined();
+  });
+
+  it("a unit dies when it falls below 0 HP", () => {
+    let s = blank();
+    const a = put(s, "fireDragon", 0, 5, 4);
+    a.hp = 4;
+    const t = put(s, "warrior", 1, 5, 6);
+    const n = put(s, "warrior", 1, 6, 6);
+    n.hp = 3; // 10 damage against it: a splash of 5 leaves -2
     s = applyAction(s, { type: "attack", unitId: a.id, targetId: t.id });
     expect(s.units.find((u) => u.id === n.id)).toBeUndefined();
   });

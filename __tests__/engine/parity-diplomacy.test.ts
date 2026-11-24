@@ -409,7 +409,11 @@ describe("Cloak", () => {
 });
 
 describe("what bots think of you", () => {
-  afterEach(() => jest.restoreAllMocks());
+  /** bot 1 rates player 0 great: Peaceful, plus Diplomatic (an embassy) and Powerful (a unit far from the bot's land) */
+  const greatOpinion = (s: GameState) => {
+    s.players[0].embassies = [1];
+    put(s, "warrior", 0, 3, 3);
+  };
 
   it("lists the doc's factors: Violent after an attack, Peaceful otherwise, Diplomatic with an embassy, Annoying on hard", () => {
     const s = blank();
@@ -435,9 +439,11 @@ describe("what bots think of you", () => {
     s.players[0].techs.push("strategy");
     s = applyAction(s, { type: "offerPeace", player: 1 });
     s = applyAction(s, { type: "endTurn" });
-    const spy = jest.spyOn(opinion, "opinionOf").mockReturnValue("decent");
+    // only Peaceful: decent
+    expect(opinion.opinionOf(s, 1, 0)).toBe("decent");
     expect(botStep(s)).toEqual({ type: "declinePeace", player: 0 });
-    spy.mockReturnValue("great");
+    greatOpinion(s);
+    expect(opinion.opinionOf(s, 1, 0)).toBe("great");
     expect(botStep(s)).toEqual({ type: "acceptPeace", player: 0 });
   });
 
@@ -445,7 +451,8 @@ describe("what bots think of you", () => {
     const s = blank();
     s.current = 1;
     s.players[1].techs.push("strategy");
-    jest.spyOn(opinion, "opinionOf").mockReturnValue("great");
+    greatOpinion(s);
+    expect(opinion.opinionOf(s, 1, 0)).toBe("great");
     expect(scoreAction(s, { type: "offerPeace", player: 0 })).toBeGreaterThan(0);
     peace(s);
     expect(scoreAction(s, { type: "breakPeace", player: 0 })).toBeLessThan(0);

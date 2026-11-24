@@ -1,0 +1,10 @@
+[package]
+name = "polycore"
+description = "Shardlands rules engine (Rust port of logic/engine)"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+libm = "0.2"
+md5 = "0.7"

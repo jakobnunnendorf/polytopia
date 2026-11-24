@@ -1,0 +1,16 @@
+[package]
+name = "polynode"
+description = "Node addon (N-API) for the Rust engine: logic/engine/rust.ts loads it in Node (scripts, jest)"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+polyapi = { path = "../api" }
+napi = { version = "2", default-features = false, features = ["napi4"] }
+napi-derive = "2"
+
+[build-dependencies]
+napi-build = "2"

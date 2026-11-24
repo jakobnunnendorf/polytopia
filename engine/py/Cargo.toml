@@ -1,0 +1,19 @@
+[package]
+name = "polypy"
+description = "Python extension module `polyengine` for the Rust engine: the JSON entry point and a vectorised RL environment"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "polyengine"
+crate-type = ["cdylib"]
+
+[dependencies]
+polycore = { path = "../core" }
+polyapi = { path = "../api" }
+serde_json = "1"
+rayon = "1"
+pyo3 = { version = "0.30", features = ["extension-module", "abi3-py39"] }
+
+[build-dependencies]
+pyo3-build-config = "0.30"
