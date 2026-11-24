@@ -27,6 +27,11 @@
 //! partly in travel cost, where a step between two road tiles (road, bridge, village or city on
 //! own, peace-partner or unclaimed land, as in movement.rs) costs half. Progress =
 //! tiles gained + roads * (road-aware gain - tiles gained). Default 0 (off).
+//!
+//! Endgame peace break (issue #124): the greedy bot never breaks peace, so a game
+//! whose last players are at peace can never end. With `breakPeace` > 0 the bot breaks peace with a
+//! partner when every other living player is at peace with it too (nobody left to fight) and it
+//! has at least `breakPeace` times that partner's cities. Default 0 (off).
 use crate::actions::{apply_action, legal_actions};
 use crate::bot::{cached_goal, find_unit, noise, score_with, GoalCache, GreedyWeights};
 use crate::diplomacy::at_peace;
@@ -124,6 +129,8 @@ pub struct FullWeights {
     pub front: f64,
     /// share of a move's progress measured in road-aware travel cost (0 = off, 1 = all)
     pub roads: f64,
+    /// break peace in the endgame at this ratio of our cities to the partner's (0 = never)
+    pub break_peace: f64,
 }
 
 /// botFull.ts DEFAULT_FULL_WEIGHTS
@@ -143,6 +150,7 @@ pub fn default_full_weights() -> FullWeights {
         tech_useless: 0.0,
         front: 0.0,
         roads: 0.0,
+        break_peace: 0.0,
     }
 }
 
@@ -181,7 +189,7 @@ pub fn full_weights(p: &serde_json::Value) -> Result<FullWeights, String> {
     merge_table(&mut w.unit, o.get("unit"), "unit", |k| UnitType::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.build, o.get("build"), "build", |k| Build::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.reward, o.get("reward"), "reward", |k| Reward::from_id(k).map(|t| t as usize))?;
-    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius), ("techUse", &mut w.tech_use), ("techUseless", &mut w.tech_useless), ("front", &mut w.front), ("roads", &mut w.roads)] {
+    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius), ("techUse", &mut w.tech_use), ("techUseless", &mut w.tech_useless), ("front", &mut w.front), ("roads", &mut w.roads), ("breakPeace", &mut w.break_peace)] {
         match o.get(key) {
             None | Some(serde_json::Value::Null) => {}
             Some(c) => *slot = c.as_f64().ok_or_else(|| format!("full.{key}: expected a number"))?,
@@ -271,6 +279,21 @@ fn road_dist(s: &GameState, owner: i32, goal: Coord, a: Coord, b: Coord) -> (f64
         }
         (m.3[idx(n, a.x, a.y)] as f64 / 2.0, m.3[idx(n, b.x, b.y)] as f64 / 2.0)
     })
+}
+
+/// break peace with `partner` now: every other living player is a peace partner too (nobody left to
+/// fight) and we hold at least break_peace times the partner's cities
+fn endgame_break(s: &GameState, partner: i32, w: &FullWeights) -> bool {
+    if w.break_peace <= 0.0 {
+        return false;
+    }
+    let me = s.current;
+    let rivals_at_war = s.players.iter().any(|q| q.alive && q.id != me && !at_peace(s, me, q.id));
+    if rivals_at_war {
+        return false;
+    }
+    let cities = |o: i32| s.cities.iter().filter(|c| c.owner == o).count() as f64;
+    cities(me) >= w.break_peace * cities(partner)
 }
 
 /// our city on (x, y) when an enemy unit we know of is within `radius` tiles of it
@@ -411,6 +434,7 @@ fn score_full_with(s: &GameState, a: &Action, w: &FullWeights, cache: &mut Optio
     match *a {
         Action::Move { unit, to } => score + defend_term(s, unit, to, w) + front_term(s, unit, to, w),
         Action::Research { tech } => score + research_term(s, tech, w),
+        Action::BreakPeace { player } if endgame_break(s, player, w) => 100.0,
         _ => score,
     }
 }
