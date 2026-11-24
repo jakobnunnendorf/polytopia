@@ -7,7 +7,7 @@ import RankingsTable from "@/components/game/RankingsTable";
 import * as Font from "expo-font";
 import { arena } from "@/components/game/arenaClient";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
-import { replayStates, type GameRecord } from "@/logic/arena/record";
+import { replay, type GameRecord } from "@/logic/arena/record";
 import { scoreOf } from "@/logic/engine";
 import GameOverCard from "@/components/game/GameOverCard";
 import { Pulse } from "@/components/anim";
@@ -39,7 +39,7 @@ function Btn({ label, onPress, on, disabled, testID }: { label: string; onPress:
 
 function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
   const router = useRouter();
-  const states = useMemo(() => replayStates(rec), [rec]);
+  const { states, divergedAt } = useMemo(() => replay(rec), [rec]);
   // indices where a new player-turn starts, for the turn jump buttons
   const turnStarts = useMemo(
     () => states.flatMap((s, k) => (k === 0 || s.current !== states[k - 1].current || s.turn !== states[k - 1].turn ? [k] : [])),
@@ -92,6 +92,11 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
             </Text>
           </View>
         </View>
+        {divergedAt !== null && (
+          <Text style={{ color: UI.coral, fontSize: 13, marginTop: 6 }}>
+            This game was played under older rules; the replay stops at move {divergedAt} of {rec.steps.length}.
+          </Text>
+        )}
         <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 6 }}>
           {s.players.map((p) => (
             <View key={p.id} style={{ flexDirection: "row", alignItems: "center", marginRight: 12, marginTop: 4 }}>
