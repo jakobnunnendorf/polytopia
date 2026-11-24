@@ -33,6 +33,12 @@
  *
  *   npm run train-hill                                          # 60 rounds, about a minute
  *   npm run train-hill -- --id greedy-hill-v4 --budget 3600000  # stop after 3.6M training games
+ *   npm run train-hill -- --id greedy-hill-v5 --from greedy-hill-v4  # fine-tune v4
+ *
+ * Games: --mode (default domination), --players (default 4, even), --size (default the
+ * game's suggestion for mode and players), --map-type (default drylands). With more than
+ * two players the challenger and the champion take alternate seats (C H C H, and on the
+ * same map H C H C), every player for itself; the side whose player wins takes the game.
  *
  * Training games are not recorded and do not touch the Elo table. The result
  * is saved as models/<id>/model.json (kind "greedy"), so it appears in the
@@ -45,9 +51,10 @@ import path from "node:path";
 import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
 import { applyAction } from "../logic/engine/actions";
 import { DEFAULT_WEIGHTS, botStep, type GreedyWeights } from "../logic/engine/bot";
-import { createGame } from "../logic/engine/state";
+import { createGame, mapSizeFor } from "../logic/engine/state";
 import { scoreOf } from "../logic/engine";
-import type { GameState } from "../logic/engine/types";
+import type { GameMode, GameState } from "../logic/engine/types";
+import type { MapType } from "../logic/engine/mapgen";
 import { eloFromScore, sprtVerdict } from "../logic/arena/sprt";
 
 function arg(name: string, def: string): string {
@@ -60,7 +67,39 @@ const BUDGET = Number(arg("budget", "0")); // training games in total; 0 = stop 
 const ROUNDS = Number(arg("rounds", BUDGET ? "Infinity" : "60"));
 const SIGMA = Number(arg("sigma", "0.5"));
 const PICK = Number(arg("pick", "3")); // weights nudged per round
-const SIZE = Number(arg("size", "11"));
+// every training game is played in this mode, with this many players (Domination, 4 players by default since 2026-11-24)
+const MODE = arg("mode", "domination") as GameMode;
+const PLAYERS = Number(arg("players", "4"));
+if (PLAYERS < 2 || PLAYERS % 2 !== 0) throw new Error("--players must be even: the two sides take alternate seats");
+// default: the size the game suggests for the mode and player count (Domination: 11 for 2, 16 for 4)
+const SIZE = Number(arg("size", String(mapSizeFor(MODE, PLAYERS - 1) ?? 16)));
+const MAP_TYPE = arg("map-type", "drylands") as MapType;
+// fine-tune: start from this model's weights instead of the greedy defaults
+const FROM = arg("from", "");
+// a game still running after this many moves is decided on score (Domination has no turn limit)
+const MAX_MOVES = Number(arg("max-moves", "20000"));
+// training only: Domination has no turn limit and bots at peace can stall for thousands of turns;
+// a game still running at this turn is decided on score like one at the move cap
+const MAX_TURNS = Number(arg("max-turns", "150"));
+// stop any time (Ctrl-C, kill) and continue with the same command plus --resume
+const RESUME = process.argv.includes("--resume");
+const ARGS = process.argv.slice(2).filter((a) => a !== "--resume").join(" ");
+type Checkpoint = {
+  args: string;
+  startedAt: string;
+  seconds: number;
+  savedAt: string;
+  round: number;
+  trainingGames: number;
+  accepted: number;
+  capped: number;
+  seed: number;
+  nextCurve: number;
+  points: number;
+  converged: boolean;
+  best: { mean: number; point: number; champ: GreedyWeights; round: number; trainingGames: number; kept: number };
+  weights: GreedyWeights;
+};
 let seed = Number(arg("seed", "1000"));
 const WORKERS = Number(arg("workers", String(Math.max(1, os.cpus().length - 2))));
 
@@ -108,16 +147,27 @@ function mutate(w: GreedyWeights): { next: GreedyWeights; nudged: string } {
   return { next, nudged: keys.map((k) => `${k} ${w[k]}→${next[k]}`).join(", ") };
 }
 
-/** one 2-player game; returns the winner's seat and both scores */
+/**
+ * One free-for-all game of PLAYERS players. Side 0 (weights w0) takes the even seats, side 1 the odd
+ * ones, so with 4 players it is w0, w1, w0, w1 in turn order; every player still plays for itself.
+ * Returns the winning side and each side's total score. With 2 players this is a plain 1v1.
+ */
 function play(w0: GreedyWeights, w1: GreedyWeights, gameSeed: number, size = SIZE): { winner: number; scores: [number, number] } {
-  let s: GameState = createGame({ mapSize: size, players: 2, mode: "perfection", seed: gameSeed, humans: [], mapType: "drylands" });
+  let s: GameState = createGame({ mapSize: size, players: PLAYERS, mode: MODE, seed: gameSeed, humans: [], mapType: MAP_TYPE });
   const ws = [w0, w1];
   let moves = 0;
-  while (!s.over && moves < 20000) {
-    s = applyAction(s, botStep(s, ws[s.current]));
+  while (!s.over && moves < MAX_MOVES && s.turn < MAX_TURNS) {
+    s = applyAction(s, botStep(s, ws[s.current % 2]));
     moves++;
   }
-  return { winner: s.winner ?? 0, scores: [scoreOf(s, 0), scoreOf(s, 1)] };
+  const seatScores = s.players.map((p) => scoreOf(s, p.id));
+  const scores: [number, number] = [0, 0];
+  seatScores.forEach((v, i) => (scores[i % 2] += v));
+  // unfinished (move cap): the highest-scoring seat wins; a tie goes to the later seat
+  let top = 0;
+  seatScores.forEach((v, i) => v >= seatScores[top] && (top = i));
+  const winner = s.winner ?? top;
+  return { winner: winner % 2, scores };
 }
 
 // ---------- worker pool: each worker runs this file and plays one game per message ----------
@@ -161,7 +211,30 @@ class Pool {
 }
 
 let pool: Pool | null = null;
-const runJob = (job: Job): Promise<Result> => (pool ? pool.run(job) : Promise.resolve(play(job.w0, job.w1, job.seed, job.size)));
+// ---------- progress: a line every --progress-every seconds (default 60) while games run ----------
+const PROGRESS_EVERY = Number(arg("progress-every", "60"));
+const progress = { phase: "starting", phaseGames: 0, phaseTotal: 0, done: 0, lastDone: 0, startedAt: Date.now() };
+function setPhase(phase: string, total = 0) {
+  progress.phase = phase;
+  progress.phaseGames = 0;
+  progress.phaseTotal = total;
+}
+if (isMainThread && PROGRESS_EVERY > 0) {
+  setInterval(() => {
+    const now = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    const recent = progress.done - progress.lastDone;
+    progress.lastDone = progress.done;
+    const mins = (Date.now() - progress.startedAt) / 60000;
+    const of = progress.phaseTotal ? `/${progress.phaseTotal}` : "";
+    console.log(`  [${now}] ${progress.phase}: ${progress.phaseGames}${of} games; ${progress.done} games in all, ${recent} in the last ${PROGRESS_EVERY}s (${(progress.done / Math.max(mins, 1e-9)).toFixed(1)}/min)`);
+  }, PROGRESS_EVERY * 1000).unref();
+}
+const runJob = (job: Job): Promise<Result> =>
+  (pool ? pool.run(job) : Promise.resolve(play(job.w0, job.w1, job.seed, job.size))).then((r) => {
+    progress.done++;
+    progress.phaseGames++;
+    return r;
+  });
 
 /** b's share of wins and of all points against a over `games` games from firstSeed on, each map played from both seats */
 async function match(a: GreedyWeights, b: GreedyWeights, games: number, firstSeed: number): Promise<{ wins: number; share: number }> {
@@ -193,6 +266,7 @@ async function fixedTest(champ: GreedyWeights, chall: GreedyWeights): Promise<Te
 
 /** batches of map pairs until the SPRT decides, or --max-games is reached (reject) */
 async function sprtTest(champ: GreedyWeights, chall: GreedyWeights): Promise<Test> {
+  setPhase("testing a challenger");
   const pairs: number[] = [];
   let wins = 0;
   let mine = 0;
@@ -210,6 +284,7 @@ async function sprtTest(champ: GreedyWeights, chall: GreedyWeights): Promise<Tes
       total += a.scores[0] + a.scores[1] + b.scores[0] + b.scores[1];
     }
     const { verdict, llr } = sprtVerdict(pairs, ELO0, ELO1);
+    console.log(`    look: ${pairs.length * 2} games, challenger won ${((wins / (pairs.length * 2)) * 100).toFixed(0)}%, LLR ${llr.toFixed(2)} (keep at ${Math.log(19).toFixed(2)}, reject at ${(-Math.log(19)).toFixed(2)})`);
     const games = pairs.length * 2;
     const out = { games, wins: wins / games, share: total ? mine / total : 0.5, llr };
     if (verdict === "accept") return { ...out, keep: true };
@@ -265,22 +340,42 @@ async function main() {
   console.log(`panel: ${panel.map((p) => p.id).join(", ")}; ${CURVE_GAMES} games each every ${count(CURVE_EVERY)} training games`);
 
   const curvePath = path.join(dir, "curve.jsonl");
-  fs.writeFileSync(curvePath, "");
-  let champ: GreedyWeights = { ...DEFAULT_WEIGHTS, rewards: { ...DEFAULT_WEIGHTS.rewards } };
+  const ckPath = path.join(dir, "checkpoint.json");
+  // --resume: continue the run saved in checkpoint.json (written after every round and curve point)
+  const resumed: Checkpoint | null = RESUME ? (fs.existsSync(ckPath) ? JSON.parse(fs.readFileSync(ckPath, "utf8")) : null) : null;
+  if (RESUME && !resumed) throw new Error(`--resume: no checkpoint at ${ckPath}`);
+  if (resumed && resumed.args !== ARGS) console.log(`note: resuming with other options than the run was started with:\n  then: ${resumed.args}\n  now:  ${ARGS}`);
+  if (!resumed) fs.writeFileSync(curvePath, "");
+  const start = FROM ? weightsOf(FROM) : null;
+  // the source model's own training time (counted into a fine-tune's total)
+  const fromSeconds: number | undefined = FROM ? (() => {
+    try {
+      const t = JSON.parse(fs.readFileSync(path.join(process.cwd(), "models", FROM, "model.json"), "utf8")).training ?? {};
+      return t.totalSecondsIncludingFrom ?? t.seconds;
+    } catch {
+      return undefined;
+    }
+  })() : undefined;
+  if (FROM && !start) throw new Error(`--from ${FROM}: no greedy model.json in models/${FROM}`);
+  let champ: GreedyWeights = start ?? { ...DEFAULT_WEIGHTS, rewards: { ...DEFAULT_WEIGHTS.rewards } };
+  console.log(`mode ${MODE}, ${PLAYERS} players (the two sides on alternate seats), ${MAP_TYPE} ${SIZE}x${SIZE}; ${FROM ? `fine-tuning from ${FROM}` : "starting from the greedy defaults"}`);
   let accepted = 0;
   let capped = 0;
   let trainGames = 0;
   let rounds = 0;
   let nextCurve = 0;
   const t0 = Date.now();
-  const secs = () => Math.round((Date.now() - t0) / 1000);
+  // a resumed run keeps its original start and counts only the time it actually ran
+  const runStart = resumed?.startedAt ?? new Date(t0).toISOString();
+  const secondsBefore = resumed?.seconds ?? 0;
+  const secs = () => secondsBefore + Math.round((Date.now() - t0) / 1000);
   const dur = (sec: number) => {
     const s = Math.round(sec);
     return s >= 3600 ? `${Math.floor(s / 3600)}h${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m` : s >= 60 ? `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s` : `${s}s`;
   };
   // when the budget (or --rounds) runs out at the pace so far; an early stop can come sooner
   const eta = () => {
-    const s = (Date.now() - t0) / 1000;
+    const s = secs();
     const done = BUDGET ? trainGames / BUDGET : Number.isFinite(ROUNDS) ? rounds / ROUNDS : 0;
     if (done <= 0 || s < 1) return "ETA …";
     const left = (s * (1 - done)) / done;
@@ -293,7 +388,47 @@ async function main() {
   let best = { mean: -1, point: 0, champ, round: 0, trainingGames: 0, kept: 0 };
   let converged = false;
 
+  if (resumed) {
+    champ = resumed.weights;
+    best = resumed.best;
+    ({ accepted, capped, trainingGames: trainGames, round: rounds, nextCurve, points, converged } = resumed);
+    seed = resumed.seed;
+    console.log(`resumed at round ${rounds}, ${count(trainGames)} games, ${accepted} kept, ${points} curve points, ${dur(secondsBefore)} trained so far`);
+  }
+  // written after every round and curve point; a stopped run loses at most the round in progress
+  const save = () => {
+    const ck: Checkpoint = { args: ARGS, startedAt: runStart, seconds: secs(), savedAt: new Date().toISOString(), round: rounds, trainingGames: trainGames, accepted, capped, seed, nextCurve, points, converged, best, weights: champ };
+    fs.writeFileSync(ckPath + ".tmp", JSON.stringify(ck, null, 2) + "\n");
+    fs.renameSync(ckPath + ".tmp", ckPath);
+  };
+  for (const sig of ["SIGINT", "SIGTERM"] as const) {
+    process.on(sig, () => {
+      console.log(`\nstopped (${sig}) at round ${rounds}, ${count(trainGames)} games, ${dur(secs())} trained; checkpoint ${ckPath}\nresume: the same command plus --resume`);
+      process.exit(0);
+    });
+  }
+
+  if (!resumed) save();
+  // the best champion so far as a playable model while training runs: models/<id>/model.json marked provisional
+  // (the final save overwrites it), plus a copy per curve point in models/<id>/snapshots/
+  const provisional = () => {
+    const spec = {
+      id: ID,
+      name: `${ID.replace(/^greedy-hill-v(\d+)$/, "Hill climber v$1")} (training, ${count(best.trainingGames)} games)`,
+      kind: "greedy",
+      description: `Provisional: the best champion so far of a training run still in progress (curve point ${best.point + 1}, round ${best.round}, ${count(best.trainingGames)} games, mean win rate ${pct(best.mean)} against the panel in ${PLAYERS}-player ${MODE}).`,
+      created: new Date().toISOString().slice(0, 10),
+      weights: best.champ,
+      training: { provisional: true, mode: MODE, players: PLAYERS, mapSize: SIZE, round: best.round, trainingGames: best.trainingGames, kept: best.kept, curvePoint: best.point + 1, curveMean: Math.round(best.mean * 1000) / 1000, startedAt: runStart, seconds: secs(), duration: dur(secs()) },
+    };
+    const text = JSON.stringify(spec, null, 2) + "\n";
+    fs.writeFileSync(path.join(dir, "model.json"), text);
+    fs.mkdirSync(path.join(dir, "snapshots"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "snapshots", `point-${String(points).padStart(3, "0")}-${trainGames}-games.json`), text);
+  };
+
   const curvePoint = async () => {
+    setPhase(`curve point ${points + 1} (vs panel)`, panel.length * CURVE_GAMES);
     const vs = await panelTest(panel, champ, CURVE_GAMES, CURVE_SEED);
     const mean = meanWin(vs);
     const improved = mean > best.mean + MIN_GAIN || best.mean < 0;
@@ -307,9 +442,11 @@ async function main() {
     points++;
     nextCurve += CURVE_EVERY;
     if (PATIENCE && since >= PATIENCE) converged = true;
+    save();
+    provisional();
   };
 
-  await curvePoint();
+  if (points === 0) await curvePoint();
   while (!converged && rounds < ROUNDS && (!BUDGET || trainGames < BUDGET)) {
     rounds++;
     const { next: chall, nudged } = mutate(champ);
@@ -325,9 +462,7 @@ async function main() {
       `round ${String(rounds).padStart(5)}  ${String(m.games).padStart(4)} games  won ${pct(m.wins).padStart(4)}  points ${(m.share * 100).toFixed(1)}%` +
         `${m.llr !== undefined ? `  LLR ${m.llr.toFixed(2).padStart(6)}` : ""}  ${m.keep ? "KEPT" : m.capped ? "cap " : "    "}  (${accepted} kept, ${progress}, ${dur(secs())}, ${eta()})${m.keep ? `  ${nudged}` : ""}`,
     );
-    if (rounds % 100 === 0) {
-      fs.writeFileSync(path.join(dir, "checkpoint.json"), JSON.stringify({ round: rounds, trainingGames: trainGames, accepted, seed, weights: champ }, null, 2) + "\n");
-    }
+    save();
     if (trainGames >= nextCurve) await curvePoint();
   }
   if (!converged && trainGames + CURVE_EVERY > nextCurve) await curvePoint(); // the last point, unless one was just taken
@@ -338,6 +473,7 @@ async function main() {
   if (champ !== lastChamp) console.log(`saving the champion of the best curve point (round ${best.round}, ${count(best.trainingGames)} games, mean ${pct(best.mean)})`);
 
   // final test: the whole panel on maps neither the climber nor the curve has seen
+  setPhase("final test (vs panel)", panel.length * FINAL_GAMES);
   const final = await panelTest(panel, champ, FINAL_GAMES, FINAL_SEED);
   console.log(`\nfinal (${FINAL_GAMES} unseen games against each):`);
   for (const [id, v] of Object.entries(final)) {
@@ -354,7 +490,7 @@ async function main() {
     name,
     kind: "greedy",
     description:
-      `The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts): ${how} on ${SIZE}x${SIZE} maps, ${accepted} challengers kept.` +
+      `The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts): ${how} in ${PLAYERS}-player ${MODE} on ${MAP_TYPE} ${SIZE}x${SIZE} maps${FROM ? `, fine-tuned from ${FROM}` : ""}, ${accepted} challengers kept.` +
       // early stopping may save an earlier champion than the last one: say which
       (best.round !== rounds ? ` Saved the champion of the best learning-curve point (round ${best.round}, ${count(best.trainingGames)} games, ${best.kept} kept).` : "") +
       (final["greedy-v1"] ? ` Won ${pct(final["greedy-v1"].winRate)} against greedy-v1` : "") +
@@ -369,9 +505,18 @@ async function main() {
       budget: BUDGET || undefined,
       rounds,
       trainingGames: trainGames,
+      // every run records how long it took; a fine-tune also adds the source model's training time
+      startedAt: runStart,
+      endedAt: new Date().toISOString(),
       seconds: secs(),
+      duration: dur(secs()),
+      ...(FROM ? { totalSecondsIncludingFrom: secs() + (fromSeconds ?? 0), totalDurationIncludingFrom: dur(secs() + (fromSeconds ?? 0)) } : {}),
       sigma: SIGMA,
       weightsPerNudge: PICK,
+      mode: MODE,
+      players: PLAYERS,
+      mapType: MAP_TYPE,
+      from: FROM || undefined,
       mapSize: SIZE,
       accepted,
       capped: TEST === "sprt" ? capped : undefined,
@@ -384,6 +529,7 @@ async function main() {
   fs.writeFileSync(path.join(dir, "model.json"), JSON.stringify(spec, null, 2) + "\n");
   fs.rmSync(path.join(dir, "checkpoint.json"), { force: true });
   console.log(`saved models/${ID}/model.json and curve.jsonl`);
+  console.log(`training took ${dur(secs())} (${runStart} to ${new Date().toISOString()}${resumed ? ", resumed" : ""})${FROM ? `; with ${FROM}'s own training ${dur(secs() + (fromSeconds ?? 0))} in total` : ""}`);
   pool?.close();
 }
 
