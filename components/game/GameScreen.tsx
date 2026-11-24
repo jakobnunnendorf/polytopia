@@ -514,7 +514,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         </View>
         <View style={{ alignItems: "flex-end", minWidth: 96 }}>
           <Text style={{ color: UI.muted, fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 }}>
-            Turn {state.turn}{state.mode === "perfection" ? `/${state.maxTurns}` : ""}
+            Turn {state.turn}{state.mode === "perfection" ? ` · ${state.maxTurns - state.turn} left` : ""}
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", marginTop: 1 }}>
             <TribeEmblem clan={me.clan} size={20} />

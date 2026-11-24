@@ -344,7 +344,7 @@ export function rewardOptions(level: number): [string, string] {
 }
 
 export const START_STARS = 5;
-export const EXPLORER_STEPS = 15;
+export const EXPLORER_STEPS = 12;
 export const PERFECTION_TURNS = 30;
 export const STARFISH_STARS = 8;
 export const RUIN_STARS = 10;

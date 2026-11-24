@@ -158,7 +158,6 @@ describe("effects of peace", () => {
     s.players[0].techs.push("diplomacy");
     const c = put(s, "cloak", 0, N - 2, N - 2);
     c.hidden = true;
-    c.startedHidden = true;
     expect(has(s, (a) => a.type === "infiltrate")).toBe(true);
     peace(s);
     expect(has(s, (a) => a.type === "infiltrate")).toBe(false);
@@ -367,7 +366,8 @@ describe("Cloak", () => {
     expect(unit(t, c.id)!.hidden).toBe(false);
   });
 
-  it("an enemy entering a hidden Cloak's tile is stopped and reveals it; moves don't leak its position", () => {
+  // overturned (S1 step Command::Move): the mover stays where it is and its move is not spent
+  it("an enemy moving onto a hidden Cloak's tile reveals it, stays put and keeps its move; moves don't leak its position", () => {
     const s = blank();
     const r = put(s, "rider", 0, 2, 5);
     const c = put(s, "cloak", 1, 4, 5);
@@ -377,27 +377,20 @@ describe("Cloak", () => {
     expect(has(s, (a) => a.type === "move" && a.unitId === r.id && a.to.x === 4 && a.to.y === 5)).toBe(true);
     const t = applyAction(s, { type: "move", unitId: r.id, to: { x: 4, y: 5 } });
     const r2 = unit(t, r.id)!;
-    expect(r2.x === 4 && r2.y === 5).toBe(false);
-    expect(Math.max(Math.abs(r2.x - 4), Math.abs(r2.y - 5))).toBe(1);
+    expect([r2.x, r2.y]).toEqual([2, 5]);
     expect(unit(t, c.id)!.hidden).toBe(false);
-    expect(r2.canMove).toBe(false);
+    expect(r2.canMove).toBe(true);
+    expect(r2.moved).toBe(false);
   });
 
-  it("can't infiltrate on the turn it became hidden, unless it started that turn hidden", () => {
+  // overturned (S1 combat::attacks_into): a Cloak (Dash) may move, become hidden and infiltrate in one turn
+  it("a Cloak may move and then infiltrate in the same turn", () => {
     const s = blank();
     s.players[0].techs.push("diplomacy");
     const c = put(s, "cloak", 0, N - 4, N - 2);
     const t = applyAction(s, { type: "move", unitId: c.id, to: { x: N - 2, y: N - 2 } });
     expect(unit(t, c.id)!.hidden).toBe(true);
-    expect(has(t, (a) => a.type === "infiltrate")).toBe(false);
-
-    const c2 = { ...c, hidden: true };
-    s.units = s.units.map((u) => (u.id === c.id ? c2 : u));
-    let u = applyAction(s, { type: "endTurn" });
-    u = applyAction(u, { type: "endTurn" });
-    expect(unit(u, c.id)!.startedHidden).toBe(true);
-    u = applyAction(u, { type: "move", unitId: c.id, to: { x: N - 2, y: N - 2 } });
-    expect(has(u, (a) => a.type === "infiltrate")).toBe(true);
+    expect(has(t, (a) => a.type === "infiltrate")).toBe(true);
   });
 
   it("Daggers spawn in the city, then on defensive tiles inside the borders", () => {
@@ -407,7 +400,6 @@ describe("Cloak", () => {
     tile(s, N - 2, N - 1).terrain = "forest";
     const c = put(s, "cloak", 0, N - 2, N - 2);
     c.hidden = true;
-    c.startedHidden = true;
     const t = applyAction(s, { type: "infiltrate", unitId: c.id, cityId: s.cities[1].id });
     const daggers = t.units.filter((u) => u.type === "dagger" && u.owner === 0);
     expect(daggers).toHaveLength(2);

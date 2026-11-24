@@ -248,14 +248,15 @@ describe("improvements", () => {
 });
 
 describe("scoring", () => {
-  it("a ship scores only the unit it carries (5 per star), not its upgrade", () => {
+  // overturned (S1 units::unit_score): the boat's own cost counts too
+  it("a ship scores 5 per star of boat and passenger", () => {
     const s = blank(2);
     city(s, 0, 2, 2, true);
     city(s, 1, 12, 12, true);
     const base = scoreOf(s, 0);
     const scout = makeUnit(s, "scout", 0, { x: 6, y: 6 }, null);
     scout.carried = "warrior";
-    expect(scoreOf(s, 0) - base).toBe(10);
+    expect(scoreOf(s, 0) - base).toBe(35); // Scout 5 + Warrior 2
   });
 
   it("a city scores 50 x (level + 1) + 5 per population point; negative population costs 105 per point, floor 0", () => {
@@ -356,16 +357,15 @@ describe("game setup, modes and victory", () => {
     expect(applyAction(s, { type: "endTurn" }).over).toBe(false);
   });
 
-  it("Glory: reaching 10,000 points ends the game at the end of that turn; the highest score wins", () => {
+  // overturned (S1 step::add_score): Glory ends right after the action that reaches the target
+  it("Glory: reaching 10,000 points ends the game at once; the highest score wins", () => {
     const s = blank(3, { mode: "glory" });
     const a = city(s, 0, 2, 2, true);
     const b = city(s, 1, 12, 12, true);
     city(s, 2, 12, 2, true);
     a.parks = 40; // 10,000 points
-    const mid = applyAction(s, { type: "research", tech: "riding" });
-    expect(mid.over).toBe(false); // only at the end of the turn
     b.parks = 44;
-    const after = applyAction(s, { type: "endTurn" });
+    const after = applyAction(s, { type: "research", tech: "riding" });
     expect(after.over).toBe(true);
     expect(after.winner).toBe(1);
   });

@@ -39,7 +39,7 @@ export function describe(s: GameState): string {
   const lines = [
     `Turn ${s.turn}${
       s.mode === "perfection"
-        ? ` of ${s.maxTurns} (highest score wins)`
+        ? ` (turns 0-${s.maxTurns - 1}, ${s.maxTurns - s.turn} left; highest score wins)`
         : s.mode === "glory"
           ? " (first to 10,000 points wins)"
           : s.mode === "might"

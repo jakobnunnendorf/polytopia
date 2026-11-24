@@ -335,6 +335,7 @@ describe("unit data (rules-124.json, build 2.18.0.16751)", () => {
     const s = blank();
     s.players[0].clan = "cymanti";
     const b = put(s, "boomchi", 0, 5, 5);
+    b.createdTurn = s.turn - 1; // no Explode in the turn of creation
     put(s, "warrior", 1, 5, 6);
     const acts = legalActions(s).filter((a) => "unitId" in a && a.unitId === b.id).map((a) => a.type);
     expect(acts).not.toContain("attack");
