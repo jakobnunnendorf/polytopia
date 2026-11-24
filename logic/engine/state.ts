@@ -14,6 +14,8 @@ import {
   HUMAN_CAPITAL_BONUS,
   MARKET_CAP,
   MONUMENTS,
+  DOMINATION_DIFFICULTY,
+  DOMINATION_STARS,
   PERFECTION_DIFFICULTY_BONUS,
   PERFECTION_STARS,
   PERFECTION_TURNS,
@@ -29,7 +31,7 @@ import { generateMap, type MapType } from "./mapgen";
 import { around, dist, idx, inBounds, isWater, tileAt } from "./grid";
 import type { City, Coord, Difficulty, GameMode, GameState, Player, Unit } from "./types";
 import { canSee } from "./movement";
-import { atPeace } from "./diplomacy";
+import { atPeace, atWar } from "./diplomacy";
 
 const CITY_NAMES = [
   "Ashford", "Brightwater", "Cinderholm", "Dunmere", "Elderglen", "Fallowmark", "Greystone",
@@ -52,6 +54,11 @@ export type NewGameOptions = {
   mapType?: MapType;
   /** clan per player; default: random distinct clans */
   clans?: string[];
+  /**
+   * Perfection turn limit (default 30, turns 0..30). The Weekly Challenge is
+   * Perfection with turnLimit 20 and a fixed seed.
+   */
+  turnLimit?: number;
 };
 
 /**
@@ -149,7 +156,7 @@ export function underSiege(s: GameState, c: City): boolean {
   return s.units.some((u) => u.x === c.x && u.y === c.y && u.owner !== c.owner && !atPeace(s, u.owner, c.owner));
 }
 
-/** market stars: sum of adjacent own windmill/sawmill/forge levels, capped (§5.5) */
+/** market stars: sum of adjacent own windmill/sawmill/forge levels (a level-0 one counts 1), capped (§5.5) */
 function marketIncome(s: GameState, p: number): number {
   let total = 0;
   s.tiles.forEach((t, i) => {
@@ -162,7 +169,7 @@ function marketIncome(s: GameState, p: number): number {
       const n = tileAt(s, q.x, q.y);
       const nc = cityById(s, n.territory);
       if (nc?.owner === p && ["windmill", "sawmill", "forge"].includes(n.building ?? ""))
-        sum += n.buildingLevel;
+        sum += Math.max(1, n.buildingLevel);
     }
     total += Math.min(MARKET_CAP, sum);
   });
@@ -218,10 +225,11 @@ export function income(s: GameState, p: number): number {
   }
   total += marketIncome(s, p);
   total += specialBuildingIncome(s, p);
-  // embassies pay both builder and host, double between peace partners (rules doc, Embassy)
+  // embassies pay both builder and host, double between peace partners, nothing while at war (2.18)
   for (const pl of s.players) {
     if (!pl.alive) continue;
     for (const host of pl.embassies) {
+      if (!s.players[host]?.alive || atWar(s, pl.id, host)) continue;
       const pay = atPeace(s, pl.id, host) ? 2 * EMBASSY_INCOME : EMBASSY_INCOME;
       if (pl.id === p) total += pay;
       if (host === p) total += pay;
@@ -281,25 +289,45 @@ export function scoreOf(s: GameState, p: number): number {
 }
 
 /**
- * City score (rules doc, Scoring): 100 at level 1, 5 per population point (the
- * points spent on each level-up plus the current population, which counts
- * against when negative), plus a level-up bonus of 40 at level 2, 35 at level 3
- * and falling after; parks 250 each.
+ * City score (game data 2.18; logic follows polybots-engine): 50 × (level + 1)
+ * plus 5 per population point toward the next level. Negative population costs
+ * 105 per point and the city part never drops below 0. Parks 250 each.
  */
 export function cityScore(c: City): number {
-  let score = SCORE.city + SCORE.cityPop * c.pop + SCORE.park * c.parks;
-  for (let l = 2; l <= c.level; l++) score += SCORE.cityPop * l + SCORE.cityLevelBonus(l);
-  return score;
+  let score = SCORE.cityPerLevel * (c.level + 1) + SCORE.cityPop * c.pop;
+  if (c.pop < 0) score = Math.max(0, score + SCORE.cityNegativePop * c.pop);
+  return score + SCORE.park * c.parks;
 }
 
 /**
- * Perfection rating (rules doc, Perfection difficulty bonus):
- * score x (1 + 0.41 ln(opponents) + d), d = 0/0.2/0.4/0.8 for Easy/Normal/Hard/Crazy.
+ * Perfection rating (2.18): score × (1 + bonus), bonus = round(handicap/5 +
+ * ln(opponents)/ln(11.4), 2), handicap 0/1/2/4 for Easy/Normal/Hard/Crazy.
  */
 export function perfectionRating(s: GameState, p: number): number {
   const opponents = s.players.length - 1;
-  const bonus = 1 + (opponents > 0 ? 0.41 * Math.log(opponents) : 0) + PERFECTION_DIFFICULTY_BONUS[difficultyOf(s)];
+  const raw = PERFECTION_DIFFICULTY_BONUS[difficultyOf(s)] + (opponents > 0 ? Math.log(opponents) / Math.log(11.4) : 0);
+  const bonus = 1 + Math.round(raw * 100) / 100;
   return Math.round(scoreOf(s, p) * bonus);
+}
+
+/**
+ * Domination end rating (2.18 end screen): the mean of speed min(1, 10 ×
+ * opponents / turns), battle (kills + 1) / (losses + kills + 1), destroyed
+ * tribes / opponents and the difficulty part 25/50/75/100%.
+ */
+export function dominationRating(s: GameState, p: number): number {
+  const pl = s.players[p];
+  const opponents = s.players.length - 1;
+  if (opponents <= 0) return 1;
+  const speed = s.turn > 0 ? Math.min(1, (10 * opponents) / s.turn) : 1;
+  const battle = (pl.kills + 1) / (pl.losses + pl.kills + 1);
+  const destroyed = s.players.filter((o) => o.id !== p && !o.alive).length / opponents;
+  return (speed + battle + destroyed + DOMINATION_DIFFICULTY[difficultyOf(s)]) / 4;
+}
+
+/** Domination stars for a rating: 0-3, 4 = halo (20% / 70% / 95% / 100%) */
+export function dominationStars(rating: number): number {
+  return DOMINATION_STARS.filter((t) => rating >= t - 1e-9).length;
 }
 
 /** Perfection stars for a rating: 0-3, 4 = halo (3,000 / 10,000 / 50,000 / 100,000) */
@@ -541,8 +569,11 @@ export function checkElimination(s: GameState) {
   for (const pl of s.players) {
     if (!pl.alive) continue;
     if (citiesOf(s, pl.id).length === 0) {
+      // a wiped tribe: every unit disbanded, every embassy to or from it ended
       pl.alive = false;
       s.units = s.units.filter((u) => u.owner !== pl.id);
+      pl.embassies = [];
+      for (const o of s.players) o.embassies = o.embassies.filter((h) => h !== pl.id);
       log(s, `player ${pl.id} eliminated`);
     }
   }
@@ -649,7 +680,7 @@ export function createGame(opts: NewGameOptions): GameState {
     mapSize: n,
     mode: opts.mode,
     difficulty: opts.difficulty ?? "normal",
-    maxTurns: PERFECTION_TURNS,
+    maxTurns: opts.turnLimit ?? PERFECTION_TURNS,
     turn: 0,
     current: 0,
     tiles: map.tiles,

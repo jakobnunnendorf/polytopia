@@ -173,7 +173,7 @@ export function scoreAction(s: GameState, a: Action, w: GreedyWeights = DEFAULT_
     }
     case "recover": {
       const u = s.units.find((x) => x.id === a.unitId)!;
-      // no automatic heal: recover when badly hurt or poisoned, else only when nothing better is left
+      // idle damaged units heal at the end of the turn anyway; recover early when badly hurt
       if (u.hp < u.maxHp / 2 && !u.poisoned) return w.recover;
       return u.hp < u.maxHp || u.poisoned ? 1 : -1;
     }

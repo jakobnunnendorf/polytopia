@@ -205,12 +205,12 @@ describe("healing", () => {
     expect(unit(s, h.id).hp).toBe(8);
   });
 
-  it("idle units are not healed automatically at the end of the turn", () => {
+  it("idle units heal automatically at the end of the turn (2.18; overturns the doc-only reading)", () => {
     let s = blank();
     const w = put(s, "warrior", 0, 1, 1);
     w.hp = 3;
     s = applyAction(s, { type: "endTurn" });
-    expect(unit(s, w.id).hp).toBe(3);
+    expect(unit(s, w.id).hp).toBe(7);
   });
 });
 
@@ -263,8 +263,8 @@ describe("pushing", () => {
 });
 
 describe("naval units", () => {
-  it("Dinghy skills are exactly Water, Carry, Hide, Creep, Infiltrate, Stiff", () => {
-    expect([...UNITS.dinghy.skills].sort()).toEqual(["carry", "creep", "hide", "infiltrate", "stiff", "water"]);
+  it("Dinghy skills are exactly the game data's: Water, Carry, Hide, Infiltrate, Dash, Scout, Stiff, Static (no Creep)", () => {
+    expect([...UNITS.dinghy.skills].sort()).toEqual(["carry", "dash", "hide", "infiltrate", "scout", "static", "stiff", "water"]);
   });
 
   it("a Juggernaut leaving the water stomps adjacent enemies", () => {

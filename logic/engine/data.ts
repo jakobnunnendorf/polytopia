@@ -90,46 +90,46 @@ export const UNITS: Record<string, UnitDef> = {
   mindBender: u("mindBender", 5, true, 10, 0, 1, 1, 1, ["heal", "convert", "stiff"], "philosophy"),
   catapult: u("catapult", 8, true, 10, 4, 0, 1, 3, ["stiff"], "mathematics"),
   knight: u("knight", 8, true, 10, 3.5, 1, 3, 1, ["dash", "persist", "fortify"], "chivalry"),
-  cloak: u("cloak", 8, true, 5, 0, 0.5, 2, 1, ["hide", "infiltrate", "dash", "scout", "creep", "stiff", "static"], "diplomacy"),
+  cloak: u("cloak", 8, true, 5, 2, 0.5, 2, 1, ["hide", "infiltrate", "dash", "scout", "creep", "stiff", "static"], "diplomacy"),
   dagger: u("dagger", 2, false, 10, 2, 2, 1, 1, ["dash", "surprise", "independent", "static"], null),
   giant: u("giant", 10, false, 40, 5, 4, 1, 1, ["static"], null),
   // boats: HP = passenger's (null) unless they carry their own
-  raft: u("raft", 0, false, null, 0, 1, 2, 0, ["water", "carry", "stiff", "static"], "fishing", true),
+  raft: u("raft", 0, false, null, 0, 1, 2, 2, ["water", "carry", "stiff", "static"], "fishing", true),
   scout: u("scout", 5, false, null, 2, 1, 3, 2, ["water", "carry", "dash", "scout", "static"], "sailing", true),
   rammer: u("rammer", 5, false, null, 3, 3, 3, 1, ["water", "carry", "dash", "static"], "ramming", true),
   bomber: u("bomber", 15, false, null, 3, 2, 2, 3, ["water", "carry", "splash", "stiff", "static"], "navigation", true),
   juggernaut: u("juggernaut", 0, false, 40, 4, 4, 2, 1, ["water", "carry", "stomp", "stiff", "static"], null, true),
-  dinghy: u("dinghy", 0, false, 5, 0, 0.5, 2, 1, ["water", "carry", "hide", "creep", "infiltrate", "stiff"], null, true),
-  pirate: u("pirate", 0, false, 10, 2, 2, 2, 1, ["water", "carry", "dash", "surprise", "independent", "static"], null, true),
+  dinghy: u("dinghy", 0, false, 5, 2, 0.5, 2, 1, ["water", "carry", "hide", "infiltrate", "dash", "scout", "stiff", "static"], null, true),
+  pirate: u("pirate", 0, false, 10, 2, 2, 2, 1, ["water", "carry", "dash", "surprise", "static"], null, true),
 
   // ---- Special tribe units (exact Polytopia 2.18 stats) ----
   // Aquarion (2.10 rework)
   mermaid: u("mermaid", 2, true, 10, 2, 2, 1, 1, ["dash", "fortify", "amphibious"], null),
-  amphibian: u("amphibian", 3, true, 10, 2, 1, 2, 1, ["dash", "escape", "fortify", "amphibious"], "riding"),
+  amphibian: u("amphibian", 3, true, 10, 2, 1, 2, 1, ["dash", "escape", "amphibious"], "riding"),
   shark: u("shark", 8, true, 10, 3.5, 2, 3, 1, ["dash", "surprise", "water"], "sailing", true),
   jelly: u("jelly", 8, true, 20, 2, 2, 2, 1, ["tentacles", "water", "stiff", "static"], "navigation", true),
   puffer: u("puffer", 8, true, 10, 4, 0, 2, 3, ["drench", "water", "stiff"], "mathematics", true),
   tridention: u("tridention", 8, true, 10, 2.5, 1, 2, 2, ["dash", "persist", "amphibious"], "chivalry"),
-  crab: u("crab", 10, false, 40, 4, 4, 1, 1, ["escape", "static", "amphibious", "autoFlood"], null),
+  crab: u("crab", 10, false, 40, 4, 4, 2, 1, ["escape", "static", "amphibious", "autoFlood"], null),
   mermaidArcher: u("mermaidArcher", 3, true, 10, 2, 1, 1, 2, ["dash", "fortify", "amphibious"], "archery"),
   mermaidDefender: u("mermaidDefender", 3, true, 15, 1, 3, 1, 1, ["fortify", "amphibious"], "strategy"),
   swordsmaid: u("swordsmaid", 5, true, 15, 3, 3, 1, 1, ["dash", "amphibious"], "smithery"),
-  siren: u("siren", 8, true, 10, 0, 1, 1, 1, ["heal", "convert", "amphibious", "stiff"], "philosophy"),
-  scuba: u("scuba", 8, true, 5, 0, 0.5, 2, 1, ["hide", "infiltrate", "dash", "scout", "creep", "stiff", "static", "amphibious"], "diplomacy"),
+  siren: u("siren", 5, true, 10, 0, 1, 1, 1, ["heal", "convert", "amphibious", "stiff"], "philosophy"),
+  scuba: u("scuba", 8, true, 5, 2, 0.5, 2, 1, ["hide", "infiltrate", "dash", "scout", "creep", "stiff", "static", "amphibious"], "diplomacy"),
   /** Dagger spawned by a Scuba's infiltration: Dagger stats plus Amphibious (engine choice) */
   mermaidDagger: u("mermaidDagger", 2, false, 10, 2, 2, 1, 1, ["dash", "surprise", "independent", "static", "amphibious"], null),
 
   // Elyrion (2.15 balance pass)
   polytaur: u("polytaur", 3, false, 15, 3, 1, 1, 1, ["dash", "fortify", "independent", "static"], null),
-  dragonEgg: u("dragonEgg", 10, false, 10, 0, 2, 1, 0, ["fortify", "stiff", "static", "grow"], null),
+  dragonEgg: u("dragonEgg", 10, false, 10, 0, 2, 1, 1, ["fortify", "stiff", "static", "grow"], null),
   babyDragon: u("babyDragon", 10, false, 15, 3, 3, 2, 1, ["dash", "escape", "fly", "scout", "static", "grow"], null),
   fireDragon: u("fireDragon", 10, false, 20, 4, 3, 3, 2, ["dash", "splash", "fly", "scout", "static"], null),
 
   // Polaris (2.15 balance pass)
-  mooni: u("mooni", 5, true, 10, 0, 1, 1, 1, ["autoFreeze", "skate", "stiff", "static"], "fishing"),
+  mooni: u("mooni", 5, true, 10, 0, 1, 2, 1, ["autoFreeze", "skate", "stiff"], "fishing"),
   iceArcher: u("iceArcher", 3, true, 10, 1, 1, 1, 2, ["dash", "fortify", "freeze", "stiff"], "archery"),
-  battleSled: { ...u("battleSled", 5, true, 15, 3, 2, 2, 1, ["dash", "escape", "skate"], "sailing"), iceMovement: 3 },
-  iceFortress: u("iceFortress", 15, true, 20, 4, 3, 1, 2, ["escape", "scout", "skate", "static"], "navigation"),
+  battleSled: { ...u("battleSled", 5, true, 15, 3, 2, 3, 1, ["dash", "escape", "skate"], "sailing"), iceMovement: 3 },
+  iceFortress: u("iceFortress", 15, true, 20, 4, 3, 2, 2, ["escape", "scout", "skate", "static"], "navigation"),
   gaami: u("gaami", 10, false, 30, 4, 3, 1, 1, ["autoFreeze", "freezeArea", "static"], null),
 
   // Cymanti (2.15 rework)
@@ -138,17 +138,17 @@ export const UNITS: Record<string, UnitDef> = {
   kiton: u("kiton", 3, true, 15, 1, 3, 1, 1, ["creep", "poisonDefence"], "strategy"),
   phychi: u("phychi", 3, true, 5, 0.7, 1, 2, 2, ["dash", "fly", "poison", "surprise", "doubleAttack"], "archery"),
   mantis: u("mantis", 5, true, 15, 3, 3, 1, 1, ["dash", "creep"], "smithery"),
-  moth: u("moth", 5, true, 10, 0, 0.1, 2, 1, ["fly", "dash", "sneak", "infiltrate", "poison", "static", "stiff"], "diplomacy"),
+  moth: u("moth", 5, true, 10, 2, 0.1, 2, 1, ["fly", "dash", "sneak", "infiltrate", "poison", "scout", "static", "stiff"], "diplomacy"),
   raychi: u("raychi", 5, true, 10, 3, 2, 3, 1, ["water", "dash"], "sailing", true),
-  boomchi: u("boomchi", 5, true, 10, 3, 3, 1, 1, ["dash", "explode", "stiff", "amphibious"], "ramming"),
+  boomchi: u("boomchi", 5, true, 10, 3, 3, 2, 0, ["dash", "explode", "stiff", "amphibious"], "ramming"),
   exida: u("exida", 8, true, 10, 3, 1, 2, 3, ["creep", "splash", "poison"], "mathematics"),
   doomux: u("doomux", 10, true, 20, 3.5, 2, 3, 1, ["dash", "creep", "explode", "static"], "chivalry"),
   livingIsland: u("livingIsland", 20, true, 20, 4, 4, 2, 1, ["water", "stomp", "algae", "poison", "static"], "navigation", true),
   centipede: u("centipede", 10, false, 20, 4, 3, 2, 1, ["dash", "creep", "eat", "static"], null),
   segment: u("segment", 2, false, 10, 2, 2, 1, 1, ["creep", "dash", "explode", "independent", "stiff", "static"], null),
   // Moth infiltration: Insect Egg -> Larva (1 turn) -> Moth (3 turns later)
-  insectEgg: u("insectEgg", 0, false, 10, 2, 3, 0, 1, ["grow", "stiff", "explode", "independent", "static"], null),
-  larva: u("larva", 0, false, 10, 2, 2, 1, 1, ["dash", "creep", "surprise", "independent", "static", "grow"], null),
+  insectEgg: u("insectEgg", 2, false, 10, 2, 3, 0, 0, ["grow", "stiff", "explode", "static"], null),
+  larva: u("larva", 2, false, 10, 2, 2, 1, 1, ["dash", "creep", "surprise", "independent", "static", "grow"], null),
 };
 
 /** Special-tribe-only trainable units (filtered by tribe in legalActions) */
@@ -270,7 +270,8 @@ export const BUILDS: Record<string, BuildDef> = {
   road: { id: "road", cost: 3, tech: "roads", kind: "road", terrain: ["field", "forest"], pop: 0 },
   bridge: { id: "bridge", cost: 5, tech: "roads", kind: "bridge", terrain: ["water"], pop: 0 },
   destroy: { id: "destroy", cost: 0, tech: "chivalry", kind: "destroy", terrain: ["field", "forest", "mountain", "water", "ocean"], pop: 0 },
-  embassy: { id: "embassy", cost: 5, tech: "diplomacy", kind: "embassy", terrain: ["field"], pop: 0 },
+  /** base price; the real price is embassyCost (4★ + 2★ per embassy the builder already has) */
+  embassy: { id: "embassy", cost: 4, tech: "diplomacy", kind: "embassy", terrain: ["field"], pop: 0 },
 
   // ---- Special tribe builds & buildings ----
   // Elyrion
@@ -342,6 +343,8 @@ export const PERFECTION_TURNS = 30;
 export const STARFISH_STARS = 8;
 export const RUIN_STARS = 10;
 export const EMBASSY_INCOME = 2;
+/** embassy price (game data, 2.18): 4★ plus 2★ for every embassy the builder already has */
+export const embassyCost = (existing: number) => 4 + 2 * existing;
 /** ports link to own ports within this range (rules doc, The capital and connections) */
 export const PORT_RANGE = 5;
 /** Glory: first to this score wins (rules doc, Modes) */
@@ -352,8 +355,14 @@ export const GLORY_TARGET = 10_000;
  */
 export const HUMAN_CAPITAL_BONUS = 1;
 export const BOT_CAPITAL_BONUS = { easy: 0, normal: 1, hard: 2, crazy: 4 } as const;
-/** Perfection bonus difficulty part d (rules doc, Perfection difficulty bonus) */
+/** bot handicap by difficulty (2.18): Easy 0, Normal 1, Hard 2, Crazy 4 */
+export const HANDICAP = { easy: 0, normal: 1, hard: 2, crazy: 4 } as const;
+/** Perfection bonus difficulty part d = handicap / 5 */
 export const PERFECTION_DIFFICULTY_BONUS = { easy: 0, normal: 0.2, hard: 0.4, crazy: 0.8 } as const;
+/** Domination rating difficulty part (2.18 end screen) */
+export const DOMINATION_DIFFICULTY = { easy: 0.25, normal: 0.5, hard: 0.75, crazy: 1 } as const;
+/** Domination rating that earns 1, 2, 3 stars and a halo */
+export const DOMINATION_STARS = [0.2, 0.7, 0.95, 1];
 /** Perfection rating that earns 1, 2, 3 stars and a halo (rules doc, Modes) */
 export const PERFECTION_STARS = [3_000, 10_000, 50_000, 100_000];
 /** most tribes per map size (rules doc, Map sizes): Tiny 9, every other size 16 */
@@ -368,8 +377,10 @@ export const SCORE = {
   city: 100,
   /** per point of population a city has gained (levels and current population; negative counts against) */
   cityPop: 5,
-  /** level-up bonus by the level reached (rules doc, Scoring: 40 at level 2, 35 at level 3, "falling after") */
-  cityLevelBonus: (level: number) => Math.max(0, 50 - 5 * level),
+  /** a city scores 50 × (level + 1) (game data, 2.18) */
+  cityPerLevel: 50,
+  /** extra cost per point of negative population (game data, 2.18); the city score floors at 0 */
+  cityNegativePop: 100,
   park: 250,
   monument: 400,
   templeLevel: 100,
@@ -422,7 +433,7 @@ export const CLANS: ClanDef[] = [
   { id: "mongols", startTech: "riding", startUnit: "rider", startStars: 6, capitalLevel: 1, mod: { forest: 0.2, animal: 0.2, mountain: 0.5, water: 0.5 }, startResources: ["fruit", "fruit"], color: "#f4c430" },
   { id: "polynesians", startTech: "fishing", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { water: 2, fish: 1.5, mountain: 0.5 }, startResources: ["fish", "fish"], color: "#2db84d" },
   { id: "welsh", startTech: "archery", startUnit: "archer", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 1.5 }, startResources: ["animal", "animal"], color: "#8c6239" },
-  { id: "lydians", startTech: null, startUnit: "warrior", startStars: 2, capitalLevel: 2, mod: {}, startResources: ["animal", "animal", "fruit", "fruit", "fish", "fish", "crop", "metal"], color: "#9b5de5" },
+  { id: "lydians", startTech: null, startUnit: "warrior", startStars: 2, capitalLevel: 3, mod: {}, startResources: ["animal", "animal", "fruit", "fruit", "fish", "fish", "crop", "metal"], color: "#9b5de5" },
   { id: "hittites", startTech: "smithery", startUnit: "swordsman", startStars: 5, capitalLevel: 1, mod: { metal: 2, animal: 0.1, fruit: 0.1, fish: 0.1 }, startResources: ["metal"], color: "#4a4e69" },
   { id: "sumerians", startTech: "farming", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 0.5 }, startResources: ["crop", "crop"], color: "#f97316" },
   { id: "tibetans", startTech: "philosophy", startUnit: "mindBender", startStars: 5, capitalLevel: 1, mod: { mountain: 1.5, crop: 0.1 }, startResources: ["animal", "animal"], color: "#14b8a6" },

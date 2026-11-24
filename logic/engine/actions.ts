@@ -14,6 +14,7 @@ import {
   RUIN_STARS,
   STARFISH_STARS,
   TECHS,
+  embassyCost,
   TECH_BY_ID,
   UNITS,
   buildAllowedFor,
@@ -25,7 +26,6 @@ import { computeDamageRounded } from "./combat";
 import { canSee, enterKind, has, pathTo, reachable, sightRadius, territoryOwner } from "./movement";
 import {
   atPeace,
-  atWar,
   canHarm,
   dipMut,
   friendly,
@@ -80,6 +80,8 @@ function attackTargets(s: GameState, u: Unit): Unit[] {
   const def = UNITS[u.type];
   if (!u.canAttack || def.range === 0) return [];
   if (def.attack === 0 && !has(u, "convert")) return [];
+  // Infiltrate units (Cloak, Dinghy, Scuba, Moth) only target cities (game data: their attack is never used on units)
+  if (has(u, "infiltrate")) return [];
   // no attacks (or conversions) on peace partners, nor either way during a cease-fire
   return s.units.filter(
     (t) =>
@@ -147,14 +149,11 @@ function canBuild(s: GameState, p: number, b: string, x: number, y: number): boo
   if (t.building) return false;
   if (!def.terrain.includes(t.terrain as never)) return false;
   if (def.resource && t.resource !== def.resource) return false;
-  if (def.kind === "harvest" && def.resource === undefined && t.resource && b !== "growForest" && b !== "clearForest" && b !== "burnForest") return false;
-  // a building, temple or monument that needs no resource goes on a tile without one (fruit, crop,
-  // animal, fish, metal, starfish must be harvested first); the same rule for every improvement
-  if ((def.kind === "building" || def.kind === "temple" || def.kind === "monument") && !def.resource && t.resource) return false;
+  // 2.18: a building that needs no resource may stand on an unharvested one (the resource stays
+  // underneath, hidden, and can't be harvested while the building stands)
   // Polaris: Outpost and Ice Temple stand on ice; one Ice Bank per tribe
   if ((b === "outpost" || b === "iceTemple") && !t.ice) return false;
   if (b === "iceBank" && s.tiles.some((o) => o.building === "iceBank" && territoryOwner(s, o) === p)) return false;
-  if (b === "port" && t.resource) return false;
   if (def.nextTo) {
     const ok = around(s.mapSize, { x, y }, 1).some((q) => {
       const n = tileAt(s, q.x, q.y);
@@ -211,12 +210,12 @@ export function legalActions(s: GameState): Action[] {
       if (canBuild(s, p, b, x, y)) out.push({ type: "build", at: { x, y }, building: b });
     }
   }
-  // embassies: inside a met tribe's original capital (§5.5)
-  if (pl.techs.includes("diplomacy") && pl.stars >= BUILDS.embassy.cost) {
+  // embassies (2.18): inside a met tribe's original capital that it still holds; peace not needed,
+  // war doesn't block it (an embassy pays nothing during war); 4★ + 2★ per embassy already built
+  if (pl.techs.includes("diplomacy") && pl.stars >= embassyCost(pl.embassies.length)) {
     for (const c of s.cities) {
       if (c.originalCapitalOf === null || c.owner === p || c.originalCapitalOf !== c.owner) continue;
       if (!pl.met.includes(c.owner) || pl.embassies.includes(c.owner)) continue;
-      if (atWar(s, p, c.owner)) continue; // not while at war (RULES_PARITY: "not at war")
       out.push({ type: "build", at: { x: c.x, y: c.y }, building: "embassy" });
     }
   }
@@ -488,9 +487,13 @@ function breakPeace(s: GameState, breaker: number, victim: number) {
 function endTurn(s: GameState) {
   const p = s.current;
   const pl = s.players[p];
-  // thaw frozen units at end of their owner's turn (no automatic heal: only the Recover action heals)
+  // automatic heal (2.18; logic follows polybots-engine): every own damaged or poisoned unit that
+  // neither moved, attacked nor acted this turn and isn't frozen heals as if it recovered
+  // (Centipede segments excepted); then frozen units thaw
   for (const u of s.units) {
     if (u.owner !== p) continue;
+    const idle = !u.done && !u.moved && !u.attacked && !u.frozen && u.bodyOf === undefined;
+    if (idle && (u.hp < u.maxHp || u.poisoned)) heal(s, u);
     if (u.frozen) u.frozen = false;
   }
   if (pl.techs.includes("meditation")) pl.pacifistTurns = pl.attackedThisTurn ? 0 : pl.pacifistTurns + 1;
@@ -1089,7 +1092,7 @@ function doBuild(s: GameState, p: number, b: string, at: Coord) {
   const pl = s.players[p];
   const def = BUILDS[b];
   const t = tileAt(s, at.x, at.y);
-  pl.stars -= def.cost;
+  pl.stars -= b === "embassy" ? embassyCost(pl.embassies.length) : def.cost;
   if (def.gain) pl.stars += def.gain;
   const city = cityById(s, t.territory);
   switch (def.kind) {

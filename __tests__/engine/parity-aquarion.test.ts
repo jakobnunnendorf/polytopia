@@ -59,11 +59,11 @@ describe("Aquarion units (rules doc, Aquarion units table)", () => {
     ["mermaidArcher", 3, 10, 2, 1, 1, 2, ["dash", "fortify", "amphibious"], "archery"],
     ["mermaidDefender", 3, 15, 1, 3, 1, 1, ["fortify", "amphibious"], "strategy"],
     ["swordsmaid", 5, 15, 3, 3, 1, 1, ["dash", "amphibious"], "smithery"],
-    ["siren", 8, 10, 0, 1, 1, 1, ["heal", "convert", "amphibious", "stiff"], "philosophy"],
-    ["scuba", 8, 5, 0, 0.5, 2, 1, ["hide", "infiltrate", "dash", "scout", "creep", "stiff", "static", "amphibious"], "diplomacy"],
+    ["siren", 5, 10, 0, 1, 1, 1, ["heal", "convert", "amphibious", "stiff"], "philosophy"],
+    ["scuba", 8, 5, 2, 0.5, 2, 1, ["hide", "infiltrate", "dash", "scout", "creep", "stiff", "static", "amphibious"], "diplomacy"],
     ["jelly", 8, 20, 2, 2, 2, 1, ["tentacles", "water", "stiff", "static"], "navigation"],
     ["puffer", 8, 10, 4, 0, 2, 3, ["drench", "water", "stiff"], "mathematics"],
-    ["crab", 10, 40, 4, 4, 1, 1, ["escape", "static", "amphibious", "autoFlood"], null],
+    ["crab", 10, 40, 4, 4, 2, 1, ["escape", "static", "amphibious", "autoFlood"], null],
   ] as const)("%s", (id, cost, hp, atk, def, mov, range, skills, tech) => {
     const d = UNITS[id];
     expect([d.cost, d.hp, d.attack, d.defence, d.movement, d.range, d.tech]).toEqual([cost, hp, atk, def, mov, range, tech]);
