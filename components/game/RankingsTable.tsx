@@ -25,6 +25,8 @@ function FilterChip({ text, on, onPress }: { text: string; on: boolean; onPress:
   );
 }
 
+const REFRESH_MS = 30_000;
+
 /** the Elo leaderboard: every model and every player profile that has finished a rated game; filters refit it on one kind of game */
 export default function RankingsTable() {
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -32,12 +34,22 @@ export default function RankingsTable() {
   const [filter, setFilter] = useState<RatingFilter>({});
   const [facets, setFacets] = useState<Facets | null>(null);
 
+  // the table refreshes itself, so ratings from games finishing elsewhere (an arena batch, a training
+  // run's early versions being rated) show up without reloading the page
+  const [tick, setTick] = useState(0);
   useEffect(() => {
-    arena.ratingFacets().then(setFacets).catch(() => {});
+    const t = setInterval(() => setTick((x) => x + 1), REFRESH_MS);
+    return () => clearInterval(t);
   }, []);
 
   useEffect(() => {
-    setRows(null);
+    arena.ratingFacets().then(setFacets).catch(() => {});
+  }, [tick]);
+
+  // a new filter blanks the table while it loads; a timed refresh keeps the old rows until the new ones arrive
+  useEffect(() => setRows(null), [filter]);
+
+  useEffect(() => {
     Promise.all([arena.ratings(filter), arena.models(), arena.profiles()])
       .then(([ratings, models, profiles]: [Ratings, ModelSpec[], Profile[]]) => {
         const label = (key: string): { name: string; kind: string } => {
@@ -48,6 +60,7 @@ export default function RankingsTable() {
           const kind = m?.kind === "llm" ? "LLM" : m?.kind === "external" ? "Agent" : m?.kind === "random" ? "Baseline" : "Bot";
           return { name: m?.name ?? id, kind };
         };
+        setError(false);
         setRows(
           Object.entries(ratings)
             .map(([key, r]) => ({ key, ...label(key), rating: r.rating, games: r.games, wins: r.wins, lo: r.lo, hi: r.hi }))
@@ -55,7 +68,7 @@ export default function RankingsTable() {
         );
       })
       .catch(() => setError(true));
-  }, [filter]);
+  }, [filter, tick]);
 
   // one row of chips per setting; a setting with a single value (all games alike) is not worth a row
   const filterRow = (kind: keyof Facets) => {
