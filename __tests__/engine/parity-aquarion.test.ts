@@ -333,12 +333,14 @@ describe("tribe spawn modifiers (2.18 data; map generation in parity-218-mapgen.
     }
   });
 
-  it("Aqua Crops only when Aquarion plays", () => {
-    const opts = { flooded: [true, false, false, false], aquaCrops: true };
+  // audit 2 (S1 keeps them): Aqua Crops on every map, only Aquarion sees them; flooding only with Aquarion
+  it("Aqua Crops on every map; flooding only when Aquarion plays", () => {
+    const opts = { flooded: [true, false, false, false] };
     const m = generateMap(createRng(4), 16, 4, "lakes", [{ aquaCrop: 1.5 }, {}, {}, {}], opts);
     expect(m.tiles.some((t) => t.resource === "aquaCrop")).toBe(true);
     const plain = generateMap(createRng(4), 16, 4, "lakes");
-    expect(plain.tiles.some((t) => t.resource === "aquaCrop" || t.flooded)).toBe(false);
+    expect(plain.tiles.some((t) => t.resource === "aquaCrop")).toBe(true);
+    expect(plain.tiles.some((t) => t.flooded)).toBe(false);
   });
 
   it("createGame wires the Aquarion and Cymanti map options", () => {

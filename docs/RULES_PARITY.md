@@ -86,12 +86,11 @@ The doc names these mechanics but not every number; the engine uses:
   generation; settlements and mountains never are. Canal, Fertilize, drain,
   water movement and the Lost City follow 2.18 now (see "2.18 data
   corrections" below).
-- Tentacles deal the Jelly's normal attack damage, no retaliation; Drench
-  floods the target's tile (attacks target units, so an empty tile can't be
-  drenched).
-- Aqua Crops spawn on shallow water without fish at the crop rate, only in
-  games with an Aquarion. A Scuba's infiltration spawns Mermaid Daggers
-  (Dagger + Amphibious).
+- Tentacles deal the Jelly's normal attack damage, no retaliation (who strikes
+  when: see "Special tribes, audit 2" below); Drench floods the target's tile
+  (attacks target units, so an empty tile can't be drenched).
+- Aqua Crops: see the map table below (on every map, only Aquarion sees them).
+  A Scuba's infiltration spawns Mermaid Daggers (Dagger + Amphibious).
 - Map generation spawns (water multipliers, starting fish and spores,
   flooding): replaced by the 2.18 generator, see "2.18 data corrections".
 
@@ -115,7 +114,7 @@ generator differs, so maps match in distribution, not tile for tile.
 | Polaris | nothing at map generation | grows no climate of its own (alien climate); the water next to its capital starts as ice, its land neighbours Polaris land |
 | Ruins | wiki count, not on resources, at most a third on water on Lakes | tiles/40 + 1 (same counts), none within 2 of another ruin or a capital, none next to a village, water ruins only on ocean away from cities |
 | Starfish | one per 25 water tiles | up to ceil(wetness·tiles/25) (none on Drylands), none next to a starfish or a city |
-| Aqua Crops | crop rate on shallow water when an Aquarion plays | rolled on every map (0.3), kept only when an Aquarion plays (only Aquarion sees them) |
+| Aqua Crops | crop rate on shallow water when an Aquarion plays | rolled on every map (0.3) and kept on every map, also without an Aquarion (audit 2: S1 never removes them); only Aquarion sees them (`resourceVisible`) |
 | Fairness | none | up to 50 candidate maps; the one with the lowest turf inequality (richest/poorest turf) is kept, stopping early below 1.01 |
 
 Engine extensions: more than 4 players use ceil(sqrt(players))² domains, and
@@ -247,16 +246,15 @@ Cymanti
   poisoned if it survives; Eggs as before (city level, at most 5).
 - Centipede: a Segment only when it advanced into the killed unit's tile ->
   every kill by attack grows a Segment behind the body's tail (the first free
-  tile it may stand on, fanning out from the opposite of the head's facing).
-  When the head dies the first Segment becomes the Centipede and leads the
-  rest.
+  tile it may stand on, fanning out from the opposite of the tail's facing;
+  see audit 2). When a chain member dies, the unit behind it becomes a
+  Centipede (see audit 2).
 
 Polaris
 - Ice Bank income min(30, 2 x floor(count / 20))★ -> 2★ per level, level =
   min(30, floor(count / 20)); count = ice tiles plus Polaris land over the
-  whole board. A new game marks the land of the Polaris area (nearest capital,
-  as map generation) as Polaris land. Ice Bank on field or ice, once per
-  player ever.
+  whole board. Polaris land at the start: map generation's 3×3 around the
+  capital only (audit 2). Ice Bank on field or ice, once per player ever.
 
 Elyrion
 - Sanctuary replaces Clear Forest (was: Clear Forest removed, Sanctuary extra);
@@ -266,9 +264,102 @@ Elyrion
   the north-west (was: a random one, any owner).
 
 Not done (left open)
-- Centipede segments still move on their own; in S1 only the head moves and
-  the body follows. A dying middle segment keeps the rest in the body.
-- Harvest Spores (3★, +1 population) exists in the 2.18 data but no tech
-  unlocks it; left out.
 - Aquarion home climate starts flooded and Cymanti's 2 starting spores belong
   to map generation.
+- A pushed chain member moves like any unit (S1 pushes it along the chain);
+  a pushed unit is not struck by Tentacles (S1 strikes it).
+
+## Special tribes, audit 2
+
+Each line: rule: old behaviour -> new behaviour (reference file:function in
+polybots-engine). Tests: `__tests__/engine/parity-audit2-tribes.test.ts`.
+
+Centipede chains. A chain is a head and its Segments (`bodyOf` = head id, in
+`s.units` order = chain order); `movement.ts` `leaderOf`/`followerOf`.
+- Explode on a body part: only that Segment -> its follower explodes too, so
+  the whole tail goes (each blast right after the one in front, the order of
+  S1's action stack); the unit in front lets go and keeps the rest
+  (cymanti.rs:explode).
+- Segments: moved on their own and could attack, capture, examine, recover,
+  disband -> a unit led by another has no move, attack, capture, examine,
+  recover, disband or Break Ice options; when the head (or an advancing head)
+  moves, the follower 2+ tiles behind steps into the head's old tile, and so
+  down the chain, each step setting off what a move does (step.rs:move_action;
+  menu.rs, combat.rs:attack_options, attack.rs:option_writes). Chain speed:
+  1 while it has Segments -> the head's movement capped by its first
+  Segment's (movement.rs:moves, movement_range). A chain member never embarks
+  (movement.rs:embarks). Disbanding a head disbands its body too, each part
+  paid (step.rs disband).
+- Killed chain member: only a dead head handed over -> any killed unit with a
+  follower: the follower becomes a Centipede (keeping its missing HP, taking
+  the dead unit's spent flags) and leads the units behind it; the unit in
+  front lets go, so a dead middle Segment splits the body (attack.rs:kill,
+  units.rs:upgrade).
+- Eat: fanned from the opposite of the head's facing -> of the tail's own
+  facing (a new unit faces the middle of the board, units.rs:facing); no
+  Segment for a wild unit, of which the engine has none (linked.rs:eat,
+  attack.rs:attack_command).
+
+Cymanti
+- Kiton: `poisonDefence` (poisoned every attacker, ranged ones too) -> plain
+  Poison: its attacks and its retaliation poison; `poisonDefence` removed
+  (game data, units.kiton).
+- Swarm: a fresh Shaman, every own neighbour -> the Shaman only needs to be
+  able to move; neighbours already Swift and units led in a chain are
+  skipped; Swift (+1 movement) is lost whenever the unit is hit, retaliation
+  included (was kept on retaliation) (cymanti.rs swarm options, menu.rs,
+  attack.rs:perform_attack).
+- Creep: algae ended a creeping unit's move -> a Creep step costs 1 on water
+  and non-mountain land before the algae and slow checks, so algae don't stop
+  it (movement.rs:step_cost).
+
+Aquarion
+- Tentacles: every enemy Jelly next to a mover struck it; a moving Jelly hit
+  every non-own neighbour -> only the healthiest unfrozen adjacent Jelly of a
+  tribe not at peace strikes the mover, once; a Jelly's own strike skips its
+  own and peace partners' units and also fires when it is trained and when it
+  advances on a kill (aquarion.rs:strike, attack.rs:area_damage,
+  units.rs:train).
+- Advance after a kill: no move effects -> Stomp, Tentacles, Auto Freeze and
+  Auto Flood fire on it as on a move (not on a push) (step.rs:move_action
+  reason 1).
+
+Polaris
+- Freeze Area: land only outside enemy territory -> no territory check: a
+  freezable tile is explored open water, flooded land or land that is not
+  Polaris land yet; ice and Polaris land only with an unfrozen visible enemy
+  on it (polaris.rs:freezable, freeze_area).
+- Auto Freeze (Mooni, Gaami moving): water to ice only -> the same Freeze
+  Area, land turns Polaris too (step.rs:move_action, polaris.rs:freeze_area).
+- Break Ice: Dash units of other tribes, one empty ice tile at a time ->
+  any unit not led in a chain that hasn't attacked (and hasn't moved unless
+  it dashes), without Auto Freeze, Polaris included; one action breaks every
+  breakable ice tile around (empty, holding a swimmer, flyer or unseen enemy,
+  or with algae or a bridge; a hidden enemy is revealed instead); broken ice
+  becomes ocean, or shallow water when a land tile is orthogonally next to it
+  (polaris.rs:can_break_ice, break_ice_area, break_ice). The action is now
+  `{ type: "breakIce", unitId }`.
+- Escape for skaters: tested on the tile it attacked from -> on its final
+  tile, after any advance (attack.rs:attack_command).
+- Starting Polaris land: `createGame` marked all land nearest a Polaris
+  capital -> only map generation's 3×3 around the capital
+  (mapgen_candidate.rs:populate).
+
+Conversion
+- An Independent unit converted lost its home (null) -> keeps its own; a
+  converted boat converts its passenger, which here is part of the unit
+  (attack.rs:convert).
+
+Map
+- Aqua Crops: removed from maps without an Aquarion -> kept, hidden from
+  other tribes (mapgen_candidate.rs, no removal).
+
+Checked against the reference, no change
+- Fertilize on wetland that holds a non-crop resource: allowed, the crop
+  replaces it; not on a crop (menu.rs:can_build, "creates").
+- Fungi level cap: 1, 2 with Microbes (Recycling) (economy.rs:level_for);
+  already so.
+- Harvest Spores (3★, +1 population) is in the 2.18 data, but no tech or
+  tribe unlocks it, so it can't be reached in 2.18; left out.
+- Quetzali start with S1's `shields`, the tech that unlocks the Defender and
+  peace treaties: our `strategy`, only the name differs.
