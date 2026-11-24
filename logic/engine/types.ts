@@ -2,7 +2,7 @@
  * Core engine types. Everything here is plain JSON-serialisable data so a game
  * state can be cloned, stored, diffed, sent to Python, or replayed.
  *
- * Ids are plain descriptive words ("warrior", "climbing"); the Shardlands
+ * Ids are plain descriptive words ("warrior", "climbing"); the Polytopia
  * display names live in names.ts and never influence the rules.
  */
 
@@ -88,7 +88,7 @@ export type Unit = {
   /** Cymanti: poisoned (loses defence bonuses) */
   poisoned?: boolean;
   /** Cymanti: Swarm from a Shaman (+1 movement until attacked) */
-  boosted?: boolean;
+  swarmed?: boolean;
   /** Aquarion Bubbles: +1 movement after entering a flooded tile; lost when attacked or on dry land */
   bubble?: boolean;
   /** Double Attack: the second attack of this turn is used */
@@ -149,7 +149,7 @@ export type Player = {
   embassies: number[];
   /** the city this player started with */
   capitalId: number;
-  /** Cymanti: enemy units converted by Shamans (replaces the Altar of Peace task) */
+  /** Cymanti: enemy units converted by Shamans (the convert task, which replaces the pacifist task) */
   conversions?: number;
   /** "unique" buildings this player has ever built (Polaris Ice Bank): never again */
   builtUnique?: string[];
@@ -215,7 +215,7 @@ export type Action =
   | { type: "build"; at: Coord; building: string }
   | { type: "reward"; cityId: number; reward: string }
   | { type: "freezeArea"; unitId: number }
-  | { type: "boost"; unitId: number }
+  | { type: "swarm"; unitId: number }
   | { type: "explode"; unitId: number }
   | { type: "breakIce"; unitId: number; at: Coord }
   /** clear a tile effect under the unit (2.18 "drain": Flooded, or Algae); free, ends the unit's turn */

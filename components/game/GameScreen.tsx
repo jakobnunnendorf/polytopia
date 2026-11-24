@@ -8,7 +8,7 @@ import GameOverCard from "@/components/game/GameOverCard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Map from "@/components/Map/Map";
 import type { Highlight } from "@/components/Map/Tile";
-import { CityArt, ShardIcon, TribeEmblem, UnitArt } from "@/components/art/Art";
+import { CityArt, StarIcon, TribeEmblem, UnitArt } from "@/components/art/Art";
 import { BUILDS, UNITS, embassyCost } from "@/logic/engine/data";
 import {
   applyAction,
@@ -80,10 +80,10 @@ function Button({
   );
 }
 
-function Shards({ n, size = 18 }: { n: number; size?: number }) {
+function Stars({ n, size = 18 }: { n: number; size?: number }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center" }}>
-      <ShardIcon size={size} />
+      <StarIcon size={size} />
       <Text style={{ color: UI.mist, fontWeight: "800", fontSize: size, marginLeft: 4 }}>{n}</Text>
     </View>
   );
@@ -418,7 +418,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         case "harvestStarfish":
         case "infiltrate":
         case "freezeArea":
-        case "boost":
+        case "swarm":
         case "explode":
         case "breakIce":
         case "drain":
@@ -441,7 +441,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   const peaceReplies = actions.filter((a) => a.type === "acceptPeace" || a.type === "declinePeace");
 
   const rewardActions = actions.filter((a) => a.type === "reward");
-  // nothing left that moves a unit or spends shards wisely: nudge toward End turn
+  // nothing left that moves a unit or spends stars wisely: nudge toward End turn
   const nothingLeft = myTurn && rewardActions.length === 0 && !actions.some((a) => a.type === "move" || a.type === "attack" || a.type === "capture");
   const dots = useDots(!myTurn && !state.over);
   // "Turn N" banner whenever a human turn starts
@@ -455,11 +455,14 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     actions.filter((a) => a.type === "research").map((a) => (a as { tech: string }).tech),
   );
   const seen = selected ? me.explored[selected.y * state.mapSize + selected.x] === 1 : false;
+  // a building shows the name its owner's tribe gives it (Cymanti: Cult of Ciru)
+  const buildingOwner = tileSel ? state.cities.find((c) => c.id === tileSel.territory)?.owner : undefined;
+  const buildingClan = buildingOwner !== undefined ? state.players[buildingOwner]?.clan : undefined;
   const tileWords =
     tileSel && seen
       ? [
           tileSel.resource && resourceVisible(state, me.id, tileSel.resource) ? name("resource", tileSel.resource) : null,
-          tileSel.building ? name("building", tileSel.building) : null,
+          tileSel.building ? name("building", tileSel.building, buildingClan) : null,
           tileSel.village ? "Village" : null,
           tileSel.ruin ? "Ruins" : null,
         ].filter((w): w is string => !!w)
@@ -499,10 +502,10 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           <Text style={{ color: UI.muted, fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 }}>Score</Text>
           <Ticker value={scoreOf(state, viewer)} float={false} format={(n) => n.toLocaleString("en")} style={{ color: UI.mist, fontSize: 19, fontWeight: "800" }} />
         </View>
-        <View testID="hud-shards" style={{ alignItems: "center" }}>
+        <View testID="hud-stars" style={{ alignItems: "center" }}>
           <Text style={{ color: UI.muted, fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 }}>Stars</Text>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <ShardIcon size={20} />
+            <StarIcon size={20} />
             <Ticker value={me.stars} style={{ color: UI.mist, fontWeight: "800", fontSize: 21, marginLeft: 4 }} />
             <Text style={{ color: UI.gold, fontSize: 13, fontWeight: "800", marginLeft: 4 }}>
               (+{income(state, viewer)})
@@ -659,7 +662,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         </View>
       </View>
 
-      {/* lore wheel */}
+      {/* tech tree */}
       <Modal visible={techOpen} animationType="slide" onRequestClose={() => setTechOpen(false)}>
         <TechTree
           known={me.techs}

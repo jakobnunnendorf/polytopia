@@ -85,7 +85,7 @@ export function enterKind(s: GameState, u: Unit, t: Tile): StepKind | null {
  * Aquarion and flooded-tile rules (2.18 data; logic follows polybots-engine):
  * Aquarion's starting tech Aquabase gives its amphibious units shallow water,
  * Marine Life (the Sailing slot) gives ocean; Riding and Free Spirit give no
- * water movement. Its ships (Shark, Jelly, Aquapult) have their own terrain
+ * water movement. Its ships (Shark, Jelly, Puffer) have their own terrain
  * list (water, ocean, flooded land) and need no tech. Ships may enter flooded
  * land (and stop there); a port on a flooded tile embarks land units.
  * Returns undefined when the regular rules apply.
@@ -144,7 +144,7 @@ function search(s: GameState, u: Unit): { targets: MoveTarget[]; parent: Map<num
   // Skate: a move that starts on ice may use the unit's ice movement (Battle Sled 3)
   const startsOnIce = !!tileAt(s, u.x, u.y).ice;
   const baseMov = skate && startsOnIce ? (UNITS[u.type].iceMovement ?? UNITS[u.type].movement) : UNITS[u.type].movement;
-  const rawMov = baseMov + (u.boosted || u.bubble ? 1 : 0) - (u.poisoned ? 1 : 0);
+  const rawMov = baseMov + (u.swarmed || u.bubble ? 1 : 0) - (u.poisoned ? 1 : 0);
   // movement points (a step costs 1, road to road 0.5, a Glide ice step 0.9)
   let budget = Math.max(1, rawMov);
   // Eat: while the Centipede has segments it moves only 1 tile

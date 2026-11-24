@@ -210,9 +210,9 @@ describe("Cymanti", () => {
     const m = unit(s, "mantis", 0, 5, 6);
     const e = unit(s, "warrior", 1, 8, 8);
     const before = computeDamageRounded(s, m, e).damage;
-    let next = applyAction(s, find(s, (a) => a.type === "boost" && a.unitId === sh.id)!);
+    let next = applyAction(s, find(s, (a) => a.type === "swarm" && a.unitId === sh.id)!);
     const mm = next.units.find((u) => u.id === m.id)!;
-    expect(mm.boosted).toBe(true);
+    expect(mm.swarmed).toBe(true);
     expect(computeDamageRounded(next, mm, e).damage).toBe(before);
     expect(Math.max(...reachable(next, mm).map((q) => Math.abs(q.y - 6)))).toBe(2);
     next.current = 1;
@@ -222,10 +222,10 @@ describe("Cymanti", () => {
     ee.canAttack = true;
     ee.done = false;
     next = applyAction(next, { type: "attack", unitId: ee.id, targetId: m.id });
-    expect(next.units.find((u) => u.id === m.id)!.boosted).toBe(false);
+    expect(next.units.find((u) => u.id === m.id)!.swarmed).toBe(false);
   });
 
-  it("conversions don't count as attacks; Cymanti earn the Altar of Peace by 3 Shaman conversions", () => {
+  it("conversions don't count as attacks; Cymanti complete the convert task (Cult of Ciru) by 3 Shaman conversions", () => {
     const s = blank(["cymanti", "imperius"]);
     let st = s;
     for (let k = 0; k < 3; k++) {
@@ -235,10 +235,10 @@ describe("Cymanti", () => {
     }
     expect(st.players[0].attackedThisTurn).toBe(false);
     expect(st.players[0].conversions).toBe(3);
-    expect(st.players[0].tasks).toContain("pacifist");
+    expect(st.players[0].tasks).toContain("convert");
   });
 
-  it("Mycelium replaces roads (Network) and links cities within 3 tiles", () => {
+  it("Mycelium replaces roads and links cities within 3 tiles", () => {
     expect(buildAllowedFor("cymanti", "road")).toBe(false);
     expect(buildAllowedFor("cymanti", "mycelium")).toBe(true);
     // 2.18 (S1): Recycling replaces Construction, so no Windmill

@@ -111,8 +111,8 @@ function canBuild(s: GameState, p: number, b: string, x: number, y: number): boo
   if (!buildAllowedFor(pl.clan, b)) return false;
   const t = tileAt(s, x, y);
   if (def.kind === "monument") {
-    const task = Object.keys(MONUMENTS).find((k) => MONUMENTS[k] === b)!;
-    if (!pl.tasks.includes(task) || pl.monuments.includes(b)) return false;
+    const earned = Object.keys(MONUMENTS).some((k) => MONUMENTS[k] === b && pl.tasks.includes(k));
+    if (!earned || pl.monuments.includes(b)) return false;
   } else if (!pl.techs.includes(def.tech)) return false;
   // tribe tech swaps: Polaris fish with Ice Fishing (ramming); Cymanti Mountain Temple with Mysticism (philosophy)
   if (b === "fish" && pl.clan === "polaris" && !pl.techs.includes("ramming")) return false;
@@ -296,9 +296,9 @@ export function legalActions(s: GameState): Action[] {
         });
         if (canFreeze) out.push({ type: "freezeArea", unitId: u.id });
       }
-      if (has(u, "boost")) {
-        const boostable = s.units.some((o) => o.owner === p && o !== u && dist(o, u) === 1 && !o.boosted);
-        if (boostable) out.push({ type: "boost", unitId: u.id });
+      if (has(u, "swarm")) {
+        const swarmable = s.units.some((o) => o.owner === p && o !== u && dist(o, u) === 1 && !o.swarmed);
+        if (swarmable) out.push({ type: "swarm", unitId: u.id });
       }
     }
     if (!u.done && has(u, "explode")) {
@@ -464,10 +464,10 @@ export function applyAction(prev: GameState, a: Action): GameState {
     case "decompose":
       tileAt(s, a.at.x, a.at.y).decomposing = true;
       break;
-    case "boost": {
+    case "swarm": {
       const u = unitById(s, a.unitId)!;
       for (const o of s.units) {
-        if (o.owner === p && o !== u && dist(o, u) === 1) o.boosted = true;
+        if (o.owner === p && o !== u && dist(o, u) === 1) o.swarmed = true;
       }
       endUnit(u);
       break;
@@ -817,7 +817,7 @@ function stomp(s: GameState, u: Unit) {
 function damage(s: GameState, target: Unit, amount: number, by: Unit | null): boolean {
   target.hp -= amount;
   // Swarm lasts until the unit is attacked
-  target.boosted = false;
+  target.swarmed = false;
   if (target.hp > 0) return false;
   s.units = s.units.filter((x) => x !== target);
   if (target.poisoned) leaveSporesOrAlgae(tileAt(s, target.x, target.y));
@@ -935,9 +935,9 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
       s.players[target.owner].explored[idx(s.mapSize, u.x, u.y)] === 1 &&
       r.retaliation > 0;
     if (retaliates) {
-      const swarm = u.boosted; // retaliation is no attack: Swarm stays
+      const swarm = u.swarmed; // retaliation is no attack: Swarm stays
       damage(s, u, r.retaliation, target);
-      u.boosted = swarm;
+      u.swarmed = swarm;
       if (s.units.includes(u) && has(target, "poison")) u.poisoned = true;
     }
   }

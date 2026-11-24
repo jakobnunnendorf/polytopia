@@ -468,8 +468,10 @@ export function checkTasks(s: GameState, p: number) {
   if (!done("metropolis") && citiesOf(s, p).some((c) => c.level >= 5)) complete("metropolis");
   if (!done("network") && citiesOf(s, p).filter((c) => c.connected).length >= 5) complete("network");
   if (!done("explorer") && pl.lighthouses.length >= 4) complete("explorer");
-  // Cymanti: convert 3 enemies with Shamans instead of the pacifist task
-  if (!done("pacifist") && (pl.clan === "cymanti" ? (pl.conversions ?? 0) >= 3 : pl.pacifistTurns >= 5)) complete("pacifist");
+  // Cymanti: the convert task (3 enemies converted by Shamans) replaces the pacifist task (2.18 data)
+  if (pl.clan === "cymanti") {
+    if (!done("convert") && (pl.conversions ?? 0) >= 3) complete("convert");
+  } else if (!done("pacifist") && pl.pacifistTurns >= 5) complete("pacifist");
 }
 
 /** meeting reward (§5.9) and Capital Vision; checked after every action */
