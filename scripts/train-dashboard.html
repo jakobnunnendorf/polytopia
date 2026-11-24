@@ -101,7 +101,7 @@ pre { font: 11.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; backgroun
 
   <h2>Panel strength over training</h2>
   <div class="card">
-    <h3 id="curve-title">Mean point share against the panel (greedy-v1, Hill v1–v4; 200 held-out games each)</h3>
+    <h3 id="curve-title">Mean point share against the panel</h3>
     <div class="legend" id="curve-legend"></div>
     <div id="curve"></div>
     <div class="note">Dashed = averaged weights (ES: running average θ; hill: average of the last champions). Vertical rules: milestones. 50% = even with the panel.</div>
@@ -125,8 +125,14 @@ pre { font: 11.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; backgroun
 
 <script>
 "use strict";
-const PANEL = ["greedy-v1", "greedy-hill-v1", "greedy-hill-v2", "greedy-hill-v3", "greedy-hill-v4"];
-const PANEL_LABEL = { "greedy-v1": "greedy v1", "greedy-hill-v1": "Hill v1", "greedy-hill-v2": "Hill v2", "greedy-hill-v3": "Hill v3", "greedy-hill-v4": "Hill v4" };
+// panel opponents: whatever the runs' curve rows were tested against, in first-seen order
+let PANEL = ["greedy-v1", "greedy-hill-v1", "greedy-hill-v2", "greedy-hill-v3", "greedy-hill-v4"];
+const PANEL_LABEL = new Proxy({ "greedy-v1": "greedy v1", "greedy-hill-v1": "Hill v1", "greedy-hill-v2": "Hill v2", "greedy-hill-v3": "Hill v3", "greedy-hill-v4": "Hill v4", "greedy-hill-v5": "Hill v5", "greedy-es-v1": "ES v1", "greedy-full-v1": "Full v1" }, { get: (t, k) => t[k] ?? k });
+function panelFrom(st) {
+  const seen = [];
+  for (const r of st.runs) for (const c of r.curve) for (const k of Object.keys(c.vs || {})) if (!seen.includes(k)) seen.push(k);
+  return seen.length ? seen : PANEL;
+}
 let METRIC = "pointShare";
 let S = null;
 
@@ -318,7 +324,7 @@ function roundsChart(host, rounds) {
 // ---------- hill climber: knob history ----------
 // a kept round's change list: "unit.mindBender 1→1.995, build.forestTemple 1→0.911"
 function parseChanges(text) {
-  return (text || "").split(/,\s*/).map((c) => c.trim().match(/^(\S+)\s+(-?[\d.e+-]+)→(-?[\d.e+-]+)$/)).filter(Boolean).map((m) => ({ knob: m[1], from: +m[2], to: +m[3] }));
+  return (text || "").replace(/\s*\[\w+\]\s*$/, "").split(/,\s*/).map((c) => c.trim().match(/^(\S+)\s+(-?[\d.e+-]+)→(-?[\d.e+-]+)$/)).filter(Boolean).map((m) => ({ knob: m[1], from: +m[2], to: +m[3] }));
 }
 function knobHistory(r, kept) {
   // training games at each keep: the round line's "% done" times the budget
@@ -529,8 +535,9 @@ function insights(st) {
 function render() {
   if (!S) return;
   const st = S;
+  PANEL = panelFrom(st);
   $("meta").textContent = `${st.root.replace(/^\/Users\/[^/]+/, "~")} · updated ${new Date(st.now).toLocaleTimeString("en-GB")} · refreshes every 10 s`;
-  $("curve-title").textContent = `Mean ${METRIC === "winRate" ? "win rate" : "point share"} against the panel (greedy-v1, Hill v1–v4; 200 held-out games each)`;
+  $("curve-title").textContent = `Mean ${METRIC === "winRate" ? "win rate" : "point share"} against the panel (${PANEL.map((o) => PANEL_LABEL[o]).join(", ")}; 200 held-out games each)`;
   $("insights").innerHTML = insights(st).map((i) => `<li class="${i.cls}"><span class="ic" aria-hidden="true">${i.ic}</span><span>${i.html}</span></li>`).join("");
 
   // cards
@@ -599,7 +606,7 @@ function render() {
       <div class="card"><h3>Knobs moved from the start (champion now ÷ start, log scale)</h3><div data-knobs="${esc(r.id)}"></div></div>
     </div>
     <div class="card" style="margin-top:14px"><h3>How the knobs evolved: value over training games, one row per knob a kept update touched</h3><div data-evo="${esc(r.id)}"></div>
-      <div class="note">Each step is a kept update (round number above the dot). Rows are in the order the knobs were first changed. The start values are Hill v4's weights with every multiplier at 1.</div></div>
+      <div class="note">Each step is a kept update (round number above the dot). Rows are in the order the knobs were first changed. The start values are the weights the run started from (its --from model).</div></div>
     <div class="card" style="margin-top:14px"><h3>All ${Object.keys(r.weights.current).length} knobs: how far each has moved from the start</h3><div class="legend" data-gridlegend="${esc(r.id)}"></div><div data-grid="${esc(r.id)}"></div></div>
     <div class="card" style="margin-top:14px"><h3>Kept updates</h3><div data-kept="${esc(r.id)}"></div></div>`).join("");
   for (const { r } of hillRuns) {
