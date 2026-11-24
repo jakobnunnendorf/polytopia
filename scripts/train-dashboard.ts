@@ -62,12 +62,20 @@ function runIds(): string[] {
   const ids = new Set<string>();
   for (const d of fs.existsSync(models) ? fs.readdirSync(models) : []) {
     if (fs.existsSync(path.join(models, d, "checkpoint.json"))) ids.add(d);
-    if (fs.existsSync(path.join(models, d, "sweep.jsonl")) && !fs.existsSync(path.join(models, d, "model.json"))) ids.add(d); // a sweep in progress
+    // a sweep: while it runs (no final row yet) and for 30 minutes after it finished; older
+    // records stay reachable with --runs
+    const sw = path.join(models, d, "sweep.jsonl");
+    if (fs.existsSync(sw)) {
+      // by the time written in its last row: a checkout resets file times
+      const text = fs.readFileSync(sw, "utf8");
+      const last = Date.parse(text.trim().split("\n").at(-1)?.match(/"at":"([^"]+)"/)?.[1] ?? "") || fs.statSync(sw).mtimeMs;
+      if (Date.now() - last < (text.includes('"final":true') ? 30 * 60_000 : 6 * 3600_000)) ids.add(d);
+    }
   }
   const logs = path.join(ROOT, "logs");
   for (const f of fs.existsSync(logs) ? fs.readdirSync(logs) : []) {
     const id = f.replace(/\.log$/, "");
-    if (f.endsWith(".log") && fs.existsSync(path.join(models, id, "model.json"))) ids.add(id);
+    if (f.endsWith(".log") && fs.existsSync(path.join(models, id, "model.json")) && !fs.existsSync(path.join(models, id, "sweep.jsonl"))) ids.add(id);
   }
   return [...ids].sort();
 }
