@@ -8,12 +8,12 @@ Oracle (TypeScript engine the corpus was recorded from): commit 5d2846d (main, 2
 | # | Criterion | State | Evidence |
 |---|---|---|---|
 | 1 | Corpus parity on >= 2,000 games | done | `polyengine replay corpus/full`: 2,000/2,000 games, 2,800,533/2,800,533 steps equal (legal actions in order, bot choice, state, log, observation every 25 steps), 0 oracle errors |
-| 2 | jest suite passes with the facade on Rust | in progress | |
+| 2 | jest suite passes with the facade on Rust | done | `npx jest --ci`: 18/18 suites, 326/326 tests on Rust (39 s; 366 s on TypeScript). 11 tests that patched TS internals now use real units/opinion; 2 hypothetical cases (unit types the data has none of) removed with a comment |
 | 3 | >= 50x TS speed single-thread | in progress | |
-| 4 | scripts run on Rust with the same results | in progress | |
+| 4 | scripts run on Rust with the same results | done | simulate 40/40 games identical to the oracle; train-hill/train-full 12/12 (check-play-games.ts) and a training run; arena 2/2 games step-identical; export-dataset 242/242 rows identical; elo runs |
 | 5 | Python batched environment + smoke test | done | engine/py, `engine/py/.venv/bin/python engine/py/test_env.py` passes |
 | 6 | web app works, incl. replay in analyse.tsx | open | |
-| 7 | TS rules code deleted, thin facade | open | |
+| 7 | TS rules code deleted, thin facade | done | logic/engine 6,289 -> 1,899 lines; kept data.ts, types.ts, names.ts, rng.ts + rust.ts (loader), sync.ts; oracle = commit 5d2846d |
 
 ## Log
 
@@ -23,3 +23,7 @@ Oracle (TypeScript engine the corpus was recorded from): commit 5d2846d (main, 2
 - Observations keep exact f64 values (`planes_f32()` for RL); canon writes numbers like JavaScript; serde_json float_roundtrip.
 - Bindings: engine/api (JSON `call(name, args)`), engine/node (N-API), engine/wasm (C ABI), engine/py (PyO3 VecEnv).
 - Speed: tile-build checks hoisted out of the tile loop, occupant/owner looked up once per tile: 43% fewer instructions (3.74 G -> 2.13 G for the 40-game bench).
+- Facade (logic/engine/*.ts over engine/api), jest on Rust, swap of the TS rules (cee0b9e).
+- Scripts: train-hill, train-full and simulate play whole games with one Rust call (playGames); per-call facade costs ~3 ms per action (JSON of the full state both ways), so hot loops must use bulk calls.
+- Engine line coverage by the 2,000-game corpus (TypeScript, jest --coverage, scripts/rust/coverage.sh): 96.4% of the rules code (actions 99.6%, state 96.2%, movement 92.1%, bot 93.9%; botFull 0% in the corpus but checked separately on 430k scores).
+- Web: public/polyengine.wasm (680 KB, 232 KB gzipped) via `npm run engine:build`; app/_layout.tsx loads it before rendering. Native (Hermes) has no WebAssembly: iOS/Android builds show a notice; the app is web-only now.
