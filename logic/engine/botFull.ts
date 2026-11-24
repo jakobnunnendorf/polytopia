@@ -26,6 +26,10 @@ export type FullWeights = {
   defend: number;
   /** tiles within which an enemy unit makes a city threatened */
   defendRadius: number;
+  /** research bonus per thing the tech would let us use right now (0 = off) */
+  techUse: number;
+  /** research penalty for a tech we could not use at all right now (0 = off) */
+  techUseless: number;
 };
 
 export type PartialFullWeights = { [K in keyof FullWeights]?: FullWeights[K] extends number ? number : Partial<FullWeights[K]> };
