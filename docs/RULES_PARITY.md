@@ -19,11 +19,11 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 | Embassy cost | see 2.18 data corrections: 4★ + 2★ per embassy already built |
 | Cloak attack | 2 (game data), but Infiltrate units never attack units; infiltration damage uses Dagger stats |
 | Cloak detection | every adjacent enemy unit |
-| Splash damage | half the damage, unrounded (HP may be fractional, shown rounded up) |
-| Explosion damage | half the explosion's damage, unrounded, like splash |
+| Splash damage | corrected (second core audit): half the damage rounded down to whole HP, ranged units only; a poisoning splash only poisons |
+| Explosion damage | corrected (second core audit): half the damage rounded down, like splash |
 | Poison and movement | -1 movement only above 1 (game logic), so a 1-move unit still moves 1 |
 | Perfection bonus | score × (1 + round(handicap/5 + ln(opponents)/ln(11.4), 2)) |
-| Meeting a tribe | wiki formula: 1 + 2★ per 1,000 score, at most 11 |
+| Meeting a tribe | wiki formula: 1 + 2★ per 1,000 score, at most 11; base 3 when meeting the first seat in a 2-player game (second core audit) |
 | Market income | +1★ per adjacent building level, at most 8 |
 | Port reach | range 5; ocean links need Sailing |
 | Ice Bank | 2★ per 20 frozen tiles |
@@ -36,7 +36,7 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 | Bot capital income | a bot capital makes 1/2/3/5★ in total for Easy/Normal/Hard/Crazy (Normal = a human capital) |
 | Creep and zone of control | the doc contradicts itself (Terrain and Cloak sections: Creep ignores it; Movement rules: only Sneak, Hide and invisibility do). The engine follows Movement rules; Cloak and Dinghy ignore it through Hide anyway |
 | Escape | after attacking, the unit may move again with its full movement |
-| Stomp | half the damage, unrounded, like splash |
+| Stomp | corrected (second core audit): half the damage rounded down, like splash |
 
 ## Not found in any source (engine choice)
 
@@ -49,17 +49,20 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 - Map size: Perfection 16 and Domination 11/14/16/18 are the defaults and are forced in the
   settings screen; scripts may still pass an explicit size.
 - War: an attack (or conversion) either way in this turn number or the
-  previous one. Splash, stomp and infiltration don't start a war.
+  previous one. Corrected (second core audit): infiltration, capturing a
+  city, moving onto another tribe's city, stomp hits and explosion hits start
+  a war too; splash does not.
 - Hostile: shown during the cease-fire after a broken treaty; neutral or war
   after it.
 - Peace offers: one pending offer per sender and receiver; an offer the
   receiver doesn't answer on its turn lapses. Offering is allowed at war and
   during a cease-fire.
 - Peace partners: their units don't besiege each other's cities, can be
-  passed through (not stopped on), and splash and stomp damage skip them.
-  Polaris freezing, Cymanti explosions and Fungi poison are not changed here.
-- A unit stopped by a hidden enemy ends on the last free tile of its planned
-  path before that tile; its move is spent.
+  passed through (not stopped on), and splash, stomp and explosion damage
+  skip them. Polaris freezing and Fungi poison are not changed here.
+- Corrected (second core audit): a move whose destination holds a hidden
+  enemy reveals it; the mover stays and its move is not spent. Passing through
+  a hidden unit's tile is silent.
 - Daggers: city, then forest or mountain (mountain only with Climbing), then
   other land in the city's borders, then water as Pirates.
 - Bot opinions: each factor of the doc's table counts +1 or -1 (horrible ≤ -3,
@@ -86,12 +89,11 @@ The doc names these mechanics but not every number; the engine uses:
   generation; settlements and mountains never are. Canal, Fertilize, drain,
   water movement and the Lost City follow 2.18 now (see "2.18 data
   corrections" below).
-- Tentacles deal the Jelly's normal attack damage, no retaliation; Drench
-  floods the target's tile (attacks target units, so an empty tile can't be
-  drenched).
-- Aqua Crops spawn on shallow water without fish at the crop rate, only in
-  games with an Aquarion. A Scuba's infiltration spawns Mermaid Daggers
-  (Dagger + Amphibious).
+- Tentacles deal the Jelly's normal attack damage, no retaliation (who strikes
+  when: see "Special tribes, audit 2" below); Drench floods the target's tile
+  (attacks target units, so an empty tile can't be drenched).
+- Aqua Crops: see the map table below (on every map, only Aquarion sees them).
+  A Scuba's infiltration spawns Mermaid Daggers (Dagger + Amphibious).
 - Map generation spawns (water multipliers, starting fish and spores,
   flooding): replaced by the 2.18 generator, see "2.18 data corrections".
 
@@ -115,7 +117,7 @@ generator differs, so maps match in distribution, not tile for tile.
 | Polaris | nothing at map generation | grows no climate of its own (alien climate); the water next to its capital starts as ice, its land neighbours Polaris land |
 | Ruins | wiki count, not on resources, at most a third on water on Lakes | tiles/40 + 1 (same counts), none within 2 of another ruin or a capital, none next to a village, water ruins only on ocean away from cities |
 | Starfish | one per 25 water tiles | up to ceil(wetness·tiles/25) (none on Drylands), none next to a starfish or a city |
-| Aqua Crops | crop rate on shallow water when an Aquarion plays | rolled on every map (0.3), kept only when an Aquarion plays (only Aquarion sees them) |
+| Aqua Crops | crop rate on shallow water when an Aquarion plays | rolled on every map (0.3) and kept on every map, also without an Aquarion (audit 2: S1 never removes them); only Aquarion sees them (`resourceVisible`) |
 | Fairness | none | up to 50 candidate maps; the one with the lowest turf inequality (richest/poorest turf) is kept, stopping early below 1.01 |
 
 Engine extensions: more than 4 players use ceil(sqrt(players))² domains, and
@@ -176,6 +178,38 @@ the earlier slot, no star cap.
 Left to the special-tribe and map work: the special tribes' tech trees and
 buildings (for example Sanctuary also on mountains, and Polaris and Cymanti
 movement techs), and starting resources (Luxidoor's 8).
+
+## 2.18 data corrections: second core audit
+
+Source: polybots-engine (Apache-2.0), `src/*.rs`, and the game's 2.18 rules
+data (not copied here). Tests: `__tests__/engine/parity-audit2-core.test.ts`.
+Each line: rule: old behaviour -> new behaviour (reference file::function).
+
+| Rule | Old behaviour | New behaviour |
+| --- | --- | --- |
+| Perfection end | over when turn > maxTurns (31 rounds, turns 0..30) | over when the round counter reaches maxTurns right after the wrap: turns 0..29 (Weekly Challenge 0..19); the UI shows the turns left (turns.rs::winner) |
+| Glory end | at the end of a turn | right after any action that brings a score to 10,000 (step.rs::add_score) |
+| Damage formula | float forces, round half up | integer arithmetic in tenths of HP with truncating divisions and round_damage (combat.rs::battle) |
+| Splash, stomp, explosion | half the damage, unrounded | floor(damage / 2) in whole HP (attack.rs::half_damage) |
+| Splash | any splash unit, poison added to the damage | only units with range > 1; an attacker with Poison (Exida) only poisons the neighbours (attack.rs::attack_command) |
+| Explosion | only with an adjacent enemy, not after the unit is done; hit units of peace partners | any time except the turn the unit was created (a Centipede segment even then) or while frozen, no target needed; skips peace partners; each hit starts war and resets Pacifist (cymanti.rs::can_explode, explode) |
+| Breaking peace | units in the victim's land destroyed | also every other unit of the breaker is spent for the turn (step.rs Diplomacy::BreakPeace) |
+| Roads | not on a tile with any building, ruin or lighthouse | refused only on a road, city, village or bridge: farms, huts, other buildings and ruins take a road (menu.rs::can_build) |
+| Builds and Destroy | allowed under an enemy unit | refused on a tile with a visible unit of a tribe not at peace; Destroy refuses a bridge with any unit on it (menu.rs::can_build, improvement_abilities_into) |
+| Grow | at the start of the owner's turn by turns lived (egg 3, baby 6; insect egg 1, larva 4) | at the end of the owner's turn when turn - createdTurn >= growth rate (3, 3; 1, 3), each stage restarting the count (turns.rs::end_command, grow; units.rs::upgrade) |
+| Cloak infiltration | not on the turn it became hidden | after a move too (Dash), hidden or not (combat.rs::attacks_into) |
+| Unit score | ships scored only the passenger; super units 50 | 5 × (unit cost + passenger cost) for every unit (units.rs::unit_score) |
+| Disband refund | floor(passenger or unit cost / 2) | floor((boat + passenger cost) / 2), only when the total is above 1 (step.rs::disband) |
+| Pacifist count | reset by any attack (even 0 damage, or on a hidden unit) | reset to 0 by an attack that deals damage to a visible unit, a stomp hit, an explosion hit or a freeze; every end of turn then adds 1 (attack.rs::reset_peace, turns.rs::end_turn) |
+| War triggers | attacks and conversions | also infiltration, capture of a city, moving onto another tribe's city, stomp and explosion hits (step.rs::attack_diplomacy call sites) |
+| Hidden enemy on a move | stopped before it on the path, move spent | only a hidden unit on the destination matters: it is revealed, the mover stays and keeps its move; passing through is silent (step.rs Command::Move) |
+| Explorer | 15 steps, sight 1, water needed Sailing, ocean Navigation | 12 steps, sight 2 when it steps on a mountain, explored tiles only on terrain the player can move on (Climbing mountain, Fishing water, Sailing ocean); fog may be entered (reward.rs::scout; its scoring and hash are not ported) |
+| Ruin rewards | population needed a capital; free tech only tier 1 or a child of a known tech; explorer not on mountains; veteran unit always | population and resources always; the veteran unit on land, the veteran boat on water only with ocean movement (Sailing); a free tech among every researchable tech (also an unknown parent of a known tech); explorer when a neighbour has terrain the player can move on and fog lies within 2, mountains included (ruins.rs::select_reward) |
+| Aquatism on ice | 1.5 defence on ice | none: ice is its own terrain (combat.rs::defence_bonus) |
+| Algae | stopped every non-ship | stops only units that don't swim: ships and amphibious units pass, flying units and Creep too (movement.rs::step_cost) |
+| City connections | own or neutral tiles, explored only | no explored tiles needed; a step onto another tribe's tile is allowed from an unowned tile, the same owner's tile or a peace partner's; water links may cross peace partners' water (routes.rs::owners_allow, accessible) |
+| Meeting stars | 1 + 2 per 1,000 score | base 3 instead of 1 when meeting the first seat in a 2-player game (explore.rs::meet_action) |
+| Infiltration kills | no kill credited | a defender killed by infiltration counts for the infiltrating player (kills, Killer task; attack.rs::perform_attack) |
 
 ## 2.18 data corrections: special tribes
 
@@ -247,16 +281,15 @@ Cymanti
   poisoned if it survives; Eggs as before (city level, at most 5).
 - Centipede: a Segment only when it advanced into the killed unit's tile ->
   every kill by attack grows a Segment behind the body's tail (the first free
-  tile it may stand on, fanning out from the opposite of the head's facing).
-  When the head dies the first Segment becomes the Centipede and leads the
-  rest.
+  tile it may stand on, fanning out from the opposite of the tail's facing;
+  see audit 2). When a chain member dies, the unit behind it becomes a
+  Centipede (see audit 2).
 
 Polaris
 - Ice Bank income min(30, 2 x floor(count / 20))★ -> 2★ per level, level =
   min(30, floor(count / 20)); count = ice tiles plus Polaris land over the
-  whole board. A new game marks the land of the Polaris area (nearest capital,
-  as map generation) as Polaris land. Ice Bank on field or ice, once per
-  player ever.
+  whole board. Polaris land at the start: map generation's 3×3 around the
+  capital only (audit 2). Ice Bank on field or ice, once per player ever.
 
 Elyrion
 - Sanctuary replaces Clear Forest (was: Clear Forest removed, Sanctuary extra);
@@ -266,9 +299,113 @@ Elyrion
   the north-west (was: a random one, any owner).
 
 Not done (left open)
-- Centipede segments still move on their own; in S1 only the head moves and
-  the body follows. A dying middle segment keeps the rest in the body.
-- Harvest Spores (3★, +1 population) exists in the 2.18 data but no tech
-  unlocks it; left out.
 - Aquarion home climate starts flooded and Cymanti's 2 starting spores belong
   to map generation.
+
+## Special tribes, audit 2
+
+Each line: rule: old behaviour -> new behaviour (reference file:function in
+polybots-engine). Tests: `__tests__/engine/parity-audit2-tribes.test.ts`.
+
+Centipede chains. A chain is a head and its Segments (`bodyOf` = head id, in
+`s.units` order = chain order); `movement.ts` `leaderOf`/`followerOf`.
+- Explode on a body part: only that Segment -> its follower explodes too, so
+  the whole tail goes (each blast right after the one in front, the order of
+  S1's action stack); the unit in front lets go and keeps the rest
+  (cymanti.rs:explode).
+- Segments: moved on their own and could attack, capture, examine, recover,
+  disband -> a unit led by another has no move, attack, capture, examine,
+  recover, disband or Break Ice options; when the head (or an advancing head)
+  moves, the follower 2+ tiles behind steps into the head's old tile, and so
+  down the chain, each step setting off what a move does (step.rs:move_action;
+  menu.rs, combat.rs:attack_options, attack.rs:option_writes). Chain speed:
+  1 while it has Segments -> the head's movement capped by its first
+  Segment's (movement.rs:moves, movement_range). A chain member never embarks
+  (movement.rs:embarks). Disbanding a head disbands its body too, each part
+  paid (step.rs disband).
+- Killed chain member: only a dead head handed over -> any killed unit with a
+  follower: the follower becomes a Centipede (keeping its missing HP, taking
+  the dead unit's spent flags) and leads the units behind it; the unit in
+  front lets go, so a dead middle Segment splits the body (attack.rs:kill,
+  units.rs:upgrade).
+- Eat: fanned from the opposite of the head's facing -> of the tail's own
+  facing (a new unit faces the middle of the board, units.rs:facing); no
+  Segment for a wild unit, of which the engine has none (linked.rs:eat,
+  attack.rs:attack_command).
+
+Cymanti
+- Kiton: `poisonDefence` (poisoned every attacker, ranged ones too) -> plain
+  Poison: its attacks and its retaliation poison; `poisonDefence` removed
+  (game data, units.kiton).
+- Swarm: a fresh Shaman, every own neighbour -> the Shaman only needs to be
+  able to move; neighbours already Swift and units led in a chain are
+  skipped; Swift (+1 movement) is lost whenever the unit is hit, retaliation
+  included (was kept on retaliation) (cymanti.rs swarm options, menu.rs,
+  attack.rs:perform_attack).
+- Creep: algae ended a creeping unit's move -> a Creep step costs 1 on water
+  and non-mountain land before the algae and slow checks, so algae don't stop
+  it (movement.rs:step_cost).
+
+Aquarion
+- Tentacles: every enemy Jelly next to a mover struck it; a moving Jelly hit
+  every non-own neighbour -> only the healthiest unfrozen adjacent Jelly of a
+  tribe not at peace strikes the mover, once; a Jelly's own strike skips its
+  own and peace partners' units and also fires when it is trained and when it
+  advances on a kill (aquarion.rs:strike, attack.rs:area_damage,
+  units.rs:train).
+- Advance after a kill: no move effects -> Stomp, Tentacles, Auto Freeze and
+  Auto Flood fire on it as on a move (not on a push) (step.rs:move_action
+  reason 1).
+
+Pushes (a unit pushed off a tile for a spawn: Super Unit, Enchant Animal,
+New Friends ruin; `actions.ts` `pushAside`, `state.ts` `pushUnit`).
+- A pushed chain member moved like any unit (the way it faces, or the
+  opposite for an enemy) -> it is pushed along the chain: toward its leader,
+  its follower, or the average of the two (opposite ones: the leader's
+  direction turned a quarter) (units.rs:try_push, average).
+- A pushed unit set off nothing -> it turns the way it was pushed, and poison
+  buildings, Bubbles and the Tentacles strike fire on its new tile (none of
+  its own move effects: Stomp, Auto Freeze, Auto Flood, a Jelly's strike);
+  a follower 2+ tiles behind steps into its old tile, and when that is the
+  spawn tile it is pushed out again before the spawn (step.rs:move_action
+  reason 2; units.rs:train on an occupied tile). Tests 17-18.
+
+Polaris
+- Freeze Area: land only outside enemy territory -> no territory check: a
+  freezable tile is explored open water, flooded land or land that is not
+  Polaris land yet; ice and Polaris land only with an unfrozen visible enemy
+  on it (polaris.rs:freezable, freeze_area).
+- Auto Freeze (Mooni, Gaami moving): water to ice only -> the same Freeze
+  Area, land turns Polaris too (step.rs:move_action, polaris.rs:freeze_area).
+- Break Ice: Dash units of other tribes, one empty ice tile at a time ->
+  any unit not led in a chain that hasn't attacked (and hasn't moved unless
+  it dashes), without Auto Freeze, Polaris included; one action breaks every
+  breakable ice tile around (empty, holding a swimmer, flyer or unseen enemy,
+  or with algae or a bridge; a hidden enemy is revealed instead); broken ice
+  becomes ocean, or shallow water when a land tile is orthogonally next to it
+  (polaris.rs:can_break_ice, break_ice_area, break_ice). The action is now
+  `{ type: "breakIce", unitId }`.
+- Escape for skaters: tested on the tile it attacked from -> on its final
+  tile, after any advance (attack.rs:attack_command).
+- Starting Polaris land: `createGame` marked all land nearest a Polaris
+  capital -> only map generation's 3×3 around the capital
+  (mapgen_candidate.rs:populate).
+
+Conversion
+- An Independent unit converted lost its home (null) -> keeps its own; a
+  converted boat converts its passenger, which here is part of the unit
+  (attack.rs:convert).
+
+Map
+- Aqua Crops: removed from maps without an Aquarion -> kept, hidden from
+  other tribes (mapgen_candidate.rs, no removal).
+
+Checked against the reference, no change
+- Fertilize on wetland that holds a non-crop resource: allowed, the crop
+  replaces it; not on a crop (menu.rs:can_build, "creates").
+- Fungi level cap: 1, 2 with Microbes (Recycling) (economy.rs:level_for);
+  already so.
+- Harvest Spores (3★, +1 population) is in the 2.18 data, but no tech or
+  tribe unlocks it, so it can't be reached in 2.18; left out.
+- Quetzali start with S1's `shields`, the tech that unlocks the Defender and
+  peace treaties: our `strategy`, only the name differs.

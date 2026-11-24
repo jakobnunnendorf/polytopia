@@ -22,8 +22,20 @@ import {
   trainableUnitsFor,
 } from "./data";
 import { around, cloneState, dist, idx, isWater, tileAt } from "./grid";
-import { computeDamageRounded } from "./combat";
-import { canSee, enterKind, has, pathTo, reachable, sightRadius, territoryOwner } from "./movement";
+import { computeDamageRounded, halfDamage } from "./combat";
+import {
+  canSee,
+  chainBody,
+  enterKind,
+  type StepKind,
+  followerOf,
+  has,
+  isLed,
+  pathTo,
+  reachable,
+  sightRadius,
+  territoryOwner,
+} from "./movement";
 import {
   atPeace,
   canHarm,
@@ -58,6 +70,7 @@ import {
   unitsHomedIn,
   updateConnections,
   withRng,
+  growUnits,
 } from "./state";
 import type { Action, City, Coord, GameState, Unit } from "./types";
 
@@ -79,6 +92,8 @@ function friendlyTile(s: GameState, p: number, x: number, y: number): boolean {
 function attackTargets(s: GameState, u: Unit): Unit[] {
   const def = UNITS[u.type];
   if (!u.canAttack || def.range === 0) return [];
+  // a unit led in a chain (Centipede segment) has no attack options (S1 combat::attack_options)
+  if (isLed(u)) return [];
   if (def.attack === 0 && !has(u, "convert")) return [];
   // Infiltrate units (Cloak, Dinghy, Scuba, Moth) only target cities (game data: their attack is never used on units)
   if (has(u, "infiltrate")) return [];
@@ -92,9 +107,9 @@ function attackTargets(s: GameState, u: Unit): Unit[] {
 }
 
 function infiltrateTargets(s: GameState, u: Unit): City[] {
-  if (!has(u, "infiltrate") || u.done || u.attacked) return [];
-  // a Cloak can't infiltrate on the turn it became hidden, unless it started that turn hidden
-  if (u.hidden && !u.startedHidden) return [];
+  // (S1 combat::attacks_into) not after attacking, nor after moving without Dash: a Cloak (Dash) may
+  // move and then infiltrate in the same turn, hidden or not
+  if (!has(u, "infiltrate") || u.done || u.attacked || u.frozen || (u.moved && !has(u, "dash"))) return [];
   return s.cities.filter(
     (c) =>
       canHarm(s, u.owner, c.owner) &&
@@ -102,6 +117,12 @@ function infiltrateTargets(s: GameState, u: Unit): City[] {
       !c.riot &&
       !s.units.some((o) => o.x === c.x && o.y === c.y && o.owner !== c.owner),
   );
+}
+
+/** a unit p can see stands on (x,y) and belongs to a tribe not at peace with p */
+function blockedByEnemy(s: GameState, p: number, x: number, y: number): boolean {
+  const occ = occupant(s, x, y);
+  return !!occ && occ.owner !== p && canSee(s, p, occ) && !atPeace(s, p, occ.owner);
 }
 
 /** can p build `b` on tile (x,y)? */
@@ -125,14 +146,18 @@ function canBuild(s: GameState, p: number, b: string, x: number, y: number): boo
     if (!u || u.owner !== p || u.done || u.moved || !u.canAttack || u.frozen) return false;
     return !isWater(t) && !t.flooded && (t.terrain === "field" || t.terrain === "forest");
   }
+  // (S1 menu::can_build) no build on a tile holding a visible unit of a tribe not at peace
+  if (blockedByEnemy(s, p, x, y)) return false;
+  // roads and bridges may also go on neutral land (§4.4). A road is refused only by a road, a
+  // city or village, or a bridge (S1 menu::can_build): farms, huts, other buildings and ruins take one
+  if (def.kind === "road") {
+    const o = territoryOwner(s, t);
+    if (t.road || t.cityId !== null || t.village || t.building === "bridge") return false;
+    return (o === null || o === p) && def.terrain.includes(t.terrain as never);
+  }
   if (t.cityId !== null || t.village || t.ruin || t.lighthouse) return false;
   if (def.kind === "embassy") return false; // embassies are built inside cities, see legalActions
   const own = ownTile(s, p, x, y);
-  // roads and bridges may also go on neutral land (§4.4)
-  if (def.kind === "road") {
-    const o = territoryOwner(s, t);
-    return (o === null || o === p) && !t.road && !t.building && def.terrain.includes(t.terrain as never);
-  }
   if (def.kind === "bridge") {
     const o = territoryOwner(s, t);
     if (!(o === null || o === p) || t.terrain !== "water" || t.building) return false;
@@ -150,7 +175,8 @@ function canBuild(s: GameState, p: number, b: string, x: number, y: number): boo
   // Fertilize: a crop on wetland that has none (it replaces another resource there)
   if (b === "fertilize") return wetland && !t.building && t.resource !== "crop";
   if (b === "port" && t.flooded && !isWater(t)) return t.terrain !== "mountain" && !t.building && !t.resource;
-  if (def.kind === "destroy") return t.building !== null;
+  // Destroy: not a bridge with any unit on it (S1 menu::improvement_abilities_into)
+  if (def.kind === "destroy") return t.building !== null && !(t.building === "bridge" && occupant(s, x, y));
   // Cymanti Algae: open water without algae (it may sit on a building: discrete)
   if (b === "algae") return isWater(t) && !t.ice && !t.algae && t.resource !== "fruit";
   if (t.building) return false;
@@ -269,53 +295,48 @@ export function legalActions(s: GameState): Action[] {
     if (!u.done) for (const t of attackTargets(s, u)) out.push({ type: "attack", unitId: u.id, targetId: t.id });
     const fresh = !u.done && !u.moved && !u.attacked;
     const tile = tileAt(s, u.x, u.y);
+    // a unit led in a chain (Centipede segment) can't capture, examine, recover or disband (S1 menu)
+    const leads = !isLed(u);
     if (fresh) {
       const cityOwner = tile.cityId !== null ? cityById(s, tile.cityId)!.owner : null;
       // no capturing from a peace partner
-      if (tile.village || (cityOwner !== null && cityOwner !== p && !atPeace(s, p, cityOwner))) {
+      if (leads && (tile.village || (cityOwner !== null && cityOwner !== p && !atPeace(s, p, cityOwner)))) {
         out.push({ type: "capture", unitId: u.id });
       }
-      if (tile.ruin) out.push({ type: "examine", unitId: u.id });
-      if (u.hp < u.maxHp || u.poisoned) out.push({ type: "recover", unitId: u.id });
+      if (leads && tile.ruin) out.push({ type: "examine", unitId: u.id });
+      if (leads && (u.hp < u.maxHp || u.poisoned)) out.push({ type: "recover", unitId: u.id });
       if (tile.resource === "starfish" && pl.techs.includes("navigation") && !tile.building) {
         out.push({ type: "harvestStarfish", unitId: u.id });
       }
-      if (pl.techs.includes("freeSpirit")) out.push({ type: "disband", unitId: u.id });
+      if (leads && pl.techs.includes("freeSpirit")) out.push({ type: "disband", unitId: u.id });
       if (has(u, "heal")) {
         const hurt = s.units.some(
           (o) => o.owner === p && o !== u && dist(o, u) === 1 && (o.hp < o.maxHp || o.poisoned),
         );
         if (hurt) out.push({ type: "healOthers", unitId: u.id });
       }
-      if (has(u, "freezeArea")) {
-        const canFreeze = around(s.mapSize, u, 1, true).some((q) => {
-          const qt = tileAt(s, q.x, q.y);
-          const o = territoryOwner(s, qt);
-          if (isWater(qt) ? !qt.ice : !qt.polar && (o === null || o === p)) return true;
-          return s.units.some((e) => e.owner !== p && e.x === q.x && e.y === q.y && !e.frozen);
-        });
-        if (canFreeze) out.push({ type: "freezeArea", unitId: u.id });
-      }
-      if (has(u, "swarm")) {
-        const swarmable = s.units.some((o) => o.owner === p && o !== u && dist(o, u) === 1 && !o.swarmed);
-        if (swarmable) out.push({ type: "swarm", unitId: u.id });
+      if (has(u, "freezeArea") && around(s.mapSize, u, 1, true).some((q) => freezable(s, p, q))) {
+        out.push({ type: "freezeArea", unitId: u.id });
       }
     }
-    if (!u.done && has(u, "explode")) {
-      const hasTarget =
-        s.units.some((e) => canHarm(s, p, e.owner) && dist(e, u) === 1) ||
-        (u.type === "raychi" && isWater(tile) && !tile.algae);
-      if (hasTarget) out.push({ type: "explode", unitId: u.id });
+    // Swarm (S1 menu, cymanti.rs swarm options): the Shaman only needs to be able to move, with an own
+    // neighbour that is not Swift yet and not led in a chain
+    if (has(u, "swarm") && u.canMove && !u.done && !u.frozen && swarmTargets(s, u).length) {
+      out.push({ type: "swarm", unitId: u.id });
+    }
+    // Explode (S1 cymanti::can_explode): any time, with or without a target, except on the turn the
+    // unit was created (a Centipede segment may even then) or while frozen
+    if (has(u, "explode") && !u.frozen && (u.createdTurn !== s.turn || isLed(u))) {
+      out.push({ type: "explode", unitId: u.id });
     }
     for (const c of infiltrateTargets(s, u)) out.push({ type: "infiltrate", unitId: u.id, cityId: c.id });
-    // Dash: break adjacent (non-Polaris units) empty ice back into water
-    if (!u.done && u.canAttack && has(u, "dash") && pl.clan !== "polaris") {
-      for (const q of around(s.mapSize, u, 1)) {
-        const qt = tileAt(s, q.x, q.y);
-        if (qt.ice && !qt.building && qt.cityId === null && !occupant(s, q.x, q.y)) {
-          out.push({ type: "breakIce", unitId: u.id, at: { x: q.x, y: q.y } });
-        }
-      }
+    // Break Ice (S1 polaris::can_break_ice): any unit, Polaris included, not led in a chain, that has
+    // not attacked (nor moved, unless it dashes), without Auto Freeze, next to breakable ice
+    if (
+      !u.done && !u.frozen && leads && !u.attacked && (!u.moved || has(u, "dash")) && !has(u, "autoFreeze") &&
+      around(s.mapSize, u, 1).some((q) => breakableIce(s, q, p))
+    ) {
+      out.push({ type: "breakIce", unitId: u.id });
     }
     // Canal (Waterways): built by this unit on its own tile
     if (canBuild(s, p, "canal", u.x, u.y)) out.push({ type: "build", at: { x: u.x, y: u.y }, building: "canal" });
@@ -369,6 +390,8 @@ export function applyAction(prev: GameState, a: Action): GameState {
       const def = UNITS[a.unit];
       pl.stars -= def.cost;
       const nu = makeUnit(s, a.unit, p, c, c.id);
+      // a trained Jelly strikes its neighbours at once (S1 units::train: area damage)
+      if (has(nu, "tentacles")) areaDamage(s, nu);
       explore(s, p, nu, sightRadius(s, nu));
       break;
     }
@@ -394,10 +417,16 @@ export function applyAction(prev: GameState, a: Action): GameState {
       doExamine(s, unitById(s, a.unitId)!);
       break;
     case "disband": {
+      // a Centipede's body goes with it, each part paid (S1 step disband: the follower goes too)
       const u = unitById(s, a.unitId)!;
-      const base = u.carried ? UNITS[u.carried].cost : UNITS[u.type].cost;
-      pl.stars += Math.floor(base / 2);
-      s.units = s.units.filter((x) => x !== u);
+      const gone = [u, ...chainBody(s, u.id)];
+      // each part pays half of its boat + passenger cost, rounded down, only when that total is
+      // above 1 (S1 step::disband)
+      for (const o of gone) {
+        const total = UNITS[o.type].cost + (o.carried ? UNITS[o.carried].cost : 0);
+        if (total > 1) pl.stars += Math.floor(total / 2);
+      }
+      s.units = s.units.filter((x) => !gone.includes(x));
       break;
     }
     case "promote": {
@@ -438,16 +467,17 @@ export function applyAction(prev: GameState, a: Action): GameState {
       break;
     case "freezeArea": {
       const u = unitById(s, a.unitId)!;
-      freezeSurrounding(s, u, true);
+      freezeArea(s, u);
       endUnit(u);
       break;
     }
     case "breakIce": {
       const u = unitById(s, a.unitId)!;
-      tileAt(s, a.at.x, a.at.y).ice = false;
+      u.hidden = false;
+      endUnit(u);
+      u.moved = true;
       u.attacked = true;
-      u.canAttack = false;
-      u.canMove = false;
+      breakIceArea(s, u, p);
       break;
     }
     case "drain": {
@@ -465,11 +495,12 @@ export function applyAction(prev: GameState, a: Action): GameState {
       tileAt(s, a.at.x, a.at.y).decomposing = true;
       break;
     case "swarm": {
+      // Swarm: each own neighbour that is not Swift yet and not led in a chain becomes Swift
       const u = unitById(s, a.unitId)!;
-      for (const o of s.units) {
-        if (o.owner === p && o !== u && dist(o, u) === 1) o.swarmed = true;
-      }
+      for (const o of swarmTargets(s, u)) o.swarmed = true;
       endUnit(u);
+      u.moved = true;
+      u.attacked = true;
       break;
     }
     case "explode": {
@@ -545,6 +576,13 @@ function breakPeace(s: GameState, breaker: number, victim: number) {
   if (!d.broken.some((b) => b[0] === victim && b[1] === breaker)) d.broken.push([victim, breaker]);
   const lost = s.units.filter((u) => u.owner === breaker && territoryOwner(s, tileAt(s, u.x, u.y)) === victim);
   s.units = s.units.filter((u) => !lost.includes(u));
+  // every other unit of the breaker is spent for this turn (S1 step Diplomacy::BreakPeace)
+  for (const u of s.units) {
+    if (u.owner !== breaker) continue;
+    endUnit(u);
+    u.moved = true;
+    u.attacked = true;
+  }
   s.players[breaker].losses += lost.length;
   log(s, `broke peace with player ${victim}`);
 }
@@ -561,8 +599,11 @@ function endTurn(s: GameState) {
     if (idle && (u.hp < u.maxHp || u.poisoned)) heal(s, u);
     if (u.frozen) u.frozen = false;
   }
+  growUnits(s, p);
   improvementUpkeep(s, p);
-  if (pl.techs.includes("meditation")) pl.pacifistTurns = pl.attackedThisTurn ? 0 : pl.pacifistTurns + 1;
+  // Pacifist (S1 attack::reset_peace, turns::end_turn): an attack this turn reset the count to 0,
+  // then every end of turn adds 1
+  if (pl.techs.includes("meditation")) pl.pacifistTurns = (pl.attackedThisTurn ? 0 : pl.pacifistTurns) + 1;
   checkTasks(s, p);
   // offers this player did not answer on its turn lapse (count as declined)
   if (s.diplomacy) s.diplomacy.offers = s.diplomacy.offers.filter((o) => o.to !== p);
@@ -618,37 +659,23 @@ function removeBuilding(s: GameState, p: number, at: Coord) {
 /* ---------- moves ---------- */
 
 /**
- * A hidden enemy the mover could not see stops it on the last free tile before
- * the hidden unit's tile and is revealed (rules doc, Cloak), so legalActions
- * never gives away where hidden units are.
+ * A hidden enemy the mover could not see on the move's destination (S1 step Command::Move): the move
+ * becomes a Reveal. The hidden unit is revealed, the mover stays where it is and its move is not
+ * spent. A hidden unit on a tile the path only passes through changes nothing (legalActions plans
+ * through hidden units as empty tiles, so it never gives away where they are).
  */
-function stopAtHidden(s: GameState, u: Unit, to: Coord): Coord {
-  const path = pathTo(s, u, to);
-  let stop: Coord = { x: u.x, y: u.y };
-  for (const q of path) {
-    const occ = occupant(s, q.x, q.y);
-    if (occ && occ !== u && !friendly(s, u.owner, occ.owner) && occ.hidden && !canSee(s, u.owner, occ)) {
-      occ.hidden = false;
-      log(s, `ran into a hidden unit at ${q.x},${q.y}`);
-      return stop;
-    }
-    if (!occ) stop = q;
-  }
-  return to;
+function revealAtDestination(s: GameState, u: Unit, to: Coord): boolean {
+  const occ = occupant(s, to.x, to.y);
+  if (!occ || occ === u || friendly(s, u.owner, occ.owner) || !occ.hidden || canSee(s, u.owner, occ)) return false;
+  occ.hidden = false;
+  log(s, `ran into a hidden unit at ${to.x},${to.y}`);
+  return true;
 }
 
 function doMove(s: GameState, u: Unit, to: Coord) {
-  const kind0 = reachable(s, u).find((m) => m.x === to.x && m.y === to.y)?.kind ?? "normal";
-  const planned = to;
-  to = stopAtHidden(s, u, to);
-  if (to.x === u.x && to.y === u.y) {
-    // stopped before its first step: the move is spent
-    u.moved = true;
-    u.canMove = false;
-    if (!has(u, "dash")) u.canAttack = false;
-    return;
-  }
-  const kind = to === planned ? kind0 : enterKind(s, u, tileAt(s, to.x, to.y)) ?? "normal";
+  if (revealAtDestination(s, u, to)) return;
+  const kind = reachable(s, u).find((m) => m.x === to.x && m.y === to.y)?.kind ?? "normal";
+  const origin = { x: u.x, y: u.y };
   u.lastDir = { x: Math.sign(to.x - u.x), y: Math.sign(to.y - u.y) };
   // explore the straight-line path's tiles (approximation of "every tile along the path")
   const steps = dist(u, to);
@@ -671,16 +698,89 @@ function doMove(s: GameState, u: Unit, to: Coord) {
   explore(s, u.owner, u, sightRadius(s, u));
   // Skate: a move ending on land allows no attack (Dash blocked on land)
   if (has(u, "skate") && !isWater(tileAt(s, u.x, u.y))) u.canAttack = false;
-  // Stomp also fires when a Juggernaut boards or leaves a port: a Juggernaut landing
-  // stomps (with its own stats) before it turns back into a Giant
-  const stompsLeaving = kind === "disembark" && has(u, "stomp");
-  if (stompsLeaving) stomp(s, u);
-  if (kind === "embark") embark(u);
-  else if (kind === "disembark") disembark(u);
-  if (!stompsLeaving && has(u, "stomp")) stomp(s, u);
-  if (has(u, "autoFreeze")) freezeSurrounding(s, u, false);
-  aquarionAfterMove(s, u);
+  afterMove(s, u, kind, origin);
+  // moving onto another tribe's city is an act of war (S1 step::move_action)
+  const dest = tileAt(s, to.x, to.y);
+  const host = dest.cityId !== null ? cityById(s, dest.cityId)?.owner : undefined;
+  if (host !== undefined && host !== u.owner) warAct(s, u.owner, host);
+}
+
+/**
+ * What a move sets off (S1 step::move_action), for a move command and for the advance into a killed
+ * unit's tile alike (a push has its own, pushAside): poison buildings, Bubbles, the Tentacles strike on the mover,
+ * Stomp (and a Juggernaut landing), Auto Freeze (a full Freeze Area), a Jelly's own strike on its
+ * neighbours and Auto Flood; then the chain: a follower two or more tiles behind steps into the
+ * mover's old tile, and so on down the body.
+ */
+function afterMove(s: GameState, u: Unit, kind: StepKind, origin: Coord) {
+  const follower = followerOf(s, u);
+  const dest = { x: u.x, y: u.y };
   poisonTile(s, u);
+  bubbleAfterMove(s, u);
+  tentacleStrike(s, u);
+  if (s.units.includes(u)) {
+    // Stomp also fires when a Juggernaut boards or leaves a port: a Juggernaut landing
+    // stomps (with its own stats) before it turns back into a Giant
+    const stompsLeaving = kind === "disembark" && has(u, "stomp");
+    if (stompsLeaving) stomp(s, u);
+    if (kind === "embark") embark(u);
+    else if (kind === "disembark") disembark(u);
+    if (!stompsLeaving && has(u, "stomp")) stomp(s, u);
+    if (has(u, "autoFreeze")) freezeArea(s, u);
+    if (has(u, "tentacles") && !u.frozen) areaDamage(s, u);
+    if (has(u, "autoFlood")) floodAt(s, u.owner, u.x, u.y);
+  }
+  if (follower && s.units.includes(follower) && dist(follower, dest) >= 2) followStep(s, follower, origin);
+}
+
+/**
+ * A push out of the way (S1 units.rs try_push, then step::move_action with reason 2): the unit turns
+ * the way it was pushed, and on its new tile poison buildings, Bubbles and the Tentacles strike on it
+ * fire as on a move (none of the mover's own move effects); a follower two or more tiles behind steps
+ * into its old tile, as after a move. The spawn then finds its tile taken again and pushes that unit
+ * too (S1 units.rs train: a Train onto an occupied tile pushes again), until the tile is free.
+ */
+function pushAside(s: GameState, u: Unit, spawner: number, depth = 0) {
+  const origin = { x: u.x, y: u.y };
+  const follower = followerOf(s, u);
+  if (depth > s.units.length) {
+    s.units = s.units.filter((v) => v !== u);
+    return;
+  }
+  pushUnit(s, u, spawner);
+  if (!s.units.includes(u) || (u.x === origin.x && u.y === origin.y)) return;
+  u.lastDir = { x: u.x - origin.x, y: u.y - origin.y };
+  poisonTile(s, u);
+  bubbleAfterMove(s, u);
+  tentacleStrike(s, u);
+  if (follower && s.units.includes(follower) && dist(follower, u) >= 2) followStep(s, follower, origin);
+  const back = occupant(s, origin.x, origin.y);
+  if (back) pushAside(s, back, spawner, depth + 1);
+}
+
+/** a chain member steps into the tile its leader left (S1: a Move with reason command) */
+function followStep(s: GameState, f: Unit, to: Coord) {
+  if (occupant(s, to.x, to.y)) return;
+  const origin = { x: f.x, y: f.y };
+  f.lastDir = { x: Math.sign(to.x - f.x), y: Math.sign(to.y - f.y) };
+  f.x = to.x;
+  f.y = to.y;
+  f.moved = true;
+  f.canMove = false;
+  if (!has(f, "dash")) f.canAttack = false;
+  explore(s, f.owner, f, sightRadius(s, f));
+  afterMove(s, f, "normal", origin);
+}
+
+/**
+ * An act of war (S1 step::attack_diplomacy): attacks, infiltration, captures, moving onto a city,
+ * stomp and explosion hits record the attack (war) and end the embassies between the two.
+ */
+function warAct(s: GameState, p: number, q: number) {
+  if (p === q) return;
+  recordAttack(s, p, q);
+  s.players[p].embassies = s.players[p].embassies.filter((h) => h !== q);
+  s.players[q].embassies = s.players[q].embassies.filter((h) => h !== p);
 }
 
 /**
@@ -714,54 +814,135 @@ function floodAt(s: GameState, actor: number, x: number, y: number) {
 }
 
 /**
- * After a move: Auto Flood floods the tile moved onto; an Aquarion amphibious
- * unit with Waterways gets a Bubble (+1 movement) on a flooded tile and loses
- * it on dry land; Tentacles hit enemies next to a moving Jelly, and a unit
- * that moves next to an enemy Jelly. Tentacle damage is not published; the
- * engine uses the Jelly's normal attack damage, without retaliation.
+ * After a move: an Aquarion amphibious unit with Waterways gets a Bubble (+1 movement) on a flooded
+ * tile and loses it on dry land.
  */
-function aquarionAfterMove(s: GameState, u: Unit) {
-  if (!s.units.includes(u)) return;
+function bubbleAfterMove(s: GameState, u: Unit) {
+  if (!s.units.includes(u) || !has(u, "amphibious")) return;
   const t = tileAt(s, u.x, u.y);
-  if (has(u, "amphibious")) {
-    // an amphibious unit of a Bubble player gains Bubble on a flooded tile, and loses it on dry land
-    if (!isWater(t) && t.flooded) {
-      if (hasBubble(s, u.owner)) u.bubble = true;
-    } else if (!isWater(t) && !t.algae) u.bubble = false;
-  }
-  if (has(u, "autoFlood")) floodAt(s, u.owner, u.x, u.y);
-  if (has(u, "tentacles") && !u.frozen) {
-    for (const e of s.units.slice()) {
-      if (e.owner === u.owner || dist(e, u) !== 1) continue;
-      damage(s, e, computeDamageRounded(s, u, e).damage, u);
-    }
-  }
-  for (const j of s.units.slice()) {
-    if (!s.units.includes(u)) break;
-    if (j.owner === u.owner || dist(j, u) !== 1 || j.frozen || !has(j, "tentacles")) continue;
-    damage(s, u, computeDamageRounded(s, j, u).damage, j);
-  }
+  if (!isWater(t) && t.flooded) {
+    if (hasBubble(s, u.owner)) u.bubble = true;
+  } else if (!isWater(t) && !t.algae) u.bubble = false;
 }
 
 /**
- * Auto Freeze: adjacent water turns to ice and adjacent enemies freeze.
- * Freeze Area (area = true) also turns adjacent land into Polaris terrain,
- * never inside enemy territory. Freezing an enemy counts as an attack (Altar of Peace).
+ * Tentacles strike (S1 aquarion::strike): a unit that moves next to an unfrozen Jelly of another
+ * tribe it is not at peace with is hit once, by the healthiest such Jelly (the first in x-major order
+ * on a tie), with the Jelly's attack damage and no retaliation.
  */
-function freezeSurrounding(s: GameState, u: Unit, area: boolean) {
-  for (const q of around(s.mapSize, u, 1, true)) {
-    const t = tileAt(s, q.x, q.y);
-    if (isWater(t)) t.ice = true;
-    else if (area) {
-      const o = territoryOwner(s, t);
-      if (o === null || o === u.owner) t.polar = true;
-    }
-    const occ = occupant(s, q.x, q.y);
-    if (occ && occ.owner !== u.owner && canHarm(s, u.owner, occ.owner)) {
-      occ.frozen = true;
-      s.players[u.owner].attackedThisTurn = true;
+function tentacleStrike(s: GameState, u: Unit) {
+  if (!s.units.includes(u)) return;
+  let best: Unit | undefined;
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      if (!dx && !dy) continue;
+      const j = occupant(s, u.x + dx, u.y + dy);
+      if (!j || !canHarm(s, u.owner, j.owner) || j.frozen || !has(j, "tentacles")) continue;
+      if (!best || j.hp > best.hp) best = j;
     }
   }
+  if (best) damage(s, u, computeDamageRounded(s, best, u).damage, best);
+}
+
+/**
+ * A Jelly's own strike (S1 attack::area_damage with Tentacles): full damage to every neighbour that is
+ * not its own or a peace partner's, no retaliation; after a move or an advance and when trained.
+ */
+function areaDamage(s: GameState, u: Unit) {
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      if (!dx && !dy) continue;
+      const e = occupant(s, u.x + dx, u.y + dy);
+      if (!e || !canHarm(s, u.owner, e.owner)) continue;
+      const dealt = computeDamageRounded(s, u, e).damage;
+      // a damaging hit on a visible unit is an act of war and resets the Pacifist count (S1 area_damage)
+      if (dealt > 0 && !e.hidden) {
+        warAct(s, u.owner, e.owner);
+        s.players[u.owner].attackedThisTurn = true;
+      }
+      damage(s, e, dealt, u);
+    }
+  }
+}
+
+/* ---------- Polaris: freezing and breaking ice ---------- */
+
+/**
+ * Whether `actor` can freeze tile q (S1 polaris::freezable): an explored tile that is open water or
+ * flooded land, or land that is not Polaris land yet (in any territory, enemy land too); an ice tile
+ * or Polaris land only while a visible unfrozen unit not its own or a peace partner's stands on it.
+ */
+function freezable(s: GameState, actor: number, q: Coord): boolean {
+  if (s.players[actor].explored[idx(s.mapSize, q.x, q.y)] !== 1) return false;
+  const t = tileAt(s, q.x, q.y);
+  if (isWater(t) ? !t.ice : t.flooded || !t.polar) return true;
+  const o = occupant(s, q.x, q.y);
+  return !!o && canHarm(s, actor, o.owner) && !o.frozen && canSee(s, actor, o);
+}
+
+/**
+ * Freeze Area (the Gaami's action, and Auto Freeze after a Mooni's or Gaami's move; S1
+ * polaris::freeze_area): every freezable tile around freezes (water turns to ice, land to Polaris
+ * land, enemy territory included), and every unit around (seen or not) that isn't the actor's or a
+ * peace partner's and isn't frozen yet freezes. Freezing a unit counts as an attack (Altar of Peace).
+ */
+function freezeArea(s: GameState, u: Unit) {
+  const p = u.owner;
+  for (const q of around(s.mapSize, u, 1)) {
+    const t = tileAt(s, q.x, q.y);
+    if (freezable(s, p, q)) {
+      if (isWater(t)) t.ice = true;
+      else t.polar = true;
+    }
+    const occ = occupant(s, q.x, q.y);
+    if (occ && canHarm(s, p, occ.owner) && !occ.frozen) {
+      occ.frozen = true;
+      s.players[p].attackedThisTurn = true;
+    }
+  }
+}
+
+/** S1 polaris::breakable: ice that is empty, holds a swimmer or flyer or a hidden enemy, or has algae or a bridge */
+function breakableIce(s: GameState, q: Coord, viewer: number): boolean {
+  const t = tileAt(s, q.x, q.y);
+  if (!t.ice) return false;
+  if (t.algae || t.building === "bridge") return true;
+  const o = occupant(s, q.x, q.y);
+  if (!o) return true;
+  const swims = UNITS[o.type].naval || has(o, "water") || has(o, "amphibious");
+  return swims || has(o, "fly") || (o.hidden && o.owner !== viewer && !atPeace(s, viewer, o.owner));
+}
+
+/**
+ * Break Ice (S1 polaris::break_ice_area / break_ice): every breakable ice tile around the unit breaks
+ * at once; a hidden enemy on one is revealed instead. Broken ice turns to ocean, or shallow water when
+ * a land tile is orthogonally next to it.
+ */
+function breakIceArea(s: GameState, u: Unit, p: number) {
+  for (const q of around(s.mapSize, u, 1)) {
+    if (!breakableIce(s, q, p)) continue;
+    const o = occupant(s, q.x, q.y);
+    if (o && o.hidden && o.owner !== p && !atPeace(s, p, o.owner)) {
+      o.hidden = false;
+      continue;
+    }
+    const t = tileAt(s, q.x, q.y);
+    t.ice = false;
+    const land = [
+      { x: q.x - 1, y: q.y },
+      { x: q.x, y: q.y - 1 },
+      { x: q.x, y: q.y + 1 },
+      { x: q.x + 1, y: q.y },
+    ].some((d) => d.x >= 0 && d.y >= 0 && d.x < s.mapSize && d.y < s.mapSize && !isWater(tileAt(s, d.x, d.y)));
+    t.terrain = land ? "water" : "ocean";
+  }
+}
+
+/* ---------- Cymanti: Swarm, Explode, Centipede ---------- */
+
+/** Swarm targets (S1 cymanti.rs swarm options): own neighbours not Swift yet and not led in a chain */
+function swarmTargets(s: GameState, u: Unit): Unit[] {
+  return s.units.filter((o) => o.owner === u.owner && o !== u && dist(o, u) === 1 && !o.swarmed && !isLed(o));
 }
 
 /**
@@ -774,18 +955,30 @@ function leaveSporesOrAlgae(t: ReturnType<typeof tileAt>) {
   if (isWater(t) && !t.ice) t.algae = true;
 }
 
+/**
+ * Explode (S1 cymanti::explode): the unit blows up, hitting every neighbour not its own with half the
+ * damage and poisoning the survivors. Its follower explodes too, so the whole tail of a Centipede goes
+ * (the follower's blast runs right after this one, as S1's action stack orders them); the unit in
+ * front lets go, keeping the rest of the body.
+ */
 function doExplode(s: GameState, u: Unit) {
   const p = u.owner;
   const pos = { x: u.x, y: u.y };
+  const follower = followerOf(s, u);
   s.units = s.units.filter((x) => x !== u);
   const t = tileAt(s, pos.x, pos.y);
   leaveSporesOrAlgae(t);
+  // (S1 cymanti::explode) half damage, rounded down, to every neighbour not at peace; a survivor is
+  // poisoned; each hit is an act of war and resets the Pacifist count
   for (const e of s.units.slice()) {
-    if (e.owner === p || dist(e, pos) !== 1) continue;
+    if (!canHarm(s, p, e.owner) || dist(e, pos) !== 1) continue;
     const r = computeDamageRounded(s, u, e);
-    damage(s, e, r.damage / 2, u); // half the damage, unrounded (RULES_PARITY)
+    warAct(s, p, e.owner);
+    s.players[p].attackedThisTurn = true;
+    damage(s, e, halfDamage(r.damage), u);
     if (s.units.includes(e)) e.poisoned = true;
   }
+  if (follower && s.units.includes(follower)) doExplode(s, follower);
 }
 
 function embark(u: Unit) {
@@ -808,42 +1001,60 @@ function stomp(s: GameState, u: Unit) {
   for (const e of s.units.slice()) {
     if (!canHarm(s, u.owner, e.owner) || dist(e, u) !== 1) continue;
     const r = computeDamageRounded(s, u, e);
-    damage(s, e, r.damage / 2, u); // amount unconfirmed in the spec: half, unrounded, like splash
+    // (S1 attack::area_damage) a hit that deals damage to a visible unit is an act of war and
+    // resets the Pacifist count; half damage, rounded down
+    if (r.damage > 0 && !e.hidden) {
+      warAct(s, u.owner, e.owner);
+      s.players[u.owner].attackedThisTurn = true;
+    }
+    damage(s, e, halfDamage(r.damage), u);
   }
 }
 
 /* ---------- combat ---------- */
 
-function damage(s: GameState, target: Unit, amount: number, by: Unit | null): boolean {
+/**
+ * Deal damage. A kill counts for the attacking unit's player, or for `killer` when there is no
+ * attacking unit (infiltration: S1 attack::perform_attack credits the infiltrating player).
+ */
+function damage(s: GameState, target: Unit, amount: number, by: Unit | null, killer: number | null = null): boolean {
   target.hp -= amount;
-  // Swarm lasts until the unit is attacked
+  // Swarm (Swift) is lost whenever the unit is hit, retaliation and area damage included
   target.swarmed = false;
   if (target.hp > 0) return false;
+  const follower = followerOf(s, target);
   s.units = s.units.filter((x) => x !== target);
   if (target.poisoned) leaveSporesOrAlgae(tileAt(s, target.x, target.y));
-  if (has(target, "eat")) headDied(s, target);
+  if (follower) splitChain(s, target, follower);
   s.players[target.owner].losses += 1;
   if (by) {
     s.players[by.owner].kills += 1;
     if (!has(by, "static") && !has(by, "carry")) by.kills += 1;
+  } else if (killer !== null) {
+    s.players[killer].kills += 1;
   }
   return true;
 }
 
 /**
- * Centipede head killed (S1 attack::kill): the first Segment of its body becomes the Centipede (it
- * keeps its damage and the head's spent flags) and leads the rest of the body.
+ * A killed chain member (S1 attack::kill): its follower grows into a Centipede (it keeps its missing
+ * HP and takes the dead unit's spent flags) and leads the rest of the body behind it; the unit in front
+ * lets go, keeping the part ahead. Killing a middle Segment so splits the body in two.
  */
-function headDied(s: GameState, head: Unit) {
-  const body = s.units.filter((o) => o.bodyOf === head.id);
-  if (!body.length) return;
-  const next = body[0];
+function splitChain(s: GameState, dead: Unit, next: Unit) {
+  const rest = s.units.filter((o) => o.bodyOf === next.bodyOf);
+  const behind = rest.slice(rest.indexOf(next) + 1);
+  const missing = next.maxHp - next.hp;
   next.type = "centipede";
   next.maxHp = UNITS.centipede.hp! + (next.veteran ? 5 : 0);
+  next.hp = next.maxHp - Math.min(missing, next.maxHp - 1);
   delete next.bodyOf;
-  next.moved = head.moved;
-  next.attacked = head.attacked;
-  for (const o of body.slice(1)) o.bodyOf = next.id;
+  next.moved = dead.moved;
+  next.attacked = dead.attacked;
+  next.canMove = dead.canMove;
+  next.canAttack = dead.canAttack;
+  next.done = dead.done;
+  for (const o of behind) o.bodyOf = next.id;
 }
 
 /** the 8 directions clockwise from north-west (S1 linked::FAN order) */
@@ -852,14 +1063,33 @@ const FAN: Coord[] = [
   { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: -1 },
 ];
 
+/** a new unit's facing (S1 units::facing): toward the middle of the board, straight steps weighted 1393, diagonal 985 */
+function facingOf(s: GameState, u: Unit): Coord {
+  if (u.lastDir && (u.lastDir.x || u.lastDir.y)) return u.lastDir;
+  const half = Math.floor(s.mapSize / 2);
+  const dx = half - u.x;
+  const dy = half - u.y;
+  let best = FAN[0];
+  let score = 0;
+  for (const d of FAN) {
+    const next = (d.x * dx + d.y * dy) * (d.x * d.x + d.y * d.y === 1 ? 1393 : 985);
+    if (score < next) {
+      best = d;
+      score = next;
+    }
+  }
+  return best;
+}
+
 /**
  * Eat (S1 linked::eat): a Segment is placed behind the body's tail (the last Segment, or the head),
- * on the first free tile it may stand on, fanning out from the opposite of the head's facing.
+ * on the first free tile it may stand on, fanning out from the opposite of the tail's own facing.
+ * No Segment for killing a wild unit (S1 owner 255); the engine has none.
  */
 function growSegment(s: GameState, head: Unit) {
-  const body = s.units.filter((o) => o.bodyOf === head.id);
+  const body = chainBody(s, head.id);
   const tail = body.length ? body[body.length - 1] : head;
-  const facing = head.lastDir ?? { x: 0, y: -1 };
+  const facing = facingOf(s, tail);
   const dir = FAN.findIndex((d) => d.x === facing.x && d.y === facing.y);
   const opposite = ((dir < 0 ? 7 : dir) + 4) % 8;
   const probe: Unit = { ...tail, type: "segment", carried: null };
@@ -882,19 +1112,18 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
   u.hidden = false;
   u.lastDir = { x: Math.sign(target.x - u.x), y: Math.sign(target.y - u.y) };
   // embassies between the two are destroyed by any attack (§5.5); the two are now at war
-  const q = target.owner;
-  recordAttack(s, p, q);
-  s.players[p].embassies = s.players[p].embassies.filter((h) => h !== q);
-  s.players[q].embassies = s.players[q].embassies.filter((h) => h !== p);
+  warAct(s, p, target.owner);
 
   if (has(u, "convert")) {
-    // converting any part of a Centipede converts the whole body
+    // converting any part of a Centipede converts the whole body (S1 attack::convert: the chain
+    // neighbours come along); an Independent unit keeps its home city, any other is homed in the
+    // converter's capital; a boat's passenger is part of the unit here, so it is converted with it
     const headId = target.bodyOf ?? (target.type === "centipede" ? target.id : null);
     const group = headId === null ? [target] : s.units.filter((o) => o.id === headId || o.bodyOf === headId);
     const cap = capitalOf(s, p) ?? citiesOf(s, p)[0];
     for (const o of group) {
       o.owner = p;
-      o.homeCity = has(o, "independent") ? null : (cap?.id ?? null);
+      if (!has(o, "independent")) o.homeCity = cap?.id ?? null;
       o.canMove = false;
       o.canAttack = false;
       o.done = true;
@@ -905,11 +1134,10 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
     u.attacked = true;
     return;
   }
-  s.players[p].attackedThisTurn = true;
-
   const r = computeDamageRounded(s, u, target);
+  // Pacifist: only an attack that deals damage to a visible unit resets the count (S1 attack_command)
+  if (r.damage > 0 && !target.hidden) s.players[p].attackedThisTurn = true;
   const from = { x: target.x, y: target.y };
-  const prevPos = { x: u.x, y: u.y };
   const killed = damage(s, target, r.damage, u);
   // Aquarion: being attacked pops a Bubble; Drench floods the attacked tile (and may bubble its unit)
   target.bubble = false;
@@ -917,13 +1145,16 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
   // special on-hit effects: freeze (Ice Archer) & poison (Phychi, Exida, Kiton)
   if (!killed && has(u, "freeze")) target.frozen = true;
   if (!killed && has(u, "poison")) target.poisoned = true;
-  // splash: half damage, unrounded (.5 possible), to enemies adjacent to the target
-  if (has(u, "splash")) {
+  // splash (S1 attack_command, ranged units only): half damage, rounded down, to every unit next to
+  // the target not at peace; a poisoning attacker (Exida) only poisons them, no damage
+  if (has(u, "splash") && UNITS[u.type].range > 1) {
     for (const e of s.units.slice()) {
       if (!canHarm(s, p, e.owner) || dist(e, from) !== 1 || e === u) continue;
-      const sr = computeDamageRounded(s, u, e);
-      damage(s, e, sr.damage / 2, u);
-      if (s.units.includes(e) && has(u, "poison")) e.poisoned = true;
+      if (has(u, "poison")) {
+        e.poisoned = true;
+        continue;
+      }
+      damage(s, e, halfDamage(computeDamageRounded(s, u, e).damage), u);
     }
   }
   if (!killed) {
@@ -935,14 +1166,12 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
       s.players[target.owner].explored[idx(s.mapSize, u.x, u.y)] === 1 &&
       r.retaliation > 0;
     if (retaliates) {
-      const swarm = u.swarmed; // retaliation is no attack: Swarm stays
+      // retaliation is an attack on the attacker: it loses Swift (damage); a poisoner's
+      // retaliation poisons it (Kiton, Exida, ...)
       damage(s, u, r.retaliation, target);
-      u.swarmed = swarm;
       if (s.units.includes(u) && has(target, "poison")) u.poisoned = true;
     }
   }
-  // Kiton: poisons every unit that attacks it (melee or ranged)
-  if (has(target, "poisonDefence") && s.units.includes(u)) u.poisoned = true;
   u.attacked = true;
   const alive = s.units.includes(u);
   if (!alive) return;
@@ -952,23 +1181,24 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
     u.secondAttack = true;
     u.canAttack = true;
   }
-  // Escape: may move again after attacking, also after moving first (move, attack, move);
-  // a skater can't escape on land
-  const escape = has(u, "escape") && !(has(u, "skate") && !isWater(tileAt(s, u.x, u.y)));
-  u.canMove = escape && !u.frozen;
-  // melee advance into the killed unit's tile (§3.4)
+  // melee advance into the killed unit's tile (§3.4); it sets off what a move does (S1 move reason 1)
   if (killed && UNITS[u.type].range < 2 && !occupant(s, from.x, from.y)) {
     const kind = enterKind(s, u, tileAt(s, from.x, from.y));
     if (kind === "normal" || kind === "embark") {
+      const origin = { x: u.x, y: u.y };
       u.x = from.x;
       u.y = from.y;
       explore(s, p, u, sightRadius(s, u));
-      if (kind === "embark") embark(u);
+      afterMove(s, u, kind, origin);
     }
   }
+  if (!s.units.includes(u)) return;
+  // Escape: may move again after attacking, also after moving first (move, attack, move);
+  // a skater only while it ends (after any advance) on ice (S1 attack_command)
+  const escape = has(u, "escape") && !(has(u, "skate") && !tileAt(s, u.x, u.y).ice);
+  u.canMove = escape && !u.frozen && !u.done;
   // Cymanti Centipede Eat: every kill by attack grows a Segment behind the body's tail
   if (killed && has(u, "eat")) growSegment(s, u);
-  void prevPos;
   if (killed && has(u, "persist") && attackTargets(s, { ...u, canAttack: true }).length) u.canAttack = true;
 }
 
@@ -991,6 +1221,8 @@ function doCapture(s: GameState, u: Unit) {
       return;
     }
     const old = c.owner;
+    // capturing a tribe's city is an act of war (S1 capture::capture_city)
+    warAct(s, p, old);
     // the connections through this city are cut and the population they gave goes with them (may go negative)
     if (c.capital) {
       for (const o of citiesOf(s, old)) {
@@ -1041,12 +1273,17 @@ function doExamine(s: GameState, u: Unit) {
   t.ruin = false;
   u.hidden = false;
   endUnit(u);
-  const options: string[] = ["resources", "newFriends"];
-  const researchable = TECHS.filter((x) => canResearch(s, p, x.id) && (x.tier === 1 || (x.parent && pl.techs.includes(x.parent))));
+  // eligible rewards (S1 ruins::select_reward; a shuffle taking the first eligible one = an even draw):
+  // resources and population always; the veteran unit on land, the veteran boat on water only with
+  // ocean movement; a free tech among all researchable ones (also an unknown parent of a known tech);
+  // the explorer when a neighbour has terrain the player can move on and fog lies within 2
+  const options: string[] = ["resources", "population"];
+  if (!isWater(t) || pl.techs.includes("sailing")) options.push("newFriends");
+  const researchable = TECHS.filter((x) => canResearch(s, p, x.id));
   if (researchable.length) options.push("scroll");
-  if (capitalOf(s, p)) options.push("population");
   const fogNear = around(s.mapSize, u, 2).some((q) => pl.explored[idx(s.mapSize, q.x, q.y)] !== 1);
-  if (t.terrain !== "mountain" && fogNear) options.push("explorer");
+  const enterable = around(s.mapSize, u, 1).some((q) => explorerCanEnter(s, p, tileAt(s, q.x, q.y)));
+  if (enterable && fogNear) options.push("explorer");
   // 2.18 (S1 ruins::select_reward): an Aquarion examining a valid ocean ruin always raises the Lost City
   const pick = pl.clan === "aquarion" && validLostCity(s, u) ? "lostCity" : withRng(s, (r) => r.pick(options));
   switch (pick) {
@@ -1058,9 +1295,11 @@ function doExamine(s: GameState, u: Unit) {
       pl.techs.push(tech.id);
       break;
     }
-    case "population":
-      addPop(s, capitalOf(s, p)!, 3);
+    case "population": {
+      const cap = capitalOf(s, p);
+      if (cap) addPop(s, cap, 3);
       break;
+    }
     case "explorer":
       runExplorer(s, p, u);
       break;
@@ -1069,7 +1308,7 @@ function doExamine(s: GameState, u: Unit) {
       break;
     case "newFriends": {
       const water = isWater(t);
-      pushUnit(s, u, p);
+      pushAside(s, u, p);
       const nu = makeUnit(s, water ? "rammer" : "swordsman", p, { x: t === tileAt(s, u.x, u.y) ? u.x : u.x, y: u.y }, null);
       // spawn on the ruin tile itself
       const ruinIdx = s.tiles.indexOf(t);
@@ -1127,28 +1366,41 @@ function raiseLostCity(s: GameState, u: Unit) {
   explore(s, p, c, 1);
   if (!has(u, "independent")) u.homeCity = c.id;
   // a water-only unit can't stand on the new land
-  if (UNITS[u.type].naval && !has(u, "carry") && enterKind(s, u, t) === null) pushUnit(s, u, p);
+  if (UNITS[u.type].naval && !has(u, "carry") && enterKind(s, u, t) === null) pushAside(s, u, p);
 }
 
 /**
- * Explorer walker (spec "Explorer"): EXPLORER_STEPS automatic moves into the fog.
- * Each step goes to the neighbour that uncovers the most new tiles (3x3 vision);
- * ties go to the step closest to the nearest lighthouse this player hasn't found.
- * If no neighbour uncovers anything, it steps along a shortest path toward the
- * nearest unexplored tile. Remaining ties are broken by the game RNG.
+ * Terrain player p's techs let it move on (S1 routes::movements, game data movement_unlocks): field,
+ * forest, ice and wetland always, a city, a bridge; mountain with Climbing, shallow water with
+ * Fishing (Aquarion: its starting tech Aquabase), ocean with Sailing.
+ */
+function explorerCanEnter(s: GameState, p: number, t: ReturnType<typeof tileAt>): boolean {
+  const pl = s.players[p];
+  if (t.cityId !== null || t.building === "bridge" || t.ice || t.algae) return true;
+  if (t.terrain === "mountain") return pl.techs.includes("climbing");
+  if (t.terrain === "water") return pl.techs.includes("fishing") || pl.clan === "aquarion";
+  if (t.terrain === "ocean") return pl.techs.includes("sailing");
+  return true;
+}
+
+/**
+ * Explorer walker (S1 reward::scout): EXPLORER_STEPS (12) automatic moves into the fog.
+ * Each step goes to the neighbour that uncovers the most new tiles (3x3 vision, 5x5
+ * when it stands on a mountain); ties go to the step closest to the nearest
+ * lighthouse this player hasn't found. If no neighbour uncovers anything, it steps
+ * along a shortest path toward the nearest unexplored tile. It walks into fog, but
+ * on explored tiles only on terrain the player can move on. Remaining ties are
+ * broken by the game RNG (S1's own scoring and hash are not ported).
  */
 export function runExplorer(s: GameState, p: number, from: Coord) {
   const pl = s.players[p];
   const n = s.mapSize;
   let cur = { x: from.x, y: from.y };
   const passable = (q: Coord) => {
-    const t = tileAt(s, q.x, q.y);
     if (pl.explored[idx(n, q.x, q.y)] !== 1) return true; // may walk into fog
-    if (t.terrain === "mountain") return pl.techs.includes("climbing");
-    if (t.terrain === "water") return pl.techs.includes("sailing") || pl.clan === "cymanti";
-    if (t.terrain === "ocean") return pl.techs.includes("navigation") || pl.clan === "cymanti";
-    return true;
+    return explorerCanEnter(s, p, tileAt(s, q.x, q.y));
   };
+  const sight = (q: Coord) => (tileAt(s, q.x, q.y).terrain === "mountain" ? 2 : 1);
   const uncovers = (q: Coord) =>
     around(n, q, 1, true).filter((c) => pl.explored[idx(n, c.x, c.y)] !== 1).length;
   const lighthouseDist = (q: Coord) => {
@@ -1201,13 +1453,15 @@ export function runExplorer(s: GameState, p: number, from: Coord) {
     if (cands.length > 1) cands = lowest(cands.map((q) => ({ q, key: lighthouseDist(q) })));
     const choice = cands.length === 1 ? cands[0] : withRng(s, (r) => r.pick(cands));
     cur = choice;
-    explore(s, p, cur, 1);
+    explore(s, p, cur, sight(cur));
   }
 }
 
 function doInfiltrate(s: GameState, u: Unit, c: City) {
   const p = u.owner;
   s.units = s.units.filter((x) => x !== u);
+  // infiltration is an act of war (S1 attack::attack_command)
+  warAct(s, p, c.owner);
   if (u.type === "moth") {
     mothInfiltrate(s, u, c);
     return;
@@ -1216,7 +1470,7 @@ function doInfiltrate(s: GameState, u: Unit, c: City) {
   if (occ && occ.owner !== p) {
     const dagger = { ...u, type: "dagger", hp: 10, maxHp: 10 };
     const r = computeDamageRounded(s, dagger, occ);
-    damage(s, occ, r.damage, null);
+    damage(s, occ, r.damage, null, p);
   }
   const owner = c.owner;
   const stolen = c.capital ? c.level + 1 : c.level;
@@ -1258,7 +1512,7 @@ function mothInfiltrate(s: GameState, u: Unit, c: City) {
   c.riot = true;
   const occ = occupant(s, c.x, c.y);
   if (occ && occ.owner !== p) {
-    const killed = damage(s, occ, computeDamageRounded(s, u, occ).damage, null);
+    const killed = damage(s, occ, computeDamageRounded(s, u, occ).damage, null, p);
     if (!killed) occ.poisoned = true;
   }
   // Insect Eggs (city level, at most 5) on free land of the city's territory, the city tile too
@@ -1311,7 +1565,7 @@ function doBuild(s: GameState, p: number, b: string, at: Coord) {
       if (b === "enchantAnimal") {
         t.resource = null;
         const occ = occupant(s, at.x, at.y);
-        if (occ) pushUnit(s, occ, p);
+        if (occ) pushAside(s, occ, p);
         const poly = makeUnit(s, "polytaur", p, at, null);
         explore(s, p, poly, 1);
         break;
@@ -1447,7 +1701,7 @@ function doReward(s: GameState, c: City, reward: string) {
       break;
     case "superUnit": {
       const occ = occupant(s, c.x, c.y);
-      if (occ) pushUnit(s, occ, p);
+      if (occ) pushAside(s, occ, p);
       const su = superUnitFor(s.players[p].clan);
       const g = makeUnit(s, su, p, c, c.id);
       explore(s, p, g, 1);

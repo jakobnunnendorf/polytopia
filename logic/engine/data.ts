@@ -42,9 +42,7 @@ export type Skill =
   | "autoFlood"
   | "sneak"
   | "doubleAttack"
-  | "algae"
-  /** Kiton: poisons units that attack it */
-  | "poisonDefence";
+  | "algae";
 
 export type UnitDef = {
   id: string;
@@ -135,7 +133,7 @@ export const UNITS: Record<string, UnitDef> = {
   // Cymanti (2.15 rework)
   shaman: u("shaman", 5, true, 10, 1, 1, 1, 1, ["convert", "swarm"], "meditation"),
   hexapod: u("hexapod", 3, true, 5, 3, 1, 2, 1, ["dash", "escape", "creep", "sneak"], "riding"),
-  kiton: u("kiton", 3, true, 15, 1, 3, 1, 1, ["creep", "poisonDefence"], "strategy"),
+  kiton: u("kiton", 3, true, 15, 1, 3, 1, 1, ["creep", "poison"], "strategy"),
   phychi: u("phychi", 3, true, 5, 0.7, 1, 2, 2, ["dash", "fly", "poison", "surprise", "doubleAttack"], "archery"),
   mantis: u("mantis", 5, true, 15, 3, 3, 1, 1, ["dash", "creep"], "smithery"),
   moth: u("moth", 5, true, 10, 2, 0.1, 2, 1, ["fly", "dash", "sneak", "infiltrate", "poison", "scout", "static", "stiff"], "diplomacy"),
@@ -346,7 +344,7 @@ export function rewardOptions(level: number): [string, string] {
 }
 
 export const START_STARS = 5;
-export const EXPLORER_STEPS = 15;
+export const EXPLORER_STEPS = 12;
 export const PERFECTION_TURNS = 30;
 export const STARFISH_STARS = 8;
 export const RUIN_STARS = 10;
@@ -580,7 +578,7 @@ export const CLANS: ClanDef[] = [
       farming: { name: "Farming", unlocks: "Fungi (+1 pop, grows, poisons)" },
       riding: { name: "Riding", unlocks: "Hexapod (creep, sneak, escape)" },
       roads: { name: "Roads", unlocks: "Mycelium (links & heals bugs)" },
-      strategy: { name: "Strategy", unlocks: "Kiton (poisons attackers)" },
+      strategy: { name: "Strategy", unlocks: "Kiton (poison)" },
       diplomacy: { name: "Diplomacy", unlocks: "Moth, Embassy, Capital Vision" },
       archery: { name: "Archery", unlocks: "Phychi (flying, poison)" },
       smithery: { name: "Smithery", unlocks: "Mantis, Forge" },

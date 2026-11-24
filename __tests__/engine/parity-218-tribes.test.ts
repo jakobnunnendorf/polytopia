@@ -353,12 +353,16 @@ describe("Polaris (2.18)", () => {
     expect(canBuildAt(st, "iceBank", 2, 2)).toBe(false);
   });
 
-  it("a new game marks the land of the Polaris area as Polaris land", () => {
+  // audit 2: only map generation's 3×3 around the capital (S1 mapgen_candidate populate); no
+  // createGame pass marking the whole nearest-capital area
+  it("a new game marks the land around a Polaris capital as Polaris land", () => {
     const s = createGame({ mapSize: 16, players: 2, mode: "domination", seed: 7, clans: ["polaris", "imperius"] });
     const cap = s.cities[0];
-    expect(tileAt(s, cap.x, cap.y).polar).toBe(true);
+    const ring = [-1, 0, 1].flatMap((dx) => [-1, 0, 1].map((dy) => tileAt(s, cap.x + dx, cap.y + dy)));
+    expect(ring.some((t) => t.polar)).toBe(true);
     const other = s.cities[1];
     expect(tileAt(s, other.x, other.y).polar).toBeFalsy();
+    expect(s.tiles.filter((t) => t.polar).length).toBeLessThanOrEqual(8);
   });
 });
 

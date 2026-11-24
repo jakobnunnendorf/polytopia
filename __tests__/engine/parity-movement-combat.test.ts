@@ -214,24 +214,25 @@ describe("healing", () => {
   });
 });
 
-describe("splash and explosions: half the damage, unrounded", () => {
-  it("splash gives neighbours of the target half the damage, .5 possible", () => {
+describe("splash and explosions: half the damage, rounded down (S1 attack::half_damage)", () => {
+  it("splash gives neighbours of the target half the damage, rounded down", () => {
     let s = blank();
     const a = put(s, "tSplash", 0, 5, 3);
     const t = put(s, "warrior", 1, 5, 6);
     const n = put(s, "warrior", 1, 6, 6);
     s = applyAction(s, { type: "attack", unitId: a.id, targetId: t.id });
-    // attack 2 vs warrior: 5 damage; neighbour 2.5
+    // attack 2 vs warrior: 5 damage; neighbour floor(5 / 2) = 2
     expect(unit(s, t.id).hp).toBe(5);
-    expect(unit(s, n.id).hp).toBe(7.5);
+    expect(unit(s, n.id).hp).toBe(8);
   });
 
-  it("an explosion deals half its damage, unrounded", () => {
+  it("an explosion deals half its damage, rounded down", () => {
     let s = blank();
     const e = put(s, "tExplode", 0, 5, 5);
+    e.createdTurn = s.turn - 1; // no Explode in the turn of creation
     const t = put(s, "warrior", 1, 5, 6);
     s = applyAction(s, find(s, (a) => a.type === "explode" && a.unitId === e.id)!);
-    expect(unit(s, t.id).hp).toBe(7.5);
+    expect(unit(s, t.id).hp).toBe(8);
   });
 
   it("a unit at fractional HP dies when it reaches 0 or below", () => {
@@ -281,8 +282,8 @@ describe("naval units", () => {
 });
 
 describe("Explorer", () => {
-  it("makes 15 moves", () => {
-    expect(EXPLORER_STEPS).toBe(15);
+  it("makes 12 moves (S1 reward::scout)", () => {
+    expect(EXPLORER_STEPS).toBe(12);
   });
 
   it.each([
