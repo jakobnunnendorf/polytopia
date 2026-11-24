@@ -20,7 +20,7 @@ verdict and record go together.
 | Settings | `--budget 100000 --patience 0 --league self,past --batch 30 --seed 4242 --curve-every 12500` |
 | Control | same base, same settings, no change. Reuse an existing control for the same base (for `greedy-full-v1`: `greedy-full-v2-ctrl`, panel 66.0% at 100k). Run a new one only when the base changes |
 | Knob names | as the trainer prints them in KEPT lines: scalars bare (`defend`, `techUse`), tables `group.key` (`unit.giant`, `greedy.move`). Never a `full.` prefix |
-| Start values | new knobs need `--init k=v` with a hand-set non-zero value: nudges are multiplicative, a 0 never moves. Size it so the term can just tip the choice it is about: compare with the base score it competes with (a move ≈ `greedy.move` ≈ 25 plus tiles gained; research ≈ `greedy.research` ≈ 28 minus cost and tier), and check the size on a real position in step 3 |
+| Start values | new knobs need `--init k=v` with a hand-set non-zero value: nudges are multiplicative, a 0 never moves. Size it so the term can just tip the choice it is about: compare with the base score it competes with (a move ≈ `greedy.move` ≈ 25 plus tiles gained; research ≈ `greedy.research` ≈ 28 minus cost and tier), and check the size on a real position in step 3. **Start weak**: training grows a knob ×1.5 per kept step easily, but a knob 5× too strong is not walked back within 100k games (#29: 39.8% vs base, 1 kept change in 244 rounds) |
 | Focus | `--focus <the new knobs only>`; never existing knobs (that tests something else) |
 
 The curve point at 0 games is the **mechanism alone at its hand-set value**; report it.
@@ -48,7 +48,12 @@ is the head-to-head against the base. Do not run `npm run arena` for it: arena w
    mkdir -p logs && nohup npm run train-full -- --id <id> --from <base> <settings> \
      --workers 10 --panel <panel> --init <k=v,...> --focus <new knobs> > logs/<id>.log 2>&1 &
    ```
-   Point the dashboard at it: `npm run train-dashboard -- --root .claude/worktrees/<id> --runs <id>`.
+   Serve the dashboard for the user to watch (one at a time on port 8095; restart it for each run):
+   ```bash
+   pkill -f "scripts/train-dashboard.ts"
+   nohup npm run train-dashboard -- --root .claude/worktrees/<id> --runs <id> > logs/train-dashboard.log 2>&1 &
+   ```
+   Check `curl -s localhost:8095/api/state` lists the run, then give the user http://localhost:8095.
    Wait with a background `until grep -q "^training took" logs/<id>.log` loop, not polling.
 5. **Verdict**: **kept** when the final test against the base has points above 50% with
    the ±5% interval clear of 50%, and the panel mean at 100k is at least the base's and
