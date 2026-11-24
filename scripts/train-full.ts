@@ -55,6 +55,28 @@ const SIZE = Number(arg("size", String(mapSizeFor(MODE, PLAYERS - 1) ?? 16)));
 const MAP_TYPE = arg("map-type", "drylands") as MapType;
 const FROM = arg("from", "");
 const MAX_MOVES = Number(arg("max-moves", "20000"));
+// training only: Domination has no turn limit and bots at peace can stall for thousands of turns;
+// a game still running at this turn is decided on score like one at the move cap
+const MAX_TURNS = Number(arg("max-turns", "150"));
+// stop any time (Ctrl-C, kill) and continue with the same command plus --resume
+const RESUME = process.argv.includes("--resume");
+const ARGS = process.argv.slice(2).filter((a) => a !== "--resume").join(" ");
+type Checkpoint = {
+  args: string;
+  startedAt: string;
+  seconds: number;
+  savedAt: string;
+  round: number;
+  trainingGames: number;
+  accepted: number;
+  capped: number;
+  seed: number;
+  nextCurve: number;
+  points: number;
+  converged: boolean;
+  best: { mean: number; point: number; champ: FullWeights; round: number; trainingGames: number; kept: number };
+  full: FullWeights;
+};
 let seed = Number(arg("seed", "1000"));
 const WORKERS = Number(arg("workers", String(Math.max(1, os.cpus().length - 2))));
 
@@ -134,7 +156,7 @@ function play(p0: Policy, p1: Policy, gameSeed: number, size = SIZE): { winner: 
   let s: GameState = createGame({ mapSize: size, players: PLAYERS, mode: MODE, seed: gameSeed, humans: [], mapType: MAP_TYPE });
   const ps = [p0, p1];
   let moves = 0;
-  while (!s.over && moves < MAX_MOVES) {
+  while (!s.over && moves < MAX_MOVES && s.turn < MAX_TURNS) {
     s = applyAction(s, step(s, ps[s.current % 2]));
     moves++;
   }
@@ -307,7 +329,12 @@ async function main() {
   console.log(`panel: ${panel.map((p) => p.id).join(", ")}; ${CURVE_GAMES} games each every ${count(CURVE_EVERY)} training games`);
 
   const curvePath = path.join(dir, "curve.jsonl");
-  fs.writeFileSync(curvePath, "");
+  const ckPath = path.join(dir, "checkpoint.json");
+  // --resume: continue the run saved in checkpoint.json (written after every round and curve point)
+  const resumed: Checkpoint | null = RESUME ? (fs.existsSync(ckPath) ? JSON.parse(fs.readFileSync(ckPath, "utf8")) : null) : null;
+  if (RESUME && !resumed) throw new Error(`--resume: no checkpoint at ${ckPath}`);
+  if (resumed && resumed.args !== ARGS) console.log(`note: resuming with other options than the run was started with:\n  then: ${resumed.args}\n  now:  ${ARGS}`);
+  if (!resumed) fs.writeFileSync(curvePath, "");
   let start: FullWeights | null = null;
   // the source model's own training time (counted into a fine-tune's total)
   const fromSeconds: number | undefined = FROM
@@ -334,13 +361,16 @@ async function main() {
   let rounds = 0;
   let nextCurve = 0;
   const t0 = Date.now();
-  const secs = () => Math.round((Date.now() - t0) / 1000);
+  // a resumed run keeps its original start and counts only the time it actually ran
+  const runStart = resumed?.startedAt ?? new Date(t0).toISOString();
+  const secondsBefore = resumed?.seconds ?? 0;
+  const secs = () => secondsBefore + Math.round((Date.now() - t0) / 1000);
   const dur = (sec: number) => {
     const s = Math.round(sec);
     return s >= 3600 ? `${Math.floor(s / 3600)}h${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m` : s >= 60 ? `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s` : `${s}s`;
   };
   const eta = () => {
-    const s = (Date.now() - t0) / 1000;
+    const s = secs();
     const done = BUDGET ? trainGames / BUDGET : Number.isFinite(ROUNDS) ? rounds / ROUNDS : 0;
     if (done <= 0 || s < 1) return "ETA …";
     const left = (s * (1 - done)) / done;
@@ -351,6 +381,45 @@ async function main() {
   let points = 0;
   let best = { mean: -1, point: 0, champ, round: 0, trainingGames: 0, kept: 0 };
   let converged = false;
+
+  if (resumed) {
+    champ = resumed.full;
+    best = resumed.best;
+    ({ accepted, capped, trainingGames: trainGames, round: rounds, nextCurve, points, converged } = resumed);
+    seed = resumed.seed;
+    console.log(`resumed at round ${rounds}, ${count(trainGames)} games, ${accepted} kept, ${points} curve points, ${dur(secondsBefore)} trained so far`);
+  }
+  // written after every round and curve point; a stopped run loses at most the round in progress
+  const save = () => {
+    const ck: Checkpoint = { args: ARGS, startedAt: runStart, seconds: secs(), savedAt: new Date().toISOString(), round: rounds, trainingGames: trainGames, accepted, capped, seed, nextCurve, points, converged, best, full: champ };
+    fs.writeFileSync(ckPath + ".tmp", JSON.stringify(ck, null, 2) + "\n");
+    fs.renameSync(ckPath + ".tmp", ckPath);
+  };
+  for (const sig of ["SIGINT", "SIGTERM"] as const) {
+    process.on(sig, () => {
+      console.log(`\nstopped (${sig}) at round ${rounds}, ${count(trainGames)} games, ${dur(secs())} trained; checkpoint ${ckPath}\nresume: the same command plus --resume`);
+      process.exit(0);
+    });
+  }
+
+  if (!resumed) save();
+  // the best champion so far as a playable model while training runs: models/<id>/model.json marked provisional
+  // (the final save overwrites it), plus a copy per curve point in models/<id>/snapshots/
+  const provisional = () => {
+    const spec = {
+      id: ID,
+      name: `${ID.replace(/^greedy-full-v(\d+)$/, "Full greedy climber v$1")} (training, ${count(best.trainingGames)} games)`,
+      kind: "greedy-full",
+      description: `Provisional: the best champion so far of a training run still in progress (curve point ${best.point + 1}, round ${best.round}, ${count(best.trainingGames)} games, mean win rate ${pct(best.mean)} against the panel in ${PLAYERS}-player ${MODE}).`,
+      created: new Date().toISOString().slice(0, 10),
+      full: best.champ,
+      training: { provisional: true, mode: MODE, players: PLAYERS, mapSize: SIZE, round: best.round, trainingGames: best.trainingGames, kept: best.kept, curvePoint: best.point + 1, curveMean: Math.round(best.mean * 1000) / 1000, startedAt: runStart, seconds: secs(), duration: dur(secs()) },
+    };
+    const text = JSON.stringify(spec, null, 2) + "\n";
+    fs.writeFileSync(path.join(dir, "model.json"), text);
+    fs.mkdirSync(path.join(dir, "snapshots"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "snapshots", `point-${String(points).padStart(3, "0")}-${trainGames}-games.json`), text);
+  };
 
   const curvePoint = async () => {
     setPhase(`curve point ${points + 1} (vs panel)`, panel.length * CURVE_GAMES);
@@ -367,9 +436,11 @@ async function main() {
     points++;
     nextCurve += CURVE_EVERY;
     if (PATIENCE && since >= PATIENCE) converged = true;
+    save();
+    provisional();
   };
 
-  await curvePoint();
+  if (points === 0) await curvePoint();
   while (!converged && rounds < ROUNDS && (!BUDGET || trainGames < BUDGET)) {
     rounds++;
     const { next: chall, nudged } = mutate(champ);
@@ -385,9 +456,7 @@ async function main() {
       `round ${String(rounds).padStart(5)}  ${String(m.games).padStart(4)} games  won ${pct(m.wins).padStart(4)}  points ${(m.share * 100).toFixed(1)}%` +
         `${m.llr !== undefined ? `  LLR ${m.llr.toFixed(2).padStart(6)}` : ""}  ${m.keep ? "KEPT" : m.capped ? "cap " : "    "}  (${accepted} kept, ${progress}, ${dur(secs())}, ${eta()})${m.keep ? `  ${nudged}` : ""}`,
     );
-    if (rounds % 100 === 0) {
-      fs.writeFileSync(path.join(dir, "checkpoint.json"), JSON.stringify({ round: rounds, trainingGames: trainGames, accepted, seed, full: champ }, null, 2) + "\n");
-    }
+    save();
     if (trainGames >= nextCurve) await curvePoint();
   }
   if (!converged && trainGames + CURVE_EVERY > nextCurve) await curvePoint();
@@ -427,7 +496,7 @@ async function main() {
       rounds,
       trainingGames: trainGames,
       // every run records how long it took; a fine-tune also adds the source model's training time
-      startedAt: new Date(t0).toISOString(),
+      startedAt: runStart,
       endedAt: new Date().toISOString(),
       seconds: secs(),
       duration: dur(secs()),
@@ -451,7 +520,7 @@ async function main() {
   fs.writeFileSync(path.join(dir, "model.json"), JSON.stringify(spec, null, 2) + "\n");
   fs.rmSync(path.join(dir, "checkpoint.json"), { force: true });
   console.log(`saved models/${ID}/model.json and curve.jsonl`);
-  console.log(`training took ${dur(secs())} (${new Date(t0).toISOString()} to ${new Date().toISOString()})${FROM ? `; with ${FROM}'s own training ${dur(secs() + (fromSeconds ?? 0))} in total` : ""}`);
+  console.log(`training took ${dur(secs())} (${runStart} to ${new Date().toISOString()}${resumed ? ", resumed" : ""})${FROM ? `; with ${FROM}'s own training ${dur(secs() + (fromSeconds ?? 0))} in total` : ""}`);
   pool?.close();
 }
 
