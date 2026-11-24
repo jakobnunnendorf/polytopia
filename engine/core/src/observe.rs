@@ -2,8 +2,8 @@
 //! as numeric planes over the map (channel-major, each plane mapSize×mapSize,
 //! row-major) plus scalar features. Unexplored tiles are all-zero except the
 //! "explored" plane; hidden enemy units are omitted unless adjacent to one of
-//! p's units (can_see). Plane values are computed in f64 like TS and stored
-//! as f32.
+//! p's units (can_see). Plane values are f64 exactly as TS computes them;
+//! planes_f32() gives the f32 copy for the RL bindings.
 use crate::diplomacy::{has_offer, relation, Relation};
 use crate::movement::can_see;
 use crate::state::{city_by_id, income, resource_visible, score_of, tech_cost};
@@ -83,15 +83,22 @@ pub struct Observation {
     pub player: i32,
     pub map_size: i32,
     /// channels().len() × map_size × map_size values, channel-major like observe.ts
-    pub planes: Vec<f32>,
+    pub planes: Vec<f64>,
     pub scalars: Scalars,
+}
+
+impl Observation {
+    /// the planes as f32 (for the RL bindings)
+    pub fn planes_f32(&self) -> Vec<f32> {
+        self.planes.iter().map(|&x| x as f32).collect()
+    }
 }
 
 pub fn observe(s: &GameState, p: i32) -> Observation {
     let n = s.map_size;
     let nn = (n * n) as usize;
-    let mut planes = vec![0f32; CH_COUNT * nn];
-    let mut set = |ch: usize, i: usize, v: f64| planes[ch * nn + i] = v as f32;
+    let mut planes = vec![0f64; CH_COUNT * nn];
+    let mut set = |ch: usize, i: usize, v: f64| planes[ch * nn + i] = v;
     let pl = &s.players[p as usize];
     for i in 0..nn {
         // Elyrion see ruins through clouds
@@ -187,15 +194,13 @@ fn num(x: f64) -> Value {
 }
 
 /// the JSON shape of observe.ts Observation (for parity checks against TypeScript).
-/// Plane values are the stored f32 widened to f64, so a TS fraction (unit:hp_frac)
-/// matches only after rounding the TS value to f32.
 pub fn observation_to_json(o: &Observation) -> Value {
     let v = |xs: &[f64]| Value::Array(xs.iter().map(|&x| num(x)).collect());
     json!({
         "player": o.player,
         "mapSize": o.map_size,
         "channels": channels(),
-        "planes": Value::Array(o.planes.iter().map(|&x| num(x as f64)).collect()),
+        "planes": Value::Array(o.planes.iter().map(|&x| num(x)).collect()),
         "scalars": {
             "turn": o.scalars.turn,
             "maxTurns": o.scalars.max_turns,
@@ -246,9 +251,9 @@ mod tests {
                         continue;
                     }
                 };
-                let mut want = vec![0f32; o["len"].as_u64().unwrap() as usize];
+                let mut want = vec![0f64; o["len"].as_u64().unwrap() as usize];
                 for e in o["nz"].as_array().unwrap() {
-                    want[e[0].as_u64().unwrap() as usize] = from_bits(&e[1]) as f32;
+                    want[e[0].as_u64().unwrap() as usize] = from_bits(&e[1]);
                 }
                 let j = observation_to_json(&got);
                 let same = got.planes == want && j["scalars"] == o["scalars"];

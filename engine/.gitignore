@@ -1,2 +1,6 @@
 target/
 corpus/
+py/.venv/
+py/polyengine.so
+node/polyengine.node
+__pycache__/

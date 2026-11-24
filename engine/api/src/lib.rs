@@ -153,6 +153,43 @@ fn play_greedy(spec: &Value) -> R<Value> {
               "clans": s.players.iter().map(|p| p.tribe.id()).collect::<Vec<_>>()}))
 }
 
+fn weights_to_json(w: &GreedyWeights) -> Value {
+    let mut rewards = serde_json::Map::new();
+    for (i, r) in w.rewards.iter().enumerate() {
+        if let Some(v) = r {
+            rewards.insert(Reward::from_idx(i).id().into(), json!(v));
+        }
+    }
+    json!({
+        "capture": w.capture, "examine": w.examine, "promote": w.promote, "harvestStarfish": w.harvest_starfish,
+        "monument": w.monument, "kill": w.kill, "hit": w.hit, "special": w.special, "growBase": w.grow_base,
+        "growPerPop": w.grow_per_pop, "otherBuild": w.other_build, "richAt": w.rich_at, "research": w.research,
+        "train": w.train, "unitsPerCity": w.units_per_city, "move": w.move_, "recover": w.recover,
+        "healOthers": w.heal_others, "upgrade": w.upgrade, "noise": w.noise, "rewards": rewards,
+    })
+}
+
+fn map_settings_json(m: &mapgen::MapSettings) -> Value {
+    json!({
+        "wetness": m.wetness, "richness": m.richness, "smoothIterations": m.smooth_iterations,
+        "preTerrainCityDensity": m.pre_terrain_city_density, "postTerrainCityDensity": m.post_terrain_city_density,
+        "minSuburbs": m.min_suburbs, "maxSuburbs": m.max_suburbs, "surroundingSpace": m.surrounding_space,
+        "equalityIterations": m.equality_iterations, "equalityLimit": m.equality_limit,
+    })
+}
+
+fn coords(v: &Value, what: &str) -> R<Vec<Coord>> {
+    v.as_array().ok_or_else(|| format!("{what}: expected an array"))?.iter().map(coord).collect()
+}
+
+fn opt_player(v: &Value, what: &str) -> R<Option<i32>> {
+    if v.is_null() {
+        Ok(None)
+    } else {
+        int(v, what).map(Some)
+    }
+}
+
 pub fn call(name: &str, args: &[Value]) -> R<Value> {
     Ok(match name {
         // ---- actions.ts
@@ -338,7 +375,11 @@ pub fn call(name: &str, args: &[Value]) -> R<Value> {
                 None => MapType::Drylands,
                 Some(m) => MapType::from_id(m).ok_or("unknown map type")?,
             };
-            let m = mapgen::generate_map(&mut rng, int(arg(args, 1), "n")?, int(arg(args, 2), "players")?, mt, &mods_from(arg(args, 4))?, &map_options(arg(args, 5))?);
+            let candidates = match arg(args, 5).get("candidates") {
+                None | Some(Value::Null) => None,
+                Some(c) => Some(int(c, "candidates")?),
+            };
+            let m = mapgen::generate_map_with(&mut rng, int(arg(args, 1), "n")?, int(arg(args, 2), "players")?, mt, &mods_from(arg(args, 4))?, &map_options(arg(args, 5))?, candidates);
             json!({
                 "map": {
                     "tiles": m.tiles.iter().map(tile_to_json).collect::<Vec<_>>(),
@@ -351,6 +392,56 @@ pub fn call(name: &str, args: &[Value]) -> R<Value> {
         "ruinCount" => json!(mapgen::ruin_count(int(arg(args, 0), "size")?)),
         // ---- grid.ts
         "cloneState" => state_to_json(&polycore::grid::clone_state(&state(args, 0)?)),
+        // ---- additions for the facade (logic/engine/rs)
+        "DEFAULT_WEIGHTS" => weights_to_json(&GreedyWeights::default_weights()),
+        "noise" => json!(polycore::bot::noise(&state(args, 0)?, num(arg(args, 1), "k")? as i64)),
+        "goal" => json!(polycore::bot::goal(&state(args, 0)?, &unit_from_json(arg(args, 1))?).map(|c| json!({"x": c.x, "y": c.y}))),
+        "inequality" => {
+            let m = arg(args, 0);
+            let tiles = m["tiles"].as_array().ok_or("map.tiles: expected an array")?.iter().map(tile_from_json).collect::<R<Vec<_>>>()?;
+            let g = mapgen::GeneratedMap { tiles, capitals: coords(&m["capitals"], "capitals")?, villages: coords(&m["villages"], "villages")? };
+            json!(mapgen::inequality(&g, int(arg(args, 1), "n")?))
+        }
+        "MAP_SETTINGS" => Value::Object(MapType::ALL.iter().map(|t| (t.id().to_string(), map_settings_json(&mapgen::MAP_SETTINGS[*t as usize]))).collect()),
+        "WETNESS" => Value::Object(MapType::ALL.iter().map(|t| (t.id().to_string(), json!(mapgen::wetness(*t)))).collect()),
+        "TERRAIN_WEIGHTS" => json!({"field": mapgen::TERRAIN_WEIGHT_FIELD, "mountain": mapgen::TERRAIN_WEIGHT_MOUNTAIN, "forest": mapgen::TERRAIN_WEIGHT_FOREST}),
+        "RESOURCE_CHANCES" => {
+            let keys = ["animal", "crop", "fish", "metal", "fruit", "spores", "aquaCrop"];
+            Value::Object(keys.iter().zip(mapgen::RESOURCE_CHANCES.iter()).map(|(k, v)| (k.to_string(), json!(v))).collect())
+        }
+        "opinionFactors" => {
+            let f = opinion::opinion_factors(&state(args, 0)?, int(arg(args, 1), "bot")?, int(arg(args, 2), "other")?);
+            json!(f.iter().map(|x| x.id()).collect::<Vec<_>>())
+        }
+        "opinionLevel" => json!(opinion_level(opinion::opinion_level(int(arg(args, 0), "score")?))),
+        "PEACEFUL_TURNS" => json!(opinion::PEACEFUL_TURNS),
+        "POSITIVE_FACTORS" => {
+            use opinion::OpinionFactor::*;
+            let all = [Wise, Charming, Peaceful, Diplomatic, Powerful, Brave, Violent, Threatening, Weak, Annoying, Foolish, Intrusive, Dominating];
+            json!(all.iter().filter(|f| f.positive()).map(|f| f.id()).collect::<Vec<_>>())
+        }
+        "friendly" => json!(dip::friendly(&state(args, 0)?, int(arg(args, 1), "a")?, opt_player(arg(args, 2), "b")?)),
+        "brokeTreatyWith" => json!(dip::broke_treaty_with(&state(args, 0)?, int(arg(args, 1), "breaker")?, int(arg(args, 2), "victim")?)),
+        "lastAttackTurn" => json!(dip::last_attack_turn(&state(args, 0)?, int(arg(args, 1), "by")?, int(arg(args, 2), "on")?)),
+        "has" | "hasSkill" => {
+            let u = unit_from_json(arg(args, 0))?;
+            json!(arg(args, 1).as_str().and_then(Skill::from_id).map_or(false, |k| mv::has(&u, k)))
+        }
+        "techOf" => {
+            let s = state(args, 0)?;
+            json!(arg(args, 2).as_str().and_then(Tech::from_id).map_or(false, |t| mv::tech_of(&s, int(arg(args, 1), "player").unwrap_or(-1), t)))
+        }
+        "chainBody" => json!({"unitIndices": mv::chain_body(&state(args, 0)?, int(arg(args, 1), "headId")?)}),
+        "leaderOf" => json!({"unitIndex": mv::leader_of(&state(args, 0)?, &unit_from_json(arg(args, 1))?)}),
+        "followerOf" => json!({"unitIndex": mv::follower_of(&state(args, 0)?, &unit_from_json(arg(args, 1))?)}),
+        "unitAt" => json!({"unitIndex": mv::unit_at(&state(args, 0)?, int(arg(args, 1), "x")?, int(arg(args, 2), "y")?)}),
+        "citiesOf" => json!({"cityIndices": st::cities_of(&state(args, 0)?, int(arg(args, 1), "player")?)}),
+        "difficultyOf" => json!(st::difficulty_of(&state(args, 0)?).id()),
+        "log" => {
+            let mut s = state(args, 0)?;
+            st::log(&mut s, arg(args, 1).as_str().unwrap_or(""));
+            mutated(&s, Value::Null)
+        }
         _ => return Err(format!("unknown engine function {name}")),
     })
 }
