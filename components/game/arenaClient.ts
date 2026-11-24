@@ -65,6 +65,9 @@ export const arena = {
     call<{ id: string }>("/api/matches", { method: "POST", body: JSON.stringify(m) }),
   resumeMatch: (id: string) =>
     call<{ ok: boolean; reason?: string }>(`/api/matches/${encodeURIComponent(id)}/resume`, { method: "POST" }),
+  getPace: (id: string) => call<{ ms: number }>(`/api/matches/${encodeURIComponent(id)}/pace`),
+  setPace: (id: string, ms: number) =>
+    call<{ ok: boolean; ms: number }>(`/api/matches/${encodeURIComponent(id)}/pace`, { method: "POST", body: JSON.stringify({ ms }) }),
   stopMatch: (id: string) =>
     call<{ ok: boolean; reason?: string }>(`/api/matches/${encodeURIComponent(id)}/stop`, { method: "POST" }),
   game: (id: string) => call<GameRecord>(`/api/games/${encodeURIComponent(id)}`),
