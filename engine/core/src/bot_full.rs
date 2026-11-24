@@ -13,6 +13,11 @@
 //! peace) is within `defend_radius` tiles. A move into an empty threatened city of ours adds
 //! `defend`; a move that leaves one empty subtracts it. With defend 0 (the default, and every
 //! model trained before) nothing changes.
+//!
+//! Research usefulness (issue #29): `tech_uses` counts what a tech would let us do right now
+//! (free tiles in our territory where one of its builds fits, plus trainable unit types it
+//! unlocks). Research adds `tech_use * uses` and subtracts `tech_useless` when uses is 0.
+//! Both default to 0 (off).
 use crate::actions::{apply_action, legal_actions};
 use crate::bot::{cached_goal, find_unit, noise, score_with, GoalCache, GreedyWeights};
 use crate::diplomacy::at_peace;
@@ -102,6 +107,10 @@ pub struct FullWeights {
     pub defend: f64,
     /// how near (tiles) an enemy makes a city threatened
     pub defend_radius: f64,
+    /// research bonus per thing the tech unlocks that we could use now (0 = off)
+    pub tech_use: f64,
+    /// research penalty for a tech we could not use at all right now (0 = off)
+    pub tech_useless: f64,
 }
 
 /// botFull.ts DEFAULT_FULL_WEIGHTS
@@ -117,6 +126,8 @@ pub fn default_full_weights() -> FullWeights {
         centre: 1.0,
         defend: 0.0,
         defend_radius: 2.0,
+        tech_use: 0.0,
+        tech_useless: 0.0,
     }
 }
 
@@ -155,7 +166,7 @@ pub fn full_weights(p: &serde_json::Value) -> Result<FullWeights, String> {
     merge_table(&mut w.unit, o.get("unit"), "unit", |k| UnitType::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.build, o.get("build"), "build", |k| Build::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.reward, o.get("reward"), "reward", |k| Reward::from_id(k).map(|t| t as usize))?;
-    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius)] {
+    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius), ("techUse", &mut w.tech_use), ("techUseless", &mut w.tech_useless)] {
         match o.get(key) {
             None | Some(serde_json::Value::Null) => {}
             Some(c) => *slot = c.as_f64().ok_or_else(|| format!("full.{key}: expected a number"))?,
@@ -220,6 +231,63 @@ fn defend_term(s: &GameState, unit: Id, to: Coord, w: &FullWeights) -> f64 {
     d
 }
 
+/// what researching `tech` would let `p` use right now: free tiles in p's territory where one of
+/// its builds fits (terrain, resource and next-to rules; once-per-city buildings once per city),
+/// plus 1 when it unlocks a trainable unit
+pub fn tech_uses(s: &GameState, p: i32, tech: Tech) -> i32 {
+    let mut uses = 0;
+    let builds: Vec<&crate::data_gen::BuildDef> = crate::data_gen::BUILDS
+        .iter()
+        .filter(|b| b.tech == Some(tech) && matches!(b.kind, BuildKind::Building | BuildKind::Harvest | BuildKind::Temple))
+        .collect();
+    if !builds.is_empty() {
+        let n = s.map_size;
+        // once-per-city buildings count at most once per city
+        let mut per_city: Vec<(Id, Build)> = Vec::new();
+        for (i, t) in s.tiles.iter().enumerate() {
+            let Some(ci) = city_by_id(s, t.territory) else { continue };
+            if s.cities[ci].owner != p || t.building.is_some() || t.city_id.is_some() {
+                continue;
+            }
+            let (x, y) = (i as i32 % n, i as i32 / n);
+            let near = |ok: &dyn Fn(&Tile) -> bool| {
+                (-1..=1).any(|dy| {
+                    (-1..=1).any(|dx| {
+                        let (nx, ny) = (x + dx, y + dy);
+                        (dx, dy) != (0, 0) && nx >= 0 && ny >= 0 && nx < n && ny < n && ok(&s.tiles[idx(n, nx, ny)])
+                    })
+                })
+            };
+            let fits = builds.iter().find(|b| {
+                b.allows(t.terrain)
+                    && (b.resource.is_none() || b.resource == t.resource)
+                    && (b.next_to.is_empty() || near(&|o: &Tile| o.building.is_some_and(|ob| b.next_to.contains(&ob))))
+                    && b.next_to_terrain.is_none_or(|tt| near(&|o: &Tile| o.terrain == tt))
+            });
+            if let Some(b) = fits {
+                if b.one_per_city {
+                    let city = s.cities[ci].id;
+                    if per_city.contains(&(city, b.id)) {
+                        continue;
+                    }
+                    per_city.push((city, b.id));
+                }
+                uses += 1;
+            }
+        }
+    }
+    // a new unit counts once (the unit table holds tribe variants of the same unit)
+    uses + crate::data_gen::UNITS.iter().any(|u| u.trainable && u.tech == Some(tech)) as i32
+}
+
+fn research_term(s: &GameState, tech: Tech, w: &FullWeights) -> f64 {
+    if w.tech_use == 0.0 && w.tech_useless == 0.0 {
+        return 0.0;
+    }
+    let uses = tech_uses(s, s.current, tech);
+    w.tech_use * uses as f64 - if uses == 0 { w.tech_useless } else { 0.0 }
+}
+
 fn id_weight(a: &Action, w: &FullWeights) -> f64 {
     match *a {
         Action::Research { tech } => w.tech[tech as usize],
@@ -245,6 +313,7 @@ fn score_full_with(s: &GameState, a: &Action, w: &FullWeights, cache: &mut Optio
     let score = if base > 0.0 { base * w.ty[t] * id } else { w.open[t] * id - 1.0 };
     match *a {
         Action::Move { unit, to } => score + defend_term(s, unit, to, w),
+        Action::Research { tech } => score + research_term(s, tech, w),
         _ => score,
     }
 }
