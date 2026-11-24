@@ -28,6 +28,9 @@ import {
   dur,
   loadPanel,
   meanShare,
+  meanFinish,
+  meanMetric,
+  METRIC,
   meanWin,
   panelLine,
   panelTest,
@@ -62,7 +65,7 @@ const FINAL_SEED = 1_500_000_000;
 const label = (p: [string, number][]) => (p.length ? p.map(([k, v]) => `${k}=${v}`).join(",") : "base");
 
 async function main() {
-  if (!POINTS.length) throw new Error("give --knob k --values a,b,... or --points \"k=v,k=v|k=v\"");
+  // no points: measure the base alone (its panel row and its final test)
   const base = SPACE.load(FROM);
   if (!base) throw new Error(`--from ${FROM}: no greedy-full model`);
   for (const [k] of POINTS.flat()) if (!SPACE.knobs.includes(k)) throw new Error(`unknown knob ${k} (names as in KEPT lines, e.g. front, unit.giant)`);
@@ -87,22 +90,23 @@ async function main() {
     setPhase(`point ${label(p)}`, panel.length * GAMES);
     const vs = await panelTest(panel, w, GAMES, CURVE_SEED);
     rows.push({ point: label(p), values: Object.fromEntries(p), w, vs });
-    write({ point: label(p), values: Object.fromEntries(p), meanShare: meanShare(vs), meanWin: meanWin(vs), vs });
+    write({ point: label(p), values: Object.fromEntries(p), meanShare: meanShare(vs), meanWin: meanWin(vs), meanFinish: meanFinish(vs), vs });
     console.log(`point  ${label(p).padEnd(28)} | ${panelLine(vs)}`);
   }
-  const best = rows.slice(1).reduce((a, r) => (meanShare(r.vs) > meanShare(a.vs) ? r : a));
-  const baseMean = meanShare(rows[0].vs);
-  console.log(`\nbest: ${best.point}, mean ${(meanShare(best.vs) * 100).toFixed(1)}% pts (base ${(baseMean * 100).toFixed(1)}%)`);
+  // ranked by --metric (share: points; finish: the finish score of #124)
+  const best = rows.length > 1 ? rows.slice(1).reduce((a, r) => (meanMetric(r.vs) > meanMetric(a.vs) ? r : a)) : rows[0];
+  const unit = METRIC === "finish" ? "finish" : "pts";
+  console.log(`\nbest: ${best.point}, mean ${(meanMetric(best.vs) * 100).toFixed(1)}% ${unit} (base ${(meanMetric(rows[0].vs) * 100).toFixed(1)}%)`);
 
   setPhase("final test (vs panel)", panel.length * FINAL_GAMES);
   const final = await panelTest(panel, best.w, FINAL_GAMES, FINAL_SEED);
   console.log(`\nfinal (${FINAL_GAMES} unseen games against each):`);
   for (const [id, v] of Object.entries(final)) {
     const ci = 1.96 * Math.sqrt((v.winRate * (1 - v.winRate)) / v.games);
-    console.log(`  vs ${id.padEnd(16)} won ${pct(v.winRate).padStart(4)} ± ${(ci * 100).toFixed(0)}%  (${signed(eloFromScore(v.winRate, v.games))} Elo)  points ${(v.pointShare * 100).toFixed(1)}%`);
+    console.log(`  vs ${id.padEnd(16)} won ${pct(v.winRate).padStart(4)} ± ${(ci * 100).toFixed(0)}%  (${signed(eloFromScore(v.winRate, v.games))} Elo)  points ${(v.pointShare * 100).toFixed(1)}%  finish ${((v.finish ?? 0.5) * 100).toFixed(1)}%  conquest ${pct(v.conquest ?? 0)}  ${(v.turns ?? 0).toFixed(0)} turns`);
   }
   console.log(`changed against ${FROM}: ${best.point}`);
-  write({ final: true, point: best.point, games: FINAL_GAMES, meanShare: meanShare(final), meanWin: meanWin(final), vs: final });
+  write({ final: true, point: best.point, games: FINAL_GAMES, meanShare: meanShare(final), meanWin: meanWin(final), meanFinish: meanFinish(final), vs: final });
 
   if (ID) {
     const spec = {

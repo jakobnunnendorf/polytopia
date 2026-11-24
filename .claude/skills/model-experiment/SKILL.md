@@ -23,6 +23,7 @@ see gains under ~1 point. Run a long tuning run (`train-full`, settings below) o
 | Base | the current champion: the last experiment whose verdict was **kept** (see #31 comments), else `greedy-full-v1` |
 | Change | exactly one mechanism or trainer change, **off by default** (old models play unchanged) |
 | Panel | `greedy-v1,greedy-hill-v1,greedy-hill-v2,greedy-hill-v3,greedy-hill-v4,greedy-full-v1` (fixed: curves stay comparable across steps). Add the base only when it is not `greedy-full-v1`, as a 7th entry, and compare means on the fixed six |
+| Metric | `--metric finish` on every sweep and tuning run (from step 5, #124): a conquest win scores 75-100% (the earlier, the more), a conquest loss 0-25%, a game stopped at the turn cap 25-75% by points. Report finish, points, won, conquest rate and turns |
 | Tuning-run settings | `--budget 100000 --patience 0 --league self,past --batch 30 --seed 4242 --curve-every 12500` |
 | Control | sweeps: the base row the sweep measures itself on the same maps. Tuning runs: same base, same settings, no change. Reuse an existing control for the same base (for `greedy-full-v1`: `greedy-full-v2-ctrl`, panel 66.0% at 100k). Run a new one only when the base changes |
 | Knob names | as the trainer prints them in KEPT lines: scalars bare (`defend`, `techUse`), tables `group.key` (`unit.giant`, `greedy.move`). Never a `full.` prefix |
@@ -61,14 +62,16 @@ not run `npm run arena` for it: arena writes `data/games/` and changes the share
    user http://localhost:8095.
 5. **Sweep** from the worktree, log to its `logs/`:
    ```bash
-   mkdir -p logs && npm run sweep -- --id <id> --from <base> --knob <k> --values 0.5,1,2,4 \
+   mkdir -p logs && npm run sweep -- --id <id> --from <base> --metric finish --knob <k> --values 0.5,1,2,4 \
      > logs/<id>.log 2>&1
    ```
    It saves the best point as `models/<id>/model.json`, with one row per point in `sweep.jsonl`.
+   Without `--knob`/`--points` it measures the base alone (a re-measure, e.g. in another setup:
+   `--players 8 --size 20 --max-turns 300`; players must be even).
    (A tuning run instead: `nohup npm run train-full -- --id <id> --from <base> <settings>
    --workers 10 --panel <panel> > logs/<id>.log 2>&1 &`.)
    Wait with a background `until grep -q "took" logs/<id>.log` loop, not polling.
-6. **Verdict**: **kept** when the final test against the base has points above 50% with
+6. **Verdict**: **kept** when the final test against the base has a finish score above 50% and points above 50% with
    the ±5% interval clear of 50%, and the best point's panel mean is at least the base row's
    (tuning runs: the mean at 100k at least the base's and the control's). Otherwise **not kept**: the code still merges (off by default), and the
    next step starts from the unchanged base.

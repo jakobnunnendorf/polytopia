@@ -1,0 +1,12 @@
+sweep from greedy-full-front: 0 points + base, 40 games against each of greedy-hill-v4, greedy-full-v1, greedy-full-front
+point  base                         | v4 95% won, 76.7% pts (+512)  full-v1 68% won, 63.7% pts (+127)  full-front 50% won, 50.0% pts (+0)  | mean 71% won, 63.5% pts, finish 65.3%, conquest 48%, 93 turns
+
+best: base, mean 65.3% finish (base 65.3%)
+
+final (2 unseen games against each):
+  vs greedy-hill-v4   won 100% ± 0%  (+191 Elo)  points 76.3%  finish 63.2%  conquest 0%  150 turns
+  vs greedy-full-v1   won 100% ± 0%  (+191 Elo)  points 83.7%  finish 93.2%  conquest 100%  82 turns
+  vs greedy-full-front won  50% ± 69%  (+0 Elo)  points 50.0%  finish 50.0%  conquest 50%  66 turns
+changed against greedy-full-front: base
+saved models/greedy-full-front-8p/model.json and sweep.jsonl
+sweep took 10s
