@@ -12,7 +12,7 @@ import { scoreOf } from "@/logic/engine";
 import GameOverCard from "@/components/game/GameOverCard";
 import { Pulse } from "@/components/anim";
 import { actionLabel, name } from "@/logic/engine/names";
-import { EventFeed, Leaderboard } from "@/components/game/WatchPanels";
+import { EventFeed, Leaderboard, NowPlaying } from "@/components/game/WatchPanels";
 import { extendEvents, type EventLog } from "@/components/game/gameEvents";
 
 const color = (p: number) => PLAYER_COLORS[p % PLAYER_COLORS.length];
@@ -41,7 +41,7 @@ function Btn({ label, onPress, on, disabled, testID }: { label: string; onPress:
 
 // live playback: one move per FOLLOW_MS, kept a few moves behind the newest to smooth out polling.
 // Matches the server's pace (SHARDLANDS_PACE_MS, scripts/lib/matches.ts) so the buffer stays steady.
-const FOLLOW_MS = 1000;
+const FOLLOW_MS = 1000; // default; the speed control in "Now playing" changes it
 const FOLLOW_BUFFER = 2;
 
 function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
@@ -68,6 +68,15 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
   // FOLLOW_BUFFER moves behind the newest one, so the moves that arrive in bursts (one poll can
   // bring zero or two) still play back evenly; speed up only when far behind
   const runningNow = live && !rec.result?.over && !rec.stoppedAt;
+  // playback speed (ms per move); for a running game the server plays at the same pace
+  const [speedMs, setSpeedMs] = useState(FOLLOW_MS);
+  useEffect(() => {
+    if (runningNow) void arena.getPace(rec.id).then((r) => setSpeedMs(r.ms)).catch(() => {});
+  }, [rec.id, runningNow]);
+  const changeSpeed = (ms: number) => {
+    setSpeedMs(ms);
+    if (runningNow) void arena.setPace(rec.id, ms).catch(() => {});
+  };
   useEffect(() => {
     const target = states.length - 1 - (runningNow ? FOLLOW_BUFFER : 0);
     if (!follow || k >= target) return;
@@ -76,9 +85,9 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
       setK(target);
       return;
     }
-    const t = setTimeout(() => setK((x) => Math.min(states.length - 1, x + 1)), behind > 20 ? 150 : behind > 6 ? FOLLOW_MS * 0.6 : FOLLOW_MS);
+    const t = setTimeout(() => setK((x) => Math.min(states.length - 1, x + 1)), behind > 20 ? Math.min(150, speedMs) : behind > 6 ? speedMs * 0.6 : speedMs);
     return () => clearTimeout(t);
-  }, [follow, k, states.length, runningNow]);
+  }, [follow, k, states.length, runningNow, speedMs]);
   // "mover": the map as the player who is moving right now sees it (switches every turn)
   // the whole map by default: "mover" switches perspective every turn, which is jarring with many players
   const [view, setView] = useState<number | "all" | "mover">("all");
@@ -89,9 +98,9 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
       setPlaying(false);
       return;
     }
-    const t = setTimeout(() => setK((x) => Math.min(states.length - 1, x + 1)), 420);
+    const t = setTimeout(() => setK((x) => Math.min(states.length - 1, x + 1)), speedMs);
     return () => clearTimeout(t);
-  }, [playing, k, states.length]);
+  }, [playing, k, states.length, speedMs]);
 
   const s = states[k];
   // a live model-only game the server is still playing (a stopped one is kept but never resumed)
@@ -111,6 +120,26 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
     evCache.current = { id: rec.id, r };
     return r.events;
   }, [states]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // the player who made the latest shown move, and their choices so far this turn
+  const mover = step ? step.p : s.current;
+  const recent: string[] = [];
+  for (let i = k - 1; i >= 0 && recent.length < 6; i--) {
+    if (rec.steps[i].p !== mover || states[i].turn !== s.turn) break;
+    recent.push(actionLabel(states[i], rec.steps[i].a));
+  }
+  const nowPlaying = (
+    <NowPlaying
+      current={mover}
+      label={who(mover)}
+      clan={name("clan", s.players[mover].clan)}
+      recent={recent}
+      turn={s.turn}
+      speedMs={speedMs}
+      onSpeed={changeSpeed}
+      live={runningNow}
+    />
+  );
 
   const { width } = useWindowDimensions();
   const wide = width >= 1100;
@@ -238,6 +267,7 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
             {controls}
           </View>
           <Leaderboard state={s} label={who} />
+          {nowPlaying}
         </ScrollView>
         <View style={{ flex: 1 }}>{map}</View>
         <View style={{ width: 330 }}>
@@ -257,6 +287,7 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
             {overlay === "board" ? (
               <ScrollView>
                 <Leaderboard state={s} label={who} />
+                {nowPlaying}
               </ScrollView>
             ) : (
               <EventFeed events={events} upTo={k} />

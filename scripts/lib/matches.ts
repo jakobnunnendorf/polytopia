@@ -19,6 +19,14 @@ const stopRequests = new Set<string>();
 /** every move takes at least this long, so fast bots and a thinking LLM look the same to a watcher */
 // one move per second: the live view (app/analyse.tsx FOLLOW_MS) plays them back at the same pace
 export const PACE_MS = Number(process.env.SHARDLANDS_PACE_MS ?? 1000);
+/** per-match pace set from the live view's speed control (ms per move), else PACE_MS */
+const paces = new Map<string, number>();
+export function setPace(id: string, ms: number): { ok: boolean; ms: number } {
+  const v = Math.round(Math.min(10000, Math.max(50, Number(ms) || PACE_MS)));
+  paces.set(id, v);
+  return { ok: true, ms: v };
+}
+export const paceOf = (id: string): number => paces.get(id) ?? PACE_MS;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function isRunning(id: string): boolean {
@@ -41,7 +49,7 @@ async function run(rec: GameRecord): Promise<void> {
     while (!s.over && !stopRequests.has(rec.id)) {
       const t0 = Date.now();
       const a = perTurn++ > 300 ? { type: "endTurn" as const } : await agents[s.current].act(s);
-      await sleep(Math.max(0, PACE_MS - (Date.now() - t0)));
+      await sleep(Math.max(0, paceOf(rec.id) - (Date.now() - t0)));
       const next = applyAction(s, a);
       recordStep(rec, s, a, next);
       const turnEnded = next.current !== s.current || next.turn !== s.turn;

@@ -11,6 +11,7 @@
  *   POST /api/games             save a GameRecord (gzipped into data/games/), update Elo
  *   POST /api/matches           start a model-only game that runs here (not in a browser tab)
  *   POST /api/matches/<id>/resume   continue an unfinished model-only game
+ *   GET|POST /api/matches/<id>/pace  read or set ms per move of a running game ({ms})
  *   POST /api/matches/<id>/stop     stop a model-only game (kept, not rated, never resumed)
  *   POST /api/chat              proxy an OpenAI-style chat call to the model's endpoint
  *
@@ -20,7 +21,7 @@ import http from "node:http";
 import { directChat } from "../logic/agents/registry";
 import type { GameRecord } from "../logic/arena/record";
 import { createProfile, findGame, listGames, listModels, listProfiles, ratingFacets, ratingsFor, saveGame } from "./lib/store";
-import { isRunning, resumeMatch, startMatch, stopMatch } from "./lib/matches";
+import { isRunning, paceOf, resumeMatch, setPace, startMatch, stopMatch } from "./lib/matches";
 
 const PORT = Number(process.env.ARENA_PORT ?? 8091);
 
@@ -71,6 +72,12 @@ const server = http.createServer(async (req, res) => {
     }
     const resume = url.match(/^\/api\/matches\/([^/]+)\/resume$/);
     if (req.method === "POST" && resume) return send(res, 200, resumeMatch(decodeURIComponent(resume[1])));
+    const pace = url.match(/^\/api\/matches\/([^/]+)\/pace$/);
+    if (req.method === "GET" && pace) return send(res, 200, { ms: paceOf(decodeURIComponent(pace[1])) });
+    if (req.method === "POST" && pace) {
+      const { ms } = ((await body(req)) ?? {}) as { ms?: number };
+      return send(res, 200, setPace(decodeURIComponent(pace[1]), Number(ms)));
+    }
     const stop = url.match(/^\/api\/matches\/([^/]+)\/stop$/);
     if (req.method === "POST" && stop) return send(res, 200, stopMatch(decodeURIComponent(stop[1])));
     if (req.method === "GET" && url.startsWith("/api/games/")) {

@@ -111,3 +111,79 @@ export function EventFeed({ events, upTo, style }: { events: GameEvent[]; upTo: 
     </Panel>
   );
 }
+
+export const SPEEDS: { label: string; ms: number }[] = [
+  { label: "¼×", ms: 4000 },
+  { label: "½×", ms: 2000 },
+  { label: "1×", ms: 1000 },
+  { label: "2×", ms: 500 },
+  { label: "4×", ms: 250 },
+];
+
+/** who is moving, what they just did, and the playback speed */
+export function NowPlaying({
+  current,
+  label,
+  clan,
+  model,
+  recent,
+  turn,
+  speedMs,
+  onSpeed,
+  live,
+}: {
+  current: number;
+  label: string;
+  clan: string;
+  model?: string;
+  /** this player's latest actions this turn, newest first */
+  recent: string[];
+  turn: number;
+  speedMs: number;
+  onSpeed: (ms: number) => void;
+  live: boolean;
+}) {
+  return (
+    <Panel title="Now playing" style={{ marginTop: 12 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: color(current) + "33", borderRadius: 10, padding: 8, borderLeftWidth: 5, borderLeftColor: color(current) }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: UI.mist, fontSize: 16, fontWeight: "800" }} numberOfLines={1}>
+            {label}
+          </Text>
+          <Text style={{ color: "#c9d3ea", fontSize: 12 }} numberOfLines={1}>
+            {clan} · turn {turn}
+            {model ? ` · ${model}` : ""}
+          </Text>
+        </View>
+      </View>
+      <Text style={{ color: UI.muted, fontSize: 11.5, marginTop: 8, marginBottom: 2 }}>Chose this turn (newest first)</Text>
+      {recent.length === 0 && <Text style={{ color: UI.muted, fontSize: 12.5 }}>Nothing yet this turn.</Text>}
+      {recent.map((r, i) => (
+        <Text key={i} numberOfLines={1} style={{ color: i === 0 ? UI.mist : "#aab6cf", fontSize: i === 0 ? 14 : 12.5, fontWeight: i === 0 ? "800" : "500", paddingVertical: 1 }}>
+          {i === 0 ? "▶ " : "   "}
+          {r}
+        </Text>
+      ))}
+      <Text style={{ color: UI.muted, fontSize: 11.5, marginTop: 10, marginBottom: 4 }}>
+        Speed: {speedMs >= 1000 ? `${speedMs / 1000} s` : `${speedMs} ms`} per move{live ? " (the game itself runs at this pace)" : ""}
+      </Text>
+      <View style={{ flexDirection: "row" }}>
+        {SPEEDS.map((sp) => {
+          const on = sp.ms === speedMs;
+          return (
+            <Pressable
+              key={sp.ms}
+              accessibilityRole="button"
+              accessibilityLabel={`speed ${sp.label}`}
+              accessibilityState={{ selected: on }}
+              onPress={() => onSpeed(sp.ms)}
+              style={{ flex: 1, alignItems: "center", paddingVertical: 7, marginRight: 4, borderRadius: 8, backgroundColor: on ? UI.mist : "#ffffff14" }}
+            >
+              <Text style={{ color: on ? "#16213e" : UI.mist, fontWeight: "800", fontSize: 13 }}>{sp.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </Panel>
+  );
+}

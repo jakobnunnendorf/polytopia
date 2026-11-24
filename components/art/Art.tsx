@@ -10,6 +10,7 @@ import { Image, type ImageSourcePropType } from "react-native";
 import Svg, { Circle, Ellipse, G, Line, Path, Polygon, Rect } from "react-native-svg";
 import type { Terrain } from "@/logic/engine/types";
 import { SpecialBuildingArt, SpecialUnitArt, TribeEmblem } from "./TribeArt";
+import { useTeamSprite } from "./teamTint";
 
 export { TribeEmblem };
 
@@ -64,10 +65,11 @@ const BUILDING_SPRITES: Record<string, ImageSourcePropType> = {
 
 const STAR_SPRITE: ImageSourcePropType = require("@/assets/sprites/star.png");
 
-function Sprite({ source, size, pad = 0 }: { source: ImageSourcePropType; size: number; pad?: number }) {
+function Sprite({ source, size, pad = 0, team }: { source: ImageSourcePropType; size: number; pad?: number; team?: string }) {
+  const shown = useTeamSprite(source, team);
   return (
     <Image
-      source={source}
+      source={shown}
       resizeMode="contain"
       style={{
         position: "absolute",
@@ -710,10 +712,11 @@ export function CityArt({
 // ---------- units (3D Polytopia PNG sprites + special tribe low-poly units) ----------
 export function UnitArt({ type, color, size }: { type: string; color: string; size: number }) {
   const sprite = UNIT_SPRITES[type];
-  if (sprite) return <Sprite source={sprite} size={size} pad={size * 0.02} />;
+  // the stock sprites are all one blue tribe: recolour their team parts to the owner's colour
+  if (sprite) return <Sprite source={sprite} size={size} pad={size * 0.02} team={color} />;
   const special = SpecialUnitArt({ type, color, size });
   if (special) return special;
-  return <Sprite source={UNIT_SPRITES.warrior} size={size} pad={size * 0.02} />;
+  return <Sprite source={UNIT_SPRITES.warrior} size={size} pad={size * 0.02} team={color} />;
 }
 
 /** Battle of Polytopia 3D faceted golden Star currency icon */
