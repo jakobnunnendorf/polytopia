@@ -134,23 +134,57 @@ fn map_options(v: &Value) -> R<MapOptions> {
     })
 }
 
-/// one bot-vs-bot game for training scripts: like scripts/train-hill.ts `play`
-fn play_greedy(spec: &Value) -> R<Value> {
+/// a bot for play_games: the greedy bot or the full-action-space bot
+enum Policy {
+    Greedy(GreedyWeights),
+    Full(polycore::bot_full::FullWeights),
+}
+
+fn policy(v: &Value) -> R<Policy> {
+    match v["kind"].as_str() {
+        Some("full") => Ok(Policy::Full(polycore::bot_full::full_weights(&v["weights"])?)),
+        Some("greedy") | None => Ok(Policy::Greedy(weights(&v["weights"])?)),
+        Some(k) => Err(format!("unknown policy kind {k}")),
+    }
+}
+
+/// one bot-vs-bot game for the training scripts (scripts/train-hill.ts and
+/// train-full.ts `play`): the player to move is played by
+/// policies[current % policies.len()]; the game stops when it is over, after
+/// maxMoves actions, at maxTurns (turn >= maxTurns) or after maxTurn (turn > maxTurn)
+fn play_game(spec: &Value) -> R<Value> {
     let opts = NewGameOptions::from_json(&spec["opts"])?;
-    let ws: Vec<GreedyWeights> = spec["weights"].as_array().ok_or("weights: array")?.iter().map(weights).collect::<R<_>>()?;
+    let ps: Vec<Policy> = match spec.get("policies").and_then(|x| x.as_array()) {
+        Some(a) => a.iter().map(policy).collect::<R<_>>()?,
+        None => spec["weights"].as_array().ok_or("policies or weights: array")?.iter().map(|w| weights(w).map(Policy::Greedy)).collect::<R<_>>()?,
+    };
+    if ps.is_empty() {
+        return Err("no policies".into());
+    }
     let max_moves = spec.get("maxMoves").and_then(|x| x.as_i64()).unwrap_or(20000);
+    let max_turns = spec.get("maxTurns").and_then(|x| x.as_i64());
     let max_turn = spec.get("maxTurn").and_then(|x| x.as_i64());
     let mut s = st::create_game(&opts)?;
     let mut moves = 0;
-    while !s.over && moves < max_moves && max_turn.map_or(true, |t| (s.turn as i64) <= t) {
-        let w = &ws[(s.current as usize) % ws.len()];
-        let a = bot_step(&s, w);
+    while !s.over
+        && moves < max_moves
+        && max_turns.map_or(true, |t| (s.turn as i64) < t)
+        && max_turn.map_or(true, |t| (s.turn as i64) <= t)
+    {
+        let a = match &ps[(s.current as usize) % ps.len()] {
+            Policy::Greedy(w) => bot_step(&s, w),
+            Policy::Full(w) => polycore::bot_full::full_bot_step(&s, w),
+        };
         apply_action(&mut s, &a)?;
         moves += 1;
     }
     let scores: Vec<i32> = (0..s.players.len() as i32).map(|p| st::score_of(&s, p)).collect();
-    Ok(json!({"winner": s.winner, "over": s.over, "turn": s.turn, "moves": moves, "scores": scores,
-              "clans": s.players.iter().map(|p| p.tribe.id()).collect::<Vec<_>>()}))
+    let mut out = json!({"winner": s.winner, "over": s.over, "turn": s.turn, "moves": moves, "scores": scores,
+              "clans": s.players.iter().map(|p| p.tribe.id()).collect::<Vec<_>>()});
+    if spec.get("returnState").and_then(|x| x.as_bool()).unwrap_or(false) {
+        out["state"] = state_to_json(&s);
+    }
+    Ok(out)
 }
 
 fn weights_to_json(w: &GreedyWeights) -> Value {
@@ -213,9 +247,9 @@ pub fn call(name: &str, args: &[Value]) -> R<Value> {
             play_bot_turn(&mut s, max, &weights(arg(args, 2))?);
             state_to_json(&s)
         }
-        "playGreedyGames" => {
-            let specs = arg(args, 0).as_array().ok_or("playGreedyGames: array of games")?;
-            Value::Array(specs.iter().map(play_greedy).collect::<R<_>>()?)
+        "playGames" | "playGreedyGames" => {
+            let specs = arg(args, 0).as_array().ok_or("playGames: array of games")?;
+            Value::Array(specs.iter().map(play_game).collect::<R<_>>()?)
         }
         // ---- observe.ts
         "observe" => observation_to_json(&observe(&state(args, 0)?, int(arg(args, 1), "player")?)),

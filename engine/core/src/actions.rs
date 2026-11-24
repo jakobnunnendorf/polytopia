@@ -104,16 +104,6 @@ fn infiltrate_targets(s: &GameState, u: &Unit) -> Vec<usize> {
         .collect()
 }
 
-/// a unit p can see stands on (x,y) and belongs to a tribe not at peace with p
-fn blocked_by_enemy(s: &GameState, p: i32, x: i32, y: i32) -> bool {
-    match occupant(s, x, y) {
-        Some(oi) => {
-            let occ = &s.units[oi];
-            occ.owner != p && can_see(s, p, occ) && !at_peace(s, p, occ.owner)
-        }
-        None => false,
-    }
-}
 
 /// the part of can_build that does not depend on the tile: tribe, tech or
 /// earned monument, and enough stars

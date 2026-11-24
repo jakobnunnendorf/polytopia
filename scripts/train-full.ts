@@ -29,12 +29,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
-import { applyAction } from "../logic/engine/actions";
-import { DEFAULT_WEIGHTS, botStep, type GreedyWeights } from "../logic/engine/bot";
-import { DEFAULT_FULL_WEIGHTS, fullBotStep, fullWeights, type FullWeights } from "../logic/engine/botFull";
-import { createGame, mapSizeFor } from "../logic/engine/state";
-import { scoreOf } from "../logic/engine";
-import type { GameMode, GameState } from "../logic/engine/types";
+import { DEFAULT_WEIGHTS, type GreedyWeights } from "../logic/engine/bot";
+import { DEFAULT_FULL_WEIGHTS, fullWeights, type FullWeights } from "../logic/engine/botFull";
+import { mapSizeFor } from "../logic/engine/state";
+import { call } from "../logic/engine/rust";
+import type { GameMode } from "../logic/engine/types";
 import type { MapType } from "../logic/engine/mapgen";
 import { eloFromScore, sprtVerdict } from "../logic/arena/sprt";
 
@@ -149,18 +148,21 @@ function mutate(w: FullWeights): { next: FullWeights; nudged: string } {
 
 // ---------- games ----------
 type Policy = { kind: "greedy"; w: GreedyWeights } | { kind: "full"; w: FullWeights };
-const step = (s: GameState, p: Policy) => (p.kind === "full" ? fullBotStep(s, p.w) : botStep(s, p.w));
 
 /** one free-for-all game; side 0 (p0) on the even seats, side 1 on the odd ones */
 function play(p0: Policy, p1: Policy, gameSeed: number, size = SIZE): { winner: number; scores: [number, number] } {
-  let s: GameState = createGame({ mapSize: size, players: PLAYERS, mode: MODE, seed: gameSeed, humans: [], mapType: MAP_TYPE });
-  const ps = [p0, p1];
-  let moves = 0;
-  while (!s.over && moves < MAX_MOVES && s.turn < MAX_TURNS) {
-    s = applyAction(s, step(s, ps[s.current % 2]));
-    moves++;
-  }
-  const seatScores = s.players.map((p) => scoreOf(s, p.id));
+  // the whole game runs in the Rust engine (one call): the player to move is
+  // played by policies[current % PLAYERS], i.e. side current % 2
+  const sides = [p0, p1].map((p) => ({ kind: p.kind, weights: p.w }));
+  const [s] = call<{ winner: number | null; scores: number[] }[]>("playGames", [
+    {
+      opts: { mapSize: size, players: PLAYERS, mode: MODE, seed: gameSeed, humans: [], mapType: MAP_TYPE },
+      policies: Array.from({ length: PLAYERS }, (_, i) => sides[i % 2]),
+      maxMoves: MAX_MOVES,
+      maxTurns: MAX_TURNS,
+    },
+  ]);
+  const seatScores = s.scores;
   const scores: [number, number] = [0, 0];
   seatScores.forEach((v, i) => (scores[i % 2] += v));
   // unfinished (move cap): the highest-scoring seat wins; a tie goes to the later seat
