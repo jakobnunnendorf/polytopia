@@ -1,0 +1,63 @@
+{
+  "n": 2,
+  "slug": "research-usefulness",
+  "title": "Score research by usefulness",
+  "kind": "mechanism",
+  "issue": 29,
+  "pr": 36,
+  "date": "2026-11-24",
+  "status": "done",
+  "verdict": "not kept",
+  "base": "greedy-full-v1",
+  "result": null,
+  "question": "Does the bot get stronger when it prefers techs it can use right away?",
+  "change": "The research score gains techUse per action the tech would unlock right now, and loses techUseless when it unlocks nothing.",
+  "method": "Tuning run (hill climbing), 100,000 games, against a control run of the same budget",
+  "measured": "Tuning run, 100,000 games, vs a control",
+  "metric": "points share",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150"
+  ],
+  "knobs": [
+    {
+      "name": "techUse",
+      "tested": [
+        3
+      ],
+      "chosen": 3
+    },
+    {
+      "name": "techUseless",
+      "tested": [
+        15
+      ],
+      "chosen": 12.8
+    }
+  ],
+  "headline": [
+    {
+      "label": "Points vs base, final test",
+      "base": 50.0,
+      "new": 39.8,
+      "unit": "%"
+    },
+    {
+      "label": "Won vs base, final test",
+      "base": 50.0,
+      "new": 28.2,
+      "unit": "%"
+    },
+    {
+      "label": "Points share, 6-model panel",
+      "base": 67.7,
+      "new": 63.3,
+      "unit": "%"
+    }
+  ],
+  "runs": [
+    {
+      "id": "greedy-full-research",
+      "label": "Tuning run, 100,000 games"
+    }
+  ]
+}

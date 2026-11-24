@@ -1,0 +1,84 @@
+{
+  "n": 6,
+  "slug": "peace-break",
+  "title": "Endgame peace break",
+  "kind": "mechanism",
+  "issue": 124,
+  "pr": 129,
+  "date": "2026-11-24",
+  "status": "done",
+  "verdict": "kept",
+  "base": "greedy-full-front",
+  "result": "greedy-full-peacebreak",
+  "question": "Do games stall because the last players are at peace, and does breaking that peace make the bot finish?",
+  "change": "Break peace with a partner when every living rival is a peace partner and we hold at least breakPeace times its cities.",
+  "method": "Diagnosis of stalled games, then strength sweeps in two setups (200 games per point, final test 400)",
+  "measured": "Diagnosis, then sweeps in 2 setups",
+  "metric": "finish score",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150",
+    "8 players, 20×20, drylands, turn cap 300"
+  ],
+  "knobs": [
+    {
+      "name": "breakPeace",
+      "tested": [
+        0.5,
+        1,
+        2,
+        4
+      ],
+      "chosen": 0.5
+    }
+  ],
+  "headline": [
+    {
+      "label": "Finish score, 6-model panel, 4 players",
+      "base": 75.0,
+      "new": 78.8,
+      "unit": "%"
+    },
+    {
+      "label": "Finish score, 6-model panel, 8 players",
+      "base": 77.4,
+      "new": 81.0,
+      "unit": "%"
+    },
+    {
+      "label": "Conquest wins, 4 players",
+      "base": 64.0,
+      "new": 76.5,
+      "unit": "%"
+    },
+    {
+      "label": "Game length in turns, 4 players",
+      "base": 75.3,
+      "new": 62.9,
+      "unit": ""
+    },
+    {
+      "label": "Points vs base, final test",
+      "base": 50.0,
+      "new": 50.4,
+      "unit": "%"
+    }
+  ],
+  "runs": [
+    {
+      "id": "greedy-full-peacebreak",
+      "label": "Sweep, 4 players"
+    },
+    {
+      "id": "greedy-full-peacebreak-big",
+      "label": "Sweep, 8 players"
+    },
+    {
+      "id": "greedy-full-front-final",
+      "label": "The base on the final-test maps, 4 players"
+    },
+    {
+      "id": "greedy-full-front-final-big",
+      "label": "The base on the final-test maps, 8 players"
+    }
+  ]
+}
