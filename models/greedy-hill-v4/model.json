@@ -1,0 +1,93 @@
+{
+  "id": "greedy-hill-v4",
+  "name": "Hill climber v4",
+  "kind": "greedy",
+  "description": "The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts): 8549 challengers tested with an SPRT (1.26M self-play games) on 11x11 maps, 66 challengers kept. Saved the champion of the best learning-curve point (round 3352, 540k games, 35 kept). Won 72% against greedy-v1 and 56% against greedy-hill-v3 on unseen maps at save time.",
+  "created": "2026-11-23",
+  "weights": {
+    "capture": 357.52,
+    "examine": 33.96,
+    "promote": 52.27,
+    "harvestStarfish": 45.67,
+    "monument": 64.27,
+    "kill": 27.66,
+    "hit": 0.93,
+    "special": 42.73,
+    "growBase": 21.07,
+    "growPerPop": 29.26,
+    "otherBuild": 1.24,
+    "richAt": 7,
+    "research": 27.6,
+    "train": 90.44,
+    "unitsPerCity": 12,
+    "move": 24.89,
+    "recover": 15,
+    "healOthers": 5.42,
+    "upgrade": 0.82,
+    "noise": 1,
+    "rewards": {
+      "workshop": 5,
+      "explorer": 3,
+      "resources": 5,
+      "cityWall": 2,
+      "populationGrowth": 5,
+      "borderGrowth": 3,
+      "superUnit": 6,
+      "park": 4
+    }
+  },
+  "training": {
+    "method": "hill-climbing",
+    "test": "sprt",
+    "sprt": {
+      "elo0": 0,
+      "elo1": 25,
+      "alpha": 0.05,
+      "beta": 0.05,
+      "mapPairsPerLook": 20,
+      "maxGames": 1000
+    },
+    "budget": 3600000,
+    "rounds": 8549,
+    "trainingGames": 1260160,
+    "seconds": 7399,
+    "sigma": 0.5,
+    "weightsPerNudge": 3,
+    "mapSize": 11,
+    "accepted": 66,
+    "capped": 52,
+    "curve": "curve.jsonl",
+    "earlyStop": {
+      "patience": 8,
+      "minGain": 0.01,
+      "converged": true,
+      "savedRound": 3352,
+      "savedAtTrainingGames": 540000,
+      "savedKept": 35,
+      "savedCurveMean": 0.616
+    },
+    "final": {
+      "greedy-v1": {
+        "winRate": 0.715,
+        "pointShare": 0.594,
+        "games": 400
+      },
+      "greedy-hill-v1": {
+        "winRate": 0.6175,
+        "pointShare": 0.545,
+        "games": 400
+      },
+      "greedy-hill-v2": {
+        "winRate": 0.575,
+        "pointShare": 0.522,
+        "games": 400
+      },
+      "greedy-hill-v3": {
+        "winRate": 0.565,
+        "pointShare": 0.514,
+        "games": 400
+      }
+    },
+    "finalWinRateVsGreedyV1": 0.715
+  }
+}

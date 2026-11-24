@@ -557,7 +557,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
             ))}
           </ScrollView>
         )}
-        <View style={{ minHeight: 64 }}>
+        <View style={{ height: 108, justifyContent: "center" }}>
           {selected && seen && tileSel ? (
             <>
               <View style={{ flexDirection: "row", alignItems: "center" }}>

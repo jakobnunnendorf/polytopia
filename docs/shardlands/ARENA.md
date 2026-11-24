@@ -84,14 +84,28 @@ scoring weights from self-play, with nothing but final scores as feedback:
 
 1. The champion starts as greedy-v1's weights.
 2. Each round, a challenger nudges 3 random weights (each × e^(0.5·N(0,1))).
-3. They play 60 games on fresh 11×11 maps, swapping seats on every map.
-4. The challenger becomes champion if it took ≥ 52% of all points and won at least half the games.
-5. After 60 rounds, the champion plays 100 games on maps it never trained on, and is saved as `models/<id>/model.json` (kind `greedy`).
+3. Challenger and champion play pairs of games on fresh 11×11 maps, swapping
+   seats on each map. After every 20 map pairs a sequential test (SPRT,
+   `logic/arena/sprt.ts`) looks at the point shares: it keeps the challenger
+   once the games favour "25 Elo stronger" over "equal" (5% error each way),
+   rejects it once they favour the reverse, and rejects it at 1,000 games
+   without a verdict. An identical challenger is out after the first 40 games.
+4. Every `--curve-every` training games (budget / 40), the champion plays a
+   fixed panel (greedy-v1 and the earlier hill climbers) on held-out maps. The
+   mean win rate is one point of the learning curve, `models/<id>/curve.jsonl`.
+5. Training stops at `--budget` games, or early once the curve has not beaten
+   its best by 1 point for 8 points (`--patience`, `--min-gain`). The champion
+   of the best curve point is kept.
+6. That champion plays 400 games against each panel bot on maps no one trained
+   on, and is saved as `models/<id>/model.json` (kind `greedy`).
+
+v1 to v3 used a fixed test instead (`--test fixed`): 60 games a round, kept at
+≥ 52% of the points and at least half the games won, 100 final games.
 
 ```bash
-npm run train-hill                                          # ~2-3 minutes, saves models/greedy-hill-v1
-npm run train-hill -- --id greedy-hill-v2 --rounds 200 --games 100 --pick 2 --sigma 0.4 --accept 0.52
-npm run arena -- --models greedy-hill-v2,greedy-v1 --games 40   # rate it on the Elo table
+npm run train-hill -- --id greedy-hill-v4 --budget 3600000 --curve-games 400 --seed 40000   # ~2 h, 10 threads
+npm run train-hill -- --id greedy-hill-v2 --test fixed --rounds 600 --games 60 --accept 0.52 # the v2 recipe
+zsh scripts/arena-grid.sh greedy-hill-v4   # rate a new model in every format (~360 games, ~2 minutes)
 ```
 
 Training games are not recorded and do not change Elo; only the arena run afterwards does.
@@ -114,6 +128,27 @@ unseen games and 58.7% of the points against greedy-v1, about where v2 landed. A
 third style: mass army (train 12→103, unitsPerCity 3→27, growBase 25→112) with
 captures almost ignored (100→8). More rounds alone stopped paying: the climber
 mostly drifts between equally good weight sets once it is near a local optimum.
+
+`greedy-hill-v4` (2026-11-23, the first run with the SPRT, the learning curve
+and early stopping; budget 3.6M games): it stopped early at 1.26M games (8,549
+challengers, 66 kept, ~2 hours on 10 threads) because the curve gained nothing
+for 8 points after 540k games. The panel mean jumped from 39% to 60% in the
+first 90k games, then stayed between 59% and 62%. The saved champion is the one
+of round 3,352 (540k games, 35 kept, 62% mean). On 400 unseen games each it won
+72% against greedy-v1, 62% against v1, 57% against v2 and 56% ± 5% against v3
+(+45 Elo). A fourth style, conquest: captures 100→358, train 12→90,
+unitsPerCity 3→12, growPerPop 6→29, while kills (80→28) and plain hits (20→1)
+barely count.
+
+In 358 recorded arena games (`scripts/arena-grid.sh greedy-hill-v4`) v4 rates
+1369 [1329, 1424], first of the bots, ahead of v3 (1345) and v2 (1316). Its 1v1
+records: 35–27 against v3, 35–24 against v2, 32–28 against v1, 46–16 against
+greedy-v1, 62–0 against random-v1. By filter it leads perfection (1401), 11×11,
+14×14 and the 3- and 4-player games. It is second to v3 in domination (1349 vs
+1370), 1v1 (1363 vs 1372) and 16×16 (1390 vs 1428), each time with overlapping
+intervals; it trained only on 1v1 perfection 11×11. A bigger budget bought
+little: this method reaches its plateau within ~100k games, so the next gain
+needs a different method, not more games.
 
 `scripts/arena-grid.sh` plays every bot pairing in domination 1v1 (11×11 and
 16×16) and perfection 1v1 16×16, plus 3- and 4-player free-for-alls, to give the

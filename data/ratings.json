@@ -1,66 +1,74 @@
 {
   "human:jakob": {
-    "rating": 1405.4,
+    "rating": 1386.4,
     "games": 2,
     "wins": 2,
     "updated": "2026-11-23T19:24:36.917Z",
-    "lo": 1262,
-    "hi": 1558
+    "lo": 1256,
+    "hi": 1523
   },
   "model:claude-sonnet-agent": {
-    "rating": 1220.3,
+    "rating": 1216.8,
     "games": 1,
     "wins": 1,
     "updated": "2026-11-23T17:31:38.740Z",
-    "lo": 1208,
-    "hi": 1266
+    "lo": 1207,
+    "hi": 1269
   },
   "model:greedy-hill-v1": {
-    "rating": 1279.5,
-    "games": 286,
-    "wins": 154,
-    "updated": "2026-11-23T19:57:21.124Z",
-    "lo": 1235,
-    "hi": 1357
+    "rating": 1263.2,
+    "games": 346,
+    "wins": 182,
+    "updated": "2026-11-23T23:17:30.234Z",
+    "lo": 1226,
+    "hi": 1310
   },
   "model:greedy-hill-v2": {
-    "rating": 1360.9,
-    "games": 253,
-    "wins": 167,
-    "updated": "2026-11-23T19:57:21.124Z",
-    "lo": 1309,
-    "hi": 1451
+    "rating": 1315.9,
+    "games": 357,
+    "wins": 198,
+    "updated": "2026-11-23T23:18:00.627Z",
+    "lo": 1281,
+    "hi": 1370
   },
   "model:greedy-hill-v3": {
-    "rating": 1404.2,
-    "games": 133,
-    "wins": 88,
-    "updated": "2026-11-23T19:57:21.124Z",
-    "lo": 1341,
-    "hi": 1481
+    "rating": 1344.6,
+    "games": 240,
+    "wins": 127,
+    "updated": "2026-11-23T23:18:00.627Z",
+    "lo": 1305,
+    "hi": 1411
+  },
+  "model:greedy-hill-v4": {
+    "rating": 1369.3,
+    "games": 350,
+    "wins": 232,
+    "updated": "2026-11-23T23:18:00.627Z",
+    "lo": 1329,
+    "hi": 1424
   },
   "model:greedy-v1": {
-    "rating": 1221.8,
-    "games": 308,
-    "wins": 145,
-    "updated": "2026-11-23T19:44:24.906Z",
-    "lo": 1176,
-    "hi": 1288
+    "rating": 1193.7,
+    "games": 403,
+    "wins": 165,
+    "updated": "2026-11-23T23:17:57.583Z",
+    "lo": 1151,
+    "hi": 1241
   },
   "model:qwen3-coder-lmstudio": {
-    "rating": 737.5,
+    "rating": 699.3,
     "games": 13,
     "wins": 3,
     "updated": "2026-11-23T19:09:28.833Z",
-    "lo": 545,
-    "hi": 932
+    "lo": 478,
+    "hi": 915
   },
   "model:random-v1": {
-    "rating": 483.1,
-    "games": 220,
+    "rating": 433.7,
+    "games": 282,
     "wins": 1,
-    "updated": "2026-11-23T19:44:05.720Z",
-    "lo": 331,
-    "hi": 560
+    "updated": "2026-11-23T23:17:39.698Z",
+    "lo": 303,
+    "hi": 519
   }
 }

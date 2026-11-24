@@ -11,15 +11,14 @@ import { name } from "@/logic/engine/names";
 type Node = { id: string; tier: number; x: number; y: number; parent: string | null };
 
 /**
- * Exact Battle of Polytopia radial tech tree layout:
- * Tribe head in the centre; 5 branches arranged clockwise matching Polytopia:
- *   Top-Left:  Climbing (Mining/Smithery, Meditation/Philosophy)
- *   Top-Right: Fishing  (Sailing/Navigation, Ramming/Aquatism)
- *   Right:     Hunting  (Archery/Spiritualism, Forestry/Mathematics)
- *   Bottom:    Organization (Farming/Construction, Strategy/Diplomacy)
- *   Left:      Riding   (Roads/Trade, Free Spirit/Chivalry)
+ * Exact Battle of Polytopia radial tech tree layout (clockwise from 12 o'clock):
+ *   Top (-90°):          Riding       (Roads/Trade, Free Spirit/Chivalry)
+ *   Upper-Right (-18°):  Organization (Farming/Construction, Strategy/Diplomacy)
+ *   Bottom-Right (+54°): Climbing     (Mining/Smithery, Meditation/Philosophy)
+ *   Bottom-Left (+126°): Fishing      (Sailing/Navigation, Ramming/Aquatism)
+ *   Upper-Left (-162°):  Hunting      (Archery/Spiritualism, Forestry/Mathematics)
  */
-const POLYTOPIA_BRANCH_ORDER = ["climbing", "fishing", "hunting", "organization", "riding"];
+const POLYTOPIA_BRANCH_ORDER = ["riding", "organization", "climbing", "fishing", "hunting"];
 
 function layout(size: number): Node[] {
   const c = size / 2;
@@ -30,8 +29,8 @@ function layout(size: number): Node[] {
     .map((id) => TECHS.find((t) => t.id === id))
     .filter((t): t is (typeof TECHS)[number] => !!t);
   roots.forEach((root, k) => {
-    // Start at -126° (top-left) and step +72° clockwise: -126°, -54°, +18°, +90°, +162°
-    const base = -Math.PI / 2 - Math.PI / 5 + (k * 2 * Math.PI) / roots.length;
+    // Start straight up at 12 o'clock (-90°) and step +72° clockwise
+    const base = -Math.PI / 2 + (k * 2 * Math.PI) / roots.length;
     angleOf[root.id] = base;
     const kids = TECHS.filter((t) => t.parent === root.id);
     kids.forEach((kid, j) => {

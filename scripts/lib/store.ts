@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import { START_RATING, facets, matchesFilter, rate, resultRow, type RatingFilter, type Ratings, type ResultRow } from "../../logic/arena/elo";
-import { migrateClanIds, type GameRecord } from "../../logic/arena/record";
+import type { GameRecord } from "../../logic/arena/record";
 import type { ModelSpec } from "../../logic/agents/types";
 
 export const ROOT = path.resolve(__dirname, "..", "..");
@@ -137,7 +137,7 @@ export function saveGame(rec: GameRecord): { file: string; deltas: number[]; rat
 }
 
 export function readGame(file: string): GameRecord {
-  return migrateClanIds(JSON.parse(zlib.gunzipSync(fs.readFileSync(file)).toString("utf8")) as GameRecord);
+  return JSON.parse(zlib.gunzipSync(fs.readFileSync(file)).toString("utf8")) as GameRecord;
 }
 
 export function listGameFiles(): string[] {
