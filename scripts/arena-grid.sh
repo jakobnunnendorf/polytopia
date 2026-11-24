@@ -1,19 +1,19 @@
 #!/bin/zsh
 # Fill the rating filters with data: bot pairings in several formats, plus free-for-alls.
 # Runs one game at a time (each finished game refits data/ratings.json).
-#   zsh scripts/arena-grid.sh                   # every pairing of the bots below, ~270 games
+#   zsh scripts/arena-grid.sh                   # every pairing of the bots below, ~400 games
 #   zsh scripts/arena-grid.sh greedy-hill-v4    # rate a new model: only its pairings, plus 40 games
 #                                               # against each in 1v1 perfection 11x11, ~360 games
 cd "${0:A:h}/.."
 NEW=$1
-BOTS=(greedy-v1 greedy-hill-v1 greedy-hill-v2 greedy-hill-v3 random-v1)
+BOTS=(greedy-v1 greedy-hill-v1 greedy-hill-v2 greedy-hill-v3 greedy-hill-v4 random-v1)
 BOTS=(${BOTS:#$NEW})
 if [[ -n $NEW ]]; then
   STRONG=($NEW greedy-hill-v3 greedy-hill-v2 greedy-v1)
   seed=2000000 # other maps than the full grid
 else
-  STRONG=(greedy-v1 greedy-hill-v1 greedy-hill-v2 greedy-hill-v3)
-  seed=1000000
+  STRONG=(greedy-hill-v4 greedy-hill-v3 greedy-hill-v2 greedy-hill-v1)
+  seed=3000000 # 1000000 was the pre-2.18 full grid
 fi
 
 block() { # label, then arena args
