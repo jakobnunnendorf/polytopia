@@ -1,0 +1,51 @@
+{
+  "id": "greedy-es-v1",
+  "name": "ES climber v1 (training, 360k games)",
+  "kind": "greedy",
+  "description": "Milestone: the weights of greedy-es-v1 after 360k training games (iteration 6227).",
+  "created": "2026-11-24",
+  "weights": {
+    "capture": 2039.37,
+    "examine": 1179.07,
+    "promote": 28.48,
+    "harvestStarfish": 411.8,
+    "monument": 58.36,
+    "kill": 664.44,
+    "hit": 0.76,
+    "special": 357.83,
+    "growBase": 55.22,
+    "growPerPop": 0.62,
+    "otherBuild": 3.09,
+    "richAt": 1,
+    "research": 36.48,
+    "train": 192.69,
+    "unitsPerCity": 13,
+    "move": 28.2,
+    "recover": 32.19,
+    "healOthers": 156.9,
+    "upgrade": 22.95,
+    "noise": 1,
+    "rewards": {
+      "workshop": 5,
+      "explorer": 3,
+      "cityWall": 2,
+      "resources": 5,
+      "populationGrowth": 5,
+      "borderGrowth": 3,
+      "park": 4,
+      "superUnit": 6
+    }
+  },
+  "training": {
+    "provisional": true,
+    "method": "evolution-strategies",
+    "mode": "domination",
+    "players": 4,
+    "mapSize": 16,
+    "iteration": 6227,
+    "trainingGames": 360000,
+    "startedAt": "2026-11-24T11:48:29.666Z",
+    "seconds": 5418,
+    "duration": "1h30m"
+  }
+}
