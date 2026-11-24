@@ -1,4 +1,4 @@
-import { eloFromScore, expectedScore, llr, sprtBounds, sprtVerdict } from "../../logic/arena/sprt";
+import { eloFromScore, expectedScore, llr, marginLlr, marginVerdict, sprtBounds, sprtVerdict } from "../../logic/arena/sprt";
 
 /** seeded random numbers so the simulations below give the same result every run */
 function mulberry32(a: number) {
@@ -65,5 +65,39 @@ describe("SPRT", () => {
     const mean = (rs: { pairs: number }[]) => rs.reduce((a, r) => a + r.pairs, 0) / rs.length;
     expect(mean(worse)).toBeLessThan(80); // ~60 pairs on average, against up to 600 for close calls
     expect(mean(worse)).toBeLessThan(mean(equal));
+  });
+});
+
+describe("margin test", () => {
+  // margins of map pairs: the challenger's share of points minus 0.5, normal around a true mean
+  const sim = (trueMean: number, rnd: () => number) => {
+    const margins: number[] = [];
+    for (;;) {
+      for (let i = 0; i < 10; i++) {
+        const z = Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+        margins.push(trueMean + 0.05 * z);
+      }
+      const { verdict } = marginVerdict(margins, 0, 0.01);
+      if (verdict !== "continue" || margins.length >= 2000) return { verdict, pairs: margins.length };
+    }
+  };
+
+  it("is zero without data and follows the sign of the mean", () => {
+    expect(marginLlr([0.02], 0, 0.01)).toBe(0);
+    expect(marginLlr([0.03, 0.02, 0.04, 0.03], 0, 0.01)).toBeGreaterThan(0);
+    expect(marginLlr([-0.03, -0.02, -0.04, -0.03], 0, 0.01)).toBeLessThan(0);
+  });
+
+  it("rejects identical play fast", () => {
+    expect(marginVerdict(Array(10).fill(0), 0, 0.01).verdict).toBe("reject");
+  });
+
+  it("keeps real gains and rejects no gain at about the error rates", () => {
+    const rnd = mulberry32(11);
+    const runs = (m: number) => Array.from({ length: 200 }, () => sim(m, rnd));
+    const share = (rs: { verdict: string }[], v: string) => rs.filter((r) => r.verdict === v).length / rs.length;
+    expect(share(runs(0), "accept")).toBeLessThan(0.08);
+    expect(share(runs(0.015), "accept")).toBeGreaterThan(0.9);
+    expect(share(runs(-0.02), "reject")).toBe(1);
   });
 });

@@ -19,7 +19,8 @@
     "export-dataset": "node -r sucrase/register scripts/export-dataset.ts",
     "engine:build": "scripts/rust/build-engine.sh",
     "train-hill": "node -r sucrase/register scripts/train-hill.ts",
-    "train-full": "node -r sucrase/register scripts/train-full.ts"
+    "train-full": "node -r sucrase/register scripts/train-full.ts",
+    "train-es": "node -r sucrase/register scripts/train-es.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.2",
