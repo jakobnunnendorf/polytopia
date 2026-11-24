@@ -1,0 +1,29 @@
+
+> polytopia@1.0.0 sweep
+> node -r sucrase/register scripts/sweep.ts --id greedy-full-economy --from greedy-full-peacebreak --metric finish --knob plan --values 1,2,4,8 --workers 6 --panel greedy-v1,greedy-hill-v1,greedy-hill-v2,greedy-hill-v3,greedy-hill-v4,greedy-full-v1,greedy-full-peacebreak
+
+sweep from greedy-full-peacebreak: 4 points + base, 200 games against each of greedy-v1, greedy-hill-v1, greedy-hill-v2, greedy-hill-v3, greedy-hill-v4, greedy-full-v1, greedy-full-peacebreak
+point  base                         | greedy 96% won, 78.4% pts (+531)  v1 94% won, 76.4% pts (+463)  v2 92% won, 74.0% pts (+424)  v3 88% won, 70.7% pts (+346)  v4 91% won, 72.6% pts (+402)  full-v1 54% won, 53.4% pts (+28)  full-peacebreak 50% won, 50.0% pts (+0)  | mean 81% won, 67.9% pts, finish 74.5%, conquest 73%, 61 turns
+  [00:24] point plan=1: 677/1400 games, done in ~1 min | so far: vs greedy 80.5% of points, won 196/200; vs v1 76.6% of points, won 189/200; vs v2 76.2% of points, won 191/200; vs v3 72.6% of points, won 72/77 | 2077 games in the last 60s, 2076/min overall | run: 
+point  plan=1                       | greedy 98% won, 80.6% pts (+676)  v1 95% won, 76.4% pts (+494)  v2 96% won, 75.9% pts (+531)  v3 94% won, 73.0% pts (+463)  v4 96% won, 73.9% pts (+531)  full-v1 66% won, 59.4% pts (+111)  full-peacebreak 58% won, 55.1% pts (+56)  | mean 86% won, 70.6% pts, finish 79.0%, conquest 77%, 60 turns
+  [00:25] point plan=2: 1186/1400 games, done in ~1 min | so far: vs greedy 81.0% of points, won 198/200; vs v1 77.3% of points, won 192/200; vs v2 76.6% of points, won 194/200; vs v3 74.2% of points, won 190/200; vs v4 74.5% of points, won 192/200; vs full-v1 61.6% of points, won 129/186 | 1909 games in the last 60s, 1993/min overall | run: 
+point  plan=2                       | greedy 99% won, 81.0% pts (+798)  v1 96% won, 77.1% pts (+552)  v2 97% won, 76.4% pts (+604)  v3 95% won, 74.1% pts (+512)  v4 96% won, 74.4% pts (+552)  full-v1 70% won, 61.2% pts (+143)  full-peacebreak 57% won, 54.6% pts (+49)  | mean 87% won, 71.3% pts, finish 79.3%, conquest 77%, 60 turns
+point  plan=4                       | greedy 100% won, 81.2% pts (+920)  v1 98% won, 78.5% pts (+636)  v2 98% won, 77.0% pts (+676)  v3 95% won, 74.0% pts (+512)  v4 97% won, 75.1% pts (+576)  full-v1 63% won, 57.9% pts (+89)  full-peacebreak 56% won, 53.0% pts (+38)  | mean 86% won, 71.0% pts, finish 78.9%, conquest 76%, 60 turns
+  [00:26] point plan=8: 407/1400 games, done in ~1 min | so far: vs greedy 80.8% of points, won 199/200; vs v1 78.2% of points, won 196/200; vs v2 79.6% of points, won 7/7 | 2021 games in the last 60s, 2002/min overall | run: 
+point  plan=8                       | greedy 100% won, 80.9% pts (+920)  v1 98% won, 78.1% pts (+676)  v2 99% won, 77.6% pts (+727)  v3 95% won, 74.3% pts (+512)  v4 94% won, 73.1% pts (+463)  full-v1 60% won, 56.2% pts (+67)  full-peacebreak 49% won, 49.5% pts (-7)  | mean 85% won, 70.0% pts, finish 78.1%, conquest 76%, 58 turns
+
+best: plan=2, mean 79.3% finish (base 74.5%)
+  [00:27] final test (vs panel): 1028/2800 games, done in ~1 min | so far: vs greedy 80.0% of points, won 395/400; vs v1 76.4% of points, won 382/400; vs v2 76.6% of points, won 221/228 | 2021 games in the last 60s, 2007/min overall | run: 
+  [00:28] final test (vs panel): 2795/2800 games, done in ~1 min | so far: vs greedy 80.0% of points, won 395/400; vs v1 76.4% of points, won 382/400; vs v2 76.2% of points, won 385/400; vs v3 73.6% of points, won 378/400; vs v4 74.1% of points, won 383/400; vs full-v1 59.9% of points, won 264/400; vs full-peacebreak 55.6% of points, won 231/395 | 1767 games in the last 60s, 1959/min overall | run: 
+
+final (400 unseen games against each):
+  vs greedy-v1        won  99% ± 1%  (+759 Elo)  points 79.9%  finish 90.0%  conquest 91%  52 turns
+  vs greedy-hill-v1   won  96% ± 2%  (+531 Elo)  points 76.2%  finish 86.7%  conquest 88%  56 turns
+  vs greedy-hill-v2   won  96% ± 2%  (+564 Elo)  points 76.1%  finish 86.1%  conquest 85%  61 turns
+  vs greedy-hill-v3   won  95% ± 2%  (+494 Elo)  points 73.5%  finish 85.5%  conquest 86%  58 turns
+  vs greedy-hill-v4   won  96% ± 2%  (+541 Elo)  points 73.9%  finish 83.7%  conquest 79%  66 turns
+  vs greedy-full-v1   won  66% ± 5%  (+115 Elo)  points 59.8%  finish 63.1%  conquest 58%  64 turns
+  vs greedy-full-peacebreak won  58% ± 5%  (+58 Elo)  points 54.7%  finish 57.0%  conquest 53%  59 turns
+changed against greedy-full-peacebreak: plan=2
+saved models/greedy-full-economy/model.json and sweep.jsonl
+sweep took 5m01s

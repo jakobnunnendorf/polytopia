@@ -259,6 +259,8 @@ pub(crate) struct GoalCache {
     counts: Option<(usize, usize)>,
     /// per owner: goal()'s candidates (coord, bias) in its order
     targets: Vec<(i32, Vec<(Coord, i32)>)>,
+    /// the economy plan's context for this decision (bot_full, plan != 0), built on first use
+    pub(crate) plan: Option<crate::econ_plan::PlanCtx>,
 }
 
 /// goal()'s candidates for units of `owner`, in the order goal() considers them
