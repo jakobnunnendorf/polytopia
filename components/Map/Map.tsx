@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { UI } from "@/components/game/theme";
 import { CLOUD } from "@/components/art/Art";
-import Tile, { type Highlight } from "./Tile";
+import Tile, { ROAD_DIRS, type Highlight } from "./Tile";
 import { FxLayer, UnitSprite, diffEvents, type Fx, type Lunge } from "./Units";
 import { AnimateNew, useMountedOnce } from "@/components/anim";
 import type { City, GameState, Unit } from "@/logic/engine/types";
@@ -43,7 +43,7 @@ export default function Map({
   const [zoom, setZoom] = useState(0);
   const TILE = zoom <= 0 ? fit : Math.min(96, Math.round(fit * 1.25 ** zoom));
 
-  const { unitAt, cityById, ownerOfTile } = useMemo(() => {
+  const { unitAt, cityById, ownerOfTile, roadDirs } = useMemo(() => {
     const unitAt = new globalThis.Map<number, Unit>();
     for (const u of state.units) unitAt.set(u.y * n + u.x, u);
     const cityById = new globalThis.Map<number, City>();
@@ -51,7 +51,27 @@ export default function Map({
     const ownerOfTile = state.tiles.map((t) =>
       t.territory !== null ? (cityById.get(t.territory)?.owner ?? null) : null,
     );
-    return { unitAt, cityById, ownerOfTile };
+    // roads: a tile on the road network (road, city) links to each network neighbour, as long as
+    // one of the two is a real road (two cities side by side show no road)
+    const net = state.tiles.map((t) => t.road || t.cityId !== null);
+    const roadDirs = state.tiles.map((t, i) => {
+      if (!net[i]) return 0;
+      const x = i % state.mapSize;
+      const y = Math.floor(i / state.mapSize);
+      let bits = 0;
+      ROAD_DIRS.forEach(([dx, dy], k) => {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= state.mapSize || ny >= state.mapSize) return;
+        const j = ny * state.mapSize + nx;
+        if (!net[j] || !(t.road || state.tiles[j].road)) return;
+        // a diagonal only where no straight two-step path already turns that corner (no lattices)
+        if (dx !== 0 && dy !== 0 && (net[y * state.mapSize + nx] || net[ny * state.mapSize + x])) return;
+        bits |= 1 << k;
+      });
+      return bits;
+    });
+    return { unitAt, cityById, ownerOfTile, roadDirs };
   }, [state, n]);
 
   // animations: compare with the previous state seen by the same viewer
@@ -157,6 +177,7 @@ export default function Map({
                 showResource={reveal || !tile.resource || resourceVisible(state, viewer, tile.resource)}
                 ruinThroughClouds={!seen && tile.ruin && state.players[viewer].clan === "elyrion"}
                 territoryFocus={territoryFocus}
+                roadDirs={seen ? roadDirs[i] : 0}
               />
             );
           })}
