@@ -199,8 +199,195 @@ struct Climate {
     chance: [f64; 7],
 }
 
+/// Gen::range on a generator held in a local (kept in a register)
+#[inline(always)]
+fn rrange(rng: &mut Rng, min: i32, max: i32) -> i32 {
+    (min as f64 + (rng.next() * ((max - min) as f64)).floor()) as i32
+}
+
+/// mulberry32's state step (Rng::next adds it before hashing)
+const RNG_STEP: u32 = 0x6d2b79f5;
+
+/// per-size tables shared by every candidate of one generate_map call: the
+/// in-bounds square of radius r around each tile without the tile itself,
+/// dx outer, dy inner (the order `area` always had)
+struct Geo {
+    flat: [Vec<i32>; 3],
+    starts: [Vec<u32>; 3],
+}
+
+impl Geo {
+    fn new(n: i32, max_r: i32) -> Geo {
+        let mut flat = [Vec::new(), Vec::new(), Vec::new()];
+        let mut starts = [Vec::new(), Vec::new(), Vec::new()];
+        for r in 1..=max_r {
+            let k = (r - 1) as usize;
+            let f = &mut flat[k];
+            let st = &mut starts[k];
+            st.push(0u32);
+            for i in 0..n * n {
+                let cx = i % n;
+                let cy = i.div_euclid(n);
+                for dx in -r..=r {
+                    for dy in -r..=r {
+                        if dx == 0 && dy == 0 {
+                            continue;
+                        }
+                        let x = cx + dx;
+                        let y = cy + dy;
+                        if x >= 0 && y >= 0 && x < n && y < n {
+                            f.push(y * n + x);
+                        }
+                    }
+                }
+                st.push(f.len() as u32);
+            }
+        }
+        Geo { flat, starts }
+    }
+    /// i must be a tile of the map and r one of the radii built
+    #[inline]
+    fn area(&self, i: i32, r: i32) -> &[i32] {
+        let k = (r - 1) as usize;
+        let st = &self.starts[k];
+        let u = i as usize;
+        assert!(u + 1 < st.len());
+        // SAFETY: starts are offsets into flat, ascending, the last one flat.len()
+        unsafe {
+            let a = *st.get_unchecked(u) as usize;
+            let b = *st.get_unchecked(u + 1) as usize;
+            self.flat[k].get_unchecked(a..b)
+        }
+    }
+}
+
+/// a Fisher-Yates shuffle (Gen::shuffle's order and draws) done only as far as it
+/// is read: step k uses the generator's k-th draw, which is computed directly
+/// from the state before the shuffle; the generator itself jumps past all draws
+struct LazyShuffle {
+    s0: u32,
+    done: usize,
+}
+
+impl LazyShuffle {
+    /// start a shuffle of `len` items: advances rng past every draw it takes
+    fn start(rng: &mut Rng, len: usize) -> LazyShuffle {
+        let s0 = rng.state();
+        let draws = if len > 1 { len - 1 } else { 0 };
+        *rng = Rng::from_state(s0.wrapping_add(RNG_STEP.wrapping_mul(draws as u32)));
+        LazyShuffle { s0, done: 0 }
+    }
+    /// a[i] as the full shuffle leaves it
+    #[inline]
+    fn get(&mut self, a: &mut [i32], i: usize) -> i32 {
+        let len = a.len();
+        while self.done <= i && self.done + 1 < len {
+            let k = self.done;
+            let mut r = Rng::from_state(self.s0.wrapping_add(RNG_STEP.wrapping_mul(k as u32)));
+            // Gen::range(k, len)
+            let j = (k as i32 as f64 + (r.next() * ((len as i32 - k as i32) as f64)).floor()) as i32;
+            a.swap(k, j as usize);
+            self.done += 1;
+        }
+        a[i]
+    }
+}
+
+const E_NONE: u64 = u64::MAX;
+const E_DONE: u64 = u64::MAX - 1;
+
+/// tile flags for inequality()
+const F_WATER: u8 = 1;
+const F_MOUNTAIN: u8 = 2;
+const F_CITY: u8 = 4;
+const F_START: u8 = 8;
+const F_RUIN: u8 = 16;
+
+/// the inequality measure's working buffers
+#[derive(Default)]
+struct IneqScratch {
+    /// F_* per tile
+    flags: Vec<u8>,
+    /// the capitals' tiles in seat order
+    caps: Vec<usize>,
+    scores: Vec<f64>,
+    /// the entry per tile, cost << 32 | seat << 16 | order (so that comparing two
+    /// entries of one tile compares (cost, seat)); E_NONE untouched, E_DONE visited
+    ent: Vec<u64>,
+    queue: Buckets,
+}
+
+/// Dial's queue for inequality(): costs grow by 1..=1000 per step, so every
+/// pending cost lies within 1000 of the cost being processed and a ring of
+/// 1024 buckets holds them without aliasing. An entry is order << 16 | tile.
+struct Buckets {
+    slots: Vec<Vec<u32>>,
+    /// non-empty slots
+    bits: [u64; 16],
+    pending: usize,
+}
+
+impl Default for Buckets {
+    fn default() -> Buckets {
+        Buckets { slots: (0..1024).map(|_| Vec::new()).collect(), bits: [0; 16], pending: 0 }
+    }
+}
+
+impl Buckets {
+    fn clear(&mut self) {
+        if self.pending > 0 {
+            for v in &mut self.slots {
+                v.clear();
+            }
+        }
+        self.bits = [0; 16];
+        self.pending = 0;
+    }
+    #[inline]
+    fn push(&mut self, cost: i32, entry: u32) {
+        let slot = (cost & 1023) as usize;
+        // SAFETY: slot < 1024 = slots.len(), slot >> 6 < 16
+        unsafe {
+            self.slots.get_unchecked_mut(slot).push(entry);
+            *self.bits.get_unchecked_mut(slot >> 6) |= 1u64 << (slot & 63);
+        }
+        self.pending += 1;
+    }
+    /// the smallest pending cost >= cur (cur's slot first, then onwards around the ring)
+    fn next_cost(&self, cur: i32) -> i32 {
+        let s = (cur & 1023) as usize;
+        let w = s >> 6;
+        let m = self.bits[w] & (!0u64 << (s & 63));
+        if m != 0 {
+            return cur + ((w << 6) + m.trailing_zeros() as usize - s) as i32;
+        }
+        for k in 1..=16 {
+            let ww = (w + k) & 15;
+            let m = if k == 16 { self.bits[ww] & !(!0u64 << (s & 63)) } else { self.bits[ww] };
+            if m != 0 {
+                let slot = (ww << 6) + m.trailing_zeros() as usize;
+                return cur + ((slot + 1024 - s) & 1023) as i32;
+            }
+        }
+        unreachable!("mapgen: empty queue")
+    }
+}
+
+/// the arrays output() reads, kept for the fairest candidate so far
+#[derive(Default)]
+struct Snapshot {
+    terrain: Vec<Terrain>,
+    resource: Vec<Option<Resource>>,
+    imp: Vec<Imp>,
+    flooded: Vec<bool>,
+    ice: Vec<bool>,
+    polar: Vec<bool>,
+    capital: Vec<i32>,
+}
+
 struct Gen<'a> {
     rng: Rng,
+    geo: &'a Geo,
     n: i32,
     total: i32,
     players: i32,
@@ -226,10 +413,31 @@ struct Gen<'a> {
     player_keys: Vec<u32>,
     /// interned "imperius" (the fallback climate's key)
     imperius_key: u32,
+    /// flag(opts.polaris, p) per player
+    alien: Vec<bool>,
+    /// start_list(), fixed by the options
+    starts: Vec<Vec<Resource>>,
+    flooded: Vec<bool>,
+    ice: Vec<bool>,
+    polar: Vec<bool>,
+    /// capital_positions' weight table per count (it depends on the size only)
+    cap_tables: Vec<Option<Vec<i64>>>,
+    // reused working buffers
+    buf_i32: Vec<i32>,
+    buf_i32b: Vec<i32>,
+    buf_bool: Vec<bool>,
+    buf_bool2: Vec<bool>,
+    buf_f64: Vec<f64>,
+    buf_pad: Vec<f64>,
+    buf_f64b: Vec<f64>,
+    buf_terrain: Vec<Terrain>,
+    buf_u8: Vec<u8>,
+    ineq: IneqScratch,
 }
 
 impl<'a> Gen<'a> {
-    fn new(rng: Rng, n: i32, players: i32, s: MapSettings, map_type: MapType, mods: &'a [Mods], opts: &'a MapOptions) -> Gen<'a> {
+    #[allow(clippy::too_many_arguments)]
+    fn new(rng: Rng, geo: &'a Geo, n: i32, players: i32, s: MapSettings, map_type: MapType, mods: &'a [Mods], opts: &'a MapOptions) -> Gen<'a> {
         let total = n * n;
         let t = total as usize;
         // intern the climate keys: "" = 0, then key(p) for each player, then "imperius"
@@ -249,8 +457,10 @@ impl<'a> Gen<'a> {
             })
             .collect();
         let imperius_key = intern("imperius".to_string());
-        Gen {
+        let alien = (0..players as usize).map(|p| flag(&opts.polaris, p)).collect();
+        let mut g = Gen {
             rng,
+            geo,
             n,
             total,
             players,
@@ -270,7 +480,31 @@ impl<'a> Gen<'a> {
             islands: Vec::new(),
             player_keys,
             imperius_key,
-        }
+            alien,
+            starts: Vec::new(),
+            flooded: vec![false; t],
+            ice: vec![false; t],
+            polar: vec![false; t],
+            cap_tables: Vec::new(),
+            buf_i32: Vec::new(),
+            buf_i32b: Vec::new(),
+            buf_bool: Vec::new(),
+            buf_bool2: Vec::new(),
+            buf_f64: Vec::new(),
+            buf_pad: Vec::new(),
+            buf_f64b: Vec::new(),
+            buf_terrain: Vec::new(),
+            buf_u8: Vec::new(),
+            ineq: IneqScratch::default(),
+        };
+        g.starts = g.start_list();
+        g
+    }
+
+    /// back to the state Gen::new leaves, with a new generator
+    fn reset(&mut self, rng: Rng) {
+        self.rng = rng;
+        self.clear();
     }
 
     fn clear(&mut self) {
@@ -324,40 +558,14 @@ impl<'a> Gen<'a> {
         x.min(y).min(self.n - 1 - x).min(self.n - 1 - y)
     }
     /// the square of `r` around i without i, in-bounds; dx outer, dy inner
-    fn area(&self, i: i32, r: i32) -> Vec<i32> {
-        let cx = self.x(i);
-        let cy = self.y(i);
-        let mut out = Vec::with_capacity(((2 * r + 1) * (2 * r + 1)) as usize);
-        for dx in -r..=r {
-            for dy in -r..=r {
-                if dx == 0 && dy == 0 {
-                    continue;
-                }
-                let x = cx + dx;
-                let y = cy + dy;
-                if x >= 0 && y >= 0 && x < self.n && y < self.n {
-                    out.push(y * self.n + x);
-                }
-            }
-        }
-        out
+    #[inline]
+    fn area(&self, i: i32, r: i32) -> &'a [i32] {
+        let geo: &'a Geo = self.geo;
+        geo.area(i, r)
     }
+    #[inline]
     fn area_any(&self, i: i32, r: i32, mut f: impl FnMut(usize) -> bool) -> bool {
-        let cx = self.x(i);
-        let cy = self.y(i);
-        for dx in -r..=r {
-            for dy in -r..=r {
-                if dx == 0 && dy == 0 {
-                    continue;
-                }
-                let x = cx + dx;
-                let y = cy + dy;
-                if x >= 0 && y >= 0 && x < self.n && y < self.n && f((y * self.n + x) as usize) {
-                    return true;
-                }
-            }
-        }
-        false
+        self.area(i, r).iter().any(|&j| f(j as usize))
     }
     fn side(&self) -> i32 {
         (self.players as f64).sqrt().ceil() as i32
@@ -405,7 +613,7 @@ impl<'a> Gen<'a> {
         if self.owner[u] == -1 {
             self.owner[u] = p;
         }
-        for j in self.area(i, 1) {
+        for &j in self.area(i, 1) {
             if self.owner[j as usize] == -1 {
                 self.owner[j as usize] = p;
             }
@@ -417,6 +625,19 @@ impl<'a> Gen<'a> {
     fn remove_near(&self, list: &mut Vec<i32>, site: i32, r: i32) {
         let cx = self.x(site);
         let cy = self.y(site);
+        let n = self.n;
+        if n > 2 * r {
+            // the list holds distinct tiles, so removing the first occurrence of each
+            // flattened value is dropping every element equal to one of them; the
+            // values are (2r+1) runs of 2r+1 consecutive numbers, one per row
+            let start = (cy - r) * n + (cx - r);
+            let side = 2 * r;
+            list.retain(|&e| {
+                let d = e - start;
+                !(d >= 0 && d / n <= side && d % n <= side)
+            });
+            return;
+        }
         for y in cy - r..=cy + r {
             for x in cx - r..=cx + r {
                 // flattened without clamping, as the game does
@@ -433,20 +654,29 @@ impl<'a> Gen<'a> {
         let side = (count as f64).sqrt().ceil() as i32;
         let domain = w / side;
         let rem = w % side;
-        let mut table = vec![0i64; (w * w) as usize];
         let offset = |v: i32| rem.min(1.max(rem.min(v) - 1));
-        for dy in 0..side {
-            for dx in 0..side {
-                let cx = domain * dx + domain / 2 + offset(dx);
-                let cy = domain * dy + domain / 2 + offset(dy);
-                for i in 0..table.len() as i32 {
-                    let d = (self.x(i) - cx).abs().max((self.y(i) - cy).abs());
-                    let peak = 1.max(domain / 2 - d) as i64;
-                    let t = &mut table[i as usize];
-                    *t = (*t).max(peak * peak * peak);
+        let ci = count.max(0) as usize;
+        if self.cap_tables.len() <= ci {
+            self.cap_tables.resize(ci + 1, None);
+        }
+        if self.cap_tables[ci].is_none() {
+            let mut table = vec![0i64; (w * w) as usize];
+            for dy in 0..side {
+                for dx in 0..side {
+                    let cx = domain * dx + domain / 2 + offset(dx);
+                    let cy = domain * dy + domain / 2 + offset(dy);
+                    for i in 0..table.len() as i32 {
+                        let d = (self.x(i) - cx).abs().max((self.y(i) - cy).abs());
+                        let peak = 1.max(domain / 2 - d) as i64;
+                        let t = &mut table[i as usize];
+                        *t = (*t).max(peak * peak * peak);
+                    }
                 }
             }
+            self.cap_tables[ci] = Some(table);
         }
+        let table = self.cap_tables[ci].take().unwrap();
+        let mut free = std::mem::take(&mut self.buf_i32);
         let mut domains: Vec<i32> = (0..side * side).collect();
         let mut out: Vec<i32> = Vec::new();
         let inset = if domain < 5 { 1 } else { 2 };
@@ -463,7 +693,7 @@ impl<'a> Gen<'a> {
                 y0 = 1.max(sy);
                 y1 = (w - 1).min(sy + domain);
             }
-            let mut free: Vec<i32> = Vec::new();
+            free.clear();
             for y in y0..y1 {
                 for x in x0..x1 {
                     let c = y * w + x;
@@ -490,6 +720,8 @@ impl<'a> Gen<'a> {
                 }
             }
         }
+        self.cap_tables[ci] = Some(table);
+        self.buf_i32 = free;
         out
     }
 
@@ -621,6 +853,10 @@ impl<'a> Gen<'a> {
     }
 
     fn preterrain_cities(&mut self, cities: &mut Vec<i32>, count: i32) {
+        if count <= 0 {
+            // the candidates only feed the draws below
+            return;
+        }
         let w = self.n;
         let mut cands: Vec<i32> = Vec::new();
         for y in 1..w - 1 {
@@ -643,17 +879,30 @@ impl<'a> Gen<'a> {
 
     fn postterrain_cities(&mut self, budget: i32) {
         let w = self.n;
-        let mut cands: Vec<i32> = Vec::new();
-        for i in 0..self.total {
-            let x = self.x(i);
-            let y = self.y(i);
-            if is_water_t(self.terrain[i as usize]) || x < 1 || y < 1 || x >= w - 1 || y >= w - 1 || self.imp[i as usize].any() {
-                continue;
-            }
-            if !self.area_any(i, 2, |j| self.imp[j].any()) {
-                cands.push(i);
+        let total = self.total as usize;
+        // tiles with an improvement within 2 (the relation is symmetric)
+        let mut near = std::mem::take(&mut self.buf_bool);
+        near.clear();
+        near.resize(total, false);
+        for j in 0..self.total {
+            if self.imp[j as usize].any() {
+                for &i in self.area(j, 2) {
+                    near[i as usize] = true;
+                }
             }
         }
+        let mut cands = std::mem::take(&mut self.buf_i32b);
+        cands.clear();
+        for y in 1..w - 1 {
+            for x in 1..w - 1 {
+                let i = y * w + x;
+                let u = i as usize;
+                if !near[u] && !is_water_t(self.terrain[u]) && !self.imp[u].any() {
+                    cands.push(i);
+                }
+            }
+        }
+        self.buf_bool = near;
         for _ in 0..budget {
             if cands.is_empty() {
                 break;
@@ -662,21 +911,45 @@ impl<'a> Gen<'a> {
             self.set_city(site);
             self.remove_near(&mut cands, site, 2);
         }
+        self.buf_i32b = cands;
     }
 
-    fn smooth(&self, noise: &mut [f64], protect: &[bool], iterations: i32, surrounding: f64) {
+    fn smooth(&mut self, noise: &mut [f64], protect: &[bool], iterations: i32, surrounding: f64) {
+        if iterations <= 0 {
+            return;
+        }
         let w = self.n;
-        let mut next = vec![0.0f64; noise.len()];
+        let mut next = std::mem::take(&mut self.buf_f64b);
+        next.clear();
+        next.resize(noise.len(), 0.0);
+        // the map inside a border of `surrounding`: pad row y + 1, column x + 1 is tile (x, y)
+        let wu = w as usize;
+        let wp = wu + 2;
+        let mut pad = std::mem::take(&mut self.buf_pad);
+        pad.clear();
+        pad.resize(wp * wp, surrounding);
         for _ in 0..iterations {
-            for y in 0..w {
-                for x in 0..w {
+            for y in 0..wu {
+                pad[(y + 1) * wp + 1..(y + 1) * wp + 1 + wu].copy_from_slice(&noise[y * wu..(y + 1) * wu]);
+            }
+            for y in 0..wu {
+                let r0 = &pad[y * wp..(y + 1) * wp];
+                let r1 = &pad[(y + 1) * wp..(y + 2) * wp];
+                let r2 = &pad[(y + 2) * wp..(y + 3) * wp];
+                let out = &mut next[y * wu..(y + 1) * wu];
+                for x in 0..wu {
+                    // the same sum in the same order: rows y - 1 .. y + 1, columns x - 1 .. x + 1
                     let mut sum = 0.0;
-                    for ny in y - 1..=y + 1 {
-                        for nx in x - 1..=x + 1 {
-                            sum += if nx >= 0 && ny >= 0 && nx < w && ny < w { noise[(ny * w + nx) as usize] } else { surrounding };
-                        }
-                    }
-                    next[(y * w + x) as usize] = sum / 9.0;
+                    sum += r0[x];
+                    sum += r0[x + 1];
+                    sum += r0[x + 2];
+                    sum += r1[x];
+                    sum += r1[x + 1];
+                    sum += r1[x + 2];
+                    sum += r2[x];
+                    sum += r2[x + 1];
+                    sum += r2[x + 2];
+                    out[x] = sum / 9.0;
                 }
             }
             for (i, &p) in protect.iter().enumerate() {
@@ -686,6 +959,8 @@ impl<'a> Gen<'a> {
             }
             noise.copy_from_slice(&next);
         }
+        self.buf_pad = pad;
+        self.buf_f64b = next;
     }
 
     // ---- noise path ----
@@ -704,11 +979,16 @@ impl<'a> Gen<'a> {
         let pre_budget = (((available - suburbs.len() as i32) as f64) * s.pre_terrain_city_density).floor() as i32;
         self.preterrain_cities(&mut cities, pre_budget);
         land.extend_from_slice(&cities);
-        let mut land_set = vec![false; total];
+        let mut land_set = std::mem::take(&mut self.buf_bool);
+        land_set.clear();
+        land_set.resize(total, false);
         for &i in &land {
             land_set[i as usize] = true;
         }
-        let mut seeds = land_set.clone();
+        // seeds: land_set plus the capitals' orthogonal neighbours
+        let mut seeds = std::mem::take(&mut self.buf_bool2);
+        seeds.clear();
+        seeds.extend_from_slice(&land_set);
         for &c in &capitals {
             for d in [1, -1, w, -w] {
                 let j = c + d;
@@ -717,16 +997,25 @@ impl<'a> Gen<'a> {
                 }
             }
         }
-        let mut noise: Vec<f64> = Vec::with_capacity(total);
+        let mut noise = std::mem::take(&mut self.buf_f64);
+        noise.clear();
+        let mut rng = self.rng.clone();
         for i in 0..total {
-            let v = self.rng.next();
+            let v = rng.next();
             noise.push(if seeds[i] { v * (1.0 - s.wetness) + s.wetness } else { v });
         }
+        self.rng = rng;
         self.smooth(&mut noise, &land_set, s.smooth_iterations, s.surrounding_space);
-        let mut sorted = noise.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let waterline = sorted[round_half_even((noise.len() - 1) as f64 * s.wetness) as usize];
-        let mut city_set = vec![false; total];
+        // the k-th smallest value (noise holds no NaN and no -0, so equal keys are equal values)
+        let mut sorted = std::mem::take(&mut self.buf_f64b);
+        sorted.clear();
+        sorted.extend_from_slice(&noise);
+        let k = round_half_even((noise.len() - 1) as f64 * s.wetness) as usize;
+        let waterline = *sorted.select_nth_unstable_by(k, |a, b| a.partial_cmp(b).unwrap()).1;
+        self.buf_f64b = sorted;
+        // city_set reuses the seeds buffer
+        let mut city_set = seeds;
+        city_set.fill(false);
         for &c in &cities {
             city_set[c as usize] = true;
         }
@@ -750,6 +1039,9 @@ impl<'a> Gen<'a> {
             self.terrain[i as usize] = Terrain::Field;
             self.alt[i as usize] = 1;
         }
+        self.buf_bool = land_set;
+        self.buf_bool2 = city_set;
+        self.buf_f64 = noise;
         self.postterrain_cities(max_cities - pre_budget);
         self.grow_climates();
     }
@@ -829,25 +1121,33 @@ impl<'a> Gen<'a> {
 
     fn expand_continent(&mut self, id: usize, noise: &[f64], blocked: &mut [bool]) -> bool {
         let w = self.n;
-        let mut origins = self.islands[id].clone();
-        self.shuffle(&mut origins);
+        let mut origins = std::mem::take(&mut self.buf_i32b);
+        origins.clear();
+        origins.extend_from_slice(&self.islands[id]);
+        let mut lazy = LazyShuffle::start(&mut self.rng, origins.len());
         let me = Some(100 + id as i32);
-        for origin in origins {
+        let mut result = false;
+        for oi in 0..origins.len() {
+            let origin = lazy.get(&mut origins, oi);
             if blocked[origin as usize] {
                 continue;
             }
             let ox = self.x(origin);
             let oy = self.y(origin);
-            let mut cands: Vec<i32> = [(-1, 0), (0, -1), (0, 1), (1, 0)]
-                .iter()
-                .map(|&(dx, dy)| (ox + dx, oy + dy))
-                .filter(|&(x, y)| x >= 0 && y >= 0 && x < w && y < w)
-                .map(|(x, y)| y * w + x)
-                .collect();
-            self.shuffle(&mut cands);
+            let mut cand_buf = [0i32; 4];
+            let mut nc = 0;
+            for (dx, dy) in [(-1, 0), (0, -1), (0, 1), (1, 0)] {
+                let (x, y) = (ox + dx, oy + dy);
+                if x >= 0 && y >= 0 && x < w && y < w {
+                    cand_buf[nc] = y * w + x;
+                    nc += 1;
+                }
+            }
+            let cands = &mut cand_buf[..nc];
+            self.shuffle(cands);
             let mut best_score = 0.0f64;
             let mut best = -1;
-            for &c in &cands {
+            for &c in cands.iter() {
                 if self.cont[c as usize].is_some() {
                     continue;
                 }
@@ -858,7 +1158,7 @@ impl<'a> Gen<'a> {
                 } else if self.map_type == MapType::Pangea {
                     score += -1.0 / e;
                 }
-                for nb in self.area(c, 1) {
+                for &nb in self.area(c, 1) {
                     let other = self.cont[nb as usize];
                     if other.is_none() || other == me {
                         continue;
@@ -884,11 +1184,13 @@ impl<'a> Gen<'a> {
                 self.terrain[u] = Terrain::Field;
                 self.resource[u] = None;
                 self.islands[id].push(best);
-                return true;
+                result = true;
+                break;
             }
             blocked[origin as usize] = true;
         }
-        false
+        self.buf_i32b = origins;
+        result
     }
 
     fn fill_island_villages(&mut self) {
@@ -904,13 +1206,22 @@ impl<'a> Gen<'a> {
     }
 
     fn add_island_village(&mut self, id: usize) -> bool {
-        let mut sites = self.islands[id].clone();
-        if sites.len() < 2 {
+        if self.islands[id].len() < 2 {
             return false;
         }
-        self.shuffle(&mut sites);
+        let mut sites = std::mem::take(&mut self.buf_i32b);
+        sites.clear();
+        sites.extend_from_slice(&self.islands[id]);
+        let mut lazy = LazyShuffle::start(&mut self.rng, sites.len());
+        let r = self.add_island_village_in(&mut sites, &mut lazy);
+        self.buf_i32b = sites;
+        r
+    }
+
+    fn add_island_village_in(&mut self, sites: &mut [i32], lazy: &mut LazyShuffle) -> bool {
         for forced in [false, true] {
-            for &i in &sites {
+            for si in 0..sites.len() {
+                let i = lazy.get(sites, si);
                 let u = i as usize;
                 let ex = self.x(i).min(self.n - 1 - self.x(i));
                 let ey = self.y(i).min(self.n - 1 - self.y(i));
@@ -920,7 +1231,7 @@ impl<'a> Gen<'a> {
                 if forced {
                     let mut same = false;
                     let mut foreign = false;
-                    for j in self.area(i, 1) {
+                    for &j in self.area(i, 1) {
                         let j = j as usize;
                         if self.alt[j] < 0 {
                             continue;
@@ -952,7 +1263,7 @@ impl<'a> Gen<'a> {
         if ex.min(ey) < 2 || self.imp[u].any() {
             return None;
         }
-        for j in self.area(i, radius) {
+        for &j in self.area(i, radius) {
             let ju = j as usize;
             if self.imp[ju].any() && (self.cheb(i, j) <= 2 || (self.owner[ju] >= 0 && self.imp[ju] == Imp::City)) {
                 return None;
@@ -1072,10 +1383,13 @@ impl<'a> Gen<'a> {
 
     fn open_water_villages(&mut self) {
         let target = ((self.s.wetness * self.total as f64) / 50.0).floor() as i32;
-        let mut order: Vec<i32> = (0..self.total).collect();
-        self.shuffle(&mut order);
+        let mut order = std::mem::take(&mut self.buf_i32b);
+        order.clear();
+        order.extend(0..self.total);
+        let mut lazy = LazyShuffle::start(&mut self.rng, order.len());
         let mut placed = 0;
-        for i in order {
+        for oi in 0..order.len() {
+            let i = lazy.get(&mut order, oi);
             let u = i as usize;
             if self.imp[u].any() || !is_water_t(self.terrain[u]) || self.edge(i) <= 0 {
                 continue;
@@ -1092,14 +1406,18 @@ impl<'a> Gen<'a> {
                 break;
             }
         }
+        self.buf_i32b = order;
     }
 
     // ---- climates, terrain, resources ----
     fn grow_climates(&mut self) {
         let players = self.players;
-        let alien: Vec<bool> = (0..players as usize).map(|p| flag(&self.opts.polaris, p)).collect();
+        let alien = std::mem::take(&mut self.alien);
         let fallback = alien.iter().all(|&a| a);
-        self.climates.clear();
+        // reuse the climates' tile lists
+        let mut old = std::mem::take(&mut self.climates);
+        let mut pool: Vec<Vec<i32>> = old.drain(..).map(|c| c.tiles).collect();
+        self.climates = old;
         for p in 0..players {
             let none: Mods = [None; ModKey::COUNT];
             let m = self.mods.get(p as usize).unwrap_or(&none);
@@ -1112,8 +1430,11 @@ impl<'a> Gen<'a> {
                 chance[K_FISH] = 0.0;
             }
             // mods never carry a "field" key (ModKey has none)
+            let mut tiles = if pool.is_empty() { Vec::new() } else { pool.remove(0) };
+            tiles.clear();
+            tiles.push(self.cap(p));
             let c = Climate {
-                tiles: vec![self.cap(p)],
+                tiles,
                 field: modify(TERRAIN_WEIGHT_FIELD, None),
                 mountain: modify(TERRAIN_WEIGHT_MOUNTAIN, m[ModKey::Mountain.idx()]),
                 forest: modify(TERRAIN_WEIGHT_FOREST, m[ModKey::Forest.idx()]),
@@ -1132,20 +1453,38 @@ impl<'a> Gen<'a> {
         let mut assigned = players;
         let mut budget = self.total * 10;
         let mut id: i32 = 0;
+        let mut rng = self.rng.clone();
+        let total = self.total as usize;
+        assert!(self.clim_key.len() == total && self.alt.len() == total && self.cont.len() == total && self.terrain.len() == total && self.resource.len() == total);
         while assigned < self.total && budget > 0 {
             let idu = id as usize;
             let len = self.climates[idu].tiles.len();
             if len == 0 || (alien[idu] && !fallback) {
                 budget -= 1;
             } else {
-                let src = self.range(0, len as i32) as usize;
+                let src = rrange(&mut rng, 0, len as i32) as usize;
                 let origin = self.climates[idu].tiles[src];
                 let around = self.area(origin, 1);
-                let mut cands: Vec<i32> = around.iter().copied().filter(|&i| self.clim_key[i as usize] == 0 && self.alt[i as usize] >= 0).collect();
-                if cands.is_empty() {
-                    cands = around.iter().copied().filter(|&i| self.clim_key[i as usize] == 0).collect();
+                // the candidates: free land around the origin, else any free tile
+                let mut land_c = [0i32; 8];
+                let mut any_c = [0i32; 8];
+                let mut nl = 0usize;
+                let mut na = 0usize;
+                let (ck, alt) = (&self.clim_key[..total], &self.alt[..total]);
+                for &i in around {
+                    let u = i as usize;
+                    debug_assert!(u < total);
+                    // SAFETY: area() yields tiles of the map (< total)
+                    if unsafe { *ck.get_unchecked(u) } == 0 {
+                        any_c[na] = i;
+                        na += 1;
+                        if unsafe { *alt.get_unchecked(u) } >= 0 {
+                            land_c[nl] = i;
+                            nl += 1;
+                        }
+                    }
                 }
-                if cands.is_empty() {
+                if na == 0 {
                     let tiles = &mut self.climates[idu].tiles;
                     let at = if origin == tiles[0] { 0 } else { src };
                     tiles.remove(at);
@@ -1153,57 +1492,105 @@ impl<'a> Gen<'a> {
                     // TS `continue`: the same climate tries again
                     continue;
                 }
-                let chosen = cands[self.range(0, cands.len() as i32) as usize];
+                let chosen = if nl > 0 {
+                    land_c[rrange(&mut rng, 0, nl as i32) as usize]
+                } else {
+                    any_c[rrange(&mut rng, 0, na as i32) as usize]
+                };
                 let u = chosen as usize;
-                self.clim_key[u] = if fallback { self.imperius_key } else { self.key(id) };
-                self.cont[u] = Some(id);
-                if self.alt[u] >= 0 {
-                    self.alt[u] = 1;
-                    self.terrain[u] = Terrain::Field;
-                    self.resource[u] = None;
+                let key = if fallback { self.imperius_key } else { self.key(id) };
+                debug_assert!(u < total);
+                // SAFETY: chosen comes from area() (a tile of the map); the arrays have one entry per tile
+                unsafe {
+                    *self.clim_key.get_unchecked_mut(u) = key;
+                    *self.cont.get_unchecked_mut(u) = Some(id);
+                    if *self.alt.get_unchecked(u) >= 0 {
+                        *self.alt.get_unchecked_mut(u) = 1;
+                        *self.terrain.get_unchecked_mut(u) = Terrain::Field;
+                        *self.resource.get_unchecked_mut(u) = None;
+                    }
                 }
                 self.climates[idu].tiles.push(chosen);
                 assigned += 1;
             }
-            id = (id + 1) % players;
+            id += 1;
+            if id == players {
+                id = 0;
+            }
         }
+        self.rng = rng;
+        self.alien = alien;
     }
 
     fn assign_terrain(&mut self) {
-        for id in 0..self.climates.len() {
-            let mut tiles: Vec<i32> = Vec::new();
-            let mut land = 0;
-            for i in 0..self.total {
-                let u = i as usize;
-                if self.cont[u] != Some(id as i32) {
-                    continue;
-                }
-                tiles.push(i);
-                if !is_water_t(self.terrain[u]) && !self.imp[u].any() {
-                    land += 1;
-                }
+        // each climate's land tiles (no water, no improvement) in index order:
+        // terrain and imp of one tile do not change another's eligibility
+        let nc = self.climates.len();
+        let total = self.total as usize;
+        let mut offs = [0usize; 17];
+        let mut big: Vec<usize> = Vec::new();
+        let offs: &mut [usize] = if nc < 16 {
+            &mut offs[..nc + 1]
+        } else {
+            big.resize(nc + 1, 0);
+            &mut big[..]
+        };
+        let mut lists = std::mem::take(&mut self.buf_i32b);
+        lists.clear();
+        lists.resize(total, 0);
+        assert!(self.resource.len() == total && self.terrain.len() == total && self.alt.len() == total);
+        let eligible = |g: &Gen, u: usize| -> Option<usize> {
+            match g.cont[u] {
+                Some(c) if c >= 0 && (c as usize) < nc && !is_water_t(g.terrain[u]) && !g.imp[u].any() => Some(c as usize),
+                _ => None,
             }
+        };
+        for u in 0..total {
+            if let Some(c) = eligible(self, u) {
+                offs[c + 1] += 1;
+            }
+        }
+        for c in 0..nc {
+            offs[c + 1] += offs[c];
+        }
+        let mut fill: [usize; 16] = [0; 16];
+        let mut fill_big: Vec<usize> = Vec::new();
+        let fill: &mut [usize] = if nc < 16 {
+            fill[..nc].copy_from_slice(&offs[..nc]);
+            &mut fill[..nc]
+        } else {
+            fill_big.extend_from_slice(&offs[..nc]);
+            &mut fill_big[..]
+        };
+        for u in 0..total {
+            if let Some(c) = eligible(self, u) {
+                lists[fill[c]] = u as i32;
+                fill[c] += 1;
+            }
+        }
+        let mut rng = self.rng.clone();
+        for id in 0..nc {
+            let land = offs[id + 1] - offs[id];
             let c = &self.climates[id];
-            let total = c.forest + c.field + c.mountain;
+            let wsum = c.forest + c.field + c.mountain;
             let mut counts = [c.field, c.mountain, c.forest].map(|wt| {
-                let q = (wt / total) * land as f64;
+                let q = (wt / wsum) * land as f64;
                 if q > 0.0 {
                     q.ceil() as i32
                 } else {
                     0
                 }
             });
-            for i in tiles {
-                let u = i as usize;
-                if is_water_t(self.terrain[u]) || self.imp[u].any() {
-                    continue;
-                }
-                self.resource[u] = None;
+            for k in offs[id]..offs[id + 1] {
+                let u = lists[k] as usize;
+                debug_assert!(u < total);
+                // SAFETY: lists holds tiles of the map (< total); the arrays have one entry per tile
+                unsafe { *self.resource.get_unchecked_mut(u) = None };
                 let remaining = counts[0] + counts[1] + counts[2];
                 if remaining == 0 {
                     break;
                 }
-                let pick = self.range(0, remaining);
+                let pick = rrange(&mut rng, 0, remaining);
                 let g = if pick < counts[0] {
                     0
                 } else if pick < counts[0] + counts[1] {
@@ -1212,17 +1599,24 @@ impl<'a> Gen<'a> {
                     2
                 };
                 counts[g] -= 1;
-                self.terrain[u] = [Terrain::Field, Terrain::Mountain, Terrain::Forest][g];
-                self.alt[u] = if g == 1 { 2 } else { 1 };
+                // SAFETY: as above
+                unsafe {
+                    *self.terrain.get_unchecked_mut(u) = [Terrain::Field, Terrain::Mountain, Terrain::Forest][g];
+                    *self.alt.get_unchecked_mut(u) = if g == 1 { 2 } else { 1 };
+                }
             }
         }
+        self.rng = rng;
+        self.buf_i32b = lists;
     }
 
     fn make_ocean(&mut self) {
         let w = self.n;
         let total = self.total;
+        let mut next = std::mem::take(&mut self.buf_terrain);
+        next.clear();
+        next.extend_from_slice(&self.terrain);
         let water = |i: i32| is_water_t(self.terrain[i as usize]);
-        let mut next = self.terrain.clone();
         for i in 0..total {
             if !water(i) {
                 continue;
@@ -1230,7 +1624,7 @@ impl<'a> Gen<'a> {
             let near_land = (i + w < total && !water(i + w)) || (i >= w && !water(i - w)) || (i % w != 0 && !water(i - 1)) || ((i % w) + 1 < w && !water(i + 1));
             next[i as usize] = if near_land { Terrain::Water } else { Terrain::Ocean };
         }
-        self.terrain = next;
+        self.buf_terrain = std::mem::replace(&mut self.terrain, next);
     }
 
     fn corners(&self) -> [i32; 4] {
@@ -1248,57 +1642,96 @@ impl<'a> Gen<'a> {
         }
     }
 
-    fn chance_at(&self, i: usize) -> [f64; 7] {
-        match self.cont[i] {
-            Some(c) if c >= 0 => self.climates[c as usize].chance,
-            _ => RESOURCE_CHANCES,
-        }
-    }
-
-    fn add_resource(&mut self, i: usize) {
+    fn add_resource(&mut self, rng: &mut Rng, i: usize) {
         if self.imp[i].any() {
             return;
         }
-        let chance = self.chance_at(i);
-        let t = self.terrain[i];
-        let mut passed: Vec<Resource> = Vec::new();
-        for (k, (kind, terrains)) in KINDS.iter().enumerate() {
+        // KINDS' terrains as bit masks over Terrain
+        const fn mask(ts: &[Terrain]) -> u8 {
+            let mut m = 0u8;
+            let mut k = 0;
+            while k < ts.len() {
+                m |= 1 << ts[k] as u8;
+                k += 1;
+            }
+            m
+        }
+        const KIND_TERRAINS: [u8; 7] = [mask(KINDS[0].1), mask(KINDS[1].1), mask(KINDS[2].1), mask(KINDS[3].1), mask(KINDS[4].1), mask(KINDS[5].1), mask(KINDS[6].1)];
+        let chance = match self.cont[i] {
+            Some(c) if c >= 0 => &self.climates[c as usize].chance,
+            _ => &RESOURCE_CHANCES,
+        };
+        let tb = 1u8 << self.terrain[i] as u8;
+        let mut passed = [Resource::Animal; 7];
+        let mut np = 0;
+        for k in 0..7 {
             let p = chance[k];
-            if p == 0.0 || !(self.rng.next() <= p) {
+            if p == 0.0 || !(rng.next() <= p) {
                 continue;
             }
-            if terrains.contains(&t) {
-                passed.push(*kind);
+            if KIND_TERRAINS[k] & tb != 0 {
+                passed[np] = KINDS[k].0;
+                np += 1;
             }
         }
-        if passed.is_empty() {
+        if np == 0 {
             return;
         }
-        self.resource[i] = Some(passed[self.range(0, passed.len() as i32) as usize]);
+        self.resource[i] = Some(passed[rrange(rng, 0, np as i32) as usize]);
     }
 
     fn resources(&mut self) {
-        let cities: Vec<i32> = (0..self.total).filter(|&i| self.is_city(i)).collect();
-        let mut visited = vec![false; self.total as usize];
+        // the cities in index order (add_resource changes no improvement)
+        let mut cities = std::mem::take(&mut self.buf_i32b);
+        cities.clear();
+        cities.extend((0..self.total).filter(|&i| self.is_city(i)));
+        // per tile: OPEN = not visited yet, no resource and no improvement (the
+        // only tile whose resource changes is the one being visited); IMP = has an
+        // improvement (fixed here)
+        const OPEN: u8 = 1;
+        const IMP: u8 = 2;
+        let total = self.total as usize;
+        let mut st = std::mem::take(&mut self.buf_u8);
+        st.clear();
+        st.extend(self.resource[..total].iter().zip(&self.imp[..total]).map(|(r, &im)| {
+            if im.any() {
+                IMP
+            } else if r.is_none() {
+                OPEN
+            } else {
+                0
+            }
+        }));
         let richness = self.s.richness;
+        let third = richness / 3.0;
+        let mut rng = self.rng.clone();
         for &c in &cities {
-            for i in self.area(c, 1) {
+            for &i in self.area(c, 1) {
                 let u = i as usize;
-                if self.rng.next() < richness && !visited[u] && self.resource[u].is_none() && !self.imp[u].any() {
-                    self.add_resource(u);
+                debug_assert!(u < total);
+                // SAFETY: area() yields tiles of the map; st holds one entry per tile
+                let f = unsafe { st.get_unchecked_mut(u) };
+                if rng.next() < richness && *f & OPEN != 0 {
+                    self.add_resource(&mut rng, u);
                 }
-                visited[u] = true;
+                *f &= !OPEN;
             }
         }
         for &c in &cities {
-            for i in self.area(c, 2) {
+            for &i in self.area(c, 2) {
                 let u = i as usize;
-                if !self.imp[u].any() && self.rng.next() < richness / 3.0 && !visited[u] && self.resource[u].is_none() {
-                    self.add_resource(u);
+                debug_assert!(u < total);
+                // SAFETY: as above
+                let f = unsafe { st.get_unchecked_mut(u) };
+                if *f & IMP == 0 && rng.next() < third && *f & OPEN != 0 {
+                    self.add_resource(&mut rng, u);
                 }
-                visited[u] = true;
+                *f &= !OPEN;
             }
         }
+        self.buf_u8 = st;
+        self.rng = rng;
+        self.buf_i32b = cities;
     }
 
     fn starting_resources(&mut self, p: i32, wanted: &[Resource]) {
@@ -1306,10 +1739,13 @@ impl<'a> Gen<'a> {
         if requests.is_empty() {
             return;
         }
-        let mut all = self.area(self.cap(p), 1);
-        self.shuffle(&mut all);
+        let around = self.area(self.cap(p), 1);
+        let mut all_buf = [0i32; 8];
+        let all = &mut all_buf[..around.len()];
+        all.copy_from_slice(around);
+        self.shuffle(all);
         let mut cands: Vec<i32> = Vec::with_capacity(all.len());
-        for i in all {
+        for &i in all.iter() {
             let k = self.resource[i as usize].and_then(|r| requests.iter().position(|&q| q == r));
             match k {
                 Some(k) => {
@@ -1349,12 +1785,15 @@ impl<'a> Gen<'a> {
     }
 
     fn ruins(&mut self, amount: i32) {
-        let mut order: Vec<i32> = (0..self.total).collect();
-        self.shuffle(&mut order);
+        let mut order = std::mem::take(&mut self.buf_i32b);
+        order.clear();
+        order.extend(0..self.total);
+        let mut lazy = LazyShuffle::start(&mut self.rng, order.len());
         let corners = self.corners();
         let mut placed = 0;
         let mut water = 0;
-        for i in order {
+        for oi in 0..order.len() {
+            let i = lazy.get(&mut order, oi);
             let u = i as usize;
             let wet = is_water_t(self.terrain[u]);
             if corners.contains(&i) || (wet && water > amount) {
@@ -1383,6 +1822,7 @@ impl<'a> Gen<'a> {
                 break;
             }
         }
+        self.buf_i32b = order;
     }
 
     fn starfish(&mut self, amount: f64) {
@@ -1407,7 +1847,7 @@ impl<'a> Gen<'a> {
         }
     }
 
-    fn draw(mut self) -> GeneratedMap {
+    fn draw(&mut self) {
         let islands = matches!(self.map_type, MapType::Continents | MapType::Pangea);
         if !(islands && self.island_map()) {
             if islands {
@@ -1420,19 +1860,20 @@ impl<'a> Gen<'a> {
         self.make_ocean();
         self.lighthouses();
         self.resources();
-        let starts = self.start_list();
         let total = self.total as usize;
-        let mut ice = vec![false; total];
-        let mut polar = vec![false; total];
+        let starts = std::mem::take(&mut self.starts);
         for p in 0..self.players {
             self.starting_resources(p, &starts[p as usize]);
             let key = self.key(p);
-            for i in self.area(self.cap(p), 1) {
+            for &i in self.area(self.cap(p), 1) {
                 self.clim_key[i as usize] = key;
             }
         }
+        self.starts = starts;
         self.make_ocean();
-        let mut flooded = vec![false; total];
+        self.flooded.fill(false);
+        self.ice.fill(false);
+        self.polar.fill(false);
         for p in 0..self.players {
             if !flag(&self.opts.flooded, p as usize) {
                 continue;
@@ -1440,7 +1881,7 @@ impl<'a> Gen<'a> {
             let key = self.clim_key[self.cap(p) as usize];
             for i in 0..total {
                 if self.clim_key[i] == key && matches!(self.terrain[i], Terrain::Field | Terrain::Forest) {
-                    flooded[i] = true;
+                    self.flooded[i] = true;
                 }
             }
         }
@@ -1451,18 +1892,16 @@ impl<'a> Gen<'a> {
                 continue;
             }
             let c = self.cap(p);
-            let mut ring = vec![c];
-            ring.extend(self.area(c, 1));
+            let ring = std::iter::once(c).chain(self.area(c, 1).iter().copied());
             for i in ring {
                 let u = i as usize;
                 if is_water_t(self.terrain[u]) {
-                    ice[u] = true;
+                    self.ice[u] = true;
                 } else if !self.imp[u].any() {
-                    polar[u] = true;
+                    self.polar[u] = true;
                 }
             }
         }
-        self.output(&flooded, &ice, &polar)
     }
 
     fn start_list(&self) -> Vec<Vec<Resource>> {
@@ -1483,58 +1922,133 @@ impl<'a> Gen<'a> {
             .collect()
     }
 
-    fn output(&self, flooded: &[bool], ice: &[bool], polar: &[bool]) -> GeneratedMap {
-        let mut capitals = vec![false; self.total as usize];
-        for &c in &self.capital {
-            if c >= 0 {
-                capitals[c as usize] = true;
-            }
-        }
-        let mut tiles = Vec::with_capacity(self.total as usize);
-        let mut villages = Vec::new();
-        for i in 0..self.total {
-            let u = i as usize;
-            let village = self.imp[u] == Imp::City && !capitals[u];
-            if village {
-                villages.push(Coord::new(self.x(i), self.y(i)));
-            }
-            let mut t = Tile::new(self.terrain[u]);
-            t.resource = self.resource[u];
-            t.village = village;
-            t.ruin = self.imp[u] == Imp::Ruin;
-            t.lighthouse = self.imp[u] == Imp::Lighthouse;
-            t.flooded = flooded[u];
-            t.ice = ice[u];
-            t.polar = polar[u];
-            tiles.push(t);
-        }
-        let capitals = self.capital.iter().map(|&i| Coord::new(self.x(i), self.y(i))).collect();
-        GeneratedMap { tiles, capitals, villages }
+    fn output(&self) -> GeneratedMap {
+        output_of(self.n, &self.terrain, &self.resource, &self.imp, &self.flooded, &self.ice, &self.polar, &self.capital)
     }
+
+    fn save(&self, snap: &mut Snapshot) {
+        fn copy<T: Copy>(to: &mut Vec<T>, from: &[T]) {
+            to.clear();
+            to.extend_from_slice(from);
+        }
+        copy(&mut snap.terrain, &self.terrain);
+        copy(&mut snap.resource, &self.resource);
+        copy(&mut snap.imp, &self.imp);
+        copy(&mut snap.flooded, &self.flooded);
+        copy(&mut snap.ice, &self.ice);
+        copy(&mut snap.polar, &self.polar);
+        copy(&mut snap.capital, &self.capital);
+    }
+
+    /// inequality(&self.output(), n) without building the map
+    fn inequality(&mut self) -> f64 {
+        let total = self.total as usize;
+        let mut sc = std::mem::take(&mut self.ineq);
+        sc.flags.clear();
+        sc.flags.extend(self.terrain[..total].iter().zip(&self.ice[..total]).zip(&self.imp[..total]).map(|((&t, &ice), &imp)| {
+            let water = if is_water_t(t) && !ice { F_WATER } else { 0 };
+            let mountain = if t == Terrain::Mountain { F_MOUNTAIN } else { 0 };
+            // capitals and villages: every city tile
+            let im = match imp {
+                Imp::City => F_CITY,
+                Imp::Ruin => F_RUIN,
+                _ => 0,
+            };
+            water | mountain | im
+        }));
+        sc.caps.clear();
+        for &c in &self.capital {
+            // output(): capitals are Coord(x(i), y(i)), read back as y * n + x
+            let u = (self.y(c) * self.n + self.x(c)) as usize;
+            sc.caps.push(u);
+            sc.flags[u] |= F_START | F_CITY;
+        }
+        let v = inequality_core(self.n, self.geo, &mut sc);
+        self.ineq = sc;
+        v
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn output_of(n: i32, terrain: &[Terrain], resource: &[Option<Resource>], imp: &[Imp], flooded: &[bool], ice: &[bool], polar: &[bool], capital: &[i32]) -> GeneratedMap {
+    let total = (n * n) as usize;
+    let mut capitals = vec![false; total];
+    for &c in capital {
+        if c >= 0 {
+            capitals[c as usize] = true;
+        }
+    }
+    let x = |i: i32| i % n;
+    let y = |i: i32| i.div_euclid(n);
+    let mut tiles = Vec::with_capacity(total);
+    let mut villages = Vec::new();
+    for i in 0..total as i32 {
+        let u = i as usize;
+        let village = imp[u] == Imp::City && !capitals[u];
+        if village {
+            villages.push(Coord::new(x(i), y(i)));
+        }
+        let mut t = Tile::new(terrain[u]);
+        t.resource = resource[u];
+        t.village = village;
+        t.ruin = imp[u] == Imp::Ruin;
+        t.lighthouse = imp[u] == Imp::Lighthouse;
+        t.flooded = flooded[u];
+        t.ice = ice[u];
+        t.polar = polar[u];
+        tiles.push(t);
+    }
+    let capitals = capital.iter().map(|&i| Coord::new(x(i), y(i))).collect();
+    GeneratedMap { tiles, capitals, villages }
 }
 
 /// The fairness measure (polybots-engine mapgen/select.rs): every tile goes to
 /// the capital that reaches it most cheaply; the result is the richest turf's
 /// score over the poorest's.
 pub fn inequality(map: &GeneratedMap, n: i32) -> f64 {
-    let total = (n * n) as usize;
-    let seats = map.capitals.len();
-    let mut starts = vec![false; total];
-    let mut city_at = vec![false; total];
+    let mut sc = IneqScratch::default();
+    for t in &map.tiles {
+        let mut f = 0u8;
+        if is_water_t(t.terrain) && !t.ice {
+            f |= F_WATER;
+        }
+        if t.terrain == Terrain::Mountain {
+            f |= F_MOUNTAIN;
+        }
+        if t.ruin {
+            f |= F_RUIN;
+        }
+        sc.flags.push(f);
+    }
     for c in &map.capitals {
-        starts[(c.y * n + c.x) as usize] = true;
-        city_at[(c.y * n + c.x) as usize] = true;
+        let u = (c.y * n + c.x) as usize;
+        sc.caps.push(u);
+        sc.flags[u] |= F_START | F_CITY;
     }
     for c in &map.villages {
-        city_at[(c.y * n + c.x) as usize] = true;
+        sc.flags[(c.y * n + c.x) as usize] |= F_CITY;
     }
-    let water: Vec<bool> = map.tiles.iter().map(|t| is_water_t(t.terrain) && !t.ice).collect();
-    let mountain: Vec<bool> = map.tiles.iter().map(|t| t.terrain == Terrain::Mountain).collect();
+    inequality_core(n, &Geo::new(n, 1), &mut sc)
+}
+
+/// inequality over `sc.flags` and `sc.caps`; the other buffers are scratch.
+/// A Dijkstra over (cost, first-entry order): those keys are unique (a tile is
+/// pushed again only with a lower cost and keeps its order), so the pops come
+/// in one definite order and each seat's score is summed in that order.
+fn inequality_core(n: i32, geo: &Geo, sc: &mut IneqScratch) -> f64 {
+    let total = (n * n) as usize;
+    let seats = sc.caps.len();
+    let IneqScratch { flags, caps, scores, ent, queue } = sc;
+    let flags = &flags[..];
     let nf = n as f64;
+    let span = nf * 0.8 - 3.0;
     let turf = |i: usize, cost: i32| -> f64 {
-        let factor = 1f64.min(0f64.max((cost as f64 - 3.0) / (nf * 0.8 - 3.0)));
+        let factor = 1f64.min(0f64.max((cost as f64 - 3.0) / span));
         let mut score;
-        if city_at[i] {
+        debug_assert!(i < flags.len());
+        // SAFETY: i is a tile of the map (flags has one entry per tile)
+        let f = unsafe { *flags.get_unchecked(i) };
+        if f & F_CITY != 0 {
             let base = -90.0 * factor + 100.0 + 0.1;
             score = if cost == 3 {
                 base + 40.0
@@ -1543,125 +2057,108 @@ pub fn inequality(map: &GeneratedMap, n: i32) -> f64 {
             } else {
                 base
             };
-        } else if map.tiles[i].ruin {
+        } else if f & F_RUIN != 0 {
             let base = -3.0 * factor + 5.0 + 0.1;
             score = if cost < 5 { base + 5.0 } else { base };
         } else {
             score = 0.1;
         }
-        if !water[i] {
+        if f & F_WATER == 0 {
             score += 1.5 - factor;
         }
         score
     };
-    let mut scores = vec![0.0f64; seats];
-    let mut visited = vec![false; total];
-    // entry per tile: (cost, seat, order)
-    let mut entry: Vec<Option<(i32, usize, i32)>> = vec![None; total];
-    // binary heap of (cost, order, index)
-    let mut heap: Vec<(i32, i32, usize)> = Vec::new();
-    #[inline]
-    fn less(a: &(i32, i32, usize), b: &(i32, i32, usize)) -> bool {
-        a.0 < b.0 || (a.0 == b.0 && a.1 < b.1)
-    }
-    fn push(heap: &mut Vec<(i32, i32, usize)>, v: (i32, i32, usize)) {
-        heap.push(v);
-        let mut k = heap.len() - 1;
-        while k > 0 {
-            let p = (k - 1) >> 1;
-            if !less(&heap[k], &heap[p]) {
-                break;
+    scores.clear();
+    scores.resize(seats, 0.0);
+    ent.clear();
+    ent.resize(total, E_NONE);
+    queue.clear();
+    // a bucket's entries sort by order (the tile in the low bits never decides)
+    assert!(total <= 1 << 16, "mapgen: map too large for inequality's keys");
+    let entry = |order: u32, j: usize| (order << 16) | j as u32;
+    let mut added: u32 = 0;
+    assert!(seats <= 1 << 16, "mapgen: too many seats");
+    let pack = |cost: i32, seat: u32, order: u32| ((cost as u32 as u64) << 32) | ((seat as u64) << 16) | order as u64;
+    assert!(flags.len() == total && ent.len() == total);
+    let mut expand = |index: usize, seat: u32, cost: i32, ent: &mut Vec<u64>, queue: &mut Buckets| {
+        let fi = flags[index];
+        // the step onto water depends on the tile left
+        let wstep = if fi & F_WATER != 0 {
+            4
+        } else if fi & F_CITY == 0 {
+            1000
+        } else if fi & F_START != 0 {
+            8
+        } else {
+            16
+        };
+        // step onto a tile by its flags & (F_WATER | F_MOUNTAIN): land, water, mountain
+        let steps = [1, wstep, 4, 4];
+        // the neighbours in the order x outer, y inner (geo's order)
+        for &j in geo.area(index as i32, 1) {
+            let j = j as usize;
+            debug_assert!(j < ent.len() && j < flags.len());
+            // SAFETY: area() yields tiles of the map; ent and flags hold one entry per tile
+            let e = unsafe { *ent.get_unchecked(j) };
+            if e == E_DONE {
+                continue;
             }
-            heap.swap(k, p);
-            k = p;
-        }
-    }
-    fn pop(heap: &mut Vec<(i32, i32, usize)>) -> (i32, i32, usize) {
-        let top = heap[0];
-        let last = heap.pop().unwrap();
-        if !heap.is_empty() {
-            heap[0] = last;
-            let mut k = 0;
-            loop {
-                let l = 2 * k + 1;
-                let r = l + 1;
-                let mut m = k;
-                if l < heap.len() && less(&heap[l], &heap[m]) {
-                    m = l;
-                }
-                if r < heap.len() && less(&heap[r], &heap[m]) {
-                    m = r;
-                }
-                if m == k {
-                    break;
-                }
-                heap.swap(k, m);
-                k = m;
-            }
-        }
-        top
-    }
-    let mut added: i32 = 0;
-    let mut expand = |index: usize, seat: usize, cost: i32, visited: &Vec<bool>, entry: &mut Vec<Option<(i32, usize, i32)>>, heap: &mut Vec<(i32, i32, usize)>| {
-        let cx = index as i32 % n;
-        let cy = index as i32 / n;
-        for x in cx - 1..=cx + 1 {
-            for y in cy - 1..=cy + 1 {
-                if x < 0 || y < 0 || x >= n || y >= n {
-                    continue;
-                }
-                let j = (y * n + x) as usize;
-                if visited[j] || j == index {
-                    continue;
-                }
-                let step = if mountain[j] {
-                    4
-                } else if !water[j] {
-                    1
-                } else if water[index] {
-                    4
-                } else if !city_at[index] {
-                    1000
-                } else if starts[index] {
-                    8
-                } else {
-                    16
-                };
-                let next = cost + step;
-                if let Some(prev) = entry[j].as_mut() {
-                    if next < prev.0 || (next == prev.0 && seat < prev.1) {
-                        if next < prev.0 {
-                            push(heap, (next, prev.2, j));
-                        }
-                        prev.0 = next;
-                        prev.1 = seat;
+            let fj = unsafe { *flags.get_unchecked(j) };
+            let step = steps[(fj & (F_WATER | F_MOUNTAIN)) as usize];
+            let next = cost + step;
+            if e == E_NONE {
+                unsafe { *ent.get_unchecked_mut(j) = pack(next, seat, added) };
+                queue.push(next, entry(added, j));
+                added += 1;
+            } else {
+                // next < cost || (next == cost && seat < its seat)
+                let order = (e & 0xffff) as u32;
+                let ne = pack(next, seat, order);
+                if ne < e {
+                    if next < (e >> 32) as i32 {
+                        queue.push(next, entry(order, j));
                     }
-                } else {
-                    entry[j] = Some((next, seat, added));
-                    push(heap, (next, added, j));
-                    added += 1;
+                    unsafe { *ent.get_unchecked_mut(j) = ne };
                 }
             }
         }
     };
-    for (seat, c) in map.capitals.iter().enumerate() {
-        let i = (c.y * n + c.x) as usize;
-        visited[i] = true;
+    for (seat, &i) in caps.iter().enumerate() {
+        ent[i] = E_DONE;
         scores[seat] = turf(i, 0);
     }
-    for (seat, c) in map.capitals.iter().enumerate() {
-        expand((c.y * n + c.x) as usize, seat, 0, &visited, &mut entry, &mut heap);
+    for (seat, &i) in caps.iter().enumerate() {
+        expand(i, seat as u32, 0, ent, queue);
     }
-    while !heap.is_empty() {
-        let (cost, _, index) = pop(&mut heap);
-        let Some(e) = entry[index] else { continue };
-        if e.0 != cost || visited[index] {
-            continue;
+    // the pops in (cost, order) order: a bucket is complete when reached (every
+    // push adds at least 1), so it is sorted once; its pushes go to later buckets
+    let mut cur = 0;
+    let mut bucket: Vec<u32> = Vec::new();
+    while queue.pending > 0 {
+        cur = queue.next_cost(cur);
+        let slot = (cur & 1023) as usize;
+        std::mem::swap(&mut bucket, &mut queue.slots[slot]);
+        queue.bits[slot >> 6] &= !(1u64 << (slot & 63));
+        queue.pending -= bucket.len();
+        if bucket.len() > 1 {
+            bucket.sort_unstable();
         }
-        entry[index] = None;
-        visited[index] = true;
-        scores[e.1] += turf(index, cost);
-        expand(index, e.1, cost, &visited, &mut entry, &mut heap);
+        let cost = cur;
+        for &q in bucket.iter() {
+            let index = (q & 0xffff) as usize;
+            debug_assert!(index < ent.len());
+            // SAFETY: entries hold tiles of the map (ent has one entry per tile)
+            let e = unsafe { *ent.get_unchecked(index) };
+            if e >= E_DONE || (e >> 32) as i32 != cost {
+                continue;
+            }
+            unsafe { *ent.get_unchecked_mut(index) = E_DONE };
+            let seat = ((e >> 16) & 0xffff) as u32;
+            scores[seat as usize] += turf(index, cost);
+            expand(index, seat, cost, ent, queue);
+        }
+        bucket.clear();
+        std::mem::swap(&mut bucket, &mut queue.slots[slot]);
     }
     // Math.min(...scores) / Math.max(...scores)
     let lo = scores.iter().fold(f64::INFINITY, |m, &v| m.min(v));
@@ -1692,24 +2189,33 @@ pub fn generate_map_with(rng: &mut Rng, n: i32, players: i32, map_type: MapType,
         })
         .collect();
     let candidates = 1.max(candidates.unwrap_or(settings.equality_iterations));
-    let mut best: Option<GeneratedMap> = None;
+    // capital_eligibility reads radius 3 (island maps only)
+    let islands = matches!(map_type, MapType::Continents | MapType::Pangea);
+    let geo = Geo::new(n, if islands { 3 } else { 2 });
+    // one generator, reset per candidate; the fairest candidate is copied out
+    let mut g = Gen::new(Rng::new(0), &geo, n, players, settings, map_type, &eff_mods, opts);
+    let mut best = Snapshot::default();
+    let mut have_best = false;
     let mut best_score = f64::INFINITY;
     for _ in 0..candidates {
         let seed = (rng.next() * 2147483647.0).floor() as i64;
-        let map = Gen::new(Rng::new(seed), n, players, settings, map_type, &eff_mods, opts).draw();
+        g.reset(Rng::new(seed));
+        g.draw();
         if candidates == 1 {
-            return map;
+            return g.output();
         }
-        let score = inequality(&map, n);
+        let score = g.inequality();
         if score < settings.equality_limit {
-            return map;
+            return g.output();
         }
         if score < best_score {
-            best = Some(map);
+            g.save(&mut best);
+            have_best = true;
             best_score = score;
         }
     }
-    best.expect("mapgen: no candidate map")
+    assert!(have_best, "mapgen: no candidate map");
+    output_of(n, &best.terrain, &best.resource, &best.imp, &best.flooded, &best.ice, &best.polar, &best.capital)
 }
 
 #[cfg(test)]

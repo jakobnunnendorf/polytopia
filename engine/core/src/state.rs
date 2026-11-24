@@ -4,12 +4,12 @@
 //! Functions returning a city or unit return its index into `s.cities` / `s.units`.
 use crate::data::*;
 use crate::diplomacy::{at_peace, at_war};
-use crate::grid::{around, dist, idx, in_bounds, is_water, tile_at, tile_at_mut};
+use crate::grid::{around, dist, for_around, idx, in_bounds, is_water, tile_at, tile_at_mut};
 use crate::mapgen::{generate_map, MapOptions, MapType, Mods};
 use crate::movement::{can_see, follower_of, leader_of};
 use crate::rng::{shuffle, Rng};
 use crate::types::*;
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 
 const CITY_NAMES: [&str; 35] = [
     "Ashford", "Brightwater", "Cinderholm", "Dunmere", "Elderglen", "Fallowmark", "Greystone",
@@ -123,6 +123,42 @@ pub fn log(s: &mut GameState, msg: &str) {
 pub fn city_by_id(s: &GameState, id: Option<Id>) -> Option<usize> {
     let id = id?;
     s.cities.iter().position(|c| c.id == id)
+}
+/// city_by_id(s, id) owner for many lookups: (id, owner) of every city, first
+/// city of an id kept, sorted by id
+pub(crate) struct CityOwners(Vec<(Id, i32)>);
+
+impl CityOwners {
+    pub(crate) fn new(s: &GameState) -> CityOwners {
+        let mut v: Vec<(Id, i32)> = s.cities.iter().map(|c| (c.id, c.owner)).collect();
+        // stable: of cities with one id the first stays first, and dedup keeps it
+        v.sort_by_key(|&(id, _)| id);
+        v.dedup_by_key(|e| e.0);
+        CityOwners(v)
+    }
+    #[inline]
+    pub(crate) fn owner(&self, id: Option<Id>) -> Option<i32> {
+        let id = id?;
+        self.0.binary_search_by_key(&id, |&(i, _)| i).ok().map(|k| self.0[k].1)
+    }
+}
+
+/// movement::territory_owner of every tile, by tile index
+pub(crate) fn territory_owners(s: &GameState) -> Vec<Option<i32>> {
+    let co = CityOwners::new(s);
+    let mut last: (Option<Id>, Option<i32>) = (None, None);
+    s.tiles
+        .iter()
+        .map(|t| {
+            if t.territory.is_none() {
+                return None;
+            }
+            if t.territory != last.0 {
+                last = (t.territory, co.owner(t.territory));
+            }
+            last.1
+        })
+        .collect()
 }
 #[inline]
 fn city_owner(s: &GameState, id: Option<Id>) -> Option<i32> {
@@ -298,9 +334,14 @@ pub fn income(s: &GameState, p: i32) -> i32 {
     total
 }
 pub fn tech_cost(s: &GameState, p: i32, tech: Tech) -> i32 {
-    let t = tech_def(tech);
     let cities = s.cities.iter().filter(|c| c.owner == p).count() as i32;
     let literacy = s.players[p as usize].has_tech(Tech::Philosophy);
+    tech_cost_for(tech, cities, literacy)
+}
+/// tech_cost with p's city count and whether p has Philosophy (Literacy)
+#[inline]
+pub(crate) fn tech_cost_for(tech: Tech, cities: i32, literacy: bool) -> i32 {
+    let t = tech_def(tech);
     let base = 4 + t.tier * cities;
     // state.ts: Math.ceil(base * Math.fround(0.66666)) (no epsilon, unlike data.ts techCostFor)
     if literacy {
@@ -331,7 +372,7 @@ fn unit_score(u: &Unit) -> i32 {
 pub fn score_of(s: &GameState, p: i32) -> i32 {
     let pl = &s.players[p as usize];
     let mut score = 0;
-    score += pl.explored.iter().map(|&b| b as i32).sum::<i32>() * SCORE.explored_tile;
+    score += pl.explored.iter().map(|&b| b as u32).sum::<u32>() as i32 * SCORE.explored_tile;
     for &t in &pl.techs {
         score += SCORE.tech_tier * tech_def(t).tier;
     }
@@ -340,7 +381,8 @@ pub fn score_of(s: &GameState, p: i32) -> i32 {
             score += unit_score(u);
         }
     }
-    let mine: HashSet<Id> = s.cities.iter().filter(|c| c.owner == p).map(|c| c.id).collect();
+    // ids of p's cities (few: a linear search beats hashing)
+    let mine: Vec<Id> = s.cities.iter().filter(|c| c.owner == p).map(|c| c.id).collect();
     for c in s.cities.iter().filter(|c| c.owner == p) {
         score += city_score(c);
     }
@@ -407,9 +449,9 @@ fn network_node(s: &GameState, i: usize) -> bool {
     t.road || t.village || t.city_id.is_some() || matches!(t.building, Some(Build::Bridge | Build::Port | Build::Outpost | Build::Mycelium))
 }
 /// a connection step from tile `a` onto tile `b`
-fn owners_allow(s: &GameState, a: &Tile, b: &Tile) -> bool {
-    let from = city_owner(s, a.territory);
-    let to = city_owner(s, b.territory);
+fn owners_allow(s: &GameState, co: &CityOwners, a: &Tile, b: &Tile) -> bool {
+    let from = co.owner(a.territory);
+    let to = co.owner(b.territory);
     match (from, to) {
         (_, None) => true,
         (Some(f), Some(t)) if f == t => true,
@@ -417,12 +459,24 @@ fn owners_allow(s: &GameState, a: &Tile, b: &Tile) -> bool {
         (Some(f), Some(t)) => at_peace(s, f, t),
     }
 }
+/// tile indices within Chebyshev distance r of c, row by row (the order of a
+/// scan over all tiles that skips the farther ones)
+#[inline]
+fn for_box(n: i32, c: Coord, r: i32, mut f: impl FnMut(usize)) {
+    for y in (c.y - r).max(0)..=(c.y + r).min(n - 1) {
+        for x in (c.x - r).max(0)..=(c.x + r).min(n - 1) {
+            f(idx(n, x, y));
+        }
+    }
+}
 /// recompute which of p's cities are connected to its capital; adjust population
 pub fn update_connections(s: &mut GameState, p: i32) {
     let cap = capital_of(s, p);
     let n = s.map_size;
-    let mut connected: HashSet<Id> = HashSet::new();
+    let mut connected: Vec<Id> = Vec::new();
     if let Some(capi) = cap {
+        let co = CityOwners::new(s);
+        let city_owner = |id: Option<Id>| co.owner(id);
         let (capx, capy) = (s.cities[capi].x, s.cities[capi].y);
         let len = s.tiles.len();
         let mut seen = vec![false; len];
@@ -430,82 +484,96 @@ pub fn update_connections(s: &mut GameState, p: i32) {
         seen[start] = true;
         let mut queue: VecDeque<usize> = VecDeque::from([start]);
         let cymanti = s.players[p as usize].tribe == Tribe::Cymanti;
+        let mut atolls: Option<Vec<usize>> = None;
         while let Some(cur) = queue.pop_front() {
             let c = Coord::new(cur as i32 % n, cur as i32 / n);
             let t = &s.tiles[cur];
             if let Some(id) = t.city_id {
-                connected.insert(id);
+                if !connected.contains(&id) {
+                    connected.push(id);
+                }
             }
-            for q in around(n, c, 1, false) {
+            for_around(n, c, 1, false, |q| {
                 let i = idx(n, q.x, q.y);
                 if seen[i] {
-                    continue;
+                    return;
                 }
-                if network_node(s, i) && owners_allow(s, t, &s.tiles[i]) {
+                if network_node(s, i) && owners_allow(s, &co, t, &s.tiles[i]) {
                     seen[i] = true;
                     queue.push_back(i);
                 }
-            }
+            });
             // Mycelium links cities and other Mycelium within 3 tiles
             let t_myc = t.building == Some(Build::Mycelium);
             if t_myc || (t.city_id.is_some() && cymanti) {
                 let explored = &s.players[p as usize].explored;
-                for q in around(n, c, 3, false) {
+                for_around(n, c, 3, false, |q| {
                     let j = idx(n, q.x, q.y);
                     let tj = &s.tiles[j];
                     if seen[j] || explored[j] != 1 {
-                        continue;
+                        return;
                     }
                     if !(tj.building == Some(Build::Mycelium) || (t_myc && tj.city_id.is_some())) {
-                        continue;
+                        return;
                     }
-                    if city_owner(s, tj.territory) != Some(p) && tj.city_id.is_none() {
-                        continue;
+                    if city_owner(tj.territory) != Some(p) && tj.city_id.is_none() {
+                        return;
                     }
-                    if tj.city_id.is_some() && city_owner(s, tj.city_id) != Some(p) {
-                        continue;
+                    if tj.city_id.is_some() && city_owner(tj.city_id) != Some(p) {
+                        return;
                     }
                     seen[j] = true;
                     queue.push_back(j);
-                }
+                });
             }
             // port-to-port links within range 5 over friendly water; ocean only with Sailing
             // (Polaris: outposts link like ports)
             if matches!(t.building, Some(Build::Port | Build::Outpost)) {
-                for j in 0..len {
+                for_box(n, c, PORT_RANGE, |j| {
                     if seen[j] || s.tiles[j].building != t.building {
-                        continue;
+                        return;
                     }
                     let q = Coord::new(j as i32 % n, j as i32 / n);
-                    if dist(c.x, c.y, q.x, q.y) > PORT_RANGE {
-                        continue;
-                    }
-                    if city_owner(s, s.tiles[j].territory) != Some(p) {
-                        continue;
+                    if city_owner(s.tiles[j].territory) != Some(p) {
+                        return;
                     }
                     if water_path(s, p, c, q) {
                         seen[j] = true;
                         queue.push_back(j);
                     }
-                }
+                });
             }
             // Aquarion Atolls link own cities and atolls within 3 tiles
             let t_atoll = t.building == Some(Build::Atoll);
-            if t_atoll || t.city_id.is_some() {
-                for j in 0..len {
+            if !t_atoll && t.city_id.is_some() {
+                // from a city only Atolls link: the same checks on the Atoll tiles in range, in tile order
+                let atolls = atolls.get_or_insert_with(|| (0..len).filter(|&j| s.tiles[j].building == Some(Build::Atoll)).collect::<Vec<usize>>());
+                for &j in atolls.iter() {
                     let o = &s.tiles[j];
                     if seen[j] || dist(c.x, c.y, j as i32 % n, j as i32 / n) > 3 {
                         continue;
                     }
-                    if !(o.building == Some(Build::Atoll) || (t_atoll && o.city_id.is_some())) {
-                        continue;
-                    }
-                    if city_owner(s, o.city_id.or(o.territory)) != Some(p) {
+                    if city_owner(o.city_id.or(o.territory)) != Some(p) {
                         continue;
                     }
                     seen[j] = true;
                     queue.push_back(j);
                 }
+            } else if t_atoll {
+                for_box(n, c, 3, |j| {
+                    let o = &s.tiles[j];
+                    if seen[j] {
+                        return;
+                    }
+                    if !(o.building == Some(Build::Atoll) || (t_atoll && o.city_id.is_some())) {
+                        return;
+                    }
+                    if city_owner(o.city_id.or(o.territory)) != Some(p) {
+                        return;
+                    }
+                    seen[j] = true;
+                    queue.push_back(j);
+                });
             }
         }
     }

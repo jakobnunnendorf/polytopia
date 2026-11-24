@@ -5,7 +5,7 @@
 //!
 //! Scores are f64 and every expression keeps the TS evaluation order, so the
 //! comparisons in bot_step pick exactly the action TS picks.
-use crate::actions::{apply_action, legal_actions};
+use crate::actions::apply_action;
 use crate::combat::compute_damage_rounded;
 use crate::data::{build_def, tech_def, unit_def};
 use crate::diplomacy::at_peace;
@@ -209,8 +209,8 @@ pub fn goal(s: &GameState, u: &Unit) -> Option<Coord> {
             *best = Some(c);
         }
     };
-    for (i, t) in s.tiles.iter().enumerate() {
-        if pl.explored[i] != 1 {
+    for (i, (t, &e)) in s.tiles.iter().zip(pl.explored.iter()).enumerate() {
+        if e != 1 || !(t.village || t.ruin || t.city_id.is_some()) {
             continue;
         }
         let c = Coord::new(i as i32 % n, i as i32 / n);
@@ -247,22 +247,131 @@ pub fn goal(s: &GameState, u: &Unit) -> Option<Coord> {
 
 /// goal() per unit id within one bot_step: goal is a pure function of the
 /// state and the unit, and the state does not change while bot_step scores
-/// the legal actions, so the cached value equals a fresh call.
-pub(crate) type GoalCache = Vec<(Id, Option<Coord>)>;
+/// the legal actions, so the cached value equals a fresh call. The candidate
+/// tiles goal() weighs depend only on the unit's owner and are listed once.
+#[derive(Default)]
+pub(crate) struct GoalCache {
+    goals: Vec<(Id, Option<Coord>)>,
+    /// (id, index into s.units) of the last unit looked up: legal actions come grouped by unit
+    last_unit: Option<(Id, usize)>,
+    opinion: crate::opinion::OpinionCache,
+    /// (units, cities) of the current player
+    counts: Option<(usize, usize)>,
+    /// per owner: goal()'s candidates (coord, bias) in its order
+    targets: Vec<(i32, Vec<(Coord, i32)>)>,
+}
+
+/// goal()'s candidates for units of `owner`, in the order goal() considers them
+pub(crate) fn goal_targets(s: &GameState, owner: i32) -> Vec<(Coord, i32)> {
+    let n = s.map_size;
+    let pl = &s.players[owner as usize];
+    let co = crate::state::CityOwners::new(s);
+    let mut out = Vec::with_capacity(32);
+    for (i, t) in s.tiles.iter().enumerate() {
+        if pl.explored[i] != 1 {
+            continue;
+        }
+        let c = Coord::new(i as i32 % n, i as i32 / n);
+        if t.village {
+            out.push((c, 0));
+        }
+        if t.ruin {
+            out.push((c, 1));
+        }
+        if let Some(o) = co.owner(t.city_id) {
+            if o != owner && !at_peace(s, owner, o) {
+                out.push((c, 1));
+            }
+        }
+    }
+    for e in &s.units {
+        if e.owner != owner && !at_peace(s, owner, e.owner) && pl.explored[idx(n, e.x, e.y)] == 1 {
+            out.push((Coord::new(e.x, e.y), 2));
+        }
+    }
+    out
+}
+
+/// goal()'s frontier pick: of the tiles `u`'s owner has not explored, the first
+/// in tile order with the smallest distance to u
+fn nearest_unexplored(s: &GameState, u: &Unit) -> Option<Coord> {
+    let n = s.map_size;
+    let explored = &s.players[u.owner as usize].explored;
+    let far = (u.x).max(n - 1 - u.x).max(u.y).max(n - 1 - u.y);
+    for d in 0..=far {
+        for y in (u.y - d).max(0)..=(u.y + d).min(n - 1) {
+            let edge_row = (y - u.y).abs() == d;
+            let mut x = (u.x - d).max(0);
+            let x1 = (u.x + d).min(n - 1);
+            while x <= x1 {
+                // on a middle row only the two ends are on the ring
+                if !edge_row && (x - u.x).abs() != d {
+                    x = if x < u.x + d { u.x + d } else { x + 1 };
+                    continue;
+                }
+                if explored[idx(n, x, y)] != 1 {
+                    return Some(Coord::new(x, y));
+                }
+                x += 1;
+            }
+        }
+    }
+    None
+}
 
 /// goal(s, u) through the per-step cache (None = no cache)
 pub(crate) fn cached_goal(s: &GameState, u: &Unit, cache: &mut Option<GoalCache>) -> Option<Coord> {
-    match cache {
-        None => goal(s, u),
-        Some(c) => match c.iter().find(|(id, _)| *id == u.id) {
-            Some(&(_, g)) => g,
-            None => {
-                let g = goal(s, u);
-                c.push((u.id, g));
-                g
-            }
-        },
+    let Some(c) = cache else { return goal(s, u) };
+    // legal actions come grouped by unit: the last goal first
+    if let Some(&(id, g)) = c.goals.last() {
+        if id == u.id {
+            return g;
+        }
     }
+    if let Some(&(_, g)) = c.goals.iter().find(|(id, _)| *id == u.id) {
+        return g;
+    }
+    let k = match c.targets.iter().position(|e| e.0 == u.owner) {
+        Some(k) => k,
+        None => {
+            let t = goal_targets(s, u.owner);
+            c.targets.push((u.owner, t));
+            c.targets.len() - 1
+        }
+    };
+    let targets = &c.targets[k].1;
+    // first candidate with the smallest dist + bias (i32::MAX: Infinity)
+    let mut best: Option<Coord> = None;
+    let mut best_d = i32::MAX;
+    if !targets.is_empty() {
+        for &(t, bias) in targets {
+            let d = dist(u.x, u.y, t.x, t.y) + bias;
+            if d < best_d {
+                best_d = d;
+                best = Some(t);
+            }
+        }
+    } else {
+        // the nearest unexplored tile, first in tile order: the first one on the
+        // smallest ring around u, the ring's tiles visited in tile (row-major) order
+        best = nearest_unexplored(s, u);
+    }
+    c.goals.push((u.id, best));
+    best
+}
+
+/// find_unit through the cache's last lookup
+#[inline]
+fn find_unit_cached<'a>(s: &'a GameState, id: Id, cache: &mut Option<GoalCache>) -> &'a Unit {
+    let Some(c) = cache else { return find_unit(s, id) };
+    if let Some((lid, li)) = c.last_unit {
+        if lid == id {
+            return &s.units[li];
+        }
+    }
+    let i = s.units.iter().position(|x| x.id == id).expect("bot: unit of a legal action not found");
+    c.last_unit = Some((id, i));
+    &s.units[i]
 }
 
 #[inline]
@@ -270,10 +379,19 @@ pub(crate) fn find_unit<'a>(s: &'a GameState, id: Id) -> &'a Unit {
     s.units.iter().find(|x| x.id == id).expect("bot: unit of a legal action not found")
 }
 
+/// opinion_of(s, bot, other) == Great, through the per-step cache
+fn opinion_great(s: &GameState, bot: i32, other: i32, cache: &mut Option<GoalCache>) -> bool {
+    match cache {
+        None => opinion_of(s, bot, other) == OpinionLevel::Great,
+        Some(c) => crate::opinion::opinion_great_with(s, bot, other, &mut c.opinion),
+    }
+}
+
 pub fn score_action(s: &GameState, a: &Action, w: &GreedyWeights) -> f64 {
     score_with(s, a, w, &mut None)
 }
 
+#[inline(never)]
 pub(crate) fn score_with(s: &GameState, a: &Action, w: &GreedyWeights, cache: &mut Option<GoalCache>) -> f64 {
     let p = s.current;
     let pl = &s.players[p as usize];
@@ -339,8 +457,11 @@ pub(crate) fn score_with(s: &GameState, a: &Action, w: &GreedyWeights, cache: &m
         }
         Action::Train { city, unit } => {
             let def = unit_def(unit);
-            let units = s.units.iter().filter(|x| x.owner == p).count();
-            let cities = s.cities.iter().filter(|c| c.owner == p).count();
+            let count = || (s.units.iter().filter(|x| x.owner == p).count(), s.cities.iter().filter(|c| c.owner == p).count());
+            let (units, cities) = match cache {
+                None => count(),
+                Some(c) => *c.counts.get_or_insert_with(count),
+            };
             if units as f64 > cities as f64 * w.units_per_city {
                 return -1.0;
             }
@@ -348,7 +469,7 @@ pub(crate) fn score_with(s: &GameState, a: &Action, w: &GreedyWeights, cache: &m
             w.train + strength - def.cost as f64 / 2.0 + w.noise * noise(s, city as i64 + unit.id().len() as i64)
         }
         Action::Move { unit, to } => {
-            let u = find_unit(s, unit);
+            let u = find_unit_cached(s, unit, cache);
             let g = cached_goal(s, u, cache);
             let Some(g) = g else { return -1.0 };
             let gain = dist(u.x, u.y, g.x, g.y) - dist(to.x, to.y, g.x, g.y);
@@ -403,21 +524,21 @@ pub(crate) fn score_with(s: &GameState, a: &Action, w: &GreedyWeights, cache: &m
         Action::Decompose { .. } => -1.0,
         // diplomacy: accept and offer peace only at a great opinion; answer every offer first
         Action::AcceptPeace { player } => {
-            if opinion_of(s, p, player) == OpinionLevel::Great {
+            if opinion_great(s, p, player, cache) {
                 1000.0
             } else {
                 -1.0
             }
         }
         Action::DeclinePeace { player } => {
-            if opinion_of(s, p, player) == OpinionLevel::Great {
+            if opinion_great(s, p, player, cache) {
                 -1.0
             } else {
                 1000.0
             }
         }
         Action::OfferPeace { player } => {
-            if opinion_of(s, p, player) == OpinionLevel::Great {
+            if opinion_great(s, p, player, cache) {
                 50.0
             } else {
                 -1.0
@@ -432,14 +553,59 @@ pub(crate) fn score_with(s: &GameState, a: &Action, w: &GreedyWeights, cache: &m
 /// bot.ts botStep: the first legal action with the highest score above 0, else endTurn
 /// (or the pending reward, which must be answered)
 pub fn bot_step(s: &GameState, w: &GreedyWeights) -> Action {
-    best_of(s, &legal_actions(s), w)
-}
-
-/// the choice of bot_step among `actions` (the legal actions of `s`, in order)
-fn best_of(s: &GameState, actions: &[Action], w: &GreedyWeights) -> Action {
+    // best_of(s, &legal_actions(s), w), scoring while the list is built: a
+    // unit's Move actions are not even searched when none of them can score
+    // above the best so far (a later action replaces the best only with a
+    // higher score, so they could not change the pick)
     let mut best = Action::EndTurn;
     let mut best_score = 0.0f64;
-    let mut cache: Option<GoalCache> = Some(Vec::new());
+    let mut cache: Option<GoalCache> = Some(GoalCache::default());
+    let mut scored = 0usize;
+    let mut feed = |actions: &[Action], best: &mut Action, best_score: &mut f64, cache: &mut Option<GoalCache>| {
+        for a in &actions[scored..] {
+            if *a == Action::EndTurn {
+                continue;
+            }
+            let sc = score_with(s, a, w, cache);
+            if sc > *best_score {
+                *best_score = sc;
+                *best = *a;
+            }
+        }
+        scored = actions.len();
+    };
+    let mut out = Vec::with_capacity(256);
+    crate::actions::legal_into(s, &mut out, |u, so_far| {
+        feed(so_far, &mut best, &mut best_score, &mut cache);
+        // (NaN: search)
+        !(move_bound(s, u, w) <= best_score)
+    });
+    feed(&out, &mut best, &mut best_score, &mut cache);
+    if best == Action::EndTurn {
+        if let Some(a0 @ Action::Reward { .. }) = out.first() {
+            return *a0;
+        }
+    }
+    best
+}
+
+/// an upper bound of score_with for every Move of unit `u`: w.move_ + gain + w.noise * noise
+/// with gain <= dist(u, to) <= 2 * movement_range (a step costs 0.5 or more and starts
+/// below the budget) and noise <= 0.999, or -1. Rounding is monotonic, so each f64
+/// operation on larger operands gives a result at least as large.
+fn move_bound(s: &GameState, u: &Unit, w: &GreedyWeights) -> f64 {
+    let g = 2 * crate::movement::movement_range(s, u).max(0);
+    let noise_max = (w.noise * (999u32 as f64 / 1000.0)).max(0.0);
+    (w.move_ + g as f64 + noise_max).max(-1.0)
+}
+
+/// the choice of bot_step among `actions` (the legal actions of `s`, in order):
+/// (unfused; the tests check it against the choices recorded in TS)
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn best_of(s: &GameState, actions: &[Action], w: &GreedyWeights) -> Action {
+    let mut best = Action::EndTurn;
+    let mut best_score = 0.0f64;
+    let mut cache: Option<GoalCache> = Some(GoalCache::default());
     for a in actions {
         if *a == Action::EndTurn {
             continue;

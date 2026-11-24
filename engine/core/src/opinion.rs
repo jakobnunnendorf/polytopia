@@ -3,8 +3,8 @@
 //! offers only at great.
 use crate::diplomacy::{at_peace, at_war, broke_treaty_with, last_attack_turn};
 use crate::grid::{any_around, idx};
-use crate::movement::{can_see, territory_owner};
-use crate::state::{difficulty_of, score_of};
+use crate::movement::can_see;
+use crate::state::{difficulty_of, score_of, territory_owners};
 use crate::types::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -74,6 +74,17 @@ fn charm_roll(s: &GameState, bot: i32, other: i32) -> f64 {
 }
 
 pub fn opinion_factors(s: &GameState, bot: i32, other: i32) -> Vec<OpinionFactor> {
+    opinion_factors_with(s, bot, other, &mut OpinionCache::default())
+}
+
+/// what opinion_factors looks up that does not depend on the pair, kept while the state does not change
+#[derive(Default)]
+pub(crate) struct OpinionCache {
+    owners: Option<Vec<Option<i32>>>,
+    scores: Vec<(i32, i32)>,
+}
+
+pub(crate) fn opinion_factors_with(s: &GameState, bot: i32, other: i32, cache: &mut OpinionCache) -> Vec<OpinionFactor> {
     use OpinionFactor::*;
     let mut out = Vec::new();
     let n = s.map_size;
@@ -98,10 +109,19 @@ pub fn opinion_factors(s: &GameState, bot: i32, other: i32) -> Vec<OpinionFactor
         out.push(Powerful);
     }
     // Brave: at war with the strongest tribe (other than the two); first of the highest
+    // (only a tribe `other` is at war with can make it Brave: skip the scores otherwise)
     let mut strongest: Option<i32> = None;
     let mut best = f64::NEG_INFINITY;
-    for &x in &rivals {
-        let sc = score_of(s, x) as f64;
+    let maybe_brave = rivals.iter().any(|&x| at_war(s, other, x));
+    for &x in rivals.iter().filter(|_| maybe_brave) {
+        let sc = match cache.scores.iter().find(|e| e.0 == x) {
+            Some(e) => e.1,
+            None => {
+                let v = score_of(s, x);
+                cache.scores.push((x, v));
+                v
+            }
+        } as f64;
         if sc > best {
             best = sc;
             strongest = Some(x);
@@ -113,7 +133,8 @@ pub fn opinion_factors(s: &GameState, bot: i32, other: i32) -> Vec<OpinionFactor
         }
     }
     // Threatening: their units inside or next to the bot's land
-    let bot_land = |x: i32, y: i32| territory_owner(s, &s.tiles[idx(n, x, y)]) == Some(bot);
+    let owners: &[Option<i32>] = cache.owners.get_or_insert_with(|| territory_owners(s));
+    let bot_land = |x: i32, y: i32| owners[idx(n, x, y)] == Some(bot);
     if theirs.iter().any(|u| bot_land(u.x, u.y) || any_around(n, Coord::new(u.x, u.y), 1, false, |q| bot_land(q.x, q.y))) {
         out.push(Threatening);
     }
@@ -130,8 +151,8 @@ pub fn opinion_factors(s: &GameState, bot: i32, other: i32) -> Vec<OpinionFactor
         out.push(Foolish);
     }
     // Intrusive: their borders touch the bot's
-    let touches = s.tiles.iter().enumerate().any(|(i, t)| {
-        if territory_owner(s, t) != Some(other) {
+    let touches = owners.iter().enumerate().any(|(i, &o)| {
+        if o != Some(other) {
             return false;
         }
         let c = Coord::new(i as i32 % n, i as i32 / n);
@@ -147,6 +168,116 @@ pub fn opinion_factors(s: &GameState, bot: i32, other: i32) -> Vec<OpinionFactor
         out.push(Dominating);
     }
     out
+}
+
+/// opinion_of(s, bot, other) == Great (a score of 3 or more), computing only the
+/// factors that can still change the answer: the positive ones first, then
+/// the negative ones while the score is still 3 or more
+pub(crate) fn opinion_great_with(s: &GameState, bot: i32, other: i32, cache: &mut OpinionCache) -> bool {
+    let n = s.map_size;
+    let rivals = || s.players.iter().filter(|x| x.alive && x.id != bot && x.id != other).map(|x| x.id);
+    let mut score = 0;
+    // Wise
+    if rivals().any(|x| (at_peace(s, bot, x) && at_peace(s, other, x)) || (at_war(s, bot, x) && at_war(s, other, x))) {
+        score += 1;
+    }
+    // Charming
+    if charm_roll(s, bot, other) < charming_chance(difficulty_of(s)) {
+        score += 1;
+    }
+    // Violent or Peaceful
+    match last_attack_turn(s, other, bot) {
+        Some(last) if s.turn - last < PEACEFUL_TURNS => score -= 1,
+        _ => score += 1,
+    }
+    // Diplomatic
+    if s.players[bot as usize].embassies.contains(&other) || s.players[other as usize].embassies.contains(&bot) {
+        score += 1;
+    }
+    let mine = s.units.iter().filter(|u| u.owner == bot).count();
+    let theirs = s.units.iter().filter(|u| u.owner == other).count();
+    // Powerful
+    if theirs > mine {
+        score += 1;
+    }
+    // Brave: at war with the strongest rival (first of the highest score)
+    let maybe_brave = rivals().any(|x| at_war(s, other, x));
+    if score + (maybe_brave as i32) < 3 {
+        return false;
+    }
+    if maybe_brave {
+        let mut strongest: Option<i32> = None;
+        let mut best = f64::NEG_INFINITY;
+        for x in rivals() {
+            let sc = match cache.scores.iter().find(|e| e.0 == x) {
+                Some(e) => e.1,
+                None => {
+                    let v = score_of(s, x);
+                    cache.scores.push((x, v));
+                    v
+                }
+            } as f64;
+            if sc > best {
+                best = sc;
+                strongest = Some(x);
+            }
+        }
+        if let Some(st) = strongest {
+            if at_war(s, other, st) {
+                score += 1;
+            }
+        }
+    }
+    // the negative factors, cheapest first
+    if score < 3 {
+        return false;
+    }
+    // Annoying
+    let d = difficulty_of(s);
+    if d == Difficulty::Hard || d == Difficulty::Crazy {
+        score -= 1;
+        if score < 3 {
+            return false;
+        }
+    }
+    // Dominating
+    let cities = s.cities.len();
+    let held = s.cities.iter().filter(|c| c.owner == other).count();
+    if cities >= 4 && held * 2 >= cities {
+        score -= 1;
+        if score < 3 {
+            return false;
+        }
+    }
+    // Foolish
+    if broke_treaty_with(s, other, bot) || rivals().any(|x| (at_peace(s, bot, x) && at_war(s, other, x)) || (at_war(s, bot, x) && at_peace(s, other, x))) {
+        score -= 1;
+        if score < 3 {
+            return false;
+        }
+    }
+    // Weak
+    if s.units.iter().filter(|u| u.owner == other && can_see(s, bot, u)).count() < mine {
+        score -= 1;
+        if score < 3 {
+            return false;
+        }
+    }
+    let owners: &[Option<i32>] = cache.owners.get_or_insert_with(|| territory_owners(s));
+    let bot_land = |x: i32, y: i32| owners[idx(n, x, y)] == Some(bot);
+    // Threatening
+    if s.units.iter().filter(|u| u.owner == other).any(|u| bot_land(u.x, u.y) || any_around(n, Coord::new(u.x, u.y), 1, false, |q| bot_land(q.x, q.y))) {
+        score -= 1;
+        if score < 3 {
+            return false;
+        }
+    }
+    // Intrusive
+    let touches = owners.iter().enumerate().any(|(i, &o)| o == Some(other) && any_around(n, Coord::new(i as i32 % n, i as i32 / n), 1, false, |q| bot_land(q.x, q.y)));
+    if touches {
+        score -= 1;
+    }
+    score >= 3
 }
 
 pub fn opinion_score(s: &GameState, bot: i32, other: i32) -> i32 {

@@ -10,10 +10,10 @@ use crate::combat::{compute_damage_rounded, half_damage};
 use crate::data::*;
 use crate::diplomacy::{at_peace, can_harm, dip_mut, friendly, has_offer, make_peace, ordinal, record_attack};
 use crate::grid::{around, any_around, dist, idx, in_bounds, is_water, tile_at, trim_log};
-use crate::movement::{can_see, chain_body, enter_kind, follower_of, has, is_led, reachable, sight_radius, territory_owner, StepKind};
+use crate::movement::{search_with, with_bufs, MoveCtx, can_see, chain_body, enter_kind, follower_of, has, is_led, sight_radius, territory_owner, StepKind};
 use crate::state::{
     add_pop, can_research, capital_of, check_elimination, check_game_end, check_meetings, check_tasks, cities_of, city_by_id, claim_territory, explore, grow_units, log, make_unit,
-    meet, new_city, pending_reward, push_unit, start_turn, tech_cost, unit_capacity, units_homed_in, update_connections, with_rng,
+    meet, new_city, pending_reward, push_unit, start_turn, tech_cost, tech_cost_for, unit_capacity, units_homed_in, update_connections, with_rng,
 };
 use crate::types::*;
 
@@ -61,6 +61,14 @@ fn friendly_tile(s: &GameState, p: i32, x: i32, y: i32) -> bool {
     friendly(s, p, territory_owner(s, tile_at(s, x, y)))
 }
 
+/// whether `u` may attack at all (the unit checks of attack_targets)
+#[inline]
+fn may_attack(u: &Unit) -> bool {
+    let def = unit_def(u.ty);
+    // a unit led in a chain (Centipede segment) has no attack options; Infiltrate units only target cities
+    u.can_attack && def.range != 0 && !is_led(u) && !(def.attack == 0.0 && !has(u, Skill::Convert)) && !has(u, Skill::Infiltrate)
+}
+
 /// indices of the units `u` may attack
 fn attack_targets(s: &GameState, u: &Unit) -> Vec<usize> {
     let def = unit_def(u.ty);
@@ -81,7 +89,7 @@ fn attack_targets(s: &GameState, u: &Unit) -> Vec<usize> {
     s.units
         .iter()
         .enumerate()
-        .filter(|(_, t)| can_harm(s, u.owner, t.owner) && udist(u, t) <= def.range && can_see(s, u.owner, t))
+        .filter(|(_, t)| udist(u, t) <= def.range && can_harm(s, u.owner, t.owner) && can_see(s, u.owner, t))
         .map(|(i, _)| i)
         .collect()
 }
@@ -107,10 +115,24 @@ fn infiltrate_targets(s: &GameState, u: &Unit) -> Vec<usize> {
 
 /// the part of can_build that does not depend on the tile: tribe, tech or
 /// earned monument, and enough stars
-fn player_may_build(s: &GameState, p: i32, b: Build) -> bool {
-    let def = build_def(b);
+pub(crate) fn player_may_build(s: &GameState, p: i32, b: Build) -> bool {
     let pl = &s.players[p as usize];
-    if !build_allowed_for(pl.tribe, b) {
+    may_build(pl, b, tech_mask(pl))
+}
+
+/// the player's techs as a set of Tech indices
+#[inline]
+pub(crate) fn tech_mask(pl: &Player) -> u64 {
+    pl.techs.iter().fold(0u64, |m, &t| m | 1u64 << t.idx())
+}
+
+/// player_may_build with the player's tech_mask
+#[inline]
+pub(crate) fn may_build(pl: &Player, b: Build, techs: u64) -> bool {
+    let def = build_def(b);
+    let has = |t: Tech| techs & (1u64 << t.idx()) != 0;
+    // (every check is a condition of the result: the cheap star check goes first)
+    if pl.stars < def.cost || !build_allowed_for(pl.tribe, b) {
         return false;
     }
     if def.kind == BuildKind::Monument {
@@ -120,44 +142,136 @@ fn player_may_build(s: &GameState, p: i32, b: Build) -> bool {
         }
     } else {
         match def.tech {
-            Some(tech) if pl.has_tech(tech) => {}
+            Some(tech) if has(tech) => {}
             _ => return false,
         }
     }
-    if b == Build::Fish && pl.tribe == Tribe::Polaris && !pl.has_tech(Tech::Ramming) {
+    if b == Build::Fish && pl.tribe == Tribe::Polaris && !has(Tech::Ramming) {
         return false;
     }
-    if b == Build::MountainTemple && pl.tribe == Tribe::Cymanti && !pl.has_tech(Tech::Philosophy) {
+    if b == Build::MountainTemple && pl.tribe == Tribe::Cymanti && !has(Tech::Philosophy) {
         return false;
     }
-    pl.stars >= def.cost
+    true
 }
 
-/// can p build `b` on tile (x,y)?
-fn can_build(s: &GameState, p: i32, b: Build, x: i32, y: i32) -> bool {
-    player_may_build(s, p, b) && can_build_on(s, p, b, x, y, occupant(s, x, y), territory_owner(s, tile_at(s, x, y)))
+/// can p build a Canal on tile (x,y)? (actions.ts canBuild for Canal: built by an
+/// own unit standing on the tile; the occupant is the first unit there)
+/// `may`: player_may_build(s, p, Canal)
+fn can_build_canal(s: &GameState, p: i32, x: i32, y: i32, may: bool) -> bool {
+    if !may {
+        return false;
+    }
+    let t = tile_at(s, x, y);
+    let Some(ui) = occupant(s, x, y) else { return false };
+    let u = &s.units[ui];
+    if u.owner != p || u.done || u.moved || !u.can_attack || u.frozen {
+        return false;
+    }
+    !is_water(t) && !t.flooded && (t.terrain == Terrain::Field || t.terrain == Terrain::Forest)
 }
 
-/// can_build without the player checks (player_may_build), with the tile's
-/// occupant and territory owner already looked up
-fn can_build_on(s: &GameState, p: i32, b: Build, x: i32, y: i32, occ: Option<usize>, o: Option<i32>) -> bool {
+/// what can_build_on looks up across tiles, computed once per legal_actions
+pub(crate) struct BuildCtx {
+    /// territory_owner of every tile
+    cities: crate::state::CityOwners,
+    /// per territory id: the set of buildings (bit = Build index) on its tiles, built on first use
+    terr_builds: Option<Vec<(Id, u64)>>,
+    /// some tile in p's territory has an Ice Bank (built on first use)
+    own_ice_bank: Option<bool>,
+}
+
+impl BuildCtx {
+    pub(crate) fn new(s: &GameState) -> BuildCtx {
+        BuildCtx { cities: crate::state::CityOwners::new(s), terr_builds: None, own_ice_bank: None }
+    }
+    #[inline]
+    fn own(&self, s: &GameState, p: i32, x: i32, y: i32) -> bool {
+        self.owner(&s.tiles[tidx(s, x, y)]) == Some(p)
+    }
+    /// territory_owner(s, t)
+    #[inline]
+    fn owner(&self, t: &Tile) -> Option<i32> {
+        self.cities.owner(t.territory)
+    }
+    /// s.tiles.some((o) => o.territory === terr && o.building === b), terr a city id
+    fn territory_has(&mut self, s: &GameState, terr: Id, b: Build) -> bool {
+        let tb = self.terr_builds.get_or_insert_with(|| {
+            let mut v: Vec<(Id, u64)> = Vec::new();
+            for t in &s.tiles {
+                let (Some(id), Some(tb)) = (t.territory, t.building) else { continue };
+                match v.iter_mut().find(|e| e.0 == id) {
+                    Some(e) => e.1 |= 1u64 << tb.idx(),
+                    None => v.push((id, 1u64 << tb.idx())),
+                }
+            }
+            v
+        });
+        tb.iter().find(|e| e.0 == terr).map_or(false, |e| e.1 & (1u64 << b.idx()) != 0)
+    }
+}
+
+/// sets of Build indices for tile_builds (they depend on the data only)
+struct BuildMasks {
+    neutral: u64,
+    built: u64,
+    empty: u64,
+    /// [Aquarion or not][terrain * (Resource::COUNT + 1) + resource (0 none, r + 1)]:
+    /// the builds that are not simple_build or whose terrain and resource checks pass
+    by_tile: [[u64; Terrain::COUNT * (Resource::COUNT + 1)]; 2],
+}
+
+fn build_masks() -> &'static BuildMasks {
+    static M: std::sync::OnceLock<BuildMasks> = std::sync::OnceLock::new();
+    M.get_or_init(|| {
+        let of = |f: &dyn Fn(Build) -> bool| Build::ALL.iter().filter(|&&b| f(b)).fold(0u64, |m, &b| m | 1u64 << b.idx());
+        let mut by_tile = [[0u64; Terrain::COUNT * (Resource::COUNT + 1)]; 2];
+        for (ai, tribe) in [Tribe::Bardur, Tribe::Aquarion].into_iter().enumerate() {
+            for terrain in Terrain::ALL {
+                for r in 0..=Resource::COUNT {
+                    let res = if r == 0 { None } else { Some(Resource::ALL[r - 1]) };
+                    by_tile[ai][terrain.idx() * (Resource::COUNT + 1) + r] = of(&|b| {
+                        !simple_build(tribe, b) || {
+                            let d = build_def(b);
+                            d.allows(terrain) && d.resource.map_or(true, |rr| res == Some(rr))
+                        }
+                    });
+                }
+            }
+        }
+        BuildMasks {
+            neutral: of(&|b| matches!(build_def(b).kind, BuildKind::Road | BuildKind::Bridge)),
+            built: of(&|b| matches!(build_def(b).kind, BuildKind::Road | BuildKind::Destroy) || b == Build::Algae),
+            empty: !of(&|b| build_def(b).kind == BuildKind::Destroy),
+            by_tile,
+        }
+    })
+}
+
+/// a building that can_build_on allows on an own empty tile only if
+/// def.allows(terrain) and the tile has the def's resource (if it names one):
+/// none of the special cases before that check applies to it
+fn simple_build(tribe: Tribe, b: Build) -> bool {
+    let def = build_def(b);
+    if matches!(def.kind, BuildKind::Road | BuildKind::Bridge | BuildKind::Embassy | BuildKind::Destroy) {
+        return false;
+    }
+    if matches!(b, Build::Fertilize | Build::Port | Build::Algae | Build::Atoll | Build::Mycelium | Build::Canal) {
+        return false;
+    }
+    !(tribe == Tribe::Aquarion && matches!(b, Build::Windmill | Build::Sawmill | Build::Forge | Build::Market))
+}
+
+/// can_build without the player checks (player_may_build), for any building but
+/// Canal, with the tile's occupant (first unit there), whether that occupant blocks
+/// the tile (a visible enemy not at peace) and the territory owner already looked up
+fn can_build_on(s: &GameState, p: i32, b: Build, x: i32, y: i32, occ: Option<usize>, blocked: bool, o: Option<i32>, ctx: &mut BuildCtx) -> bool {
+    debug_assert!(b != Build::Canal);
     let def = build_def(b);
     let pl = &s.players[p as usize];
     let t = tile_at(s, x, y);
-    // Canal: built by an own unit standing on the tile
-    if b == Build::Canal {
-        let Some(ui) = occ else { return false };
-        let u = &s.units[ui];
-        if u.owner != p || u.done || u.moved || !u.can_attack || u.frozen {
-            return false;
-        }
-        return !is_water(t) && !t.flooded && (t.terrain == Terrain::Field || t.terrain == Terrain::Forest);
-    }
-    if let Some(oi) = occ {
-        let u = &s.units[oi];
-        if u.owner != p && can_see(s, p, u) && !at_peace(s, p, u.owner) {
-            return false; // blocked_by_enemy
-        }
+    if blocked {
+        return false; // blocked_by_enemy
     }
     if def.kind == BuildKind::Road {
         if t.road || t.city_id.is_some() || t.village || t.building == Some(Build::Bridge) {
@@ -220,7 +334,7 @@ fn can_build_on(s: &GameState, p: i32, b: Build, x: i32, y: i32, occ: Option<usi
         return false;
     }
     if let Some(nt) = def.next_to_terrain {
-        let ok = any_around(s.map_size, Coord::new(x, y), 1, false, |q| tile_at(s, q.x, q.y).terrain == nt && own_tile(s, p, q.x, q.y));
+        let ok = any_around(s.map_size, Coord::new(x, y), 1, false, |q| tile_at(s, q.x, q.y).terrain == nt && ctx.own(s, p, q.x, q.y));
         if !ok {
             return false;
         }
@@ -233,14 +347,18 @@ fn can_build_on(s: &GameState, p: i32, b: Build, x: i32, y: i32, occ: Option<usi
     if (b == Build::Outpost || b == Build::IceTemple) && !t.ice {
         return false;
     }
-    if b == Build::IceBank && s.tiles.iter().any(|o| o.building == Some(Build::IceBank) && territory_owner(s, o) == Some(p)) {
-        return false;
+    if b == Build::IceBank {
+        let cities = &ctx.cities;
+        let any = *ctx.own_ice_bank.get_or_insert_with(|| s.tiles.iter().any(|o| o.building == Some(Build::IceBank) && cities.owner(o.territory) == Some(p)));
+        if any {
+            return false;
+        }
     }
     if !def.next_to.is_empty() {
         let ok = any_around(s.map_size, Coord::new(x, y), 1, false, |q| {
             let n = tile_at(s, q.x, q.y);
             match n.building {
-                Some(nb) => def.next_to.contains(&nb) && own_tile(s, p, q.x, q.y),
+                Some(nb) => def.next_to.contains(&nb) && ctx.own(s, p, q.x, q.y),
                 None => false,
             }
         });
@@ -249,37 +367,144 @@ fn can_build_on(s: &GameState, p: i32, b: Build, x: i32, y: i32, occ: Option<usi
         }
     }
     if def.one_per_city {
-        let terr = t.territory;
-        if s.tiles.iter().any(|o| o.territory == terr && o.building == Some(b)) {
+        // own: the territory is a city id
+        if ctx.territory_has(s, t.territory.expect("own tile has a territory"), b) {
             return false;
         }
     }
     true
 }
 
+/// legal_actions' tile builds (and Cymanti Decompose), in tile order
+#[inline(never)]
+pub(crate) fn tile_builds(s: &GameState, p: i32, out: &mut Vec<Action>) {
+    let pl = &s.players[p as usize];
+    // tile builds: every tile in own territory, plus neutral tiles for roads/bridges
+    let n = s.map_size;
+    // builds the player can afford and has unlocked (the tile-independent part
+    // of can_build) as a set of Build indices: visiting the bits from the lowest
+    // keeps Build::ALL order, so the legal list keeps its order
+    debug_assert!(Build::ALL.iter().enumerate().all(|(i, b)| b.idx() == i) && Build::COUNT <= 64);
+    let mut candidates: u64 = 0;
+    let techs = tech_mask(pl);
+    for b in Build::ALL {
+        // Canal: unit-built, listed with the units below
+        if b != Build::Canal && may_build(pl, b, techs) {
+            candidates |= 1u64 << b.idx();
+        }
+    }
+    // Cymanti Decompose (Recycling)
+    let decompose = pl.tribe == Tribe::Cymanti && pl.has_tech(Tech::Construction);
+    if candidates == 0 && !decompose {
+        return;
+    }
+    // neutral tiles: roads and bridges only. can_build_on is false for every
+    // other building: on a built tile only roads, Destroy and Algae; Destroy
+    // only on a built tile
+    let masks = build_masks();
+    let neutral = candidates & masks.neutral;
+    let built = candidates & masks.built;
+    let empty = candidates & masks.empty;
+    // empty own tiles: the candidates that can pass can_build_on's terrain and
+    // resource checks, by (terrain, resource)
+    let by_tile = &masks.by_tile[(pl.tribe == Tribe::Aquarion) as usize];
+    // first unit on each tile, as occupant() finds it
+    const NO: u32 = u32::MAX;
+    let mut occupants: Vec<u32> = vec![NO; s.tiles.len()];
+    for (ui, u) in s.units.iter().enumerate().rev() {
+        if in_bounds(n, u.x, u.y) {
+            occupants[idx(n, u.x, u.y)] = ui as u32;
+        }
+    }
+    let mut bctx = BuildCtx::new(s);
+    let mut last_terr: (Option<Id>, Option<i32>) = (None, None);
+    for (i, (t, &e)) in s.tiles.iter().zip(pl.explored.iter()).enumerate() {
+        if e != 1 {
+            continue;
+        }
+        // territory_owner, the last territory's owner kept
+        let o = match t.territory {
+            None => None,
+            terr if terr == last_terr.0 => last_terr.1,
+            terr => {
+                last_terr = (terr, bctx.owner(t));
+                last_terr.1
+            }
+        };
+        if o.is_some() && o != Some(p) {
+            continue;
+        }
+        let mut list = if o.is_none() {
+            neutral
+        } else if t.building.is_some() {
+            built
+        } else {
+            empty & by_tile[t.terrain.idx() * (Resource::COUNT + 1) + t.resource.map_or(0, |r| r.idx() + 1)]
+        };
+        let decomposable = decompose && o == Some(p) && t.building.is_some() && !t.decomposing;
+        if list == 0 && !decomposable {
+            continue;
+        }
+        let x = i as i32 % n;
+        let y = i as i32 / n;
+        let occ = if occupants[i] == NO { None } else { Some(occupants[i] as usize) };
+        // the first unit there, a visible enemy not at peace, blocks building
+        let blocked = match occ {
+            Some(oi) => {
+                let u = &s.units[oi];
+                u.owner != p && can_see(s, p, u) && !at_peace(s, p, u.owner)
+            }
+            None => false,
+        };
+        if !blocked {
+            while list != 0 {
+                let b = Build::ALL[list.trailing_zeros() as usize];
+                list &= list - 1;
+                if can_build_on(s, p, b, x, y, occ, false, o, &mut bctx) {
+                    out.push(Action::Build { at: Coord::new(x, y), building: b });
+                }
+            }
+        }
+        if decomposable && !blocked && !(t.building == Some(Build::Bridge) && occ.is_some()) {
+            out.push(Action::Decompose { at: Coord::new(x, y) });
+        }
+    }
+}
+
 /* ---------- legal actions ---------- */
 
 /// actions.ts legalActions, same actions in the same order
 pub fn legal_actions(s: &GameState) -> Vec<Action> {
+    let mut out = Vec::with_capacity(256);
+    legal_into(s, &mut out, |_, _| true);
+    out
+}
+
+/// legal_actions into `out` (empty on entry), except the Move actions of the
+/// units for which `want_moves(unit, actions listed so far)` is false (a
+/// caller that knows none of them can matter, see bot_step)
+pub(crate) fn legal_into(s: &GameState, out: &mut Vec<Action>, mut want_moves: impl FnMut(&Unit, &[Action]) -> bool) {
     if s.over {
-        return Vec::new();
+        return;
     }
     let p = s.current;
     let pl = &s.players[p as usize];
     if let Some((ci, options)) = pending_reward(s) {
         let city = s.cities[ci].id;
-        return options.iter().map(|&reward| Action::Reward { city, reward }).collect();
+        out.extend(options.iter().map(|&reward| Action::Reward { city, reward }));
+        return;
     }
-    let mut out = vec![Action::EndTurn];
+    out.push(Action::EndTurn);
 
+    let my_cities = s.cities.iter().filter(|c| c.owner == p).count() as i32;
+    let literacy = pl.has_tech(Tech::Philosophy);
     for t in Tech::ALL {
-        if can_research(s, p, t) && pl.stars >= tech_cost(s, p, t) {
+        if pl.stars >= tech_cost_for(t, my_cities, literacy) && can_research(s, p, t) {
             out.push(Action::Research { tech: t });
         }
     }
 
-    for ci in cities_of(s, p) {
-        let c = &s.cities[ci];
+    for c in s.cities.iter().filter(|c| c.owner == p) {
         if occupant(s, c.x, c.y).is_some() {
             continue;
         }
@@ -309,61 +534,8 @@ pub fn legal_actions(s: &GameState) -> Vec<Action> {
         }
     }
 
-    // tile builds: every tile in own territory, plus neutral tiles for roads/bridges
-    let n = s.map_size;
-    // builds the player can afford and has unlocked (the tile-independent part
-    // of can_build), in Build::ALL order so the legal list keeps its order
-    let candidates: Vec<Build> = Build::ALL
-        .iter()
-        .copied()
-        .filter(|&b| b != Build::Canal && player_may_build(s, p, b)) // Canal: unit-built, listed with the units below
-        .collect();
-    // first unit on each tile, as occupant() finds it
-    let mut occupants: Vec<Option<usize>> = vec![None; s.tiles.len()];
-    for (ui, u) in s.units.iter().enumerate() {
-        if in_bounds(n, u.x, u.y) {
-            let k = idx(n, u.x, u.y);
-            if occupants[k].is_none() {
-                occupants[k] = Some(ui);
-            }
-        }
-    }
-    for i in 0..s.tiles.len() {
-        if pl.explored[i] != 1 {
-            continue;
-        }
-        let x = i as i32 % n;
-        let y = i as i32 / n;
-        let o = territory_owner(s, &s.tiles[i]);
-        if o.is_some() && o != Some(p) {
-            continue;
-        }
-        let occ = occupants[i];
-        for &b in &candidates {
-            let def = build_def(b);
-            if o.is_none() && def.kind != BuildKind::Road && def.kind != BuildKind::Bridge {
-                continue;
-            }
-            if can_build_on(s, p, b, x, y, occ, o) {
-                out.push(Action::Build { at: Coord::new(x, y), building: b });
-            }
-        }
-        // Cymanti Decompose (Recycling)
-        let t = &s.tiles[i];
-        if o == Some(p) && t.building.is_some() && !t.decomposing && pl.tribe == Tribe::Cymanti && pl.has_tech(Tech::Construction) {
-            let occ = occupant(s, x, y);
-            let blocked = match occ {
-                Some(oi) => {
-                    let ou = &s.units[oi];
-                    ou.owner != p && can_see(s, p, ou) && !at_peace(s, p, ou.owner)
-                }
-                None => false,
-            };
-            if !blocked && !(t.building == Some(Build::Bridge) && occ.is_some()) {
-                out.push(Action::Decompose { at: Coord::new(x, y) });
-            }
-        }
-    }
+    tile_builds(s, p, out);
+
     // embassies (2.18)
     if pl.has_tech(Tech::Diplomacy) && pl.stars >= embassy_cost(pl.embassies.len() as i32) {
         for c in &s.cities {
@@ -393,18 +565,31 @@ pub fn legal_actions(s: &GameState) -> Vec<Action> {
         }
     }
 
+    // shared by every unit's search (built for the first unit that moves)
+    let mut move_ctx: Option<MoveCtx> = None;
+    // the units p can harm and see, in s.units order (built for the first attacker)
+    let mut harmable: Option<Vec<usize>> = None;
+    let canal_ok = player_may_build(s, p, Build::Canal);
+    let mut any_ice: Option<bool> = None;
     for u in &s.units {
         if u.owner != p {
             continue;
         }
-        if u.can_move && !u.done {
-            for m in reachable(s, u) {
-                out.push(Action::Move { unit: u.id, to: Coord::new(m.x, m.y) });
-            }
+        if u.can_move && !u.done && want_moves(u, out) {
+            let ctx = move_ctx.get_or_insert_with(|| MoveCtx::new(s, p));
+            with_bufs(|bufs| search_with(s, u, ctx, bufs, |m| out.push(Action::Move { unit: u.id, to: Coord::new(m.x, m.y) })));
         }
         if !u.done {
-            for ti in attack_targets(s, u) {
-                out.push(Action::Attack { unit: u.id, target: s.units[ti].id });
+            // attack_targets(s, u), with the owner checks (can_harm, can_see) done once per unit for all attackers
+            if may_attack(u) {
+                let range = unit_def(u.ty).range;
+                let harmable = harmable.get_or_insert_with(|| (0..s.units.len()).filter(|&i| can_harm(s, p, s.units[i].owner) && can_see(s, p, &s.units[i])).collect::<Vec<usize>>());
+                for &ti in harmable.iter() {
+                    let t = &s.units[ti];
+                    if udist(u, t) <= range {
+                        out.push(Action::Attack { unit: u.id, target: t.id });
+                    }
+                }
             }
         }
         let fresh = !u.done && !u.moved && !u.attacked;
@@ -458,12 +643,13 @@ pub fn legal_actions(s: &GameState) -> Vec<Action> {
             && !u.attacked
             && (!u.moved || has(u, Skill::Dash))
             && !has(u, Skill::AutoFreeze)
+            && *any_ice.get_or_insert_with(|| s.tiles.iter().any(|t| t.ice)) // (breakable_ice needs an ice tile)
             && any_around(s.map_size, pos(u), 1, false, |q| breakable_ice(s, q, p))
         {
             out.push(Action::BreakIce { unit: u.id });
         }
         // Canal (Waterways): built by this unit on its own tile
-        if can_build(s, p, Build::Canal, u.x, u.y) {
+        if can_build_canal(s, p, u.x, u.y, canal_ok) {
             out.push(Action::Build { at: pos(u), building: Build::Canal });
         }
         // Clear Tile Effect ("drain")
@@ -491,7 +677,6 @@ pub fn legal_actions(s: &GameState) -> Vec<Action> {
             }
         }
     }
-    out
 }
 
 /* ---------- apply ---------- */
@@ -904,7 +1089,7 @@ fn do_move(s: &mut GameState, uid: Id, to: Coord) {
     }
     let ui = uidx(s, uid).unwrap();
     let u = s.units[ui].clone();
-    let kind = reachable(s, &u).iter().find(|m| m.x == to.x && m.y == to.y).map_or(StepKind::Normal, |m| m.kind);
+    let kind = crate::movement::reachable_kind(s, &u, to).unwrap_or(StepKind::Normal);
     let origin = pos(&u);
     s.units[ui].last_dir = Some(Coord::new(js_sign(to.x - u.x), js_sign(to.y - u.y)));
     // explore the straight-line path's tiles

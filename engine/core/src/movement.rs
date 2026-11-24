@@ -7,7 +7,7 @@
 //! Functions returning a unit return its index into `s.units`.
 use crate::data::unit_def;
 use crate::diplomacy::{at_peace, friendly};
-use crate::grid::{any_around, idx, in_bounds, is_water, tile_at};
+use crate::grid::{idx, in_bounds, is_water, tile_at};
 use crate::types::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -58,7 +58,8 @@ pub fn leader_of(s: &GameState, u: &Unit) -> Option<usize> {
 /// the unit that follows `u` (the one behind it)
 pub fn follower_of(s: &GameState, u: &Unit) -> Option<usize> {
     match u.body_of {
-        None => chain_body(s, u.id).first().copied(),
+        // the first unit of u's body (no Vec: this runs for every unit search)
+        None => s.units.iter().position(|o| o.body_of == Some(u.id)),
         Some(head) => {
             let body = chain_body(s, head);
             // body[body.indexOf(u) + 1]; indexOf -1 gives body[0]
@@ -95,15 +96,6 @@ pub fn can_see(s: &GameState, player: i32, u: &Unit) -> bool {
         return true;
     }
     s.units.iter().any(|o| o.owner == player && (o.x - u.x).abs().max((o.y - u.y).abs()) <= 1)
-}
-
-/// road-network tile for a player (§4.4): road, bridge, village, city; in own, neutral or allied territory
-fn road_node(s: &GameState, t: &Tile, player: i32) -> bool {
-    if !(t.road || t.building == Some(Build::Bridge) || t.village || t.city_id.is_some()) {
-        return false;
-    }
-    let o = territory_owner(s, t);
-    o.is_none() || friendly(s, player, o)
 }
 
 /// whether unit u (as it is now) may stand on / step onto tile t, and how
@@ -190,13 +182,18 @@ fn aquarion_enter_kind(s: &GameState, u: &Unit, t: &Tile) -> Option<Option<StepK
 
 /// All tiles unit u can end its move on this turn, in TS Map insertion order.
 pub fn reachable(s: &GameState, u: &Unit) -> Vec<MoveTarget> {
-    search(s, u).0
+    let ctx = MoveCtx::new(s, u.owner);
+    let mut out = Vec::with_capacity(32);
+    with_bufs(|bufs| search_with(s, u, &ctx, bufs, |t| out.push(t)));
+    out
 }
 
 /// The path unit u takes to `to` (tiles after its start, ending at `to`), as the
 /// mover plans it: hidden enemies it cannot see count as empty tiles.
 pub fn path_to(s: &GameState, u: &Unit, to: Coord) -> Vec<Coord> {
-    let (_, parent) = search(s, u);
+    let ctx = MoveCtx::new(s, u.owner);
+    with_bufs(|bufs| {
+    search_with(s, u, &ctx, bufs, |_| {});
     let n = s.map_size;
     let start = idx(n, u.x, u.y);
     let mut out = Vec::new();
@@ -204,37 +201,200 @@ pub fn path_to(s: &GameState, u: &Unit, to: Coord) -> Vec<Coord> {
     let mut guard = 0;
     while cur != start && guard < n * n {
         out.push(Coord { x: cur as i32 % n, y: cur as i32 / n });
-        match parent.get(cur).copied().flatten() {
+        // no parent (also after a search that returned early): the direct step
+        match bufs.parent.get(cur).copied().filter(|&p| p != NONE) {
             None => return vec![to],
-            Some(p) => cur = p,
+            Some(p) => cur = p as usize,
         }
         guard += 1;
     }
     out.reverse();
     out
+    })
 }
 
-/// TS search: targets in Map insertion order, and the parent map (per tile index)
-fn search(s: &GameState, u: &Unit) -> (Vec<MoveTarget>, Vec<Option<usize>>) {
+const NONE: u32 = u32::MAX;
+
+/// What search() looks up per tile that depends only on the moving player, not
+/// on the unit: built once and shared by every unit of that player while the
+/// state does not change (legal_actions builds one for all its units).
+pub(crate) struct MoveCtx {
+    owner: i32,
+    /// the unit the mover knows about on each tile (later units overwrite
+    /// earlier ones, like Map.set), NONE for none
+    occupied: Vec<u32>,
+    /// zone of control: a tile next to a unit the mover knows about that is an
+    /// enemy's, not hidden, not led and no peace partner's
+    zoc: Vec<bool>,
+    /// road-network tile for the owner (§4.4): road, bridge, village, city; in
+    /// own, neutral or allied territory. Per tile on first use: 0 not yet, 1 no, 2 yes
+    road: Vec<std::cell::Cell<u8>>,
+    cities: crate::state::CityOwners,
+    /// (head id, index of its first body unit), first unit of each chain in s.units order
+    heads: Vec<(Id, u32)>,
+}
+
+impl MoveCtx {
+    pub(crate) fn new(s: &GameState, owner: i32) -> MoveCtx {
+        let n = s.map_size;
+        let nn = (n * n) as usize;
+        let mut occupied = vec![NONE; nn];
+        for (i, o) in s.units.iter().enumerate() {
+            if !o.hidden || can_see(s, owner, o) {
+                occupied[idx(n, o.x, o.y)] = i as u32;
+            }
+        }
+        // zone of control around every tile whose known unit (occupied) exerts it on `owner`
+        let mut zoc = vec![false; nn];
+        for (i, o) in s.units.iter().enumerate() {
+            if occupied[idx(n, o.x, o.y)] != i as u32 {
+                continue;
+            }
+            if o.owner != owner && !o.hidden && !is_led(o) && !at_peace(s, owner, o.owner) {
+                crate::grid::for_around(n, Coord { x: o.x, y: o.y }, 1, false, |c| zoc[idx(n, c.x, c.y)] = true);
+            }
+        }
+        let mut heads: Vec<(Id, u32)> = Vec::new();
+        for (i, o) in s.units.iter().enumerate() {
+            if let Some(h) = o.body_of {
+                if !heads.iter().any(|e| e.0 == h) {
+                    heads.push((h, i as u32));
+                }
+            }
+        }
+        MoveCtx { owner, occupied, zoc, road: vec![std::cell::Cell::new(0); nn], cities: crate::state::CityOwners::new(s), heads }
+    }
+    #[inline]
+    fn road_at(&self, s: &GameState, i: usize) -> bool {
+        match self.road[i].get() {
+            0 => {
+                let t = &s.tiles[i];
+                let r = (t.road || t.building == Some(Build::Bridge) || t.village || t.city_id.is_some()) && {
+                    let o = self.cities.owner(t.territory);
+                    o.is_none() || friendly(s, self.owner, o)
+                };
+                self.road[i].set(if r { 2 } else { 1 });
+                r
+            }
+            v => v == 2,
+        }
+    }
+}
+
+thread_local! {
+    static BUFS: std::cell::RefCell<SearchBufs> = std::cell::RefCell::new(SearchBufs::default());
+}
+
+/// runs `f` with this thread's search buffers (fresh ones if they are in use)
+pub(crate) fn with_bufs<T>(f: impl FnOnce(&mut SearchBufs) -> T) -> T {
+    BUFS.with(|b| match b.try_borrow_mut() {
+        Ok(mut g) => f(&mut g),
+        Err(_) => f(&mut SearchBufs::default()),
+    })
+}
+
+/// search() buffers, reusable between calls (every call resets them)
+#[derive(Default)]
+pub(crate) struct SearchBufs {
+    parent: Vec<u32>,
+    best: Vec<f64>,
+    in_ends: Vec<bool>,
+    /// enter_kind per tile for the current unit: 0 not computed yet, else kind_code
+    kind: Vec<u8>,
+    ends: Vec<(u32, StepKind)>,
+    queue: Vec<u32>,
+    /// tiles whose entries above were changed by the last search
+    touched: Vec<u32>,
+}
+
+impl SearchBufs {
+    fn reset(&mut self, nn: usize) {
+        if self.parent.len() != nn {
+            self.parent = vec![NONE; nn];
+            self.best = vec![f64::INFINITY; nn];
+            self.in_ends = vec![false; nn];
+            self.kind = vec![0; nn];
+        } else {
+            for &i in &self.touched {
+                let i = i as usize;
+                self.parent[i] = NONE;
+                self.best[i] = f64::INFINITY;
+                self.in_ends[i] = false;
+                self.kind[i] = 0;
+            }
+        }
+        self.touched.clear();
+        self.ends.clear();
+        self.queue.clear();
+    }
+}
+
+#[inline]
+fn kind_code(k: Option<StepKind>) -> u8 {
+    match k {
+        None => 1,
+        Some(StepKind::Normal) => 2,
+        Some(StepKind::Embark) => 3,
+        Some(StepKind::Disembark) => 4,
+    }
+}
+#[inline]
+fn kind_of_code(c: u8) -> Option<StepKind> {
+    match c {
+        2 => Some(StepKind::Normal),
+        3 => Some(StepKind::Embark),
+        4 => Some(StepKind::Disembark),
+        _ => None,
+    }
+}
+
+/// TS search: calls `emit` with the targets in Map insertion order and leaves
+/// the parent map (per tile index, NONE for none) in `bufs.parent`.
+/// `ctx` must be MoveCtx::new(s, u.owner) of this same state.
+#[inline(never)]
+pub(crate) fn search_with(s: &GameState, u: &Unit, ctx: &MoveCtx, bufs: &mut SearchBufs, emit: impl FnMut(MoveTarget)) {
+    search_until(s, u, ctx, bufs, usize::MAX, emit)
+}
+
+/// The kind of the step onto `to` if it is one of reachable(s, u), without
+/// finishing the search once `to` is found.
+pub(crate) fn reachable_kind(s: &GameState, u: &Unit, to: Coord) -> Option<StepKind> {
+    let n = s.map_size;
+    if !in_bounds(n, to.x, to.y) || (to.x == u.x && to.y == u.y) {
+        // (the start tile is never a target)
+        return None;
+    }
+    let ctx = MoveCtx::new(s, u.owner);
+    let mut found = None;
+    with_bufs(|bufs| search_until(s, u, &ctx, bufs, idx(n, to.x, to.y), |t| found = Some(t.kind)));
+    found
+}
+
+/// search_with; with `stop_at` a tile index other than the start: emit only
+/// that tile, when it becomes a target (its kind is final then), and stop
+fn search_until(s: &GameState, u: &Unit, ctx: &MoveCtx, bufs: &mut SearchBufs, stop_at: usize, mut emit: impl FnMut(MoveTarget)) {
+    debug_assert_eq!(ctx.owner, u.owner);
     let n = s.map_size;
     let nn = (n * n) as usize;
+    bufs.reset(nn);
     if u.frozen || unit_def(u.ty).movement == 0 {
-        return (Vec::new(), Vec::new());
+        return;
     }
     let explored = &s.players[u.owner as usize].explored;
     let skate = has(u, Skill::Skate);
     // Segments don't move on their own: only the head moves and the body follows
     if is_led(u) {
-        return (Vec::new(), Vec::new());
+        return;
     }
     let mut budget = movement_range(s, u);
     // a chain moves at its first Segment's pace
-    let follower = follower_of(s, u);
+    // follower_of(s, u) of a unit that is not led: its body's first unit
+    let follower = ctx.heads.iter().find(|e| e.0 == u.id).map(|e| e.1 as usize);
     if let Some(f) = follower {
         budget = budget.min(movement_range(s, &s.units[f]));
     }
     if budget <= 0 {
-        return (Vec::new(), Vec::new());
+        return;
     }
     let budget = budget as f64;
     let chained = follower.is_some();
@@ -247,47 +407,34 @@ fn search(s: &GameState, u: &Unit) -> (Vec<MoveTarget>, Vec<Option<usize>>) {
     let hide = has(u, Skill::Hide);
     let ignores_zoc = hide || has(u, Skill::Sneak);
     let naval = unit_def(u.ty).naval;
-    // units the mover knows about (later units overwrite earlier ones, like Map.set)
-    let mut occupied: Vec<Option<usize>> = vec![None; nn];
-    for (i, o) in s.units.iter().enumerate() {
-        if !o.hidden || can_see(s, u.owner, o) {
-            occupied[idx(n, o.x, o.y)] = Some(i);
-        }
-    }
-    // zone of control: not from hidden units, led units or peace partners
-    let enemy_adjacent = |x: i32, y: i32| {
-        any_around(n, Coord { x, y }, 1, false, |c| match occupied[idx(n, c.x, c.y)] {
-            Some(oi) => {
-                let o = &s.units[oi];
-                o.owner != u.owner && !o.hidden && !is_led(o) && !at_peace(s, u.owner, o.owner)
-            }
-            None => false,
-        })
-    };
+    // roads give no bonus on ice or to skaters
+    let roads_count = !no_road && !amphibious && !skate && !naval;
+    let occupied = &ctx.occupied;
 
-    let mut parent: Vec<Option<usize>> = vec![None; nn];
-    let mut best: Vec<Option<f64>> = vec![None; nn];
-    let mut ends: Vec<(usize, StepKind)> = Vec::new();
-    let mut in_ends = vec![false; nn];
+    let SearchBufs { parent, best, in_ends, kind: kinds, ends, queue, touched } = bufs;
     let start = idx(n, u.x, u.y);
-    best[start] = Some(0.0);
-    let mut queue: Vec<usize> = vec![start];
+    best[start] = 0.0;
+    touched.push(start as u32);
+    queue.push(start as u32);
     while !queue.is_empty() {
         // pick lowest cost (first of equals)
         let mut bi = 0;
+        let mut bv = best[queue[0] as usize];
         for k in 1..queue.len() {
-            if best[queue[k]].unwrap_or(0.0) < best[queue[bi]].unwrap_or(0.0) {
+            let v = best[queue[k] as usize];
+            if v < bv {
                 bi = k;
+                bv = v;
             }
         }
-        let cur = queue.remove(bi);
-        let spent = best[cur].unwrap();
+        let cur = queue.remove(bi) as usize;
+        let spent = best[cur];
         if spent >= budget - 1e-9 {
             continue;
         }
         let cx = cur as i32 % n;
         let cy = cur as i32 / n;
-        let from = &s.tiles[cur];
+        let from_road = roads_count && !s.tiles[cur].ice && ctx.road_at(s, cur);
         for dy in -1..=1 {
             for dx in -1..=1 {
                 if dx == 0 && dy == 0 {
@@ -303,20 +450,27 @@ fn search(s: &GameState, u: &Unit) -> (Vec<MoveTarget>, Vec<Option<usize>>) {
                     continue;
                 }
                 let t = &s.tiles[i];
-                let Some(kind) = enter_kind(s, u, t) else { continue };
+                let kc = kinds[i];
+                let kind = if kc != 0 {
+                    kind_of_code(kc)
+                } else {
+                    // enter_kind is a pure function of (s, u, t): compute it once per tile
+                    let k = enter_kind(s, u, t);
+                    kinds[i] = kind_code(k);
+                    touched.push(i as u32);
+                    k
+                };
+                let Some(kind) = kind else { continue };
                 // a chain member never embarks
                 if kind == StepKind::Embark && chained {
                     continue;
                 }
                 let occ = occupied[i];
                 // enemy units block (hidden movers may pass through); own and allied units can be passed
-                if let Some(oi) = occ {
-                    if !friendly(s, u.owner, Some(s.units[oi].owner)) && !hide {
-                        continue;
-                    }
+                if occ != NONE && !hide && !friendly(s, u.owner, Some(s.units[occ as usize].owner)) {
+                    continue;
                 }
-                // roads give no bonus on ice or to skaters
-                let road = !no_road && !amphibious && !skate && !naval && !from.ice && !t.ice && road_node(s, from, u.owner) && road_node(s, t, u.owner);
+                let road = from_road && !t.ice && ctx.road_at(s, i);
                 let cost = if road {
                     0.5
                 } else if glide && t.ice {
@@ -340,7 +494,7 @@ fn search(s: &GameState, u: &Unit) -> (Vec<MoveTarget>, Vec<Option<usize>>) {
                 if !fly && !creep && t.algae && !naval && !amphibious {
                     stop = true;
                 }
-                if !ignores_zoc && enemy_adjacent(x, y) {
+                if !ignores_zoc && ctx.zoc[i] {
                     stop = true;
                 }
                 // Aquarion: amphibious units stop on dry land, ships stop on flooded tiles
@@ -350,30 +504,34 @@ fn search(s: &GameState, u: &Unit) -> (Vec<MoveTarget>, Vec<Option<usize>>) {
                 if naval && !is_water(t) && t.flooded {
                     stop = true;
                 }
-                if occ.is_none() && !in_ends[i] {
+                if occ == NONE && !in_ends[i] {
+                    if i == stop_at {
+                        emit(MoveTarget { x, y, kind });
+                        return;
+                    }
                     in_ends[i] = true;
-                    ends.push((i, kind));
-                    if parent[i].is_none() {
-                        parent[i] = Some(cur);
+                    ends.push((i as u32, kind));
+                    if parent[i] == NONE {
+                        parent[i] = cur as u32;
                     }
                 }
                 if stop {
                     continue;
                 }
-                if best[i].map_or(true, |b| total < b) {
-                    best[i] = Some(total);
-                    parent[i] = Some(cur);
-                    queue.push(i);
+                if total < best[i] {
+                    best[i] = total;
+                    parent[i] = cur as u32;
+                    queue.push(i as u32);
                 }
             }
         }
     }
     // ends.delete(start)
-    if in_ends[start] {
-        ends.retain(|&(i, _)| i != start);
+    for &(i, kind) in ends.iter() {
+        if i as usize != start {
+            emit(MoveTarget { x: i as i32 % n, y: i as i32 / n, kind });
+        }
     }
-    let targets = ends.into_iter().map(|(i, kind)| MoveTarget { x: i as i32 % n, y: i as i32 / n, kind }).collect();
-    (targets, parent)
 }
 
 /// Tiles explored around a coord for a unit (scout or mountain: radius 2).
@@ -506,6 +664,8 @@ mod ref_tests {
                     check(&mut c, Value::Array(f.clone()) == pe["factors"], || format!("{tag} factors {f:?} want {}", pe["factors"]));
                     check(&mut c, opinion_score(&s, a, b) == i(&pe["score"]), || format!("{tag} score"));
                     check(&mut c, opinion_of(&s, a, b).id() == pe["level"], || format!("{tag} level"));
+                    let great = crate::opinion::opinion_great_with(&s, a, b, &mut Default::default());
+                    check(&mut c, great == (pe["level"] == "great"), || format!("{tag} opinion_great_with {great}"));
                 }
             }
         }

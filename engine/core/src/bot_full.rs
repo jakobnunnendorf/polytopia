@@ -212,7 +212,7 @@ pub fn full_bot_step(s: &GameState, w: &FullWeights) -> Action {
 fn full_best_of(s: &GameState, actions: &[Action], w: &FullWeights) -> Action {
     let mut best = Action::EndTurn;
     let mut best_score = 0.0f64;
-    let mut cache: Option<GoalCache> = Some(Vec::new());
+    let mut cache: Option<GoalCache> = Some(GoalCache::default());
     for a in actions {
         if *a == Action::EndTurn {
             continue;

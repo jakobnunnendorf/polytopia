@@ -280,6 +280,19 @@ fn bench(args: &[String]) -> i32 {
     let seed0: i64 = flag(args, "--seed").map_or(1, |x| x.parse().unwrap());
     let threads: usize = flag(args, "--threads").map_or(1, |x| x.parse().unwrap());
     let per_game = args.iter().any(|a| a == "--per-game");
+    if args.iter().any(|a| a == "--mapgen-only") {
+        // only create the games (to subtract the map generation share from instruction counts)
+        let mut n = 0usize;
+        for g in 0..games {
+            let opts = NewGameOptions {
+                map_size: Some(size), players, mode: polycore::types::GameMode::Perfection, difficulty: None, seed: seed0 + g,
+                humans: Some(vec![]), map_type: Some(polycore::mapgen::MapType::Drylands), clans: None, turn_limit: None,
+            };
+            n += create_game(&opts).unwrap().units.len();
+        }
+        println!("{n}");
+        return 0;
+    }
     let w = GreedyWeights::default_weights();
     let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
     let t0 = std::time::Instant::now();
@@ -307,11 +320,54 @@ fn bench(args: &[String]) -> i32 {
     0
 }
 
+/// mapbench [--games N] [--size 11] [--players 2] [--type drylands|...|all] [--hash]: createGame alone
+fn mapbench(args: &[String]) -> i32 {
+    let games: i64 = flag(args, "--games").map_or(200, |x| x.parse().unwrap());
+    let size: i32 = flag(args, "--size").map_or(11, |x| x.parse().unwrap());
+    let players: i32 = flag(args, "--players").map_or(2, |x| x.parse().unwrap());
+    let ty = flag(args, "--type").map_or("drylands".to_string(), |x| x.to_string());
+    let types: Vec<polycore::mapgen::MapType> = if ty == "all" {
+        polycore::mapgen::MapType::ALL.to_vec()
+    } else {
+        vec![polycore::mapgen::MapType::from_id(&ty).expect("map type")]
+    };
+    let t0 = std::time::Instant::now();
+    let mut states = Vec::new();
+    for &mt in &types {
+        for g in 0..games {
+            let opts = NewGameOptions {
+                map_size: Some(size),
+                players,
+                mode: polycore::types::GameMode::Perfection,
+                difficulty: None,
+                seed: 1 + g,
+                humans: Some(vec![]),
+                map_type: Some(mt),
+                clans: None,
+                turn_limit: None,
+            };
+            states.push(create_game(&opts).unwrap());
+        }
+    }
+    let secs = t0.elapsed().as_secs_f64();
+    println!("{} games in {:.4}s: {:.1} us/createGame", states.len(), secs, secs * 1e6 / states.len() as f64);
+    if args.iter().any(|a| a == "--hash") {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        for s in &states {
+            state_hash(s).hash(&mut h);
+        }
+        println!("hash {:016x}", h.finish());
+    }
+    0
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let code = match args.get(1).map(String::as_str) {
         Some("replay") => replay(&args[2..]),
         Some("bench") => bench(&args[2..]),
+        Some("mapbench") => mapbench(&args[2..]),
         Some("dump") => dump(&args[2..]),
         Some("hash") => {
             for f in &args[2..] {
