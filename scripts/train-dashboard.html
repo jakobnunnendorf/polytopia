@@ -185,6 +185,17 @@ function renderSweeps() {
     const finTxt = fin ? `<div class="note" style="margin-top:10px"><b>Final test of ${esc(fin.point)}</b> (${fin.games} unseen games against each): ` +
         Object.entries(fin.vs).map(([o, v]) => `${PANEL_LABEL[o] || o} ${pct(v.pointShare)} pts, ${pct(v.winRate, 0)} won ± ${(196 * Math.sqrt((v.winRate * (1 - v.winRate)) / v.games)).toFixed(0)}%`).join(" · ") + `. Mean ${pct(fin[key])}.</div>`
       : `<div class="note" style="margin-top:10px">${r.running ? "Final test of the best point follows the last point." : "No final test recorded."}</div>`;
+    // the phase running now, from the sweep's once-a-minute progress line
+    const live = r.running ? (r.log?.tail || []).map((l) => l.match(/^\s+\[(\d\d:\d\d)\] (.+?): (\d+)\/(\d+) games(?:, done in ~(\d+) min)?(?: \| so far: (.*?))? \| /)).filter(Boolean).at(-1) : null;
+    const liveTxt = live ? (() => {
+      const [, at, phase, n, total, eta, sofar] = live;
+      const opp = (sofar || "").split("; ").filter(Boolean).map((x) => x.match(/^vs (\S+) ([\d.]+)% of points, won (\d+)\/(\d+)$/)).filter(Boolean);
+      return `<div style="margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:10px">
+        <div style="display:flex;justify-content:space-between;font-size:13px"><b>Now: ${esc(phase.replace(/^point /, "measuring "))}</b><span style="color:var(--text-secondary)">${count(+n)} of ${count(+total)} games${eta ? ` · about ${eta} min left` : ""} · as of ${at}</span></div>
+        <div class="bar" style="margin-top:6px"><div class="fill" style="width:${(100 * +n) / +total}%;background:${color}"></div></div>
+        ${opp.length ? `<table style="margin-top:8px"><thead><tr><th>vs</th><th class="num">points so far</th><th class="num">won</th></tr></thead><tbody>${opp.map(([, o, ptsv, w, g]) => `<tr><td>${esc(o)}</td><td class="num">${ptsv}%</td><td class="num">${w}/${g}</td></tr>`).join("")}</tbody></table>` : `<div class="note">First results arrive with the next progress line (once a minute).</div>`}
+      </div>`;
+    })() : "";
     const table = `<details><summary>Table view</summary><table><thead><tr><th>point</th>${(head.panel || []).map((o) => `<th class="num">${PANEL_LABEL[o] || o}</th>`).join("")}<th class="num">mean</th></tr></thead><tbody>${pts.map((x) => `<tr><td>${esc(x.point)}</td>${(head.panel || []).map((o) => `<td class="num">${pct(x.vs?.[o]?.[okey])}</td>`).join("")}<td class="num"><b>${pct(x[key])}</b></td></tr>`).join("")}</tbody></table></details>`;
     return `<div class="card" style="margin-bottom:14px">
       <div class="run-head"><span class="swatch" style="background:${color}"></span><span class="run-name">${esc(r.id)}</span>
@@ -192,7 +203,7 @@ function renderSweeps() {
       <div class="meta">Mean ${METRIC === "winRate" ? "win rate" : "point share"} against the panel, ${head.games || "?"} held-out games against each (the same maps as a training run's curve points). Dashed rule = base; the scale is zoomed to the points. Hover a row for each opponent.</div>
       <div style="margin-top:10px">${names.map(row).join("")}</div>
       <div class="sw-ticks"><div></div><div class="t">${ticks}</div><div></div></div>
-      ${finTxt}${table}</div>`;
+      ${liveTxt}${finTxt}${table}</div>`;
   }).join("");
 }
 
