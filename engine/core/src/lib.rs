@@ -10,6 +10,7 @@
 
 pub mod actions;
 pub mod bot;
+pub mod bot_full;
 pub mod canon;
 pub mod combat;
 pub mod data;

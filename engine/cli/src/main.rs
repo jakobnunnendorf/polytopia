@@ -34,6 +34,17 @@ fn weights(name: &str) -> GreedyWeights {
     }
 }
 
+/// scripts/rust/trace-gen.ts obsHash: md5 of the canonical observation of the player to move
+fn obs_hash(s: &GameState) -> String {
+    let o = polycore::observe::observation_to_json(&polycore::observe::observe(s, s.current));
+    let d = md5_hex(&polycore::canon::canon_string(&o));
+    d[..16].to_string()
+}
+
+fn md5_hex(s: &str) -> String {
+    polycore::canon::md5_hex(s)
+}
+
 fn dummy_weights() -> GreedyWeights {
     GreedyWeights {
         capture: 0.0, examine: 0.0, promote: 0.0, harvest_starfish: 0.0, monument: 0.0, kill: 0.0, hit: 0.0,
@@ -70,7 +81,7 @@ enum Outcome {
     Panic { step: i64, msg: String },
 }
 
-fn replay_game(g: &Value, check_bot: bool, w_default: &GreedyWeights, w_v4: &GreedyWeights) -> Outcome {
+fn replay_game(g: &Value, check_bot: bool, check_obs: bool, w_default: &GreedyWeights, w_v4: &GreedyWeights) -> Outcome {
     let spec = &g["spec"];
     if let Some(e) = g.get("error") {
         return Outcome::OracleError(e.to_string());
@@ -119,6 +130,11 @@ fn replay_game(g: &Value, check_bot: bool, w_default: &GreedyWeights, w_v4: &Gre
             if log_hash(&s) != st[3].as_str().unwrap() {
                 return Outcome::Mismatch { step: k as i64, what: format!("log after {}", st[0]) };
             }
+            if let Some(h) = st.get(5).and_then(|h| h.as_str()).filter(|h| check_obs && !h.is_empty()) {
+                if obs_hash(&s) != h {
+                    return Outcome::Mismatch { step: k as i64, what: "observation".into() };
+                }
+            }
         }
         Outcome::Ok(steps.len())
     }));
@@ -149,6 +165,7 @@ fn replay(args: &[String]) -> i32 {
         games.truncate(m.parse().unwrap());
     }
     let check_bot = !args.iter().any(|a| a == "--no-bot");
+    let check_obs = !args.iter().any(|a| a == "--no-obs");
     // without the bot check the weights are not needed (and bot.rs may not be ported yet)
     let (wd, wv) = if check_bot {
         (weights("default"), weights("v4"))
@@ -165,7 +182,7 @@ fn replay(args: &[String]) -> i32 {
     let results: Vec<(i64, Outcome)> = games
         .par_iter()
         .map(|g| {
-            let o = replay_game(g, check_bot, &wd, &wv);
+            let o = replay_game(g, check_bot, check_obs, &wd, &wv);
             if let Outcome::Ok(n) = o {
                 steps_ok.fetch_add(n, Ordering::Relaxed);
             }
@@ -227,10 +244,74 @@ fn dump(args: &[String]) -> i32 {
     0
 }
 
+/// one game exactly like scripts/simulate.ts: perfection, drylands, all bots, until over or turn 60
+fn simulate_game(seed: i64, size: i32, players: i32, w: &GreedyWeights) -> (Value, usize) {
+    let opts = NewGameOptions {
+        map_size: Some(size),
+        players,
+        mode: polycore::types::GameMode::Perfection,
+        difficulty: None,
+        seed,
+        humans: Some(vec![]),
+        map_type: Some(polycore::mapgen::MapType::Drylands),
+        clans: None,
+        turn_limit: None,
+    };
+    let mut s = create_game(&opts).unwrap();
+    let mut actions = 0usize;
+    while !s.over && s.turn <= 60 {
+        let a = bot_step(&s, w);
+        apply_action(&mut s, &a).unwrap();
+        actions += 1;
+    }
+    let line = serde_json::json!({
+        "seed": seed, "turns": s.turn, "winner": s.winner, "actions": actions,
+        "scores": (0..s.players.len() as i32).map(|p| polycore::state::score_of(&s, p)).collect::<Vec<_>>(),
+        "clans": s.players.iter().map(|p| p.tribe.id()).collect::<Vec<_>>(),
+    });
+    (line, actions)
+}
+
+/// bench [--games N] [--size 11] [--players 2] [--seed 1] [--threads 1] [--per-game]
+fn bench(args: &[String]) -> i32 {
+    let games: i64 = flag(args, "--games").map_or(40, |x| x.parse().unwrap());
+    let size: i32 = flag(args, "--size").map_or(11, |x| x.parse().unwrap());
+    let players: i32 = flag(args, "--players").map_or(2, |x| x.parse().unwrap());
+    let seed0: i64 = flag(args, "--seed").map_or(1, |x| x.parse().unwrap());
+    let threads: usize = flag(args, "--threads").map_or(1, |x| x.parse().unwrap());
+    let per_game = args.iter().any(|a| a == "--per-game");
+    let w = GreedyWeights::default_weights();
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
+    let t0 = std::time::Instant::now();
+    let results: Vec<(Value, usize)> = pool.install(|| (0..games).into_par_iter().map(|g| simulate_game(seed0 + g, size, players, &w)).collect());
+    let secs = t0.elapsed().as_secs_f64();
+    let total: usize = results.iter().map(|r| r.1).sum();
+    if per_game {
+        for (g, (line, _)) in results.iter().enumerate() {
+            let mut l = line.clone();
+            l["game"] = g.into();
+            println!("{l}");
+        }
+    }
+    let mut wins = vec![0; players as usize];
+    for (line, _) in &results {
+        if let Some(w) = line["winner"].as_i64() {
+            wins[w as usize] += 1;
+        }
+    }
+    println!(
+        "{}",
+        serde_json::json!({"summary": true, "engine": "rust", "games": games, "threads": threads, "wins": wins, "actions": total,
+            "seconds": secs, "actionsPerSecond": (total as f64 / secs).round()})
+    );
+    0
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let code = match args.get(1).map(String::as_str) {
         Some("replay") => replay(&args[2..]),
+        Some("bench") => bench(&args[2..]),
         Some("dump") => dump(&args[2..]),
         Some("hash") => {
             for f in &args[2..] {

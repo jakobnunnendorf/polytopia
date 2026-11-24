@@ -66,9 +66,12 @@ pub fn canon_state(s: &GameState) -> String {
     canon_string(&v)
 }
 
+pub fn md5_hex(s: &str) -> String {
+    format!("{:x}", md5::compute(s.as_bytes()))
+}
+
 fn md5_16(s: &str) -> String {
-    let d = md5::compute(s.as_bytes());
-    format!("{d:x}")[..16].to_string()
+    md5_hex(s)[..16].to_string()
 }
 
 pub fn state_hash(s: &GameState) -> String {

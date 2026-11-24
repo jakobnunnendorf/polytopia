@@ -1,0 +1,9 @@
+[package]
+name = "polyapi"
+description = "JSON entry point to the Rust engine, shared by the Node, WebAssembly and Python bindings"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+polycore = { path = "../core" }
+serde_json = "1"

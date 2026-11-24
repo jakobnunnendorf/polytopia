@@ -20,6 +20,7 @@ import { applyAction, legalActions } from "../../logic/engine/actions";
 import { DEFAULT_WEIGHTS, botStep, type GreedyWeights } from "../../logic/engine/bot";
 import { CLANS } from "../../logic/engine/data";
 import { createGame, type NewGameOptions } from "../../logic/engine/state";
+import { observe } from "../../logic/engine/observe";
 import type { Action, GameState } from "../../logic/engine/types";
 import { actionsHash, canon, md5, stateHash } from "./canon";
 
@@ -105,9 +106,13 @@ export function specFor(id: number): GameSpec {
   };
 }
 
-export type Step = [Action, string, string, string, number];
+/** observation hash every OBS_EVERY steps (of the player to move after the step), else "" */
+export const OBS_EVERY = 25;
+export const obsHash = (s: GameState) => md5(canon(observe(s, s.current))).slice(0, 16);
 
-/** play one corpus game; each step: [action, legal hash before, state hash after, log hash after, 1 if the bot chose it] */
+export type Step = [Action, string, string, string, number, string];
+
+/** play one corpus game; each step: [action, legal hash before, state hash after, log hash after, 1 if the bot chose it, observation hash after (every OBS_EVERY steps)] */
 export function playSpec(spec: GameSpec): { init: [string, string]; steps: Step[]; final: { over: boolean; winner: number | null; turn: number } } {
   let s = createGame(spec.opts);
   const init: [string, string] = [stateHash(s), logHash(s)];
@@ -126,7 +131,7 @@ export function playSpec(spec: GameSpec): { init: [string, string]; steps: Step[
     }
     const lh = actionsHash(legal);
     s = applyAction(s, a);
-    steps.push([a, lh, stateHash(s), logHash(s), bot]);
+    steps.push([a, lh, stateHash(s), logHash(s), bot, steps.length % OBS_EVERY === 0 ? obsHash(s) : ""]);
   }
   return { init, steps, final: { over: s.over, winner: s.winner, turn: s.turn } };
 }
@@ -140,10 +145,11 @@ function runWorker(ids: number[], file: string) {
     let line: string;
     try {
       const g = playSpec(spec);
-      line = canon({ spec, ...g });
+      // plain JSON: the spec must keep empty arrays (humans: [] differs from no humans)
+      line = JSON.stringify({ spec, ...g });
     } catch (e) {
       // a game the oracle itself cannot create or play is recorded as such, never silently dropped
-      line = canon({ spec, error: String((e as Error).message ?? e) });
+      line = JSON.stringify({ spec, error: String((e as Error).message ?? e) });
     }
     gz.write(line + "\n");
   }
