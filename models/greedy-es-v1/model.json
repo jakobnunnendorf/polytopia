@@ -1,0 +1,125 @@
+{
+  "id": "greedy-es-v1",
+  "name": "ES climber v1",
+  "kind": "greedy",
+  "description": "The greedy bot with weights tuned by evolution strategies (scripts/train-es.ts): 15604 iterations, 1.26M training games in 4-player domination on drylands 16x16 maps. Saved the averaged weights of the best learning-curve point (iteration 1969, 95k games). Won 87% against greedy-v1 on unseen maps at save time. Method change mid-run: population 12 directions per iteration until 238k training games, 24 from then on (bigger batches, about 27% faster); the trainer keeps no resume record, so the 'es.pop' field shows only the final value. The best point came early: the remaining 1.17M games did not beat it.",
+  "created": "2026-11-24",
+  "weights": {
+    "capture": 668.49,
+    "examine": 76.29,
+    "promote": 17.52,
+    "harvestStarfish": 56.61,
+    "monument": 87.86,
+    "kill": 164.78,
+    "hit": 0.66,
+    "special": 181.33,
+    "growBase": 91.83,
+    "growPerPop": 0.68,
+    "otherBuild": 17.49,
+    "richAt": 4,
+    "research": 42.3,
+    "train": 270.89,
+    "unitsPerCity": 10,
+    "move": 31.72,
+    "recover": 66.84,
+    "healOthers": 89.11,
+    "upgrade": 28.34,
+    "noise": 1,
+    "rewards": {
+      "workshop": 5,
+      "explorer": 3,
+      "cityWall": 2,
+      "resources": 5,
+      "populationGrowth": 5,
+      "borderGrowth": 3,
+      "park": 4,
+      "superUnit": 6
+    }
+  },
+  "training": {
+    "method": "evolution-strategies",
+    "engine": "rust",
+    "es": {
+      "pop": 24,
+      "pairs": 2,
+      "lr": 0.03,
+      "sigma": {
+        "start": 0.15,
+        "end": 0.058813252124226924,
+        "min": 0.03,
+        "decay": 0.99994
+      },
+      "ema": 0.95,
+      "optimizer": "adam",
+      "popHistory": [
+        {
+          "pop": 12,
+          "fromTrainingGames": 0
+        },
+        {
+          "pop": 24,
+          "fromTrainingGames": 238000
+        }
+      ]
+    },
+    "league": [
+      "self"
+    ],
+    "budget": 1260160,
+    "iterations": 15604,
+    "trainingGames": 1260192,
+    "startedAt": "2026-11-24T11:48:29.666Z",
+    "endedAt": "2026-11-24T17:10:10.858Z",
+    "seconds": 19054,
+    "duration": "5h17m",
+    "mode": "domination",
+    "players": 4,
+    "mapType": "drylands",
+    "mapSize": 16,
+    "curve": "curve.jsonl",
+    "milestones": [
+      3600,
+      36000,
+      360000,
+      1260160
+    ],
+    "earlyStop": {
+      "metric": "share",
+      "patience": 0,
+      "minGain": 0.003,
+      "converged": false,
+      "savedIteration": 1969,
+      "savedAtTrainingGames": 94512,
+      "savedAveraged": true,
+      "savedCurveScore": 0.6
+    },
+    "final": {
+      "greedy-v1": {
+        "winRate": 0.8725,
+        "pointShare": 0.717,
+        "games": 400
+      },
+      "greedy-hill-v1": {
+        "winRate": 0.6475,
+        "pointShare": 0.595,
+        "games": 400
+      },
+      "greedy-hill-v2": {
+        "winRate": 0.69,
+        "pointShare": 0.59,
+        "games": 400
+      },
+      "greedy-hill-v3": {
+        "winRate": 0.5325,
+        "pointShare": 0.513,
+        "games": 400
+      },
+      "greedy-hill-v4": {
+        "winRate": 0.5375,
+        "pointShare": 0.506,
+        "games": 400
+      }
+    },
+    "finalWinRateVsGreedyV1": 0.8725
+  }
+}
