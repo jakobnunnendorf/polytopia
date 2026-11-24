@@ -5,9 +5,15 @@ description: Use when improving a bot model in polytopia-ai-research - adding a 
 
 # Model experiment
 
-One change per experiment, measured against the current champion and a control with the
-same budget and seed, recorded on its issue. The experiment is the unit: code, run,
-verdict and record go together.
+One change per experiment, measured against the current champion on fixed maps, recorded
+on its issue. The experiment is the unit: code, measurement, verdict and record go together.
+
+**Sweep, don't train.** A new mechanism is measured with a strength sweep (`npm run sweep`):
+the base plus the new knob at 3-5 hand-set values, each against the panel, then a final test
+of the best. About 2-5 minutes. 100k-game hill climbing found nothing in three runs from
+Full v1 (control, #28, #29: 0-1 kept changes each), because a round's 300-400 games cannot
+see gains under ~1 point. Run a long tuning run (`train-full`, settings below) only every
+3-4 kept mechanisms, over all knobs, as its own experiment against a fresh control.
 
 ## The run contract (what every experiment is)
 
@@ -17,16 +23,16 @@ verdict and record go together.
 | Base | the current champion: the last experiment whose verdict was **kept** (see #31 comments), else `greedy-full-v1` |
 | Change | exactly one mechanism or trainer change, **off by default** (old models play unchanged) |
 | Panel | `greedy-v1,greedy-hill-v1,greedy-hill-v2,greedy-hill-v3,greedy-hill-v4,greedy-full-v1` (fixed: curves stay comparable across steps). Add the base only when it is not `greedy-full-v1`, as a 7th entry, and compare means on the fixed six |
-| Settings | `--budget 100000 --patience 0 --league self,past --batch 30 --seed 4242 --curve-every 12500` |
-| Control | same base, same settings, no change. Reuse an existing control for the same base (for `greedy-full-v1`: `greedy-full-v2-ctrl`, panel 66.0% at 100k). Run a new one only when the base changes |
+| Tuning-run settings | `--budget 100000 --patience 0 --league self,past --batch 30 --seed 4242 --curve-every 12500` |
+| Control | sweeps: the base row the sweep measures itself on the same maps. Tuning runs: same base, same settings, no change. Reuse an existing control for the same base (for `greedy-full-v1`: `greedy-full-v2-ctrl`, panel 66.0% at 100k). Run a new one only when the base changes |
 | Knob names | as the trainer prints them in KEPT lines: scalars bare (`defend`, `techUse`), tables `group.key` (`unit.giant`, `greedy.move`). Never a `full.` prefix |
-| Start values | new knobs need `--init k=v` with a hand-set non-zero value: nudges are multiplicative, a 0 never moves. Size it so the term can just tip the choice it is about: compare with the base score it competes with (a move ≈ `greedy.move` ≈ 25 plus tiles gained; research ≈ `greedy.research` ≈ 28 minus cost and tier), and check the size on a real position in step 3 |
-| Focus | `--focus <the new knobs only>`; never existing knobs (that tests something else) |
+| Sweep values | about ×2 apart around a hand-sized middle (e.g. 0.5,1,2,4). Size the middle so the term can just tip the choice it is about: compare with the base score it competes with (a move ≈ `greedy.move` ≈ 25 plus tiles gained; research ≈ `greedy.research` ≈ 28 minus cost and tier), and check the size on a real position in step 3. Include a weak value: #29 started 5× too strong and lost (39.8% vs base). If the best point is at an end of the range, extend the range once. Several knobs of one mechanism: `--points "a=1,b=5|a=2,b=10"` |
+| Tuning runs only | `--init k=v` for knobs at 0 (nudges are multiplicative, a 0 never moves); `--focus` on the new knobs only |
 
-The curve point at 0 games is the **mechanism alone at its hand-set value**; report it.
-`train-full` ends with the **final test** (400 unseen games against each panel model): that
-is the head-to-head against the base. Do not run `npm run arena` for it: arena writes
-`data/games/` and changes the shared Elo ratings.
+The sweep plays the same maps as train-full's curve points and its final test on the same
+maps as train-full's final test, so numbers compare across sweeps and old runs. The **final
+test** (400 unseen games against each panel model) is the head-to-head against the base. Do
+not run `npm run arena` for it: arena writes `data/games/` and changes the shared Elo ratings.
 
 ## Steps
 
@@ -43,22 +49,34 @@ is the head-to-head against the base. Do not run `npm run arena` for it: arena w
    wasm), `cargo test --release -p polycore bot_full` in `engine/`, `npx tsc --noEmit -p .`
    (0 errors). Sanity-check the new signal on a real position (replay a game from
    `data/games` and compare `scoreFull` with the knob on and off).
-4. **Train** from the worktree, log to its `logs/`:
+4. **Serve the dashboard first, every time** (sweeps and tuning runs; the user watches there).
+   One dashboard on port 8095, pointed at the experiment's worktree; without `--runs` it finds
+   the worktree's training runs and sweeps by itself (sweeps appear under "Strength sweeps",
+   point by point):
    ```bash
-   mkdir -p logs && nohup npm run train-full -- --id <id> --from <base> <settings> \
-     --workers 10 --panel <panel> --init <k=v,...> --focus <new knobs> > logs/<id>.log 2>&1 &
+   pkill -f "scripts/train-dashboard.ts"
+   nohup npm run train-dashboard -- --root .claude/worktrees/<id> > /dev/null 2>&1 &
    ```
-   Point the dashboard at it: `npm run train-dashboard -- --root .claude/worktrees/<id> --runs <id>`.
-   Wait with a background `until grep -q "^training took" logs/<id>.log` loop, not polling.
-5. **Verdict**: **kept** when the final test against the base has points above 50% with
-   the ±5% interval clear of 50%, and the panel mean at 100k is at least the base's and
-   the control's. Otherwise **not kept**: the code still merges (off by default), and the
+   Once the run has started, check `curl -s localhost:8095/api/state` lists it, then give the
+   user http://localhost:8095.
+5. **Sweep** from the worktree, log to its `logs/`:
+   ```bash
+   mkdir -p logs && npm run sweep -- --id <id> --from <base> --knob <k> --values 0.5,1,2,4 \
+     > logs/<id>.log 2>&1
+   ```
+   It saves the best point as `models/<id>/model.json`, with one row per point in `sweep.jsonl`.
+   (A tuning run instead: `nohup npm run train-full -- --id <id> --from <base> <settings>
+   --workers 10 --panel <panel> > logs/<id>.log 2>&1 &`.)
+   Wait with a background `until grep -q "took" logs/<id>.log` loop, not polling.
+6. **Verdict**: **kept** when the final test against the base has points above 50% with
+   the ±5% interval clear of 50%, and the best point's panel mean is at least the base row's
+   (tuning runs: the mean at 100k at least the base's and the control's). Otherwise **not kept**: the code still merges (off by default), and the
    next step starts from the unchanged base.
-6. **Record** on the experiment's issue and one line on #31:
+7. **Record** on the experiment's issue and one line on #31:
 
-   | | panel at 0 games | panel at 100k | final test vs base |
+   | | panel mean | vs base (panel test) | final test vs base |
    |---|---|---|---|
-   | base · control · change hand-set · change trained |
+   | base · each sweep point · (tuning runs: control, trained) |
 
    plus where the new knobs ended, which kept changes touched them, a behaviour metric for
    the mechanism, and the verdict. The behaviour metric is one count the mechanism should
@@ -66,7 +84,8 @@ is the head-to-head against the base. Do not run `npm run arena` for it: arena w
    `findGame(id)` from `scripts/lib/store.ts`) or the final-test games: e.g. cities lost
    while empty (defence), techs researched but never used (research), mean distance of
    units to the nearest enemy (front).
-7. **Save and PR**: `cp logs/<id>.log models/<id>/train.log`, `rm models/<id>/checkpoint.json`,
+8. **Save and PR**: `cp logs/<id>.log models/<id>/train.log` (tuning runs also
+   `rm models/<id>/checkpoint.json`),
    commit code and model on `model/<id>` (the model folder is committed either way: it is the
    experiment's record), PR to main with the result table, `Closes #<issue>`.
    Kept: a model PR (standing go to merge). Not kept: ask before merging. Then remove the
@@ -77,9 +96,12 @@ is the head-to-head against the base. Do not run `npm run arena` for it: arena w
 | Mistake | Instead |
 |---|---|
 | Two changes in one run | One mechanism per run; queue the rest as issues |
-| New knob starting at 0 | `--init` with a non-zero hand-set value |
+| A 100k training run per mechanism | A sweep; tuning runs every 3-4 kept mechanisms |
+| One hand-set value only | 3-5 values ×2 apart, including a weak one |
+| Tuning run with a knob at 0 | `--init` with a non-zero value |
 | Base added to the panel, means compared | Compare on the fixed six |
 | Separate `npm run arena` final test | The final test in `train-full`'s output |
 | Committing `checkpoint.json` | Delete it; commit `train.log` |
 | Training in the main checkout | A worktree; the live view runs from main |
 | Copying the addon with `cp` over the old file | `npm run engine:build` (renames into place) |
+| Starting a sweep or run without the dashboard | Serve it first (step 4) and give the user the link |

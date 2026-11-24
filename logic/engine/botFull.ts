@@ -30,6 +30,8 @@ export type FullWeights = {
   techUse: number;
   /** research penalty for a tech we could not use at all right now (0 = off) */
   techUseless: number;
+  /** move bonus per tile closer to the nearest known enemy city or unit (0 = off) */
+  front: number;
 };
 
 export type PartialFullWeights = { [K in keyof FullWeights]?: FullWeights[K] extends number ? number : Partial<FullWeights[K]> };

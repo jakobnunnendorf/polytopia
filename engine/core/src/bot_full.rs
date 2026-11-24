@@ -18,6 +18,10 @@
 //! (free tiles in our territory where one of its builds fits, plus trainable unit types it
 //! unlocks). Research adds `tech_use * uses` and subtracts `tech_useless` when uses is 0.
 //! Both default to 0 (off).
+//!
+//! Front pull (issue #30): a move adds `front` per tile it brings the unit closer to the nearest
+//! known enemy city or unit (not at peace), also for moves the goal logic rejects, so idle units
+//! drift toward the action. Default 0 (off).
 use crate::actions::{apply_action, legal_actions};
 use crate::bot::{cached_goal, find_unit, noise, score_with, GoalCache, GreedyWeights};
 use crate::diplomacy::at_peace;
@@ -111,6 +115,8 @@ pub struct FullWeights {
     pub tech_use: f64,
     /// research penalty for a tech we could not use at all right now (0 = off)
     pub tech_useless: f64,
+    /// move bonus per tile closer to the nearest known enemy (0 = off)
+    pub front: f64,
 }
 
 /// botFull.ts DEFAULT_FULL_WEIGHTS
@@ -128,6 +134,7 @@ pub fn default_full_weights() -> FullWeights {
         defend_radius: 2.0,
         tech_use: 0.0,
         tech_useless: 0.0,
+        front: 0.0,
     }
 }
 
@@ -166,7 +173,7 @@ pub fn full_weights(p: &serde_json::Value) -> Result<FullWeights, String> {
     merge_table(&mut w.unit, o.get("unit"), "unit", |k| UnitType::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.build, o.get("build"), "build", |k| Build::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.reward, o.get("reward"), "reward", |k| Reward::from_id(k).map(|t| t as usize))?;
-    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius), ("techUse", &mut w.tech_use), ("techUseless", &mut w.tech_useless)] {
+    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius), ("techUse", &mut w.tech_use), ("techUseless", &mut w.tech_useless), ("front", &mut w.front)] {
         match o.get(key) {
             None | Some(serde_json::Value::Null) => {}
             Some(c) => *slot = c.as_f64().ok_or_else(|| format!("full.{key}: expected a number"))?,
@@ -288,6 +295,29 @@ fn research_term(s: &GameState, tech: Tech, w: &FullWeights) -> f64 {
     w.tech_use * uses as f64 - if uses == 0 { w.tech_useless } else { 0.0 }
 }
 
+/// Chebyshev distance from (x, y) to the nearest enemy city or unit `owner` knows of (explored
+/// tile, not at peace); None when it knows of none
+fn enemy_dist(s: &GameState, owner: i32, x: i32, y: i32) -> Option<i32> {
+    let n = s.map_size;
+    let explored = &s.players[owner as usize].explored;
+    let hostile = |o: i32| o != owner && o >= 0 && !at_peace(s, owner, o);
+    let units = s.units.iter().filter(|e| hostile(e.owner) && explored[idx(n, e.x, e.y)] == 1).map(|e| dist(x, y, e.x, e.y));
+    let cities = s.cities.iter().filter(|c| hostile(c.owner) && explored[idx(n, c.x, c.y)] == 1).map(|c| dist(x, y, c.x, c.y));
+    units.chain(cities).min()
+}
+
+/// the front-pull term of a move: front per tile closer to the nearest known enemy
+fn front_term(s: &GameState, unit: Id, to: Coord, w: &FullWeights) -> f64 {
+    if w.front == 0.0 {
+        return 0.0;
+    }
+    let u = find_unit(s, unit);
+    match (enemy_dist(s, u.owner, u.x, u.y), enemy_dist(s, u.owner, to.x, to.y)) {
+        (Some(a), Some(b)) => w.front * (a - b) as f64,
+        _ => 0.0,
+    }
+}
+
 fn id_weight(a: &Action, w: &FullWeights) -> f64 {
     match *a {
         Action::Research { tech } => w.tech[tech as usize],
@@ -312,7 +342,7 @@ fn score_full_with(s: &GameState, a: &Action, w: &FullWeights, cache: &mut Optio
     let id = id_weight(a, w);
     let score = if base > 0.0 { base * w.ty[t] * id } else { w.open[t] * id - 1.0 };
     match *a {
-        Action::Move { unit, to } => score + defend_term(s, unit, to, w),
+        Action::Move { unit, to } => score + defend_term(s, unit, to, w) + front_term(s, unit, to, w),
         Action::Research { tech } => score + research_term(s, tech, w),
         _ => score,
     }
