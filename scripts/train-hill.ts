@@ -189,7 +189,30 @@ class Pool {
 }
 
 let pool: Pool | null = null;
-const runJob = (job: Job): Promise<Result> => (pool ? pool.run(job) : Promise.resolve(play(job.w0, job.w1, job.seed, job.size)));
+// ---------- progress: a line every --progress-every seconds (default 60) while games run ----------
+const PROGRESS_EVERY = Number(arg("progress-every", "60"));
+const progress = { phase: "starting", phaseGames: 0, phaseTotal: 0, done: 0, lastDone: 0, startedAt: Date.now() };
+function setPhase(phase: string, total = 0) {
+  progress.phase = phase;
+  progress.phaseGames = 0;
+  progress.phaseTotal = total;
+}
+if (isMainThread && PROGRESS_EVERY > 0) {
+  setInterval(() => {
+    const now = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    const recent = progress.done - progress.lastDone;
+    progress.lastDone = progress.done;
+    const mins = (Date.now() - progress.startedAt) / 60000;
+    const of = progress.phaseTotal ? `/${progress.phaseTotal}` : "";
+    console.log(`  [${now}] ${progress.phase}: ${progress.phaseGames}${of} games; ${progress.done} games in all, ${recent} in the last ${PROGRESS_EVERY}s (${(progress.done / Math.max(mins, 1e-9)).toFixed(1)}/min)`);
+  }, PROGRESS_EVERY * 1000).unref();
+}
+const runJob = (job: Job): Promise<Result> =>
+  (pool ? pool.run(job) : Promise.resolve(play(job.w0, job.w1, job.seed, job.size))).then((r) => {
+    progress.done++;
+    progress.phaseGames++;
+    return r;
+  });
 
 /** b's share of wins and of all points against a over `games` games from firstSeed on, each map played from both seats */
 async function match(a: GreedyWeights, b: GreedyWeights, games: number, firstSeed: number): Promise<{ wins: number; share: number }> {
@@ -221,6 +244,7 @@ async function fixedTest(champ: GreedyWeights, chall: GreedyWeights): Promise<Te
 
 /** batches of map pairs until the SPRT decides, or --max-games is reached (reject) */
 async function sprtTest(champ: GreedyWeights, chall: GreedyWeights): Promise<Test> {
+  setPhase("testing a challenger");
   const pairs: number[] = [];
   let wins = 0;
   let mine = 0;
@@ -238,6 +262,7 @@ async function sprtTest(champ: GreedyWeights, chall: GreedyWeights): Promise<Tes
       total += a.scores[0] + a.scores[1] + b.scores[0] + b.scores[1];
     }
     const { verdict, llr } = sprtVerdict(pairs, ELO0, ELO1);
+    console.log(`    look: ${pairs.length * 2} games, challenger won ${((wins / (pairs.length * 2)) * 100).toFixed(0)}%, LLR ${llr.toFixed(2)} (keep at ${Math.log(19).toFixed(2)}, reject at ${(-Math.log(19)).toFixed(2)})`);
     const games = pairs.length * 2;
     const out = { games, wins: wins / games, share: total ? mine / total : 0.5, llr };
     if (verdict === "accept") return { ...out, keep: true };
@@ -334,6 +359,7 @@ async function main() {
   let converged = false;
 
   const curvePoint = async () => {
+    setPhase(`curve point ${points + 1} (vs panel)`, panel.length * CURVE_GAMES);
     const vs = await panelTest(panel, champ, CURVE_GAMES, CURVE_SEED);
     const mean = meanWin(vs);
     const improved = mean > best.mean + MIN_GAIN || best.mean < 0;
@@ -378,6 +404,7 @@ async function main() {
   if (champ !== lastChamp) console.log(`saving the champion of the best curve point (round ${best.round}, ${count(best.trainingGames)} games, mean ${pct(best.mean)})`);
 
   // final test: the whole panel on maps neither the climber nor the curve has seen
+  setPhase("final test (vs panel)", panel.length * FINAL_GAMES);
   const final = await panelTest(panel, champ, FINAL_GAMES, FINAL_SEED);
   console.log(`\nfinal (${FINAL_GAMES} unseen games against each):`);
   for (const [id, v] of Object.entries(final)) {
