@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Elo tournament · Polytopia AI</title>
+<style>
+/* the look of train-dashboard.html: same tokens, cards, tables, light and dark */
+.viz-root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface-1: #fcfcfb; --text-primary: #0b0b0b; --text-secondary: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6; --range: #9dbfe9;
+  --good: #0ca30c; --critical: #d03b3b; --good-text: #006300;
+  --div-pos: #2a78d6; --div-neg: #e34948; --div-mid: #f0efec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --text-primary: #f0efec; --text-secondary: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5; --range: #3d679f;
+    --good-text: #0ca30c; --div-pos: #3987e5; --div-neg: #e66767; --div-mid: #383835;
+  }
+}
+/* ?theme=dark or ?theme=light overrides the system's setting */
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface-1: #1a1a19; --text-primary: #f0efec; --text-secondary: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5; --range: #3d679f;
+  --good-text: #0ca30c; --div-pos: #3987e5; --div-neg: #e66767; --div-mid: #383835;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.viz-root { background: var(--page); color: var(--text-primary); min-height: 100vh; padding: 20px 24px 60px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px; margin-bottom: 16px; }
+h1 { font-size: 20px; margin: 0; font-weight: 650; }
+h2 { font-size: 16px; margin: 28px 0 10px; font-weight: 650; }
+h3 { font-size: 13px; margin: 0 0 6px; font-weight: 600; color: var(--text-secondary); }
+.meta { color: var(--text-secondary); font-size: 12.5px; }
+.controls { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 10px; }
+.controls label { display: inline-flex; gap: 6px; align-items: center; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; border: 0; background: transparent; color: var(--text-secondary); padding: 4px 10px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface-1); color: var(--text-primary); font-weight: 600; box-shadow: inset 0 0 0 1px var(--border); }
+select { font: inherit; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 3px 6px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.grid { display: grid; gap: 14px; }
+/* ranking cards: side by side only on a very wide screen, so the track stays wide enough to show the intervals */
+.cols-2 { grid-template-columns: repeat(auto-fit, minmax(min(900px, 100%), 1fr)); }
+.cols-5 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.pill { font-size: 11.5px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
+.bar { position: relative; height: 10px; border-radius: 5px; background: var(--grid); margin: 6px 0; overflow: hidden; }
+.bar > .fill { position: absolute; inset: 0 auto 0 0; border-radius: 5px; background: var(--series-1); }
+ul.insights { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+ul.insights li { display: flex; gap: 8px; align-items: baseline; }
+ul.insights li .ic { flex: none; width: 18px; text-align: center; font-weight: 700; color: var(--text-secondary); }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; }
+td.num, th.num { text-align: right; }
+td .sub { color: var(--muted); font-size: 11.5px; }
+.scroll { overflow-x: auto; }
+.note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+.empty { color: var(--muted); font-size: 13px; padding: 14px 0; }
+.err { color: var(--critical); }
+.tip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.12); max-width: 380px; display: none; }
+.tip b { font-weight: 600; }
+
+/* ranking: one row per agent, a dot at the rating and a bar over its interval, on a scale shared by all cards */
+.rk-row, .rk-ticks { display: grid; grid-template-columns: 22px minmax(120px, 190px) minmax(120px, 1fr) 118px; align-items: center; gap: 8px; }
+.rk-row { padding: 3px 0; border-bottom: 1px solid var(--grid); font-size: 13px; cursor: default; }
+.rk-row:hover { background: color-mix(in srgb, var(--grid) 45%, transparent); }
+.rk-row .n { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; }
+.rk-row .lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rk-row .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
+.rk-row .val b { color: var(--text-primary); font-size: 13px; }
+.rk-track { position: relative; height: 18px; }
+.rk-track .g { position: absolute; top: -4px; bottom: -4px; width: 0; border-left: 1px solid var(--grid); }
+.rk-track .anchor { position: absolute; top: -4px; bottom: -4px; width: 0; border-left: 2px dashed var(--muted); }
+.rk-track .range { position: absolute; top: 7px; height: 4px; border-radius: 2px; background: var(--range); }
+.rk-track .mk { position: absolute; top: 3px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--series-1); box-shadow: 0 0 0 2px var(--surface-1); }
+.rk-track .off { position: absolute; left: 0; top: 0; font-size: 12px; color: var(--text-secondary); line-height: 18px; white-space: nowrap; }
+.rk-ticks { font-size: 11px; color: var(--muted); border: 0; padding-top: 2px; }
+.rk-ticks .t { position: relative; height: 14px; }
+.rk-ticks .t span { position: absolute; transform: translateX(-50%); font-variant-numeric: tabular-nums; }
+.key { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; align-items: center; }
+.key span { display: inline-flex; align-items: center; gap: 6px; }
+.key .k-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--series-1); }
+.key .k-range { width: 22px; height: 4px; border-radius: 2px; background: var(--range); }
+.key .k-anchor { width: 0; height: 14px; border-left: 2px dashed var(--muted); }
+.key .k-grad { width: 120px; height: 10px; border-radius: 3px; background: linear-gradient(90deg, color-mix(in srgb, var(--div-neg) 60%, var(--div-mid)), var(--div-mid), color-mix(in srgb, var(--div-pos) 60%, var(--div-mid))); }
+
+/* pairwise matrix */
+table.mx { width: auto; font-size: 12px; }
+table.mx th, table.mx td { padding: 0; border: 0; }
+table.mx td.c { width: 44px; height: 26px; text-align: center; color: var(--text-primary); border: 1px solid var(--surface-1); border-radius: 4px; cursor: default; }
+table.mx td.self { color: var(--muted); }
+table.mx th.col { height: 118px; vertical-align: bottom; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-secondary); }
+table.mx th.col span { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; padding: 4px 0; width: 44px; line-height: 44px; text-align: left; }
+table.mx th.row { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-primary); text-align: right; padding: 0 8px 0 0; font-size: 12.5px; white-space: nowrap; }
+table.mx th.row .n { color: var(--muted); font-size: 11.5px; }
+table.mx td.mean { padding-left: 10px; color: var(--text-secondary); text-align: right; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <header>
+    <h1>Elo tournament</h1>
+    <span class="meta" id="meta">loading…</span>
+    <span class="meta" id="runsel"></span>
+  </header>
+
+  <div id="progress"></div>
+  <div class="card" id="insights-card" style="margin-top:14px"><h3>What the results say</h3><ul class="insights" id="insights"></ul></div>
+
+  <h2>Ranking per mode</h2>
+  <div class="key">
+    <span><i class="k-dot"></i>rating</span>
+    <span><i class="k-range"></i>95% interval</span>
+    <span><i class="k-anchor"></i><span id="anchor-key">anchor</span></span>
+    <span id="scale-note"></span>
+  </div>
+  <div class="grid cols-2" id="rankings"></div>
+
+  <h2>Rating by mode</h2>
+  <div class="card"><div class="scroll" id="bymode"></div>
+    <div class="note">Rating with the rank in that mode in brackets. Every column is its own fit with the anchor at the same number, so a rating says how far an agent is from the anchor in that mode; compare ranks and gaps across columns, not levels.</div>
+  </div>
+
+  <h2>Pair by pair</h2>
+  <div class="controls">
+    <label>mode <span class="seg" role="group" aria-label="mode" id="mode-seg"></span></label>
+    <label>number <span class="seg" role="group" aria-label="number shown" id="metric-seg">
+      <button data-metric="winRate" aria-pressed="true">games won</button>
+      <button data-metric="pointShare" aria-pressed="false">share of points</button>
+      <button data-metric="finish" aria-pressed="false" title="the finish score of training: a win by the mode's rule scores 75-100% (earlier = more), a loss 0-25%, a game stopped at the turn cap 25-75% by points">finish score</button>
+    </span></label>
+  </div>
+  <div class="card">
+    <h3 id="mx-title"></h3>
+    <div class="key"><span>row loses</span><span><i class="k-grad"></i></span><span>row wins</span><span>50% = even · the number is the row agent's, against the column agent</span></div>
+    <div class="scroll" id="matrix"></div>
+  </div>
+
+  <h2 id="table-title">Table</h2>
+  <div class="card"><div class="scroll" id="table"></div>
+    <div class="note" id="table-note"></div>
+  </div>
+
+  <h2>Setup and method</h2>
+  <div class="card"><div class="scroll" id="setup"></div><div class="note" id="method"></div></div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+"use strict";
+let S = null;
+let MODE = "overall";
+let METRIC = "winRate";
+const QUERY = new URLSearchParams(location.search);
+let RUN = QUERY.get("run") || "";
+if (QUERY.get("theme") === "light" || QUERY.get("theme") === "dark") document.documentElement.dataset.theme = QUERY.get("theme");
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const pct = (x, d = 1) => (x == null ? "" : `${(x * 100).toFixed(d)}%`);
+const count = (n) => Number(n).toLocaleString("en-GB");
+const dur = (sec) => {
+  const s = Math.round(sec);
+  return s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min` : s >= 90 ? `${Math.round(s / 60)} min` : `${s} s`;
+};
+const short = (id) => (id === "greedy-v1" ? id : id.replace(/^greedy-/, ""));
+const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"}`;
+const METRIC_NAME = { winRate: "games won", pointShare: "share of points", finish: "finish score" };
+
+// which fit a view shows: "overall" or a mode
+const fitOf = (m) => (!S?.ratings ? null : m === "overall" ? S.ratings.overall : S.ratings.modes[m] || null);
+const modeNames = () => (S?.meta ? Object.keys(S.meta.modes) : []);
+const kindOf = (id) => S.meta.agents.find((a) => a.id === id)?.kind;
+const setupText = (m) => {
+  const s = S.meta.modes[m];
+  return s ? `${s.players} players, ${s.size}×${s.size} ${s.mapType}, ${s.turnLimit ? `${s.turnLimit} turns` : `turn cap ${s.maxTurns}`}` : "";
+};
+
+// ---------- progress ----------
+function renderProgress() {
+  const p = S.progress;
+  const el = $("progress");
+  if (!p || (!S.running && !S.stopped)) { el.innerHTML = ""; return; }
+  const frac = p.games ? p.doneGames / p.games : 0;
+  const head = S.running
+    ? `<b>Running</b> · ${count(p.donePairs)} of ${count(p.pairs)} pairings · ${count(p.doneGames)} of ${count(p.games)} games · ${count(p.gamesPerMinute)} games a minute on ${p.workers} workers${p.etaSeconds != null ? ` · about ${dur(p.etaSeconds)} left` : ""}`
+    : `<b class="err">Stopped before the end</b> · ${count(p.donePairs)} of ${count(p.pairs)} pairings done. Resume with: npm run elo-tournament -- --out elo/${esc(S.run)}`;
+  const modes = Object.entries(p.modes).map(([m, v]) => {
+    const st = v.donePairs >= v.pairs ? "done" : m === p.current && S.running ? "playing now" : v.donePairs ? "partly done" : "queued";
+    return `<div><div style="display:flex;justify-content:space-between;font-size:12.5px"><b>${esc(m)}</b><span class="meta">${st}</span></div>
+      <div class="bar" role="img" aria-label="${esc(m)}: ${v.donePairs} of ${v.pairs} pairings"><div class="fill" style="width:${(100 * v.doneGames) / Math.max(1, v.games)}%"></div></div>
+      <div class="meta">${v.donePairs} of ${v.pairs} pairings · ${count(v.doneGames)} games</div></div>`;
+  }).join("");
+  el.innerHTML = `<div class="card"><div style="font-size:13px">${head}</div>
+    <div class="bar" style="margin:8px 0 14px" role="img" aria-label="${pct(frac, 0)} of all games played"><div class="fill" style="width:${frac * 100}%"></div></div>
+    <div class="grid cols-5">${modes}</div>
+    ${S.running ? `<div class="note">Rankings below are fitted from the pairings finished so far and change as the run goes on; intervals use ${S.bootstrap} refits until it ends.</div>` : ""}</div>`;
+}
+
+// ---------- rankings: dot and interval on one shared scale ----------
+function scale() {
+  // every card uses the same scale. Agents of kind random sit far below the rest and would squeeze
+  // everyone else into a corner: they are left out of the scale and drawn at its left edge.
+  let lo = Infinity, hi = -Infinity;
+  for (const m of ["overall", ...modeNames()]) for (const r of fitOf(m)?.ranking || []) {
+    if (kindOf(r.id) === "random") continue;
+    lo = Math.min(lo, r.lo, r.rating); hi = Math.max(hi, r.hi, r.rating);
+  }
+  if (!isFinite(lo)) { lo = 1100; hi = 1300; }
+  const pad = Math.max(20, (hi - lo) * 0.04);
+  lo -= pad; hi += pad;
+  const span = hi - lo;
+  const step = span > 1600 ? 400 : span > 800 ? 200 : span > 350 ? 100 : 50;
+  const ticks = [];
+  for (let t = Math.ceil(lo / step) * step; t <= hi; t += step) ticks.push(t);
+  return { lo, hi, ticks, pos: (v) => ((v - lo) / (hi - lo)) * 100 };
+}
+
+function rankTip(r, m, i, f) {
+  const next = f.ranking[i + 1];
+  const prev = S.previous?.[r.id];
+  return `<b>${esc(r.id)}</b> · ${ordinal(i + 1)} in ${esc(m)}<br>rating ${r.rating}, 95% interval ${r.lo} to ${r.hi}` +
+    `<br>${count(r.games)} games: won ${pct(r.winRate)}, ${pct(r.pointShare)} of points` +
+    `<br>finish ${pct(r.finish)}, ${pct(r.outright)} won by the mode's rule, ${r.turns.toFixed(0)} turns on average` +
+    (next && r.aboveNext != null ? `<br>above ${esc(next.id)} in ${pct(r.aboveNext, 0)} of refits` : "") +
+    (r.wins === 0 ? `<br>never won: the rating is an upper bound` : "") +
+    (prev ? `<br>data/ratings.json: ${Math.round(prev.rating)}` : "");
+}
+
+function rankCard(m, sc) {
+  const f = fitOf(m);
+  const title = m === "overall" ? "Overall (all modes, each counting the same)" : `${m} · ${setupText(m)}`;
+  const prog = S.progress?.modes?.[m];
+  const part = f && prog && prog.donePairs < prog.pairs ? ` · ${prog.donePairs} of ${prog.pairs} pairings so far` : "";
+  if (!f) return `<div class="card"><h3>${esc(title)}</h3><div class="empty">${S.running ? "queued: no pairing of this mode has finished yet" : "no games"}</div></div>`;
+  const rows = f.ranking.map((r, i) => {
+    const off = r.rating < sc.lo;
+    const a = Math.max(0, sc.pos(Math.max(r.lo, sc.lo)));
+    const b = Math.min(100, sc.pos(Math.min(r.hi, sc.hi)));
+    const marks = off
+      ? `<div class="off">◂ off the scale, at ${r.rating}</div>`
+      : `<div class="range" style="left:${a}%;width:${Math.max(0, b - a)}%"></div><div class="mk" style="left:${sc.pos(r.rating)}%"></div>`;
+    const tag = r.id === S.anchor.id ? ` <span class="pill">anchor</span>` : "";
+    return `<div class="rk-row" data-tip="${esc(rankTip(r, m, i, f))}"><div class="n">${i + 1}</div><div class="lab">${esc(short(r.id))}${tag}</div>
+      <div class="rk-track">${sc.ticks.map((t) => `<div class="g" style="left:${sc.pos(t)}%"></div>`).join("")}<div class="anchor" style="left:${sc.pos(S.anchor.rating)}%"></div>${marks}</div>
+      <div class="val"><b>${r.rating}</b> ${r.wins === 0 ? "at most" : r.lo < 0 ? `${r.lo} to ${r.hi}` : `${r.lo}–${r.hi}`}</div></div>`;
+  }).join("");
+  const ticks = `<div class="rk-ticks"><div></div><div></div><div class="t">${sc.ticks.map((t) => `<span style="left:${sc.pos(t)}%">${t}</span>`).join("")}</div><div></div></div>`;
+  return `<div class="card"${m === "overall" ? ' style="grid-column:1/-1"' : ""}><h3>${esc(title)} <span style="font-weight:400">· ${count(f.games)} games${part}</span></h3>${rows}${ticks}</div>`;
+}
+
+function renderRankings() {
+  if (!S.ratings) { $("rankings").innerHTML = `<div class="card"><div class="empty">${S.running ? "The first pairings are being played; rankings appear in a moment." : esc(S.note || "No results yet.")}</div></div>`; return; }
+  const sc = scale();
+  $("rankings").innerHTML = ["overall", ...modeNames()].map((m) => rankCard(m, sc)).join("");
+  $("anchor-key").textContent = `${S.anchor.id} = ${S.anchor.rating} (the anchor, in every fit)`;
+  const offs = S.meta.agents.filter((a) => a.kind === "random").map((a) => a.id);
+  $("scale-note").textContent = `All cards share one scale${offs.length ? `; ${offs.join(", ")} is far below it and shown at the left edge` : ""}. 400 points = 10:1 odds.`;
+}
+
+// ---------- rating by mode ----------
+function renderByMode() {
+  const overall = fitOf("overall");
+  if (!overall) { $("bymode").innerHTML = `<div class="empty">no results yet</div>`; return; }
+  const cols = ["overall", ...modeNames()].filter((m) => fitOf(m));
+  const rankIn = (m, id) => fitOf(m).ranking.findIndex((r) => r.id === id);
+  const body = overall.ranking.map((r) => {
+    const ranks = cols.slice(1).map((m) => rankIn(m, r.id)).filter((k) => k >= 0).map((k) => k + 1);
+    const cells = cols.map((m) => {
+      const k = rankIn(m, r.id);
+      const x = k >= 0 ? fitOf(m).ranking[k] : null;
+      return `<td class="num"${x ? ` data-tip="${esc(rankTip(x, m, k, fitOf(m)))}"` : ""}>${x ? `${x.rating} <span class="sub">(${k + 1})</span>` : ""}</td>`;
+    }).join("");
+    const span = ranks.length ? (Math.min(...ranks) === Math.max(...ranks) ? `${ranks[0]}` : `${Math.min(...ranks)}–${Math.max(...ranks)}`) : "";
+    return `<tr><td>${esc(r.id)}</td>${cells}<td class="num">${span}</td></tr>`;
+  }).join("");
+  $("bymode").innerHTML = `<table><thead><tr><th>agent</th>${cols.map((m) => `<th class="num">${esc(m)}</th>`).join("")}<th class="num">ranks across modes</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+
+// ---------- pairwise matrix ----------
+function cellColour(v) {
+  // diverging: red below even, blue above, a neutral grey at 50%; at most 60% of the pole colour so
+  // the number stays readable in both themes
+  const d = Math.max(-1, Math.min(1, (v - 0.5) / 0.4));
+  return `color-mix(in srgb, var(${d >= 0 ? "--div-pos" : "--div-neg"}) ${(Math.abs(d) * 60).toFixed(0)}%, var(--div-mid))`;
+}
+function renderMatrix() {
+  const f = fitOf(MODE);
+  $("mx-title").textContent = `${METRIC_NAME[METRIC][0].toUpperCase()}${METRIC_NAME[METRIC].slice(1)} by the row agent against the column agent · ${MODE === "overall" ? "all modes" : `${MODE} (${setupText(MODE)})`}`;
+  if (!f) { $("matrix").innerHTML = `<div class="empty">no games in this mode yet</div>`; return; }
+  const ids = f.ranking.map((r) => r.id);
+  const head = `<tr><th></th>${ids.map((c, j) => `<th class="col"><span>${j + 1} ${esc(short(c))}</span></th>`).join("")}<th class="num" style="vertical-align:bottom;padding:0 0 4px 10px">all</th></tr>`;
+  const body = ids.map((r, i) => {
+    const cells = ids.map((c) => {
+      if (r === c) return `<td class="c self">·</td>`;
+      const x = f.matrix[r]?.[c];
+      if (!x) return `<td class="c self" data-tip="${esc(`${esc(r)} against ${esc(c)}: not played yet`)}"></td>`;
+      const tip = `<b>${esc(r)}</b> against <b>${esc(c)}</b><br>won ${count(x.wins)} of ${count(x.games)} games (${pct(x.winRate)})<br>${pct(x.pointShare)} of points · finish ${pct(x.finish)}`;
+      return `<td class="c" style="background:${cellColour(x[METRIC])}" data-tip="${esc(tip)}">${(x[METRIC] * 100).toFixed(0)}</td>`;
+    }).join("");
+    const me = f.ranking[i];
+    return `<tr><th class="row"><span class="n">${i + 1}</span> ${esc(short(r))}</th>${cells}<td class="mean">${pct(me[METRIC], 1)}</td></tr>`;
+  }).join("");
+  $("matrix").innerHTML = `<table class="mx"><thead>${head}</thead><tbody>${body}</tbody></table><div class="note">Numbers are percent. Rows and columns are in this mode's ranking order, so the upper right should be blue; a red cell there is a lower-ranked agent that beats a higher one.</div>`;
+}
+
+// ---------- table ----------
+function renderTable() {
+  const f = fitOf(MODE);
+  $("table-title").textContent = `Table · ${MODE === "overall" ? "all modes" : MODE}`;
+  if (!f) { $("table").innerHTML = `<div class="empty">no games in this mode yet</div>`; $("table-note").textContent = ""; return; }
+  const prevRank = Object.entries(S.previous || {}).filter(([id]) => f.ranking.some((r) => r.id === id)).sort((a, b) => b[1].rating - a[1].rating).map(([id]) => id);
+  const body = f.ranking.map((r, i) => {
+    const prev = S.previous?.[r.id];
+    return `<tr><td class="num">${i + 1}</td><td>${esc(r.id)}</td><td class="num"><b>${r.rating}</b></td><td class="num">${r.wins === 0 ? `at most ${r.hi}` : `${r.lo} to ${r.hi}`}</td>
+      <td class="num">${r.aboveNext == null ? "" : pct(r.aboveNext, 0)}</td><td class="num">${count(r.games)}</td><td class="num">${pct(r.winRate)}</td><td class="num">${pct(r.pointShare)}</td>
+      <td class="num">${pct(r.finish)}</td><td class="num">${pct(r.outright)}</td><td class="num">${pct(r.decided, 0)}</td><td class="num">${r.turns.toFixed(0)}</td>
+      <td class="num">${prev ? `${Math.round(prev.rating)} <span class="sub">(${prevRank.indexOf(r.id) + 1} of ${prevRank.length})</span>` : ""}</td></tr>`;
+  }).join("");
+  $("table").innerHTML = `<table><thead><tr><th class="num">#</th><th>agent</th><th class="num">rating</th><th class="num">95% interval</th><th class="num" title="share of refits in which it is rated above the next agent down">above next</th><th class="num">games</th><th class="num">won</th><th class="num">points</th><th class="num">finish</th><th class="num" title="games it won that ended by the mode's own rule, of all its games">won by rule</th><th class="num" title="its games that ended by the mode's own rule, not at the turn cap">games ended by rule</th><th class="num">mean turns</th><th class="num">data/ratings.json</th></tr></thead><tbody>${body}</tbody></table>`;
+  $("table-note").textContent = "Above next: the share of bootstrap refits in which the agent is rated above the next one down; near 50% means the two cannot be told apart. Won by rule: games it won that ended by the mode's own rule (conquest in domination), not at the turn cap. The last column is the old rating file (mostly 2-player games on 11×11), with the agent's place among the agents that are in both.";
+}
+
+// ---------- insights ----------
+function renderInsights() {
+  const out = [];
+  const overall = fitOf("overall");
+  if (!overall) { $("insights").innerHTML = `<li><span class="ic">·</span><span>${S.running ? "Waiting for the first finished pairings." : esc(S.note || "No results yet.")}</span></li>`; return; }
+  const top = overall.ranking[0], second = overall.ranking[1];
+  if (top && second) out.push(`<b>${esc(top.id)}</b> leads overall at ${top.rating} (${top.lo} to ${top.hi}), ${top.rating - second.rating} points ahead of ${esc(second.id)}; it is on top in ${pct(top.aboveNext, 0)} of refits.`);
+  const modes = modeNames().filter((m) => fitOf(m));
+  const leaders = modes.map((m) => [m, fitOf(m).ranking[0]]);
+  const same = leaders.every(([, r]) => r.id === leaders[0][1].id);
+  if (leaders.length > 1) out.push(same ? `The same agent leads every mode played so far (${modes.join(", ")}).` : `The leader differs by mode: ${leaders.map(([m, r]) => `${esc(m)} ${esc(short(r.id))} (${r.rating})`).join(", ")}.`);
+  // agents whose place moves most between modes
+  const moves = overall.ranking.map((r) => {
+    const places = modes.map((m) => [m, fitOf(m).ranking.findIndex((x) => x.id === r.id) + 1]).filter(([, k]) => k > 0);
+    const best = places.reduce((a, b) => (b[1] < a[1] ? b : a), places[0]);
+    const worst = places.reduce((a, b) => (b[1] > a[1] ? b : a), places[0]);
+    return { id: r.id, best, worst, gap: places.length ? worst[1] - best[1] : 0 };
+  }).filter((x) => x.gap >= 3).sort((a, b) => b.gap - a.gap).slice(0, 4);
+  if (modes.length > 1) out.push(moves.length ? `Places that move most between modes: ${moves.map((x) => `${esc(short(x.id))} is ${ordinal(x.best[1])} in ${esc(x.best[0])} but ${ordinal(x.worst[1])} in ${esc(x.worst[0])}`).join("; ")}.` : `No agent moves three or more places between modes.`);
+  // neighbours the data cannot separate
+  const ties = overall.ranking.map((r, i) => [r, overall.ranking[i + 1]]).filter(([r, n]) => n && r.aboveNext != null && r.aboveNext < 0.95);
+  if (ties.length) out.push(`Not separated overall (the upper one is ahead in under 95% of refits): ${ties.map(([r, n]) => `${esc(short(r.id))} / ${esc(short(n.id))} (${pct(r.aboveNext, 0)})`).join(", ")}.`);
+  const never = overall.ranking.filter((r) => r.wins === 0);
+  for (const r of never) out.push(`${esc(r.id)} won none of its ${count(r.games)} games; its rating is only an upper bound.`);
+  // the old rating file
+  const both = overall.ranking.filter((r) => S.previous?.[r.id]).map((r) => r.id);
+  if (both.length > 1) {
+    const old = [...both].sort((a, b) => S.previous[b].rating - S.previous[a].rating);
+    out.push(old.join() === both.join() ? `The ${both.length} agents that are also in data/ratings.json come out in the same order here.` : `Against data/ratings.json the order of the ${both.length} shared agents differs: there ${old.map(short).map(esc).join(" > ")}, here ${both.map(short).map(esc).join(" > ")}.`);
+  }
+  $("insights").innerHTML = out.map((t) => `<li><span class="ic">·</span><span>${t}</span></li>`).join("");
+}
+
+// ---------- setup ----------
+function renderSetup() {
+  if (!S.meta) { $("setup").innerHTML = ""; $("method").textContent = ""; return; }
+  const rows = Object.entries(S.meta.modes).map(([m, s]) => `<tr><td>${esc(m)}</td><td class="num">${s.players}</td><td>${s.size}×${s.size}</td><td>${esc(s.mapType)}</td><td class="num">${s.turnLimit ? `${s.turnLimit} (the mode's own end)` : s.maxTurns}</td><td class="num">${s.games}</td><td class="num">${count(fitOf(m)?.games || 0)}</td><td class="num">${fitOf(m) ? pct(fitOf(m).ranking.reduce((a, r) => a + r.decided * r.games, 0) / Math.max(1, fitOf(m).ranking.reduce((a, r) => a + r.games, 0)), 0) : ""}</td></tr>`).join("");
+  $("setup").innerHTML = `<table><thead><tr><th>mode</th><th class="num">players</th><th>map</th><th>map type</th><th class="num">turn cap</th><th class="num">games per pair</th><th class="num">games played</th><th class="num">ended by the mode's rule</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const ex = S.meta.excluded?.length ? ` Left out: ${S.meta.excluded.map((e) => `${e.id} (${e.why})`).join("; ")}.` : "";
+  $("method").textContent = `${S.meta.agents.length} agents, every pair in every mode on the same map seeds (${S.meta.firstSeed} upward), each map from both seatings; the two models take alternate seats of a free-for-all. A game still running at the turn cap goes to the side of the highest-scoring seat. Ratings: Bradley-Terry maximum likelihood over all games of a mode at once (order of games does not matter), Elo scale, ${S.anchor.id} = ${S.anchor.rating}. Intervals: 95% bootstrap over map seeds (${S.bootstrap} refits), centred on the mean of the learned agents. Overall: one fit over all modes with every mode counting the same.${ex} Engine commit ${S.meta.commit || "unknown"}; files in elo/${S.run}/.`;
+}
+
+// ---------- shell ----------
+function renderControls() {
+  const modes = ["overall", ...modeNames()];
+  if (!modes.includes(MODE)) MODE = "overall";
+  $("mode-seg").innerHTML = modes.map((m) => `<button data-mode="${esc(m)}" aria-pressed="${m === MODE}"${fitOf(m) ? "" : ' title="no games yet"'}>${esc(m)}</button>`).join("");
+  document.querySelectorAll("#metric-seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.metric === METRIC)));
+  $("runsel").innerHTML = S.runs.length > 1 ? `run <select id="run-pick" aria-label="run">${S.runs.map((r) => `<option${r === S.run ? " selected" : ""}>${esc(r)}</option>`).join("")}</select>` : "";
+}
+function render() {
+  if (!S.run) { $("meta").textContent = S.note || "no tournament yet"; return; }
+  const games = S.ratings?.overall.games || 0;
+  const state = S.running ? "running" : S.stopped ? "stopped before the end" : S.progress && S.progress.donePairs < S.progress.pairs ? "incomplete" : "finished";
+  const took = !S.running && S.progress?.seconds ? ` in ${dur(S.progress.seconds)}` : "";
+  $("meta").textContent = `elo/${S.run} · ${S.meta ? S.meta.agents.length : 0} agents · ${count(games)} games · ${state}${took} · updated ${new Date(S.at).toLocaleTimeString("en-GB")}`;
+  renderControls();
+  renderProgress();
+  renderInsights();
+  renderRankings();
+  renderByMode();
+  renderMatrix();
+  renderTable();
+  renderSetup();
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-mode], button[data-metric]");
+  if (!b || !S) return;
+  if (b.dataset.mode) MODE = b.dataset.mode;
+  if (b.dataset.metric) METRIC = b.dataset.metric;
+  renderControls();
+  renderMatrix();
+  renderTable();
+});
+document.addEventListener("change", (e) => {
+  if (e.target.id !== "run-pick") return;
+  RUN = e.target.value;
+  QUERY.set("run", RUN);
+  history.replaceState(null, "", `?${QUERY}`);
+  load();
+});
+// one tooltip for every mark and cell that carries data-tip (already escaped HTML)
+const tip = $("tip");
+document.addEventListener("mousemove", (e) => {
+  const el = e.target.closest?.("[data-tip]");
+  if (!el) { tip.style.display = "none"; return; }
+  tip.innerHTML = el.dataset.tip;
+  tip.style.display = "block";
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = `${Math.min(window.innerWidth - w - 8, e.clientX + 14)}px`;
+  tip.style.top = `${e.clientY + 16 + h > window.innerHeight ? e.clientY - h - 10 : e.clientY + 16}px`;
+});
+document.addEventListener("mouseleave", () => (tip.style.display = "none"));
+
+let timer = null;
+async function load() {
+  clearTimeout(timer);
+  try {
+    const r = await fetch(`/api/state${RUN ? `?run=${encodeURIComponent(RUN)}` : ""}`);
+    if (!r.ok) throw new Error(await r.text());
+    S = await r.json();
+    render();
+  } catch (e) {
+    $("meta").innerHTML = `<span class="err">cannot reach the dashboard server: ${esc(e.message)}</span>`;
+  }
+  timer = setTimeout(load, S?.running ? 4000 : 30000);
+}
+if (typeof window !== "undefined" && !window.__ELO_TEST__) load();
+</script>
+</body>
+</html>

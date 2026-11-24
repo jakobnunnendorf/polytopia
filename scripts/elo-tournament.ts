@@ -172,7 +172,7 @@ function roundRobin(ids: string[]): [string, string][] {
 const pct = (x: number, d = 1) => `${(x * 100).toFixed(d)}%`;
 function table(f: Fit, previous: Record<string, { rating: number }>): string {
   const head = "| # | agent | rating | 95% interval | games | won | points | finish | won by the mode's rule | mean turns | data/ratings.json |\n|--:|---|--:|---|--:|--:|--:|--:|--:|--:|--:|";
-  const rows = f.ranking.map((r, i) => `| ${i + 1} | ${r.id} | ${r.rating} | ${r.lo} to ${r.hi} | ${r.games} | ${pct(r.winRate)} | ${pct(r.pointShare)} | ${pct(r.finish)} | ${pct(r.outright)} | ${r.turns.toFixed(0)} | ${previous[r.id] ? Math.round(previous[r.id].rating) : ""} |`);
+  const rows = f.ranking.map((r, i) => `| ${i + 1} | ${r.id} | ${r.wins ? r.rating : `at most ${r.rating}`} | ${r.wins ? `${r.lo} to ${r.hi}` : "never won"} | ${r.games} | ${pct(r.winRate)} | ${pct(r.pointShare)} | ${pct(r.finish)} | ${pct(r.outright)} | ${r.turns.toFixed(0)} | ${previous[r.id] ? Math.round(previous[r.id].rating) : ""} |`);
   return [head, ...rows].join("\n");
 }
 
@@ -205,7 +205,7 @@ Every bot model against every other, in every game mode, in the Rust engine. ${r
 - Rating: Bradley-Terry maximum likelihood over all games of a mode at once, so the order of games does not matter. Elo scale (400 points = 10:1 odds), ${ANCHOR_ID} = ${ANCHOR_RATING} in every table (where data/ratings.json puts it), so a rating says how far an agent is from ${ANCHOR_ID} in that mode. "Overall" is one fit over the games of all modes, every mode counting the same (a game of a mode with fewer games per pair weighs more); its other columns are averaged the same way.
 - Interval: 95%, from 1000 refits on map seeds drawn with replacement (all games on a map go in or out together), each centred on the mean of the learned agents.
 - Points: the agent's share of all points in its games. Finish: the finish score of training (#124). Won by the mode's rule: games it won that ended by the mode's own rule (conquest in domination), not at the turn cap, as a share of all its games.
-- An agent that never won is held at a finite rating only by the fit's prior (one virtual win and loss); read such a rating as "at most".
+- An agent that never won is held at a finite rating only by the fit's prior (one virtual win and one virtual loss per agent, spread over the others); its rating is an upper bound and is marked "at most".
 
 ## Setup
 
@@ -233,7 +233,15 @@ async function main() {
   const prior = fs.existsSync(RESULTS) ? parseResults(fs.readFileSync(RESULTS, "utf8")) : { meta: null, rows: [] };
   if (REPORT_ONLY) {
     if (!prior.meta) throw new Error(`${RESULTS}: no results to report on`);
-    const r = report(prior.meta, prior.rows);
+    // the run's time, when it was played in one go
+    let seconds: number | undefined;
+    try {
+      const p = JSON.parse(fs.readFileSync(PROGRESS, "utf8"));
+      if (!p.running && p.playedThisRun >= p.games) seconds = p.seconds;
+    } catch {
+      // no progress file: the time stays unknown
+    }
+    const r = report(prior.meta, prior.rows, seconds);
     console.log(`refitted ${r.overall.games} games: ${path.join(OUT, "ratings.json")}, README.md`);
     return;
   }
@@ -378,7 +386,7 @@ async function main() {
   console.log(`\n${played} games in ${dur(seconds)} (${Math.round((played / Math.max(1, seconds)) * 60)}/min)`);
   for (const [name, f] of [["overall", ratings.overall], ...Object.entries(ratings.modes)] as [string, Fit][]) {
     console.log(`\n${name} (${f.games} games)`);
-    f.ranking.forEach((r, i) => console.log(`  ${String(i + 1).padStart(2)}. ${r.id.padEnd(28)} ${String(r.rating).padStart(5)}  ${`${r.lo} to ${r.hi}`.padEnd(13)} won ${pct(r.winRate).padStart(6)}  points ${pct(r.pointShare).padStart(6)}`));
+    f.ranking.forEach((r, i) => console.log(`  ${String(i + 1).padStart(2)}. ${r.id.padEnd(28)} ${String(r.rating).padStart(5)}  ${(r.wins ? `${r.lo} to ${r.hi}` : "at most").padEnd(13)} won ${pct(r.winRate).padStart(6)}  points ${pct(r.pointShare).padStart(6)}`));
   }
   console.log(`\nwrote ${path.join(OUT, "ratings.json")} and README.md`);
 }

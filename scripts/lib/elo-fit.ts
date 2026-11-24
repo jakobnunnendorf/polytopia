@@ -7,9 +7,10 @@
  * Hunter 2004), so the order of games does not matter. One game = one result between the two
  * models in it: the side that won it (see `won`). Scale: classic Elo, 400 points = 10:1 odds.
  * Anchor: ANCHOR_ID (greedy-v1) = ANCHOR_RATING (1200, where data/ratings.json puts it).
- * Prior: every agent also has one virtual win and one virtual loss against the anchor's level,
- * which keeps an agent that never won (or never lost) at a finite rating; it is 2 games against
- * more than a thousand real ones, so it moves nobody else.
+ * Prior: every agent also has one virtual win and one virtual loss, spread evenly over the other
+ * agents, which keeps an agent that never won (or never lost) at a finite rating; it is 2 games
+ * against more than a thousand real ones, so it moves nobody else. The rating of an agent that
+ * never won is therefore an upper bound.
  * Interval: 95% bootstrap over map seeds. The same seeds are played by every pair in every mode,
  * so whole seeds are drawn with replacement (all games on a map go in or out together) and the fit
  * is repeated. Ratings in a resample are compared after centring on the mean of the learned agents
@@ -74,26 +75,30 @@ export function readGame(g: GameRow, setup: Setup): Game {
 /** wins[i][j]: games i won against j */
 type Wins = number[][];
 
-/** Bradley-Terry strengths with the prior, as Elo-scale ratings (not anchored yet) */
-export function solve(wins: Wins): number[] {
+/**
+ * Bradley-Terry strengths with the prior, as Elo-scale ratings with mean 0 (not anchored yet).
+ * `start` (the ratings of an earlier, similar fit) saves most of the iterations of a bootstrap refit.
+ */
+export function solve(wins: Wins, start?: number[]): number[] {
   const n = wins.length;
-  const W = wins.map((r) => r.reduce((a, x) => a + x, 0) + 1); // + the prior's virtual win
-  const g = new Array(n).fill(1);
-  for (let it = 0; it < 5000; it++) {
+  const prior = n > 1 ? 1 / (n - 1) : 0; // one virtual win and one virtual loss, spread over the others
+  const W = wins.map((r) => r.reduce((a, x) => a + x, 0) + (n > 1 ? 1 : 0));
+  const N = wins.map((r, i) => r.map((x, j) => (i === j ? 0 : x + wins[j][i] + 2 * prior)));
+  const g = start ? start.map((r) => Math.exp(r / SCALE)) : new Array(n).fill(1);
+  for (let it = 0; it < 10000; it++) {
     let change = 0;
     for (let i = 0; i < n; i++) {
-      let den = 2 / (g[i] + 1); // the prior: 2 games against a fixed opponent of strength 1
-      for (let j = 0; j < n; j++) {
-        const games = wins[i][j] + wins[j][i];
-        if (j !== i && games > 0) den += games / (g[i] + g[j]);
-      }
+      let den = 0;
+      for (let j = 0; j < n; j++) if (j !== i) den += N[i][j] / (g[i] + g[j]);
       const next = W[i] / den;
       change = Math.max(change, Math.abs(Math.log(next / g[i])));
       g[i] = next;
     }
-    if (change < 1e-9) break;
+    if (change < 1e-7) break; // under 0.0001 rating points a step
   }
-  return g.map((x) => SCALE * Math.log(x));
+  const r = g.map((x) => SCALE * Math.log(x));
+  const mean = r.reduce((a, x) => a + x, 0) / Math.max(1, n);
+  return r.map((x) => x - mean);
 }
 
 function rng(seed: number) {
@@ -205,7 +210,8 @@ export function fit(rows: PairRow[], agents: Agent[], modes: Record<string, Setu
   const learned = agents.map((a, i) => (a.kind === "random" ? -1 : i)).filter((i) => i >= 0);
   const centre = (r: number[]) => learned.reduce((s, i) => s + r[i], 0) / Math.max(1, learned.length);
   const c0 = centre(rating);
-  const seeds = [...bySeed.values()];
+  // in seed order, so the resamples (and the intervals) do not depend on the order of the rows
+  const seeds = [...bySeed.entries()].sort((x, y) => x[0] - y[0]).map((e) => e[1]);
   const samples: number[][] = ids.map(() => []);
   const order = ids.map((_, i) => i).sort((x, y) => rating[y] - rating[x]);
   const above = new Array(n).fill(0);
@@ -217,7 +223,7 @@ export function fit(rows: PairRow[], agents: Agent[], modes: Record<string, Setu
       const s = seeds[Math.floor(rand() * seeds.length)];
       for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) w[i][j] += s[i][j];
     }
-    const r = solve(w);
+    const r = solve(w, best);
     const c = centre(r);
     r.forEach((x, i) => samples[i].push(x - c + c0));
     order.forEach((i, k) => k + 1 < n && r[i] > r[order[k + 1]] && above[i]++);
