@@ -44,6 +44,8 @@ export type GameRecord = {
   /** full state at the start of every player-turn (turn, current) */
   turnStates: GameState[];
   result: { over: boolean; winner: number | null; turns: number; scores: number[]; alive: boolean[] } | null;
+  /** set when a model-only game was stopped before it ended (never resumed, never rated) */
+  stoppedAt?: string | null;
 };
 
 export function seatKey(seat: Seat): string {
