@@ -707,7 +707,7 @@ function doMove(s: GameState, u: Unit, to: Coord) {
 
 /**
  * What a move sets off (S1 step::move_action), for a move command and for the advance into a killed
- * unit's tile alike (not for a push): poison buildings, Bubbles, the Tentacles strike on the mover,
+ * unit's tile alike (a push has its own, pushAside): poison buildings, Bubbles, the Tentacles strike on the mover,
  * Stomp (and a Juggernaut landing), Auto Freeze (a full Freeze Area), a Jelly's own strike on its
  * neighbours and Auto Flood; then the chain: a follower two or more tiles behind steps into the
  * mover's old tile, and so on down the body.
@@ -731,6 +731,31 @@ function afterMove(s: GameState, u: Unit, kind: StepKind, origin: Coord) {
     if (has(u, "autoFlood")) floodAt(s, u.owner, u.x, u.y);
   }
   if (follower && s.units.includes(follower) && dist(follower, dest) >= 2) followStep(s, follower, origin);
+}
+
+/**
+ * A push out of the way (S1 units.rs try_push, then step::move_action with reason 2): the unit turns
+ * the way it was pushed, and on its new tile poison buildings, Bubbles and the Tentacles strike on it
+ * fire as on a move (none of the mover's own move effects); a follower two or more tiles behind steps
+ * into its old tile, as after a move. The spawn then finds its tile taken again and pushes that unit
+ * too (S1 units.rs train: a Train onto an occupied tile pushes again), until the tile is free.
+ */
+function pushAside(s: GameState, u: Unit, spawner: number, depth = 0) {
+  const origin = { x: u.x, y: u.y };
+  const follower = followerOf(s, u);
+  if (depth > s.units.length) {
+    s.units = s.units.filter((v) => v !== u);
+    return;
+  }
+  pushUnit(s, u, spawner);
+  if (!s.units.includes(u) || (u.x === origin.x && u.y === origin.y)) return;
+  u.lastDir = { x: u.x - origin.x, y: u.y - origin.y };
+  poisonTile(s, u);
+  bubbleAfterMove(s, u);
+  tentacleStrike(s, u);
+  if (follower && s.units.includes(follower) && dist(follower, u) >= 2) followStep(s, follower, origin);
+  const back = occupant(s, origin.x, origin.y);
+  if (back) pushAside(s, back, spawner, depth + 1);
 }
 
 /** a chain member steps into the tile its leader left (S1: a Move with reason command) */
@@ -1283,7 +1308,7 @@ function doExamine(s: GameState, u: Unit) {
       break;
     case "newFriends": {
       const water = isWater(t);
-      pushUnit(s, u, p);
+      pushAside(s, u, p);
       const nu = makeUnit(s, water ? "rammer" : "swordsman", p, { x: t === tileAt(s, u.x, u.y) ? u.x : u.x, y: u.y }, null);
       // spawn on the ruin tile itself
       const ruinIdx = s.tiles.indexOf(t);
@@ -1341,7 +1366,7 @@ function raiseLostCity(s: GameState, u: Unit) {
   explore(s, p, c, 1);
   if (!has(u, "independent")) u.homeCity = c.id;
   // a water-only unit can't stand on the new land
-  if (UNITS[u.type].naval && !has(u, "carry") && enterKind(s, u, t) === null) pushUnit(s, u, p);
+  if (UNITS[u.type].naval && !has(u, "carry") && enterKind(s, u, t) === null) pushAside(s, u, p);
 }
 
 /**
@@ -1540,7 +1565,7 @@ function doBuild(s: GameState, p: number, b: string, at: Coord) {
       if (b === "enchantAnimal") {
         t.resource = null;
         const occ = occupant(s, at.x, at.y);
-        if (occ) pushUnit(s, occ, p);
+        if (occ) pushAside(s, occ, p);
         const poly = makeUnit(s, "polytaur", p, at, null);
         explore(s, p, poly, 1);
         break;
@@ -1676,7 +1701,7 @@ function doReward(s: GameState, c: City, reward: string) {
       break;
     case "superUnit": {
       const occ = occupant(s, c.x, c.y);
-      if (occ) pushUnit(s, occ, p);
+      if (occ) pushAside(s, occ, p);
       const su = superUnitFor(s.players[p].clan);
       const g = makeUnit(s, su, p, c, c.id);
       explore(s, p, g, 1);

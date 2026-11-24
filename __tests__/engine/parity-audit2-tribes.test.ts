@@ -351,3 +351,50 @@ describe("settled by the reference", () => {
     expect(UNITS.defender.tech).toBe("strategy");
   });
 });
+
+describe("pushes (S1 units.rs try_push, step.rs move_action reason 2)", () => {
+  /** move player `p`'s capital to (5,5) and give it a level-5 reward (Park or Super Unit) */
+  function rewardAt55(s: GameState, p: number) {
+    const c = s.cities[p];
+    tileAt(s, c.x, c.y).cityId = null;
+    c.x = 5;
+    c.y = 5;
+    tileAt(s, 5, 5).cityId = c.id;
+    c.pendingRewards = [5];
+    s.current = p;
+    return c;
+  }
+
+  it("17. a pushed chain member goes along the chain: between leader and follower, or back after its follower", () => {
+    const s = blank(["cymanti", "imperius"]);
+    const c = rewardAt55(s, 0);
+    const { body } = chain(s, 0, [6, 6], [[5, 5], [4, 5]]);
+    body[0].lastDir = { x: -1, y: -1 }; // alone it would be pushed north-west, to (4,4)
+    let st = applyAction(s, { type: "reward", cityId: c.id, reward: "superUnit" });
+    // leader to the south-east, follower to the west: pushed between them, south
+    expect(unitIn(st, body[0].id)).toMatchObject({ x: 5, y: 6 });
+    expect(st.units.filter((u) => u.x === 5 && u.y === 5).map((u) => u.type)).toEqual(["centipede"]);
+    // a head pushed away from its Segment: the Segment steps into the city, is pushed out again
+    const t = blank(["cymanti", "imperius"]);
+    const d = rewardAt55(t, 0);
+    const h = chain(t, 0, [5, 5], [[5, 6]]);
+    for (const [x, y] of [[4, 6], [6, 6], [4, 5], [6, 5], [4, 4], [6, 4]]) put(t, "warrior", 0, x, y);
+    st = applyAction(t, { type: "reward", cityId: d.id, reward: "superUnit" });
+    expect(unitIn(st, h.h.id)).toMatchObject({ x: 5, y: 4 });
+    expect(unitIn(st, h.body[0].id)).toMatchObject({ x: 5, y: 6 });
+    expect(st.units.filter((u) => u.x === 5 && u.y === 5)).toHaveLength(1);
+  });
+
+  it("18. a pushed unit is struck by an enemy Jelly next to its new tile", () => {
+    const s = blank(["aquarion", "imperius"], [["navigation"], []]);
+    const c = rewardAt55(s, 1);
+    set(s, 7, 5, { terrain: "water" });
+    const j = put(s, "jelly", 0, 7, 5);
+    const w = put(s, "warrior", 1, 5, 5);
+    w.lastDir = { x: 1, y: 0 };
+    const once = computeDamageRounded(s, j, { ...w, x: 6, y: 5 }).damage;
+    const st = applyAction(s, { type: "reward", cityId: c.id, reward: "superUnit" });
+    expect(unitIn(st, w.id)).toMatchObject({ x: 6, y: 5 });
+    expect(unitIn(st, w.id)!.hp).toBe(10 - once);
+  });
+});
