@@ -34,6 +34,8 @@ export type FullWeights = {
   front: number;
   /** share of a move's progress measured in road-aware travel cost, roads counting half (0 = off) */
   roads: number;
+  /** break peace in the endgame (every rival a peace partner) at this ratio of our cities to the partner's (0 = never) */
+  breakPeace: number;
 };
 
 export type PartialFullWeights = { [K in keyof FullWeights]?: FullWeights[K] extends number ? number : Partial<FullWeights[K]> };
