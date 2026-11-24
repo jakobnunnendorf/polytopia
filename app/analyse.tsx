@@ -45,7 +45,10 @@ function Replay({ rec, live }: { rec: GameRecord; live: boolean }) {
     () => states.flatMap((s, k) => (k === 0 || s.current !== states[k - 1].current || s.turn !== states[k - 1].turn ? [k] : [])),
     [states],
   );
-  const [k, setK] = useState(live ? states.length - 1 : 0);
+  const [kWanted, setK] = useState(live ? states.length - 1 : 0);
+  // never past the last state: a newer copy of a live record can replay to fewer moves than the one
+  // this page opened with (an older-rules game stops where the current rules diverge)
+  const k = Math.min(kWanted, states.length - 1);
   // live: stay on the newest move while new moves arrive, unless the viewer stepped back
   const [follow, setFollow] = useState(live);
   // following: step through new moves one at a time at an even pace; catch up faster when far behind
