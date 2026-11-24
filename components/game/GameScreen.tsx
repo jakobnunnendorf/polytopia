@@ -424,11 +424,17 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           return citySel !== null && a.cityId === citySel.id;
         case "build":
           return a.at.x === selected.x && a.at.y === selected.y;
+        // a tribe's diplomacy options show when one of its cities or units is selected
+        case "offerPeace":
+        case "breakPeace":
+          return (citySel !== null && citySel.owner === a.player) || (unitAtSel !== null && unitAtSel.owner === a.player);
         default:
           return false;
       }
     });
   }, [actions, selected, unitAtSel, citySel]);
+  // peace offers waiting for an answer this turn
+  const peaceReplies = actions.filter((a) => a.type === "acceptPeace" || a.type === "declinePeace");
 
   const rewardActions = actions.filter((a) => a.type === "reward");
   // nothing left that moves a unit or spends shards wisely: nudge toward End turn
@@ -540,6 +546,13 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           alignSelf: "center",
         }}
       >
+        {peaceReplies.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
+            {peaceReplies.map((a, i) => (
+              <Button key={`peace-${i}`} label={actionLabel(state, a)} onPress={() => act(a)} />
+            ))}
+          </ScrollView>
+        )}
         <View style={{ minHeight: 64 }}>
           {selected && seen && tileSel ? (
             <>

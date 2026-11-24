@@ -258,5 +258,18 @@ export function actionLabel(_s: GameState, a: Action): string {
       return "Explode";
     case "breakIce":
       return `Break Ice at ${a.at.x},${a.at.y}`;
+    case "offerPeace":
+      return `Offer Peace to ${tribeName(_s, a.player)}`;
+    case "acceptPeace":
+      return `Accept Peace from ${tribeName(_s, a.player)}`;
+    case "declinePeace":
+      return `Decline Peace from ${tribeName(_s, a.player)}`;
+    case "breakPeace":
+      return `Break Peace with ${tribeName(_s, a.player)}`;
   }
+}
+
+function tribeName(s: GameState, p: number): string {
+  const pl = s.players[p];
+  return pl ? name("clan", pl.clan) : `player ${p}`;
 }

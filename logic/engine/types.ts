@@ -95,6 +95,8 @@ export type Unit = {
   bodyOf?: number;
   /** Elyrion: turns lived (for Dragon Egg -> Baby Dragon -> Fire Dragon) */
   age?: number;
+  /** was hidden when its owner's turn began (a Cloak that hides this turn can't infiltrate) */
+  startedHidden?: boolean;
 };
 
 export type City = {
@@ -154,6 +156,20 @@ export type GameMode = "perfection" | "domination" | "creative" | "glory" | "mig
 /** bot difficulty (rules doc, AI and difficulty): bot capital income and the Perfection bonus */
 export type Difficulty = "easy" | "normal" | "hard" | "crazy";
 
+/** tribe relations (rules doc, Diplomacy); see diplomacy.ts */
+export type Diplomacy = {
+  /** pairs at peace, [low id, high id] */
+  peace: [number, number][];
+  /** pending peace offers; the receiver answers on its next turn */
+  offers: { from: number; to: number }[];
+  /** last turn number in which `by` attacked `on` (war = an attack either way this turn or the last) */
+  attacks: { by: number; on: number; turn: number }[];
+  /** after a broken treaty: no attacks between the two while ordinal(state) < until */
+  ceasefires: { breaker: number; victim: number; until: number }[];
+  /** [victim, breaker]: treaties broken, remembered forever */
+  broken: [number, number][];
+};
+
 export type GameState = {
   seed: number;
   rng: number;
@@ -173,6 +189,8 @@ export type GameState = {
   winner: number | null;
   over: boolean;
   log: string[];
+  /** missing in states saved before diplomacy existed (read as no relations) */
+  diplomacy?: Diplomacy;
 };
 
 export type Action =
@@ -195,4 +213,8 @@ export type Action =
   | { type: "freezeArea"; unitId: number }
   | { type: "boost"; unitId: number }
   | { type: "explode"; unitId: number }
-  | { type: "breakIce"; unitId: number; at: Coord };
+  | { type: "breakIce"; unitId: number; at: Coord }
+  | { type: "offerPeace"; player: number }
+  | { type: "acceptPeace"; player: number }
+  | { type: "declinePeace"; player: number }
+  | { type: "breakPeace"; player: number };

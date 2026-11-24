@@ -29,6 +29,7 @@ import { generateMap, type MapType } from "./mapgen";
 import { around, dist, idx, inBounds, isWater, tileAt } from "./grid";
 import type { City, Coord, Difficulty, GameMode, GameState, Player, Unit } from "./types";
 import { canSee } from "./movement";
+import { atPeace } from "./diplomacy";
 
 const CITY_NAMES = [
   "Ashford", "Brightwater", "Cinderholm", "Dunmere", "Elderglen", "Fallowmark", "Greystone",
@@ -143,8 +144,9 @@ export function cityIncome(s: GameState, c: City): number {
   return Math.max(0, c.level + (c.workshop ? 1 : 0) + c.parks + bonus - neg);
 }
 
+/** an enemy unit stands in the city (a peace partner's unit does not besiege it) */
 export function underSiege(s: GameState, c: City): boolean {
-  return s.units.some((u) => u.x === c.x && u.y === c.y && u.owner !== c.owner);
+  return s.units.some((u) => u.x === c.x && u.y === c.y && u.owner !== c.owner && !atPeace(s, u.owner, c.owner));
 }
 
 /** market stars: sum of adjacent own windmill/sawmill/forge levels, capped (§5.5) */
@@ -216,12 +218,13 @@ export function income(s: GameState, p: number): number {
   }
   total += marketIncome(s, p);
   total += specialBuildingIncome(s, p);
-  // embassies pay both builder and host (§5.5)
+  // embassies pay both builder and host, double between peace partners (rules doc, Embassy)
   for (const pl of s.players) {
     if (!pl.alive) continue;
     for (const host of pl.embassies) {
-      if (pl.id === p) total += EMBASSY_INCOME;
-      if (host === p) total += EMBASSY_INCOME;
+      const pay = atPeace(s, pl.id, host) ? 2 * EMBASSY_INCOME : EMBASSY_INCOME;
+      if (pl.id === p) total += pay;
+      if (host === p) total += pay;
     }
   }
   return total;
@@ -443,9 +446,7 @@ export function checkMeetings(s: GameState) {
         (c) => c.owner === other.id && pl.explored[idx(s.mapSize, c.x, c.y)] === 1,
       );
       if (!seesUnit && !seesCity) continue;
-      pl.met.push(other.id);
-      const sc = scoreOf(s, other.id);
-      pl.stars += 1 + 2 * Math.min(Math.ceil(sc / 1000), 5);
+      meet(s, pl.id, other.id);
     }
     if (pl.techs.includes("diplomacy")) {
       for (const m of pl.met) {
@@ -454,6 +455,15 @@ export function checkMeetings(s: GameState) {
       }
     }
   }
+}
+
+/** player p meets `other`: stars of 1 + 2 per 1,000 of their score (rounded up), at most 11 */
+export function meet(s: GameState, p: number, other: number) {
+  const pl = s.players[p];
+  if (p === other || pl.met.includes(other)) return;
+  pl.met.push(other);
+  const sc = scoreOf(s, other);
+  pl.stars += 1 + 2 * Math.min(Math.ceil(sc / 1000), 5);
 }
 
 /* ---------- units ---------- */
@@ -731,6 +741,8 @@ export function startTurn(s: GameState) {
     u.attacked = false;
     u.done = frozen;
     u.idle = true;
+    if (u.hidden) u.startedHidden = true;
+    else delete u.startedHidden;
   }
   if (s.turn > 0) sanctuaryAnimals(s, p);
   checkTasks(s, p);
