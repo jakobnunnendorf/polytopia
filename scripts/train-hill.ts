@@ -19,8 +19,10 @@
  * against that model on the same map and seats, and compares their shares. A mix keeps the climb
  * from going in circles (beating the last champion but losing to older play).
  *
- * Step size: --sigma (0.5) shrinks by --sigma-decay (0.85) after every --sigma-patience (20) rounds
- * without a kept challenger, down to --sigma-min (0.05), and grows by 1.25 on a keep, up to --sigma.
+ * Step size: --sigma (0.5) shrinks by --sigma-decay (0.85) after every --sigma-patience (50) rounds
+ * without a kept challenger, down to --sigma-min (0.15), and grows by 1.25 on a keep, up to --sigma.
+ * With --resume, --reset-sigma X starts the step at X again;
+ * every resume and its options are recorded in the checkpoint and the model file.
  *
  * Learning curve: at the start, every --curve-every training games and at the end, the champion
  * plays a fixed panel (--panel) on the same held-out maps (--curve-games each). With --average K
@@ -87,9 +89,13 @@ const ID = arg("id", FULL ? "greedy-full-v1" : "greedy-hill-v1");
 const BUDGET = Number(arg("budget", "0")); // training games in total; 0 = stop after --rounds
 const ROUNDS = Number(arg("rounds", BUDGET ? "Infinity" : "60"));
 const SIGMA = Number(arg("sigma", "0.5"));
-const SIGMA_MIN = Number(arg("sigma-min", "0.05"));
+// the floor must stay large enough for the test to see a change: at 0.05 (±5% on 3 knobs) the
+// margin test almost never reaches +1 point of share, and the climb stalls (greedy-hill-v5, 24 Nov)
+const SIGMA_MIN = Number(arg("sigma-min", "0.15"));
 const SIGMA_DECAY = Number(arg("sigma-decay", "0.85"));
-const SIGMA_PATIENCE = Number(arg("sigma-patience", "20")); // rounds without a keep before sigma shrinks
+const SIGMA_PATIENCE = Number(arg("sigma-patience", "50")); // rounds without a keep before sigma shrinks
+// --resume only: start the step size again at this value (also lifts it to a new --sigma-min)
+const RESET_SIGMA = Number(arg("reset-sigma", "0"));
 const PICK = Number(arg("pick", FULL ? "4" : "3")); // knobs nudged per round (of ~20 greedy, ~200 full)
 const FROM = arg("from", ""); // fine-tune: start from this model's weights
 const RESUME = process.argv.includes("--resume");
@@ -140,6 +146,8 @@ type Checkpoint = {
   sinceKeep: number;
   past: AnyWeights[];
   milestone: number;
+  /** every resume: when, and the options it ran with from then on */
+  resumes?: { at: string; round: number; trainingGames: number; args: string; sigma: number }[];
   best: Best;
   weights: AnyWeights;
 };
@@ -204,6 +212,7 @@ async function main() {
   let curveAt = -1; // training games at the last curve point
   let sigma = SIGMA;
   let sinceKeep = 0;
+  let resumes: NonNullable<Checkpoint["resumes"]> = [];
   let past: AnyWeights[] = [champ]; // kept champions, newest last (for "past" and averaging)
   let milestone = 0; // index of the next milestone
   const t0 = Date.now();
@@ -235,9 +244,16 @@ async function main() {
     ({ accepted, capped, trainingGames: trainGames, round: rounds, nextCurve, curveAt, points, converged, sigma, sinceKeep, past, milestone } = resumed);
     seed = resumed.seed;
     console.log(`resumed at round ${rounds}, ${count(trainGames)} games, ${accepted} kept, ${points} curve points, ${dur(secondsBefore)} trained so far`);
+    if (RESET_SIGMA > 0) {
+      console.log(`step size reset: sigma ${sigma.toFixed(2)} → ${RESET_SIGMA} (floor ${SIGMA_MIN}, shrinks after ${SIGMA_PATIENCE} rounds without a keep)`);
+      sigma = RESET_SIGMA;
+      sinceKeep = 0;
+    }
+    sigma = Math.max(sigma, SIGMA_MIN);
+    resumes = [...(resumed.resumes ?? []), { at: new Date().toISOString(), round: rounds, trainingGames: trainGames, args: process.argv.slice(2).join(" "), sigma }];
   }
   const save = () => {
-    const ck: Checkpoint = { args: ARGS, startedAt: runStart, seconds: secs(), savedAt: new Date().toISOString(), round: rounds, trainingGames: trainGames, accepted, capped, seed, nextCurve, curveAt, points, converged, sigma, sinceKeep, past, milestone, best, weights: champ };
+    const ck: Checkpoint = { args: ARGS, startedAt: runStart, seconds: secs(), savedAt: new Date().toISOString(), round: rounds, trainingGames: trainGames, accepted, capped, seed, nextCurve, curveAt, points, converged, sigma, sinceKeep, past, milestone, resumes, best, weights: champ };
     fs.writeFileSync(ckPath + ".tmp", JSON.stringify(ck) + "\n");
     fs.renameSync(ckPath + ".tmp", ckPath);
   };
@@ -415,6 +431,7 @@ async function main() {
       duration: dur(secs()),
       ...(FROM ? { totalSecondsIncludingFrom: secs() + (fromSeconds ?? 0), totalDurationIncludingFrom: dur(secs() + (fromSeconds ?? 0)) } : {}),
       sigma: { start: SIGMA, end: sigma, min: SIGMA_MIN, decay: SIGMA_DECAY, patience: SIGMA_PATIENCE },
+      resumes: resumes.length ? resumes : undefined,
       weightsPerNudge: PICK,
       engine: "rust",
       mode: MODE,
