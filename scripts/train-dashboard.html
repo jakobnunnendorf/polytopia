@@ -99,6 +99,7 @@ pre { font: 11.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; backgroun
       <div class="seg" role="group" aria-label="metric">
         <button data-metric="pointShare" aria-pressed="true">point share</button>
         <button data-metric="winRate" aria-pressed="false">win rate</button>
+        <button data-metric="finish" aria-pressed="false" title="#124: a conquest win scores 75-100% (earlier = more), a loss 0-25%, a game stopped at the turn cap 25-75% by points">finish</button>
       </div>
     </div>
   </header>
@@ -147,6 +148,7 @@ function panelFrom(st) {
   return seen.length ? seen : PANEL;
 }
 let METRIC = "pointShare";
+const METRIC_NAME = () => ({ winRate: "win rate", pointShare: "point share", finish: "finish score" })[METRIC];
 let S = null;
 let SW = []; // strength sweeps (scripts/sweep.ts), shown in their own section
 
@@ -155,8 +157,8 @@ let SW = []; // strength sweeps (scripts/sweep.ts), shown in their own section
 function renderSweeps() {
   const el = document.getElementById("sweeps");
   if (!SW.length) { el.innerHTML = ""; return; }
-  const key = METRIC === "winRate" ? "meanWin" : "meanShare";
-  const okey = METRIC === "winRate" ? "winRate" : "pointShare";
+  const key = METRIC === "winRate" ? "meanWin" : METRIC === "finish" ? "meanFinish" : "meanShare";
+  const okey = METRIC;
   el.innerHTML = `<h2>Strength sweeps</h2>` + SW.map((r, i) => {
     const rows = r.sweep || [];
     const head = rows.find((x) => x.start) || {};
@@ -183,7 +185,7 @@ function renderSweeps() {
     };
     const ticks = [lo, (lo + hi) / 2, hi].map((v) => `<span style="left:${pos(v)}%">${pctTick(v, hi - lo)}</span>`).join("");
     const finTxt = fin ? `<div class="note" style="margin-top:10px"><b>Final test of ${esc(fin.point)}</b> (${fin.games} unseen games against each): ` +
-        Object.entries(fin.vs).map(([o, v]) => `${PANEL_LABEL[o] || o} ${pct(v.pointShare)} pts, ${pct(v.winRate, 0)} won ± ${(196 * Math.sqrt((v.winRate * (1 - v.winRate)) / v.games)).toFixed(0)}%`).join(" · ") + `. Mean ${pct(fin[key])}.</div>`
+        Object.entries(fin.vs).map(([o, v]) => `${PANEL_LABEL[o] || o} ${pct(v.pointShare)} pts${v.finish != null ? `, finish ${pct(v.finish)}, ${pct(v.conquest, 0)} by conquest in ${Math.round(v.turns)} turns` : ""}, ${pct(v.winRate, 0)} won ± ${(196 * Math.sqrt((v.winRate * (1 - v.winRate)) / v.games)).toFixed(0)}%`).join(" · ") + `. Mean ${pct(fin[key])}.</div>`
       : `<div class="note" style="margin-top:10px">${r.running ? "Final test of the best point follows the last point." : "No final test recorded."}</div>`;
     // the phase running now, from the sweep's once-a-minute progress line
     const live = r.running ? (r.log?.tail || []).map((l) => l.match(/^\s+\[(\d\d:\d\d)\] (.+?): (\d+)\/(\d+) games(?:, done in ~(\d+) min)?(?: \| so far: (.*?))? \| /)).filter(Boolean).at(-1) : null;
@@ -200,7 +202,7 @@ function renderSweeps() {
     return `<div class="card" style="margin-bottom:14px">
       <div class="run-head"><span class="swatch" style="background:${color}"></span><span class="run-name">${esc(r.id)}</span>
         <span class="pill"><span class="dot" style="background:var(${r.running ? "--good" : fin ? "--series-1" : "--critical"})"></span>${r.running ? "running" : fin ? "finished" : "stopped"}</span></div>
-      <div class="meta">Mean ${METRIC === "winRate" ? "win rate" : "point share"} against the panel, ${head.games || "?"} held-out games against each (the same maps as a training run's curve points). Dashed rule = base; the scale is zoomed to the points. Hover a row for each opponent.</div>
+      <div class="meta">Mean ${METRIC_NAME()} against the panel, ${head.games || "?"} held-out games against each (the same maps as a training run's curve points). Dashed rule = base; the scale is zoomed to the points. Hover a row for each opponent.</div>
       <div style="margin-top:10px">${names.map(row).join("")}</div>
       <div class="sw-ticks"><div></div><div class="t">${ticks}</div><div></div></div>
       ${liveTxt}${finTxt}${table}</div>`;
@@ -527,7 +529,7 @@ function curveSeries(r, averaged) {
 }
 function metricOf(c, opp) {
   if (opp) return c.vs?.[opp]?.[METRIC];
-  return METRIC === "winRate" ? c.meanWinRate : c.meanPointShare;
+  return METRIC === "winRate" ? c.meanWinRate : METRIC === "finish" ? c.meanFinish : c.meanPointShare;
 }
 function bestPoint(r) {
   const pts = r.curve.filter((c) => c.best);
@@ -564,7 +566,7 @@ function insights(st) {
     const main = r.curve.filter((c) => !c.averaged);
     if (main.length >= 2) {
       const first = main[0], last = main.at(-1), top = r.curve.reduce((a, b) => (metricOf(b) > metricOf(a) ? b : a));
-      add("↗", "", `${tag}: panel ${METRIC === "winRate" ? "win rate" : "point share"} <b>${pct(metricOf(last))}</b> at ${count(last.trainingGames)} games, ${pp(metricOf(last) - metricOf(first))} since the start; best ${pct(metricOf(top))}${top.averaged ? " (averaged weights)" : ""} at ${count(top.trainingGames)}.`);
+      add("↗", "", `${tag}: panel ${METRIC_NAME()} <b>${pct(metricOf(last))}</b> at ${count(last.trainingGames)} games, ${pp(metricOf(last) - metricOf(first))} since the start; best ${pct(metricOf(top))}${top.averaged ? " (averaged weights)" : ""} at ${count(top.trainingGames)}.`);
       if (main.length >= 4) {
         const recent = main.slice(-4).map((c) => metricOf(c)), spread = Math.max(...recent) - Math.min(...recent);
         const slope = (recent.at(-1) - recent[0]) / ((main.at(-1).trainingGames - main.at(-4).trainingGames) / 100_000);
@@ -620,7 +622,7 @@ function render() {
   const st = S;
   PANEL = panelFrom(st);
   $("meta").textContent = `${st.root.replace(/^\/Users\/[^/]+/, "~")} · updated ${new Date(st.now).toLocaleTimeString("en-GB")} · refreshes every 10 s`;
-  $("curve-title").textContent = `Mean ${METRIC === "winRate" ? "win rate" : "point share"} against the panel (${PANEL.map((o) => PANEL_LABEL[o]).join(", ")}; 200 held-out games each)`;
+  $("curve-title").textContent = `Mean ${METRIC_NAME()} against the panel (${PANEL.map((o) => PANEL_LABEL[o]).join(", ")}; 200 held-out games each)`;
   $("insights").innerHTML = insights(st).map((i) => `<li class="${i.cls}"><span class="ic" aria-hidden="true">${i.ic}</span><span>${i.html}</span></li>`).join("");
 
   // cards
