@@ -82,7 +82,7 @@ Five branches of 1 + 2 + 2 techs (T1 → two T2 → one T3 each), giving 25 tech
 Notes:
 
 - Ruins and the "Explorer" lighthouse task need no tech. The Killer, Metropolis, Network and Explorer tasks start by themselves [G].
-- Tribe-specific renamed techs (Frostwork, Forest Magic, Free Diving, Spearing, Waterways, Shock Tactics, Recycling and others) exist only for the special tribes Polaris, Elyrion, Aquarion and Cymanti.
+- Tribe-specific renamed techs (Frostwork, Forest Magic, Spearing, Waterways, Shock Tactics, Recycling and others) exist only for the special tribes Polaris, Elyrion, Aquarion and Cymanti.
 - The GLD player abilities include **discipline** (promotion after 2 kills) and **treehouse**/**pontoon** (build field buildings on forest/water). No regular-tribe tech grants them [G].
 
 ---
@@ -388,7 +388,7 @@ Rules:
   - Cannot remove a city, ruin, lighthouse or road.
   - Gives no refund.
   - Lost monuments cannot be rebuilt.
-- Removed buildings: Customs House (replaced by the Market in 2.8), Aqua Farm (now Aquarion-only), Whale hunting.
+- Buildings removed before 2.18 are not modelled; the Aqua Farm is Aquarion-only.
 
 ### 5.6 City connections [E][W]
 

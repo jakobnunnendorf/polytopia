@@ -11,9 +11,9 @@ import { income, scoreOf, techCost } from "../engine/state";
 import type { Action, GameState } from "../engine/types";
 import type { Agent, ChatFn, ModelSpec } from "./types";
 
-export const SYSTEM_PROMPT = `You play Shardlands, a turn-based 4X strategy game on a square grid.
-Each turn you spend shards (currency) on discoveries, units and buildings, and move units.
-Grow cities (harvest resources next to them), capture hamlets and enemy cities, and keep your units alive.
+export const SYSTEM_PROMPT = `You play The Battle of Polytopia, a turn-based 4X strategy game on a square grid.
+Each turn you spend stars (currency) on techs, units and buildings, and move units.
+Grow cities (harvest resources next to them), capture villages and enemy cities, and keep your units alive.
 You are given the position and a numbered list of legal moves.
 Answer with only the number of the move you choose. Choose "end turn" when nothing useful is left.`;
 
@@ -39,17 +39,17 @@ export function describe(s: GameState): string {
   const lines = [
     `Turn ${s.turn}${
       s.mode === "perfection"
-        ? ` of ${s.maxTurns} (highest score wins)`
+        ? ` (turns 0-${s.maxTurns - 1}, ${s.maxTurns - s.turn} left; highest score wins)`
         : s.mode === "glory"
           ? " (first to 10,000 points wins)"
           : s.mode === "might"
             ? " (capture every capital to win)"
-            : " (last clan with a city wins)"
+            : " (last tribe with a city wins)"
     }.`,
-    `You are the ${name("clan", me.clan)}. Shards: ${me.stars} (+${income(s, p)} per turn). Score: ${scoreOf(s, p)}.`,
+    `You are the ${name("clan", me.clan)}. Stars: ${me.stars} (+${income(s, p)} per turn). Score: ${scoreOf(s, p)}.`,
     `Your cities: ${cities.map((c) => `${c.name} level ${c.level} (${c.pop}/${c.level + 1} people) at ${c.x},${c.y}`).join("; ") || "none"}.`,
     `Your units: ${units.map((u) => `${name("unit", u.type)} ${Math.ceil(u.hp)}hp at ${u.x},${u.y}`).join("; ") || "none"}.`,
-    `Discoveries known: ${me.techs.map((t) => name("tech", t)).join(", ") || "none"}.`,
+    `Techs known: ${me.techs.map((t) => name("tech", t, me.clan)).join(", ") || "none"}.`,
     `Rivals: ${rivals.map((o) => `${name("clan", o.clan)} score ${scoreOf(s, o.id)}`).join("; ")}.`,
   ];
   return lines.join("\n");
@@ -57,7 +57,7 @@ export function describe(s: GameState): string {
 
 export function labelFor(s: GameState, a: Action): string {
   if (a.type === "endTurn") return "end turn";
-  if (a.type === "research") return `learn ${name("tech", a.tech)} (${techCost(s, s.current, a.tech)} shards)`;
+  if (a.type === "research") return `research ${name("tech", a.tech, s.players[s.current].clan)} (${techCost(s, s.current, a.tech)} stars)`;
   if (a.type === "move" || a.type === "attack") {
     const u = s.units.find((x) => x.id === a.unitId);
     const where = u ? ` from ${u.x},${u.y}` : "";

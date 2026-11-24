@@ -148,7 +148,7 @@ export function UnitSprite({
             }}
           />
           <UnitArt type={unit.type} color={color(unit.owner)} size={box.size} />
-          {(unit.frozen || unit.poisoned || unit.boosted) && (
+          {(unit.frozen || unit.poisoned || unit.swarmed) && (
             <Text
               style={{
                 position: "absolute",

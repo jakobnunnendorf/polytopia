@@ -2,7 +2,7 @@
  * Core engine types. Everything here is plain JSON-serialisable data so a game
  * state can be cloned, stored, diffed, sent to Python, or replayed.
  *
- * Ids are plain descriptive words ("warrior", "climbing"); the Shardlands
+ * Ids are plain descriptive words ("warrior", "climbing"); the Polytopia
  * display names live in names.ts and never influence the rules.
  */
 
@@ -88,17 +88,18 @@ export type Unit = {
   /** Cymanti: poisoned (loses defence bonuses) */
   poisoned?: boolean;
   /** Cymanti: Swarm from a Shaman (+1 movement until attacked) */
-  boosted?: boolean;
+  swarmed?: boolean;
   /** Aquarion Bubbles: +1 movement after entering a flooded tile; lost when attacked or on dry land */
   bubble?: boolean;
   /** Double Attack: the second attack of this turn is used */
   secondAttack?: boolean;
   /** Centipede segment: id of the Centipede head it belongs to */
   bodyOf?: number;
-  /** Elyrion: turns lived (for Dragon Egg -> Baby Dragon -> Fire Dragon) */
-  age?: number;
-  /** was hidden when its owner's turn began (a Cloak that hides this turn can't infiltrate) */
-  startedHidden?: boolean;
+  /**
+   * turn (round) the unit was created; a Grow stage restarts it. Explode is not allowed in this
+   * turn; Grow units grow when turn - createdTurn reaches their growth rate. Missing in old saves.
+   */
+  createdTurn?: number;
 };
 
 export type City = {
@@ -149,7 +150,7 @@ export type Player = {
   embassies: number[];
   /** the city this player started with */
   capitalId: number;
-  /** Cymanti: enemy units converted by Shamans (replaces the Altar of Peace task) */
+  /** Cymanti: enemy units converted by Shamans (the convert task, which replaces the pacifist task) */
   conversions?: number;
   /** "unique" buildings this player has ever built (Polaris Ice Bank): never again */
   builtUnique?: string[];
@@ -215,9 +216,10 @@ export type Action =
   | { type: "build"; at: Coord; building: string }
   | { type: "reward"; cityId: number; reward: string }
   | { type: "freezeArea"; unitId: number }
-  | { type: "boost"; unitId: number }
+  | { type: "swarm"; unitId: number }
   | { type: "explode"; unitId: number }
-  | { type: "breakIce"; unitId: number; at: Coord }
+  /** break every breakable ice tile around the unit (S1 BreakIce) */
+  | { type: "breakIce"; unitId: number }
   /** clear a tile effect under the unit (2.18 "drain": Flooded, or Algae); free, ends the unit's turn */
   | { type: "drain"; unitId: number; effect: "flooded" | "algae" }
   /** Cymanti Recycling: mark an own building; refunded and removed at the end of the turn */

@@ -2,7 +2,7 @@
   "id": "greedy-v1",
   "name": "Greedy v1",
   "kind": "greedy",
-  "description": "The built-in bot every opponent used until 2026-11-23: scores each legal action with a hand-written heuristic (capture > promote > kill > grow cities > research > train > move toward the nearest hamlet, ruin, enemy or fog) and ends its turn when nothing scores above 0. Weights = DEFAULT_WEIGHTS in logic/engine/bot.ts; the exact source at snapshot time is policy.snapshot.ts.",
+  "description": "The built-in bot every opponent used until 2026-11-23: scores each legal action with a hand-written heuristic (capture > promote > kill > grow cities > research > train > move toward the nearest village, ruin, enemy or fog) and ends its turn when nothing scores above 0. Weights = DEFAULT_WEIGHTS in logic/engine/bot.ts; the exact source at snapshot time is policy.snapshot.ts.",
   "created": "2026-11-23",
   "weights": {}
 }

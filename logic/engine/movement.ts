@@ -21,6 +21,47 @@ export function territoryOwner(s: GameState, t: Tile): number | null {
   return c ? c.owner : null;
 }
 
+/* ---------- Centipede chains (S1 linked: leader / follower) ----------
+ * A chain is a head (no bodyOf) and its Segments (bodyOf = head id); the Segments' order in
+ * s.units is the chain order: the first Segment follows the head, the next one that Segment.
+ */
+
+/** the Segments of head `headId`'s chain, in chain order */
+export function chainBody(s: GameState, headId: number): Unit[] {
+  return s.units.filter((o) => o.bodyOf === headId);
+}
+
+/** led by another unit (a Segment of a chain): it does not act on its own (S1 leader != 0) */
+export const isLed = (u: Unit) => u.bodyOf !== undefined;
+
+/** the unit that leads `u` (the one in front of it), or undefined */
+export function leaderOf(s: GameState, u: Unit): Unit | undefined {
+  if (u.bodyOf === undefined) return undefined;
+  const body = chainBody(s, u.bodyOf);
+  const k = body.indexOf(u);
+  return k <= 0 ? s.units.find((o) => o.id === u.bodyOf) : body[k - 1];
+}
+
+/** the unit that follows `u` (the one behind it), or undefined */
+export function followerOf(s: GameState, u: Unit): Unit | undefined {
+  if (u.bodyOf === undefined) return chainBody(s, u.id)[0];
+  const body = chainBody(s, u.bodyOf);
+  return body[body.indexOf(u) + 1];
+}
+
+/**
+ * The unit's movement with its effects (S1 movement::movement_range): Swift (Swarm) or Bubble add
+ * one, Poison takes one above 1; a skater starting on ice uses its ice movement.
+ */
+export function movementRange(s: GameState, u: Unit): number {
+  const startsOnIce = !!tileAt(s, u.x, u.y).ice;
+  const def = UNITS[u.type];
+  const base = has(u, "skate") && startsOnIce ? (def.iceMovement ?? def.movement) : def.movement;
+  let range = base + (u.swarmed || u.bubble ? 1 : 0);
+  if (u.poisoned && range > 1) range -= 1;
+  return range;
+}
+
 export function unitAt(s: GameState, x: number, y: number): Unit | undefined {
   return s.units.find((u) => u.x === x && u.y === y);
 }
@@ -85,7 +126,7 @@ export function enterKind(s: GameState, u: Unit, t: Tile): StepKind | null {
  * Aquarion and flooded-tile rules (2.18 data; logic follows polybots-engine):
  * Aquarion's starting tech Aquabase gives its amphibious units shallow water,
  * Marine Life (the Sailing slot) gives ocean; Riding and Free Spirit give no
- * water movement. Its ships (Shark, Jelly, Aquapult) have their own terrain
+ * water movement. Its ships (Shark, Jelly, Puffer) have their own terrain
  * list (water, ocean, flooded land) and need no tech. Ships may enter flooded
  * land (and stop there); a port on a flooded tile embarks land units.
  * Returns undefined when the regular rules apply.
@@ -141,14 +182,15 @@ function search(s: GameState, u: Unit): { targets: MoveTarget[]; parent: Map<num
   const n = s.mapSize;
   const explored = s.players[u.owner].explored;
   const skate = has(u, "skate");
-  // Skate: a move that starts on ice may use the unit's ice movement (Battle Sled 3)
-  const startsOnIce = !!tileAt(s, u.x, u.y).ice;
-  const baseMov = skate && startsOnIce ? (UNITS[u.type].iceMovement ?? UNITS[u.type].movement) : UNITS[u.type].movement;
-  const rawMov = baseMov + (u.boosted || u.bubble ? 1 : 0) - (u.poisoned ? 1 : 0);
+  // Segments don't move on their own: only the head moves and the body follows (S1 menu moves)
+  if (isLed(u)) return { targets: [], parent };
   // movement points (a step costs 1, road to road 0.5, a Glide ice step 0.9)
-  let budget = Math.max(1, rawMov);
-  // Eat: while the Centipede has segments it moves only 1 tile
-  if (has(u, "eat") && s.units.some((o) => o.bodyOf === u.id)) budget = 1;
+  let budget = movementRange(s, u);
+  // a chain moves at its first Segment's pace (S1 movement: range = min(head, follower))
+  const follower = followerOf(s, u);
+  if (follower) budget = Math.min(budget, movementRange(s, follower));
+  if (budget <= 0) return { targets: [], parent };
+  const chained = follower !== undefined;
   // Glide (Polarism): Polaris ice steps cost 0.9
   const glide = s.players[u.owner].clan === "polaris" && techOf(s, u.owner, "aquatism");
   // Creep: forests cost 1 and don't stop it, no road bonus, mountains still stop it (2.15).
@@ -166,10 +208,8 @@ function search(s: GameState, u: Unit): { targets: MoveTarget[]; parent: Map<num
   const enemyAdjacent = (x: number, y: number) =>
     around(n, { x, y }, 1).some((c) => {
       const o = occupied.get(idx(n, c.x, c.y));
-      // Centipede segments and peace partners exert no zone of control
-      return (
-        o !== undefined && o.owner !== u.owner && !o.hidden && o.type !== "segment" && !atPeace(s, u.owner, o.owner)
-      );
+      // units led in a chain (Centipede segments) and peace partners exert no zone of control
+      return o !== undefined && o.owner !== u.owner && !o.hidden && !isLed(o) && !atPeace(s, u.owner, o.owner);
     });
 
   // spent[i] = cheapest movement points to reach tile i with the ability to continue
@@ -200,6 +240,8 @@ function search(s: GameState, u: Unit): { targets: MoveTarget[]; parent: Map<num
         const t = s.tiles[i];
         const kind = enterKind(s, u, t);
         if (!kind) continue;
+        // a chain member never embarks (S1 Profile::embarks)
+        if (kind === "embark" && chained) continue;
         const occ = occupied.get(i);
         // enemy units block (hidden movers may pass through); own and allied units can be passed
         if (occ && !friendly(s, u.owner, occ.owner) && !has(u, "hide")) continue;
@@ -214,8 +256,9 @@ function search(s: GameState, u: Unit): { targets: MoveTarget[]; parent: Map<num
         if (!creep && !fly && t.terrain === "forest" && !road) stop = true;
         // Skate: on land at most 1 tile
         if (skate && !isWater(t)) stop = true;
-        // algae ends the move of land units
-        if (!fly && t.algae && !UNITS[u.type].naval) stop = true;
+        // algae ends the move of units that don't swim (S1 movement::step_cost: ships and amphibious
+        // units swim; flying units and Creep on water are not stopped)
+        if (!fly && !creep && t.algae && !UNITS[u.type].naval && !amphibious) stop = true;
         if (!ignoresZoc && enemyAdjacent(x, y)) stop = true;
         // Aquarion: amphibious units stop on dry land, ships stop on flooded tiles
         if (amphibious && !isWater(t) && !t.flooded) stop = true;

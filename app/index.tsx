@@ -5,7 +5,7 @@ import { useContext, useEffect, useState } from "react";
 import * as Font from "expo-font";
 import { useRouter } from "expo-router";
 import { SettingsContext } from "@/context/SettingsContext";
-import { ShardIcon } from "@/components/art/Art";
+import { StarIcon } from "@/components/art/Art";
 import { UI } from "@/components/game/theme";
 import { arena } from "@/components/game/arenaClient";
 import { Pop, pressScale } from "@/components/anim";
@@ -144,7 +144,7 @@ export default function HomeScreen() {
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <ShardIcon size={40} />
+            <StarIcon size={40} />
             <Text style={{ fontFamily: UI.display, fontSize: 40, color: UI.mist, marginLeft: 10 }}>Polytopia</Text>
           </View>
           <Text style={{ color: UI.muted, fontSize: 15, marginTop: 6 }}>

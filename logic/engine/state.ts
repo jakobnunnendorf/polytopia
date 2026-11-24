@@ -29,8 +29,8 @@ import {
 } from "./data";
 import { generateMap, type MapType } from "./mapgen";
 import { around, dist, idx, inBounds, isWater, tileAt } from "./grid";
-import type { City, Coord, Difficulty, GameMode, GameState, Player, Unit } from "./types";
-import { canSee } from "./movement";
+import type { City, Coord, Difficulty, GameMode, GameState, Player, Tile, Unit } from "./types";
+import { canSee, followerOf, leaderOf } from "./movement";
 import { atPeace, atWar } from "./diplomacy";
 
 const CITY_NAMES = [
@@ -55,7 +55,7 @@ export type NewGameOptions = {
   /** clan per player; default: random distinct clans */
   clans?: string[];
   /**
-   * Perfection turn limit (default 30, turns 0..30). The Weekly Challenge is
+   * Perfection turn limit (default 30, turns 0..29). The Weekly Challenge is
    * Perfection with turnLimit 20 and a fixed seed.
    */
   turnLimit?: number;
@@ -264,14 +264,12 @@ export function canResearch(s: GameState, p: number, tech: string): boolean {
   return TECHS.some((c) => c.parent === tech && pl.techs.includes(c.id));
 }
 
-/** unit score value (§7.1) */
-const SUPER_UNITS = new Set(["giant", "juggernaut", "crab", "dragonEgg", "babyDragon", "fireDragon", "gaami", "centipede"]);
+/**
+ * unit score value (S1 units::unit_score): 5 × (cost + the passenger's cost), so a ship scores its
+ * own cost too (Scout or Rammer +25, Bomber +75) and a Juggernaut (0★) its Giant (50)
+ */
 function unitScore(u: Unit): number {
-  if (SUPER_UNITS.has(u.type) || (u.carried && SUPER_UNITS.has(u.carried))) return SCORE.superUnit;
-  const def = UNITS[u.type];
-  // a ship scores only the unit it carries; upgrading a ship adds nothing (rules doc, Scoring)
-  if (def.naval) return SCORE.perUnitCost * (u.carried ? UNITS[u.carried].cost : 0);
-  return SCORE.perUnitCost * def.cost;
+  return SCORE.perUnitCost * (UNITS[u.type].cost + (u.carried ? UNITS[u.carried].cost : 0));
 }
 
 export function scoreOf(s: GameState, p: number): number {
@@ -346,11 +344,20 @@ export function perfectionStars(rating: number): number {
 
 /* ---------- city connections (§5.6) ---------- */
 
-function networkNode(s: GameState, i: number, p: number): boolean {
+/** a tile that carries a land connection (explored or not: S1 routes::connectable) */
+function networkNode(s: GameState, i: number): boolean {
   const t = s.tiles[i];
-  if (!(t.road || t.building === "bridge" || t.village || t.cityId !== null || t.building === "port" || t.building === "outpost" || t.building === "mycelium")) return false;
-  const c = cityById(s, t.territory);
-  return !c || c.owner === p;
+  return t.road || t.building === "bridge" || t.village || t.cityId !== null || t.building === "port" || t.building === "outpost" || t.building === "mycelium";
+}
+
+/**
+ * A connection step from tile `a` onto tile `b` (S1 routes::owners_allow): b is unowned, has a's
+ * owner, a is unowned, or the two owners are at peace. So a connection may cross peace partners' land.
+ */
+function ownersAllow(s: GameState, a: Tile, b: Tile): boolean {
+  const from = cityById(s, a.territory)?.owner;
+  const to = cityById(s, b.territory)?.owner;
+  return to === undefined || to === from || from === undefined || atPeace(s, from, to);
 }
 
 /** recompute which of p's cities are connected to its capital; adjust population */
@@ -369,8 +376,8 @@ export function updateConnections(s: GameState, p: number) {
       if (t.cityId !== null) connected.add(t.cityId);
       for (const q of around(n, c, 1)) {
         const i = idx(n, q.x, q.y);
-        if (seen.has(i) || explored[i] !== 1) continue;
-        if (networkNode(s, i, p)) {
+        if (seen.has(i)) continue;
+        if (networkNode(s, i) && ownersAllow(s, t, s.tiles[i])) {
           seen.add(i);
           queue.push(i);
         }
@@ -443,7 +450,7 @@ function waterPath(s: GameState, p: number, a: Coord, b: Coord): boolean {
       if (!isWater(t) && !t.flooded) continue;
       if (t.terrain === "ocean" && !sailing) continue;
       const o = cityById(s, t.territory)?.owner;
-      if (o !== undefined && o !== p) continue;
+      if (o !== undefined && o !== p && !atPeace(s, p, o)) continue; // own, neutral or a peace partner's water (S1 routes::accessible)
       seen.add(i);
       queue.push(q);
     }
@@ -468,8 +475,10 @@ export function checkTasks(s: GameState, p: number) {
   if (!done("metropolis") && citiesOf(s, p).some((c) => c.level >= 5)) complete("metropolis");
   if (!done("network") && citiesOf(s, p).filter((c) => c.connected).length >= 5) complete("network");
   if (!done("explorer") && pl.lighthouses.length >= 4) complete("explorer");
-  // Cymanti: convert 3 enemies with Shamans instead of the pacifist task
-  if (!done("pacifist") && (pl.clan === "cymanti" ? (pl.conversions ?? 0) >= 3 : pl.pacifistTurns >= 5)) complete("pacifist");
+  // Cymanti: the convert task (3 enemies converted by Shamans) replaces the pacifist task (2.18 data)
+  if (pl.clan === "cymanti") {
+    if (!done("convert") && (pl.conversions ?? 0) >= 3) complete("convert");
+  } else if (!done("pacifist") && pl.pacifistTurns >= 5) complete("pacifist");
 }
 
 /** meeting reward (§5.9) and Capital Vision; checked after every action */
@@ -494,13 +503,17 @@ export function checkMeetings(s: GameState) {
   }
 }
 
-/** player p meets `other`: stars of 1 + 2 per 1,000 of their score (rounded up), at most 11 */
+/**
+ * player p meets `other` (S1 explore::meet_action): stars of 1 + 2 per 1,000 of their score (rounded
+ * up, at most 5 tiers); the base is 3 instead of 1 when meeting the first seat in a 2-player game
+ */
 export function meet(s: GameState, p: number, other: number) {
   const pl = s.players[p];
   if (p === other || pl.met.includes(other)) return;
   pl.met.push(other);
   const sc = scoreOf(s, other);
-  pl.stars += 1 + 2 * Math.min(Math.ceil(sc / 1000), 5);
+  const base = s.players.length === 2 && other === 0 ? 3 : 1;
+  pl.stars += base + 2 * Math.min(Math.ceil(sc / 1000), 5);
 }
 
 /* ---------- units ---------- */
@@ -534,15 +547,56 @@ export function makeUnit(
     idle: true,
     hidden: false,
     lastDir: null,
+    createdTurn: s.turn,
   };
   s.units.push(u);
   return u;
 }
 
+/** S1's direction vectors (step.rs facing_direction, units.rs VECTORS), by S1 direction index */
+const S1_DIRS: Coord[] = [
+  { x: -1, y: -1 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: 1 },
+  { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: -1 },
+];
+/** the S1 direction with the strictly greatest weighted dot product with (x, y), the first on a tie */
+function s1Nearest(x: number, y: number): number {
+  let best = 0;
+  let score = 0;
+  S1_DIRS.forEach((d, i) => {
+    const dot = (d.x * x + d.y * y) * (d.x * d.x + d.y * d.y === 1 ? 1393 : 985);
+    if (score < dot) {
+      score = dot;
+      best = i;
+    }
+  });
+  return best;
+}
+/** S1 step::facing_direction from `a` toward `b` (an S1 direction index) */
+function s1Facing(a: Coord, b: Coord): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) <= 1) {
+    const k = S1_DIRS.findIndex((d) => d.x === dx && d.y === dy);
+    return k < 0 ? 8 : k;
+  }
+  return s1Nearest(dx, dy);
+}
+/** S1 units.rs average: opposite directions give the first turned a quarter, else the nearest to the sum */
+function s1Average(first: number, second: number): number {
+  const a = S1_DIRS[first] ?? { x: 0, y: 0 };
+  const b = S1_DIRS[second] ?? { x: 0, y: 0 };
+  const x = a.x + b.x;
+  const y = a.y + b.y;
+  if (x === 0 && y === 0) return (first + 2) % 8;
+  return s1Nearest(x, y);
+}
+
 /**
  * push a unit off a tile to make room for a spawn (§5.13); removes it if no room.
- * A friendly occupant is pushed the way it faces, an enemy one the opposite way.
+ * A friendly occupant is pushed the way it faces, an enemy one the opposite way; a chain member is
+ * pushed along the chain: toward its leader, its follower, or between the two (S1 units.rs try_push).
  * `spawner` is the owner of the unit being created (default: the occupant's owner).
+ * What the push sets off on the new tile is in actions.ts pushAside.
  */
 export function pushUnit(s: GameState, u: Unit, spawner: number = u.owner) {
   const n = s.mapSize;
@@ -550,6 +604,12 @@ export function pushUnit(s: GameState, u: Unit, spawner: number = u.owner) {
   let dir = u.lastDir ?? { x: Math.sign(c - u.x), y: Math.sign(c - u.y) };
   if (dir.x === 0 && dir.y === 0) dir = { x: 0, y: 1 };
   if (spawner !== u.owner) dir = { x: -dir.x, y: -dir.y };
+  const lead = leaderOf(s, u);
+  const follow = followerOf(s, u);
+  // a chain member whose partner is gone faces S1 direction 0 toward it (linked::find misses)
+  const toward = (o: Unit | undefined) => (o && s.units.includes(o) ? s1Facing(u, o) : 0);
+  const chainDir = lead && follow ? s1Average(toward(lead), toward(follow)) : lead ? toward(lead) : follow ? toward(follow) : -1;
+  if (chainDir >= 0) dir = S1_DIRS[chainDir] ?? S1_DIRS[0];
   const dirs8 = [
     { x: 0, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 0 }, { x: 1, y: 1 },
     { x: 0, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 },
@@ -609,8 +669,8 @@ export function leader(s: GameState): number | null {
  * turnEnded, after every player's turn:
  * - every mode: the last tribe with a city wins;
  * - single player (exactly one human seat): the human losing all cities ends the game (a loss);
- * - Perfection: after the last turn the highest score among alive players wins;
- * - Glory: at the end of a turn in which someone reached the target, the highest score wins;
+ * - Perfection: after the last turn (turn maxTurns - 1) the highest score among alive players wins;
+ * - Glory: as soon as someone reaches the target (after any action), the highest score wins;
  * - Might: holding every tribe's original capital wins.
  * Domination and Creative end only by elimination (Creative has no turn limit).
  */
@@ -629,9 +689,11 @@ export function checkGameEnd(s: GameState, turnEnded: boolean) {
     const holder = capitals[0]?.owner;
     if (capitals.length > 1 && capitals.every((c) => c.owner === holder)) return end(holder);
   }
-  if (!turnEnded) return;
-  if (s.mode === "perfection" && s.turn > s.maxTurns) return end(leader(s));
+  // Glory (S1 step::add_score): over as soon as a score reaches the target, after any action
   if (s.mode === "glory" && s.players.some((o) => o.alive && scoreOf(s, o.id) >= GLORY_TARGET)) return end(leader(s));
+  if (!turnEnded) return;
+  // Perfection (S1 turns::winner): over when the round counter reaches the limit, so turns 0..limit-1
+  if (s.mode === "perfection" && s.turn >= s.maxTurns) return end(leader(s));
 }
 
 /* ---------- setup ---------- */
@@ -679,7 +741,6 @@ export function createGame(opts: NewGameOptions): GameState {
     climates: clanIds.slice(),
     flooded: clanIds.map((c) => c === "aquarion"),
     polaris: clanIds.map((c) => c === "polaris"),
-    aquaCrops: clanIds.includes("aquarion"),
   });
   const humans = new Set(opts.humans ?? [0]);
 
@@ -735,19 +796,8 @@ export function createGame(opts: NewGameOptions): GameState {
     // the starting unit can act on turn 0 (§8)
     unit.done = false;
   }
-  // Polaris home climate (S1 tile climate): the land of a Polaris area is Polaris land, which the
-  // Ice Bank counts (mapgen area = nearest capital)
-  const polaris = s.players.filter((q) => q.clan === "polaris").map((q) => cityById(s, q.capitalId)!);
-  if (polaris.length) {
-    const caps = s.players.map((q) => cityById(s, q.capitalId)!);
-    s.tiles.forEach((t, i) => {
-      if (isWater(t)) return;
-      const at = { x: i % n, y: Math.floor(i / n) };
-      let best = caps[0];
-      for (const c of caps) if (dist(c, at) < dist(best, at)) best = c;
-      if (polaris.includes(best)) t.polar = true;
-    });
-  }
+  // Polaris home climate: map generation already marks the land around a Polaris capital as Polaris
+  // land (S1 mapgen_candidate populate: the 3×3 area); nothing more here
   startTurn(s);
   checkMeetings(s);
   return s;
@@ -764,18 +814,6 @@ export function startTurn(s: GameState) {
   }
   for (const u of s.units) {
     if (u.owner !== p) continue;
-    // Grow: Dragon Egg -> Baby Dragon (3 turns) -> Fire Dragon (3 more);
-    // Insect Egg -> Larva (1 turn) -> Moth (3 more). The unit keeps its damage.
-    if (s.turn > 0 && (UNITS[u.type].skills as string[]).includes("grow")) {
-      u.age = (u.age ?? 0) + 1;
-      const g = GROWS[u.type];
-      if (g && u.age >= g.at) {
-        const lost = u.maxHp - u.hp;
-        u.type = g.into;
-        u.maxHp = UNITS[g.into].hp! + (u.veteran ? 5 : 0);
-        u.hp = Math.max(1, u.maxHp - lost);
-      }
-    }
     u.secondAttack = false;
     const frozen = !!u.frozen;
     u.canMove = !frozen;
@@ -784,8 +822,6 @@ export function startTurn(s: GameState) {
     u.attacked = false;
     u.done = frozen;
     u.idle = true;
-    if (u.hidden) u.startedHidden = true;
-    else delete u.startedHidden;
   }
   if (s.turn > 0) {
     sanctuaryAnimals(s, p);
@@ -794,13 +830,32 @@ export function startTurn(s: GameState) {
   checkTasks(s, p);
 }
 
-/** Grow: unit type -> what it becomes and at which age (own turns lived) */
-const GROWS: Record<string, { into: string; at: number }> = {
-  dragonEgg: { into: "babyDragon", at: 3 },
-  babyDragon: { into: "fireDragon", at: 6 },
-  insectEgg: { into: "larva", at: 1 },
-  larva: { into: "moth", at: 4 },
+/** Grow: unit type -> what it becomes and its growth rate (game data growth_rate) */
+const GROWS: Record<string, { into: string; rate: number }> = {
+  dragonEgg: { into: "babyDragon", rate: 3 },
+  babyDragon: { into: "fireDragon", rate: 3 },
+  insectEgg: { into: "larva", rate: 1 },
+  larva: { into: "moth", rate: 3 },
 };
+
+/**
+ * Grow (S1 turns::end_command / grow), at the end of the owner's turn: a Grow unit with
+ * turn - createdTurn >= its growth rate becomes the next stage, which counts from this turn again
+ * (Dragon Egg -> Baby Dragon -> Fire Dragon, 3 + 3; Insect Egg -> Larva -> Moth, 1 + 3). The unit
+ * keeps its damage (at least 1 HP).
+ */
+export function growUnits(s: GameState, p: number) {
+  for (const u of s.units) {
+    if (u.owner !== p || !(UNITS[u.type].skills as string[]).includes("grow")) continue;
+    const g = GROWS[u.type];
+    if (!g || s.turn - (u.createdTurn ?? 0) < g.rate) continue;
+    const lost = u.maxHp - u.hp;
+    u.type = g.into;
+    u.maxHp = UNITS[g.into].hp! + (u.veteran ? 5 : 0);
+    u.hp = Math.max(1, u.maxHp - lost);
+    u.createdTurn = s.turn;
+  }
+}
 
 /**
  * Elyrion Sanctuary (S1 elyrion::attract): every 2 turns of its age it puts a wild animal on the first

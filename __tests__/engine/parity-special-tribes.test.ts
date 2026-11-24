@@ -61,7 +61,8 @@ describe("Polaris", () => {
     expect(UNITS.gaami.skills).toContain("freezeArea");
   });
 
-  it("Auto Freeze turns adjacent water to ice (not land) and freezes enemies; freezing counts as an attack", () => {
+  // audit 2 (S1 step::move_action): Auto Freeze is a full Freeze Area, so land turns Polaris too
+  it("Auto Freeze turns adjacent water to ice and land to Polaris land, freezes enemies; freezing counts as an attack", () => {
     const s = blank(["polaris", "imperius"]);
     water(s, 5, 5, true);
     water(s, 6, 5);
@@ -72,12 +73,13 @@ describe("Polaris", () => {
     expect(tileAt(next, 6, 5).ice).toBe(true);
     expect(tileAt(next, 6, 6).ice).toBe(true);
     expect(tileAt(next, 4, 5).ice).toBeFalsy();
-    expect(tileAt(next, 4, 5).polar).toBeFalsy();
+    expect(tileAt(next, 4, 5).polar).toBe(true);
     expect(next.units.find((u) => u.id === e.id)!.frozen).toBe(true);
     expect(next.players[0].attackedThisTurn).toBe(true);
   });
 
-  it("Freeze Area turns water to ice and land to Polaris terrain, never inside enemy territory", () => {
+  // audit 2 (S1 polaris::freezable has no territory check): enemy land turns Polaris too
+  it("Freeze Area turns water to ice and land to Polaris terrain, inside enemy territory too", () => {
     const s = blank(["polaris", "imperius"]);
     const g = unit(s, "gaami", 0, 8, 8); // (9,9) is inside the enemy capital's territory
     water(s, 7, 7);
@@ -85,7 +87,7 @@ describe("Polaris", () => {
     const next = applyAction(s, a);
     expect(tileAt(next, 7, 7).ice).toBe(true);
     expect(tileAt(next, 8, 7).polar).toBe(true);
-    expect(tileAt(next, 9, 9).polar).toBeFalsy();
+    expect(tileAt(next, 9, 9).polar).toBe(true);
     expect(tileAt(next, 9, 9).ice).toBeFalsy();
   });
 
@@ -173,7 +175,8 @@ describe("Polaris", () => {
     expect(c.connected).toBe(true);
   });
 
-  it("Dash breaks ice; a captured Polaris city's land loses the Polaris style", () => {
+  // audit 2 (S1 polaris::can_break_ice): any unit breaks ice, not only Dash units; one action per unit
+  it("Break Ice; a captured Polaris city's land loses the Polaris style", () => {
     const s = blank(["imperius", "polaris"]);
     water(s, 6, 5, true);
     const w = unit(s, "warrior", 0, 5, 5);
@@ -198,7 +201,8 @@ describe("Cymanti", () => {
     expect(UNITS.moth.skills).toContain("sneak");
     expect(UNITS.shaman.skills).not.toContain("stiff");
     expect(UNITS.phychi.skills).toContain("doubleAttack");
-    expect(UNITS.kiton.skills).not.toContain("poison");
+    // audit 2 (S1 data): the Kiton has plain Poison
+    expect(UNITS.kiton.skills).toContain("poison");
     expect(UNITS.insectEgg).toMatchObject({ hp: 10, attack: 2, defence: 3, movement: 0 });
     expect(UNITS.larva).toMatchObject({ hp: 10, attack: 2, defence: 2, movement: 1 });
   });
@@ -210,9 +214,9 @@ describe("Cymanti", () => {
     const m = unit(s, "mantis", 0, 5, 6);
     const e = unit(s, "warrior", 1, 8, 8);
     const before = computeDamageRounded(s, m, e).damage;
-    let next = applyAction(s, find(s, (a) => a.type === "boost" && a.unitId === sh.id)!);
+    let next = applyAction(s, find(s, (a) => a.type === "swarm" && a.unitId === sh.id)!);
     const mm = next.units.find((u) => u.id === m.id)!;
-    expect(mm.boosted).toBe(true);
+    expect(mm.swarmed).toBe(true);
     expect(computeDamageRounded(next, mm, e).damage).toBe(before);
     expect(Math.max(...reachable(next, mm).map((q) => Math.abs(q.y - 6)))).toBe(2);
     next.current = 1;
@@ -222,10 +226,10 @@ describe("Cymanti", () => {
     ee.canAttack = true;
     ee.done = false;
     next = applyAction(next, { type: "attack", unitId: ee.id, targetId: m.id });
-    expect(next.units.find((u) => u.id === m.id)!.boosted).toBe(false);
+    expect(next.units.find((u) => u.id === m.id)!.swarmed).toBe(false);
   });
 
-  it("conversions don't count as attacks; Cymanti earn the Altar of Peace by 3 Shaman conversions", () => {
+  it("conversions don't count as attacks; Cymanti complete the convert task (Cult of Ciru) by 3 Shaman conversions", () => {
     const s = blank(["cymanti", "imperius"]);
     let st = s;
     for (let k = 0; k < 3; k++) {
@@ -235,10 +239,10 @@ describe("Cymanti", () => {
     }
     expect(st.players[0].attackedThisTurn).toBe(false);
     expect(st.players[0].conversions).toBe(3);
-    expect(st.players[0].tasks).toContain("pacifist");
+    expect(st.players[0].tasks).toContain("convert");
   });
 
-  it("Mycelium replaces roads (Network) and links cities within 3 tiles", () => {
+  it("Mycelium replaces roads and links cities within 3 tiles", () => {
     expect(buildAllowedFor("cymanti", "road")).toBe(false);
     expect(buildAllowedFor("cymanti", "mycelium")).toBe(true);
     // 2.18 (S1): Recycling replaces Construction, so no Windmill
@@ -295,6 +299,9 @@ describe("Cymanti", () => {
       st = applyAction(st, { type: "endTurn" });
       while (st.current !== 0) st = applyAction(st, { type: "endTurn" });
     };
+    // Grow at the end of the owner's turn once turn - created reaches the rate (Egg 1, Larva 3)
+    round();
+    expect(st.units.find((u) => u.id === id)?.type).toBe("insectEgg");
     round();
     expect(st.units.find((u) => u.id === id)?.type).toBe("larva");
     round();
@@ -315,12 +322,13 @@ describe("Cymanti", () => {
     expect(legalActions(st).some((a) => a.type === "attack" && a.unitId === ph.id)).toBe(false);
   });
 
-  it("Kiton poisons units that attack it, ranged ones too", () => {
+  // audit 2 (S1 data: plain Poison): only its attacks and retaliation poison, not a ranged attacker
+  it("Kiton poisons through its retaliation, so ranged attackers stay clean", () => {
     const s = blank(["imperius", "cymanti"]);
     const ar = unit(s, "archer", 0, 5, 5);
     const k = unit(s, "kiton", 1, 7, 5);
     const st = applyAction(s, { type: "attack", unitId: ar.id, targetId: k.id });
-    expect(st.units.find((u) => u.id === ar.id)!.poisoned).toBe(true);
+    expect(st.units.find((u) => u.id === ar.id)!.poisoned).toBeFalsy();
   });
 
   it("Centipede: segments belong to the body, it moves 1 tile with segments, segments exert no ZoC, converting one converts all", () => {
@@ -348,9 +356,12 @@ describe("Cymanti", () => {
     const s = blank(["imperius", "cymanti"]);
     for (let x = 2; x <= 9; x++) for (let y = 2; y <= 9; y++) if (y !== 5) tileAt(s, x, y).terrain = "mountain";
     const r = unit(s, "rider", 0, 3, 5);
+    // audit 2 (S1 movement::guarded: e.leader == 0): a unit led in a chain exerts none
+    const head = unit(s, "centipede", 1, 9, 9);
     const seg = unit(s, "segment", 1, 5, 6);
+    seg.bodyOf = head.id;
     expect(reach(s, r)).toContain("5,5");
-    seg.type = "warrior";
+    delete seg.bodyOf;
     expect(reach(s, r)).not.toContain("5,5");
   });
 
@@ -435,7 +446,7 @@ describe("Elyrion", () => {
     const s = blank(["elyrion", "imperius"]);
     const egg = unit(s, "dragonEgg", 0, 5, 5);
     egg.hp = 6;
-    egg.age = 2;
+    egg.createdTurn = s.turn - 3; // grows at the end of this turn (growth rate 3)
     egg.moved = true; // no end-of-turn heal
     let st = applyAction(s, { type: "endTurn" });
     while (st.current !== 0) st = applyAction(st, { type: "endTurn" });
