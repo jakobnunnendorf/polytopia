@@ -84,8 +84,7 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 
 The doc names these mechanics but not every number; the engine uses:
 
-- Flooding: the land (fields, forests) of the Aquarion area is flooded at map
-  generation; settlements and mountains never are. Waterways adds Flood Tile
+- Flooding at map generation: see "2.18 data corrections". Waterways adds Flood Tile
   (3★) on own dry land; Construction gives other tribes Landfill (3★) and
   Aquarion Fertilize (3★, a crop on an empty flooded field). Costs are not in
   the doc.
@@ -101,10 +100,31 @@ The doc names these mechanics but not every number; the engine uses:
 - Lost City: the ruin tile becomes a village any tribe can capture; capturing
   it gives a level-3 city with a wall. Its 4 orthogonal ocean neighbours turn
   shallow. A Scuba's infiltration spawns Mermaid Daggers (Dagger + Amphibious).
-- Water multipliers (Kickoo 2, Aquarion 1.5) scale the water share of the
-  capital's area, scaled down together if the map total would leave the map
-  type's range; on Continents and Pangea (capitals picked after terrain) they
-  have no effect. Kickoo and Aquarion get 2 fish next to the capital on every
-  map type. Cymanti areas get spores instead of crops, at least 2 next to the
-  capital, and Fungi are built on spores. Bardur keeps no fruit bias (the
-  table's value; only its own page says 1.5).
+- Map generation spawns (water multipliers, starting fish and spores,
+  flooding): replaced by the 2.18 generator, see "2.18 data corrections".
+
+## 2.18 data corrections
+
+Map generation follows polybots-engine (Apache-2.0), `src/mapgen*.rs`, which
+replays the 2.18 generator; `logic/engine/mapgen.ts` ports it. Our random
+generator differs, so maps match in distribution, not tile for tile.
+
+| Rule | Old behaviour | New behaviour (2.18) |
+| --- | --- | --- |
+| Water share | wiki ranges, value noise, Water World land only at cities | one noise sample per tile, smoothed (0-2 passes), water = wetness quantile: Drylands 0, Lakes 0.3, Continents/Pangea 0.5, Archipelago 0.65, Water World 0.85 |
+| Capitals | uniform tile in a random quadrant | weighted to the domain centre (cubic peaks), 2 tiles off the edge; Continents/Pangea: island path (continents grown from seeds, capitals picked among their villages, farthest apart) |
+| Suburbs and early villages | Lakes/Archipelago 0-2 suburbs at ring 3, early batch 0.3 / 0.1 | 1-2 suburbs per capital (none on Drylands, Water World) joined by a land corridor; pre-terrain villages (budget − suburbs) × 0.3 (Water World 0.1, Drylands 0) |
+| Villages | every fitting land tile | budget floor(0.33·width)² − players (16×16, 4 players: 21), no other city within 2, not on the edge; Continents/Pangea also wetness·tiles/50 open-water villages |
+| Terrain | 48/38/14 per nearest-capital area | per tribe climate grown from the capital (land first): exact quotas field 0.5 : mountain 0.15 : forest 0.4 times the tribe's terrain modifiers |
+| Resources | per-terrain wiki rates, fish on half of the water within 2 | the inner ring always rolls, ring 2 with chance 1/3, none further; fruit/crop/game/fish 0.5, metal 0.8, aqua crop 0.3, times the tribe's modifiers; one of the passing resources that fit the terrain is kept |
+| Starting resources | only Kickoo/Aquarion fish, Cymanti spores | every tribe's list next to the capital (`startResources` in data.ts: e.g. Bardur 2 game, Imperius 2 fruit, Vengir 1 metal, Luxidoor 8), turning a tile's terrain if needed (Kickoo fish on Drylands) |
+| Tribe modifiers | Aquarion water 1.5, Cymanti spores replace crops in its area | Aquarion forest 0.5, crop 0.5, aqua crop 1.5; Cymanti mountain 1.2, spores 0.3 (field, forest), crop 0; Oumaji water 0.5 recorded; water modifiers (Kickoo 2) are in the data but the generator never reads them |
+| Aquarion flooding | land of the nearest-capital area, not settlements | every field and forest of the Aquarion home climate, its cities and villages included |
+| Polaris | nothing at map generation | grows no climate of its own (alien climate); the water next to its capital starts as ice, its land neighbours Polaris land |
+| Ruins | wiki count, not on resources, at most a third on water on Lakes | tiles/40 + 1 (same counts), none within 2 of another ruin or a capital, none next to a village, water ruins only on ocean away from cities |
+| Starfish | one per 25 water tiles | up to ceil(wetness·tiles/25) (none on Drylands), none next to a starfish or a city |
+| Aqua Crops | crop rate on shallow water when an Aquarion plays | rolled on every map (0.3), kept only when an Aquarion plays (only Aquarion sees them) |
+| Fairness | none | up to 50 candidate maps; the one with the lowest turf inequality (richest/poorest turf) is kept, stopping early below 1.01 |
+
+Engine extensions: more than 4 players use ceil(sqrt(players))² domains, and
+an empty capital range on a small map is widened to the whole domain.

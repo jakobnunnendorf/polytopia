@@ -5,7 +5,7 @@
 import { applyAction, legalActions } from "@/logic/engine/actions";
 import { CLAN_BY_ID, UNITS, buildAllowedFor, trainableUnitsFor } from "@/logic/engine/data";
 import { dist } from "@/logic/engine/grid";
-import { generateMap, WETNESS } from "@/logic/engine/mapgen";
+import { generateMap } from "@/logic/engine/mapgen";
 import { reachable } from "@/logic/engine/movement";
 import { createRng } from "@/logic/engine/rng";
 import { claimTerritory, createGame, makeUnit, newCity, resourceVisible, updateConnections } from "@/logic/engine/state";
@@ -309,48 +309,15 @@ describe("Lost City ruin reward", () => {
 
 /* ---------- spawn multipliers and map generation ---------- */
 
-describe("tribe spawn multipliers (rules doc, Tribes tables)", () => {
-  it("clan mods equal the doc", () => {
+describe("tribe spawn modifiers (2.18 data; map generation in parity-218-mapgen.test.ts)", () => {
+  it("clan mods equal the 2.18 data", () => {
     expect(CLAN_BY_ID.polynesians.mod).toEqual({ water: 2, fish: 1.5, mountain: 0.5 });
-    expect(CLAN_BY_ID.aquarion.mod).toEqual({ forest: 0.5, water: 1.5 });
+    expect(CLAN_BY_ID.aquarion.mod).toEqual({ forest: 0.5, crop: 0.5, aquaCrop: 1.5 });
     expect(CLAN_BY_ID.polaris.mod).toEqual({});
-    expect(CLAN_BY_ID.cymanti.mod).toEqual({ mountain: 1.2 });
+    expect(CLAN_BY_ID.cymanti.mod).toEqual({ mountain: 1.2, spores: 0.3, crop: 0 });
     expect(CLAN_BY_ID.norse.mod).toEqual({ forest: 0.8, crop: 0 });
-  });
-
-  const areaOf = (caps: Coord[], p: Coord) => {
-    let best = 0;
-    for (let k = 1; k < caps.length; k++) if (dist(caps[k], p) < dist(caps[best], p)) best = k;
-    return best;
-  };
-
-  it("a water multiplier gives its area more water, the map total staying in the map type's range", () => {
-    const n = 16;
-    let biased = 0;
-    let others = 0;
-    for (let seed = 1; seed <= 12; seed++) {
-      const m = generateMap(createRng(seed), n, 4, "lakes", [{ water: 2 }, {}, {}, {}]);
-      const water = m.tiles.filter((t) => t.terrain === "water" || t.terrain === "ocean").length;
-      const [lo, hi] = WETNESS.lakes;
-      expect(water).toBeLessThanOrEqual(Math.round(hi * n * n) + 2);
-      expect(water).toBeGreaterThanOrEqual(Math.round(lo * n * n) - 30); // forced land can only lower it
-      const share = [0, 0, 0, 0];
-      const size = [0, 0, 0, 0];
-      m.tiles.forEach((t, i) => {
-        const a = areaOf(m.capitals, { x: i % n, y: Math.floor(i / n) });
-        size[a]++;
-        if (t.terrain === "water" || t.terrain === "ocean") share[a]++;
-      });
-      biased += share[0] / size[0];
-      others += (share[1] / size[1] + share[2] / size[2] + share[3] / size[3]) / 3;
-    }
-    expect(biased).toBeGreaterThan(others * 1.4);
-  });
-
-  it("without water multipliers the map is unchanged", () => {
-    const a = generateMap(createRng(3), 16, 4, "lakes", [{ fish: 1.5 }, {}, {}, {}]);
-    const b = generateMap(createRng(3), 16, 4, "lakes", [{ fish: 1.5, water: 1 }, {}, {}, {}]);
-    expect(a).toEqual(b);
+    expect(CLAN_BY_ID.aquarion.startResources).toEqual(["fish", "fish"]);
+    expect(CLAN_BY_ID.cymanti.startResources).toEqual(["spores", "spores"]);
   });
 
   it("Kickoo and Aquarion capitals get 2 fish next to them on every map type", () => {
@@ -364,30 +331,9 @@ describe("tribe spawn multipliers (rules doc, Tribes tables)", () => {
     }
   });
 
-  it("Cymanti: spores instead of crops, at least 2 next to the capital", () => {
-    for (let seed = 1; seed <= 5; seed++) {
-      const m = generateMap(createRng(seed), 16, 4, "drylands", [{ mountain: 1.2 }, {}, {}, {}], { spores: [true, false, false, false] });
-      const c = m.capitals[0];
-      let near = 0;
-      m.tiles.forEach((t, i) => {
-        const p = { x: i % 16, y: Math.floor(i / 16) };
-        const a = areaOf(m.capitals, p);
-        if (a === 0) expect(t.resource).not.toBe("crop");
-        else expect(t.resource).not.toBe("spores");
-        if (t.resource === "spores" && dist(c, p) === 1) near++;
-      });
-      expect(near).toBeGreaterThanOrEqual(2);
-    }
-  });
-
-  it("Aquarion: the land of its area is flooded; Aqua Crops only when Aquarion plays", () => {
-    const m = generateMap(createRng(4), 16, 4, "lakes", [{}, {}, {}, {}], { flooded: [true, false, false, false], aquaCrops: true });
-    const settled = new Set([...m.capitals, ...m.villages].map((c) => c.y * 16 + c.x));
-    m.tiles.forEach((t, i) => {
-      const a = areaOf(m.capitals, { x: i % 16, y: Math.floor(i / 16) });
-      const floodable = (t.terrain === "field" || t.terrain === "forest") && !settled.has(i);
-      expect(!!t.flooded).toBe(a === 0 && floodable);
-    });
+  it("Aqua Crops only when Aquarion plays", () => {
+    const opts = { flooded: [true, false, false, false], aquaCrops: true };
+    const m = generateMap(createRng(4), 16, 4, "lakes", [{ aquaCrop: 1.5 }, {}, {}, {}], opts);
     expect(m.tiles.some((t) => t.resource === "aquaCrop")).toBe(true);
     const plain = generateMap(createRng(4), 16, 4, "lakes");
     expect(plain.tiles.some((t) => t.resource === "aquaCrop" || t.flooded)).toBe(false);

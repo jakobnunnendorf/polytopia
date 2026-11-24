@@ -635,9 +635,10 @@ export function createGame(opts: NewGameOptions): GameState {
       .slice(0, opts.players);
   const mods = clanIds.map((c) => CLAN_BY_ID[c].mod as Record<string, number>);
   const map = generateMap(rng, n, opts.players, opts.mapType ?? "drylands", mods, {
-    waterStart: clanIds.map((c) => c === "polynesians" || c === "aquarion"),
+    startResources: clanIds.map((c) => CLAN_BY_ID[c].startResources),
+    climates: clanIds.slice(),
     flooded: clanIds.map((c) => c === "aquarion"),
-    spores: clanIds.map((c) => c === "cymanti"),
+    polaris: clanIds.map((c) => c === "polaris"),
     aquaCrops: clanIds.includes("aquarion"),
   });
   const humans = new Set(opts.humans ?? [0]);

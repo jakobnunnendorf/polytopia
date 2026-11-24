@@ -1,3 +1,4 @@
+import type { ResourceId } from "./types";
 /**
  * Rules data, matching The Battle of Polytopia 2.18 (regular tribes) as
  * documented in docs/shardlands/RULES.md. Section numbers (§) refer to it.
@@ -387,7 +388,14 @@ export type ClanDef = {
   startUnit: string;
   startStars: number;
   capitalLevel: number;
-  mod: Partial<Record<"mountain" | "forest" | "fruit" | "crop" | "animal" | "fish" | "metal" | "water", number>>;
+  /**
+   * map generation modifiers of the tribe's climate (2.18 data): terrain weights
+   * (mountain, forest) and resource chances (fruit, crop, animal, fish, metal,
+   * spores, aquaCrop). "water" is in the game's data but its generator never reads it.
+   */
+  mod: Partial<Record<"mountain" | "forest" | "fruit" | "crop" | "animal" | "fish" | "metal" | "water" | "spores" | "aquaCrop", number>>;
+  /** resources placed next to the capital at map generation (2.18 data) */
+  startResources: ResourceId[];
   /** true for the 4 special tribes (Aquarion, Elyrion, Polaris, Cymanti) */
   special?: boolean;
   /** super unit spawned by the level 5+ city reward (default: "giant") */
@@ -408,18 +416,18 @@ export type ClanDef = {
 
 export const CLANS: ClanDef[] = [
   // ---- 12 Regular Tribes ----
-  { id: "inca", startTech: "climbing", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 1.5, metal: 1.5 }, color: "#e63946" },
-  { id: "romans", startTech: "organization", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { animal: 0.5, fruit: 2 }, color: "#2589f5" },
-  { id: "norse", startTech: "hunting", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { forest: 0.8, crop: 0 }, color: "#3b4252" },
-  { id: "mongols", startTech: "riding", startUnit: "rider", startStars: 6, capitalLevel: 1, mod: { forest: 0.2, animal: 0.2, mountain: 0.5 }, color: "#f4c430" },
-  { id: "polynesians", startTech: "fishing", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { water: 2, fish: 1.5, mountain: 0.5 }, color: "#2db84d" },
-  { id: "welsh", startTech: "archery", startUnit: "archer", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 1.5 }, color: "#8c6239" },
-  { id: "lydians", startTech: null, startUnit: "warrior", startStars: 2, capitalLevel: 2, mod: {}, color: "#9b5de5" },
-  { id: "hittites", startTech: "smithery", startUnit: "swordsman", startStars: 5, capitalLevel: 1, mod: { metal: 2, animal: 0.1, fruit: 0.1, fish: 0.1 }, color: "#4a4e69" },
-  { id: "sumerians", startTech: "farming", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 0.5 }, color: "#f97316" },
-  { id: "tibetans", startTech: "philosophy", startUnit: "mindBender", startStars: 5, capitalLevel: 1, mod: { mountain: 1.5, crop: 0.1 }, color: "#14b8a6" },
-  { id: "spartans", startTech: "strategy", startUnit: "defender", startStars: 7, capitalLevel: 1, mod: { fruit: 2, crop: 0.1 }, color: "#0d9488" },
-  { id: "persians", startTech: "roads", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 1.5 }, color: "#b91c1c" },
+  { id: "inca", startTech: "climbing", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 1.5, metal: 1.5 }, startResources: ["metal", "metal"], color: "#e63946" },
+  { id: "romans", startTech: "organization", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { animal: 0.5, fruit: 2 }, startResources: ["fruit", "fruit"], color: "#2589f5" },
+  { id: "norse", startTech: "hunting", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { forest: 0.8, crop: 0 }, startResources: ["animal", "animal"], color: "#3b4252" },
+  { id: "mongols", startTech: "riding", startUnit: "rider", startStars: 6, capitalLevel: 1, mod: { forest: 0.2, animal: 0.2, mountain: 0.5, water: 0.5 }, startResources: ["fruit", "fruit"], color: "#f4c430" },
+  { id: "polynesians", startTech: "fishing", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { water: 2, fish: 1.5, mountain: 0.5 }, startResources: ["fish", "fish"], color: "#2db84d" },
+  { id: "welsh", startTech: "archery", startUnit: "archer", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 1.5 }, startResources: ["animal", "animal"], color: "#8c6239" },
+  { id: "lydians", startTech: null, startUnit: "warrior", startStars: 2, capitalLevel: 2, mod: {}, startResources: ["animal", "animal", "fruit", "fruit", "fish", "fish", "crop", "metal"], color: "#9b5de5" },
+  { id: "hittites", startTech: "smithery", startUnit: "swordsman", startStars: 5, capitalLevel: 1, mod: { metal: 2, animal: 0.1, fruit: 0.1, fish: 0.1 }, startResources: ["metal"], color: "#4a4e69" },
+  { id: "sumerians", startTech: "farming", startUnit: "warrior", startStars: 5, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 0.5 }, startResources: ["crop", "crop"], color: "#f97316" },
+  { id: "tibetans", startTech: "philosophy", startUnit: "mindBender", startStars: 5, capitalLevel: 1, mod: { mountain: 1.5, crop: 0.1 }, startResources: ["animal", "animal"], color: "#14b8a6" },
+  { id: "spartans", startTech: "strategy", startUnit: "defender", startStars: 7, capitalLevel: 1, mod: { fruit: 2, crop: 0.1 }, startResources: ["fruit", "fruit"], color: "#0d9488" },
+  { id: "persians", startTech: "roads", startUnit: "warrior", startStars: 7, capitalLevel: 1, mod: { mountain: 0.5, forest: 0.5, fruit: 1.5 }, startResources: ["fruit", "fruit"], color: "#b91c1c" },
 
   // ---- 4 Special Tribes ----
   {
@@ -429,7 +437,8 @@ export const CLANS: ClanDef[] = [
     startUnit: "mermaid",
     startStars: 5,
     capitalLevel: 1,
-    mod: { forest: 0.5, water: 1.5 },
+    mod: { forest: 0.5, crop: 0.5, aquaCrop: 1.5 },
+    startResources: ["fish", "fish"],
     superUnit: "crab",
     unitReplacements: {
       warrior: "mermaid",
@@ -467,6 +476,7 @@ export const CLANS: ClanDef[] = [
     startStars: 5,
     capitalLevel: 1,
     mod: { crop: 1.5, mountain: 0.5 },
+    startResources: ["animal", "animal"],
     superUnit: "dragonEgg",
     buildReplacements: {
       hunt: "enchantAnimal",
@@ -488,6 +498,7 @@ export const CLANS: ClanDef[] = [
     startStars: 5,
     capitalLevel: 1,
     mod: {},
+    startResources: ["animal", "animal"],
     superUnit: "gaami",
     unitReplacements: {
       archer: "iceArcher",
@@ -516,8 +527,9 @@ export const CLANS: ClanDef[] = [
     startUnit: "shaman",
     startStars: 5,
     capitalLevel: 1,
-    // spores instead of crops (mapgen), at least 2 at the capital
-    mod: { mountain: 1.2 },
+    // 2.18 data: spores (field, forest) at 0.3, no crops; 2 spores at the capital
+    mod: { mountain: 1.2, spores: 0.3, crop: 0 },
+    startResources: ["spores", "spores"],
     superUnit: "centipede",
     unitReplacements: {
       rider: "hexapod",
