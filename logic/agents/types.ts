@@ -5,8 +5,9 @@
  */
 import type { Action, GameState } from "../engine/types";
 import type { GreedyWeights } from "../engine/bot";
+import type { PartialFullWeights } from "../engine/botFull";
 
-export type ModelKind = "greedy" | "random" | "llm" | "external";
+export type ModelKind = "greedy" | "greedy-full" | "random" | "llm" | "external";
 
 export type ModelSpec = {
   /** folder name under models/, also the Elo key ("model:<id>") */
@@ -18,6 +19,8 @@ export type ModelSpec = {
   created: string;
   /** greedy: weight overrides on top of DEFAULT_WEIGHTS */
   weights?: Partial<GreedyWeights>;
+  /** greedy-full: weight overrides on top of DEFAULT_FULL_WEIGHTS (logic/engine/botFull.ts) */
+  full?: PartialFullWeights;
   /** llm: OpenAI-compatible chat endpoint and model id (LM Studio by default) */
   llm?: {
     endpoint: string;
