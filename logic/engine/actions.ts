@@ -22,7 +22,7 @@ import {
   trainableUnitsFor,
 } from "./data";
 import { around, cloneState, dist, idx, isWater, tileAt } from "./grid";
-import { computeDamageRounded } from "./combat";
+import { computeDamageRounded, halfDamage } from "./combat";
 import {
   canSee,
   chainBody,
@@ -70,6 +70,7 @@ import {
   unitsHomedIn,
   updateConnections,
   withRng,
+  growUnits,
 } from "./state";
 import type { Action, City, Coord, GameState, Unit } from "./types";
 
@@ -106,9 +107,9 @@ function attackTargets(s: GameState, u: Unit): Unit[] {
 }
 
 function infiltrateTargets(s: GameState, u: Unit): City[] {
-  if (!has(u, "infiltrate") || u.done || u.attacked) return [];
-  // a Cloak can't infiltrate on the turn it became hidden, unless it started that turn hidden
-  if (u.hidden && !u.startedHidden) return [];
+  // (S1 combat::attacks_into) not after attacking, nor after moving without Dash: a Cloak (Dash) may
+  // move and then infiltrate in the same turn, hidden or not
+  if (!has(u, "infiltrate") || u.done || u.attacked || u.frozen || (u.moved && !has(u, "dash"))) return [];
   return s.cities.filter(
     (c) =>
       canHarm(s, u.owner, c.owner) &&
@@ -116,6 +117,12 @@ function infiltrateTargets(s: GameState, u: Unit): City[] {
       !c.riot &&
       !s.units.some((o) => o.x === c.x && o.y === c.y && o.owner !== c.owner),
   );
+}
+
+/** a unit p can see stands on (x,y) and belongs to a tribe not at peace with p */
+function blockedByEnemy(s: GameState, p: number, x: number, y: number): boolean {
+  const occ = occupant(s, x, y);
+  return !!occ && occ.owner !== p && canSee(s, p, occ) && !atPeace(s, p, occ.owner);
 }
 
 /** can p build `b` on tile (x,y)? */
@@ -139,14 +146,18 @@ function canBuild(s: GameState, p: number, b: string, x: number, y: number): boo
     if (!u || u.owner !== p || u.done || u.moved || !u.canAttack || u.frozen) return false;
     return !isWater(t) && !t.flooded && (t.terrain === "field" || t.terrain === "forest");
   }
+  // (S1 menu::can_build) no build on a tile holding a visible unit of a tribe not at peace
+  if (blockedByEnemy(s, p, x, y)) return false;
+  // roads and bridges may also go on neutral land (§4.4). A road is refused only by a road, a
+  // city or village, or a bridge (S1 menu::can_build): farms, huts, other buildings and ruins take one
+  if (def.kind === "road") {
+    const o = territoryOwner(s, t);
+    if (t.road || t.cityId !== null || t.village || t.building === "bridge") return false;
+    return (o === null || o === p) && def.terrain.includes(t.terrain as never);
+  }
   if (t.cityId !== null || t.village || t.ruin || t.lighthouse) return false;
   if (def.kind === "embassy") return false; // embassies are built inside cities, see legalActions
   const own = ownTile(s, p, x, y);
-  // roads and bridges may also go on neutral land (§4.4)
-  if (def.kind === "road") {
-    const o = territoryOwner(s, t);
-    return (o === null || o === p) && !t.road && !t.building && def.terrain.includes(t.terrain as never);
-  }
   if (def.kind === "bridge") {
     const o = territoryOwner(s, t);
     if (!(o === null || o === p) || t.terrain !== "water" || t.building) return false;
@@ -164,7 +175,8 @@ function canBuild(s: GameState, p: number, b: string, x: number, y: number): boo
   // Fertilize: a crop on wetland that has none (it replaces another resource there)
   if (b === "fertilize") return wetland && !t.building && t.resource !== "crop";
   if (b === "port" && t.flooded && !isWater(t)) return t.terrain !== "mountain" && !t.building && !t.resource;
-  if (def.kind === "destroy") return t.building !== null;
+  // Destroy: not a bridge with any unit on it (S1 menu::improvement_abilities_into)
+  if (def.kind === "destroy") return t.building !== null && !(t.building === "bridge" && occupant(s, x, y));
   // Cymanti Algae: open water without algae (it may sit on a building: discrete)
   if (b === "algae") return isWater(t) && !t.ice && !t.algae && t.resource !== "fruit";
   if (t.building) return false;
@@ -312,11 +324,10 @@ export function legalActions(s: GameState): Action[] {
     if (has(u, "swarm") && u.canMove && !u.done && !u.frozen && swarmTargets(s, u).length) {
       out.push({ type: "swarm", unitId: u.id });
     }
-    if (!u.done && has(u, "explode")) {
-      const hasTarget =
-        s.units.some((e) => canHarm(s, p, e.owner) && dist(e, u) === 1) ||
-        (u.type === "raychi" && isWater(tile) && !tile.algae);
-      if (hasTarget) out.push({ type: "explode", unitId: u.id });
+    // Explode (S1 cymanti::can_explode): any time, with or without a target, except on the turn the
+    // unit was created (a Centipede segment may even then) or while frozen
+    if (has(u, "explode") && !u.frozen && (u.createdTurn !== s.turn || isLed(u))) {
+      out.push({ type: "explode", unitId: u.id });
     }
     for (const c of infiltrateTargets(s, u)) out.push({ type: "infiltrate", unitId: u.id, cityId: c.id });
     // Break Ice (S1 polaris::can_break_ice): any unit, Polaris included, not led in a chain, that has
@@ -409,9 +420,11 @@ export function applyAction(prev: GameState, a: Action): GameState {
       // a Centipede's body goes with it, each part paid (S1 step disband: the follower goes too)
       const u = unitById(s, a.unitId)!;
       const gone = [u, ...chainBody(s, u.id)];
+      // each part pays half of its boat + passenger cost, rounded down, only when that total is
+      // above 1 (S1 step::disband)
       for (const o of gone) {
-        const base = o.carried ? UNITS[o.carried].cost : UNITS[o.type].cost;
-        pl.stars += Math.floor(base / 2);
+        const total = UNITS[o.type].cost + (o.carried ? UNITS[o.carried].cost : 0);
+        if (total > 1) pl.stars += Math.floor(total / 2);
       }
       s.units = s.units.filter((x) => !gone.includes(x));
       break;
@@ -563,6 +576,13 @@ function breakPeace(s: GameState, breaker: number, victim: number) {
   if (!d.broken.some((b) => b[0] === victim && b[1] === breaker)) d.broken.push([victim, breaker]);
   const lost = s.units.filter((u) => u.owner === breaker && territoryOwner(s, tileAt(s, u.x, u.y)) === victim);
   s.units = s.units.filter((u) => !lost.includes(u));
+  // every other unit of the breaker is spent for this turn (S1 step Diplomacy::BreakPeace)
+  for (const u of s.units) {
+    if (u.owner !== breaker) continue;
+    endUnit(u);
+    u.moved = true;
+    u.attacked = true;
+  }
   s.players[breaker].losses += lost.length;
   log(s, `broke peace with player ${victim}`);
 }
@@ -579,8 +599,11 @@ function endTurn(s: GameState) {
     if (idle && (u.hp < u.maxHp || u.poisoned)) heal(s, u);
     if (u.frozen) u.frozen = false;
   }
+  growUnits(s, p);
   improvementUpkeep(s, p);
-  if (pl.techs.includes("meditation")) pl.pacifistTurns = pl.attackedThisTurn ? 0 : pl.pacifistTurns + 1;
+  // Pacifist (S1 attack::reset_peace, turns::end_turn): an attack this turn reset the count to 0,
+  // then every end of turn adds 1
+  if (pl.techs.includes("meditation")) pl.pacifistTurns = (pl.attackedThisTurn ? 0 : pl.pacifistTurns) + 1;
   checkTasks(s, p);
   // offers this player did not answer on its turn lapse (count as declined)
   if (s.diplomacy) s.diplomacy.offers = s.diplomacy.offers.filter((o) => o.to !== p);
@@ -636,37 +659,22 @@ function removeBuilding(s: GameState, p: number, at: Coord) {
 /* ---------- moves ---------- */
 
 /**
- * A hidden enemy the mover could not see stops it on the last free tile before
- * the hidden unit's tile and is revealed (rules doc, Cloak), so legalActions
- * never gives away where hidden units are.
+ * A hidden enemy the mover could not see on the move's destination (S1 step Command::Move): the move
+ * becomes a Reveal. The hidden unit is revealed, the mover stays where it is and its move is not
+ * spent. A hidden unit on a tile the path only passes through changes nothing (legalActions plans
+ * through hidden units as empty tiles, so it never gives away where they are).
  */
-function stopAtHidden(s: GameState, u: Unit, to: Coord): Coord {
-  const path = pathTo(s, u, to);
-  let stop: Coord = { x: u.x, y: u.y };
-  for (const q of path) {
-    const occ = occupant(s, q.x, q.y);
-    if (occ && occ !== u && !friendly(s, u.owner, occ.owner) && occ.hidden && !canSee(s, u.owner, occ)) {
-      occ.hidden = false;
-      log(s, `ran into a hidden unit at ${q.x},${q.y}`);
-      return stop;
-    }
-    if (!occ) stop = q;
-  }
-  return to;
+function revealAtDestination(s: GameState, u: Unit, to: Coord): boolean {
+  const occ = occupant(s, to.x, to.y);
+  if (!occ || occ === u || friendly(s, u.owner, occ.owner) || !occ.hidden || canSee(s, u.owner, occ)) return false;
+  occ.hidden = false;
+  log(s, `ran into a hidden unit at ${to.x},${to.y}`);
+  return true;
 }
 
 function doMove(s: GameState, u: Unit, to: Coord) {
-  const kind0 = reachable(s, u).find((m) => m.x === to.x && m.y === to.y)?.kind ?? "normal";
-  const planned = to;
-  to = stopAtHidden(s, u, to);
-  if (to.x === u.x && to.y === u.y) {
-    // stopped before its first step: the move is spent
-    u.moved = true;
-    u.canMove = false;
-    if (!has(u, "dash")) u.canAttack = false;
-    return;
-  }
-  const kind = to === planned ? kind0 : enterKind(s, u, tileAt(s, to.x, to.y)) ?? "normal";
+  if (revealAtDestination(s, u, to)) return;
+  const kind = reachable(s, u).find((m) => m.x === to.x && m.y === to.y)?.kind ?? "normal";
   const origin = { x: u.x, y: u.y };
   u.lastDir = { x: Math.sign(to.x - u.x), y: Math.sign(to.y - u.y) };
   // explore the straight-line path's tiles (approximation of "every tile along the path")
@@ -691,6 +699,10 @@ function doMove(s: GameState, u: Unit, to: Coord) {
   // Skate: a move ending on land allows no attack (Dash blocked on land)
   if (has(u, "skate") && !isWater(tileAt(s, u.x, u.y))) u.canAttack = false;
   afterMove(s, u, kind, origin);
+  // moving onto another tribe's city is an act of war (S1 step::move_action)
+  const dest = tileAt(s, to.x, to.y);
+  const host = dest.cityId !== null ? cityById(s, dest.cityId)?.owner : undefined;
+  if (host !== undefined && host !== u.owner) warAct(s, u.owner, host);
 }
 
 /**
@@ -733,6 +745,17 @@ function followStep(s: GameState, f: Unit, to: Coord) {
   if (!has(f, "dash")) f.canAttack = false;
   explore(s, f.owner, f, sightRadius(s, f));
   afterMove(s, f, "normal", origin);
+}
+
+/**
+ * An act of war (S1 step::attack_diplomacy): attacks, infiltration, captures, moving onto a city,
+ * stomp and explosion hits record the attack (war) and end the embassies between the two.
+ */
+function warAct(s: GameState, p: number, q: number) {
+  if (p === q) return;
+  recordAttack(s, p, q);
+  s.players[p].embassies = s.players[p].embassies.filter((h) => h !== q);
+  s.players[q].embassies = s.players[q].embassies.filter((h) => h !== p);
 }
 
 /**
@@ -806,7 +829,13 @@ function areaDamage(s: GameState, u: Unit) {
       if (!dx && !dy) continue;
       const e = occupant(s, u.x + dx, u.y + dy);
       if (!e || !canHarm(s, u.owner, e.owner)) continue;
-      damage(s, e, computeDamageRounded(s, u, e).damage, u);
+      const dealt = computeDamageRounded(s, u, e).damage;
+      // a damaging hit on a visible unit is an act of war and resets the Pacifist count (S1 area_damage)
+      if (dealt > 0 && !e.hidden) {
+        warAct(s, u.owner, e.owner);
+        s.players[u.owner].attackedThisTurn = true;
+      }
+      damage(s, e, dealt, u);
     }
   }
 }
@@ -914,10 +943,14 @@ function doExplode(s: GameState, u: Unit) {
   s.units = s.units.filter((x) => x !== u);
   const t = tileAt(s, pos.x, pos.y);
   leaveSporesOrAlgae(t);
+  // (S1 cymanti::explode) half damage, rounded down, to every neighbour not at peace; a survivor is
+  // poisoned; each hit is an act of war and resets the Pacifist count
   for (const e of s.units.slice()) {
-    if (e.owner === p || dist(e, pos) !== 1) continue;
+    if (!canHarm(s, p, e.owner) || dist(e, pos) !== 1) continue;
     const r = computeDamageRounded(s, u, e);
-    damage(s, e, r.damage / 2, u); // half the damage, unrounded (RULES_PARITY)
+    warAct(s, p, e.owner);
+    s.players[p].attackedThisTurn = true;
+    damage(s, e, halfDamage(r.damage), u);
     if (s.units.includes(e)) e.poisoned = true;
   }
   if (follower && s.units.includes(follower)) doExplode(s, follower);
@@ -943,13 +976,23 @@ function stomp(s: GameState, u: Unit) {
   for (const e of s.units.slice()) {
     if (!canHarm(s, u.owner, e.owner) || dist(e, u) !== 1) continue;
     const r = computeDamageRounded(s, u, e);
-    damage(s, e, r.damage / 2, u); // amount unconfirmed in the spec: half, unrounded, like splash
+    // (S1 attack::area_damage) a hit that deals damage to a visible unit is an act of war and
+    // resets the Pacifist count; half damage, rounded down
+    if (r.damage > 0 && !e.hidden) {
+      warAct(s, u.owner, e.owner);
+      s.players[u.owner].attackedThisTurn = true;
+    }
+    damage(s, e, halfDamage(r.damage), u);
   }
 }
 
 /* ---------- combat ---------- */
 
-function damage(s: GameState, target: Unit, amount: number, by: Unit | null): boolean {
+/**
+ * Deal damage. A kill counts for the attacking unit's player, or for `killer` when there is no
+ * attacking unit (infiltration: S1 attack::perform_attack credits the infiltrating player).
+ */
+function damage(s: GameState, target: Unit, amount: number, by: Unit | null, killer: number | null = null): boolean {
   target.hp -= amount;
   // Swarm (Swift) is lost whenever the unit is hit, retaliation and area damage included
   target.swarmed = false;
@@ -962,6 +1005,8 @@ function damage(s: GameState, target: Unit, amount: number, by: Unit | null): bo
   if (by) {
     s.players[by.owner].kills += 1;
     if (!has(by, "static") && !has(by, "carry")) by.kills += 1;
+  } else if (killer !== null) {
+    s.players[killer].kills += 1;
   }
   return true;
 }
@@ -1042,10 +1087,7 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
   u.hidden = false;
   u.lastDir = { x: Math.sign(target.x - u.x), y: Math.sign(target.y - u.y) };
   // embassies between the two are destroyed by any attack (§5.5); the two are now at war
-  const q = target.owner;
-  recordAttack(s, p, q);
-  s.players[p].embassies = s.players[p].embassies.filter((h) => h !== q);
-  s.players[q].embassies = s.players[q].embassies.filter((h) => h !== p);
+  warAct(s, p, target.owner);
 
   if (has(u, "convert")) {
     // converting any part of a Centipede converts the whole body (S1 attack::convert: the chain
@@ -1067,9 +1109,9 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
     u.attacked = true;
     return;
   }
-  s.players[p].attackedThisTurn = true;
-
   const r = computeDamageRounded(s, u, target);
+  // Pacifist: only an attack that deals damage to a visible unit resets the count (S1 attack_command)
+  if (r.damage > 0 && !target.hidden) s.players[p].attackedThisTurn = true;
   const from = { x: target.x, y: target.y };
   const killed = damage(s, target, r.damage, u);
   // Aquarion: being attacked pops a Bubble; Drench floods the attacked tile (and may bubble its unit)
@@ -1078,13 +1120,16 @@ function doAttack(s: GameState, u: Unit, target: Unit) {
   // special on-hit effects: freeze (Ice Archer) & poison (Phychi, Exida, Kiton)
   if (!killed && has(u, "freeze")) target.frozen = true;
   if (!killed && has(u, "poison")) target.poisoned = true;
-  // splash: half damage, unrounded (.5 possible), to enemies adjacent to the target
-  if (has(u, "splash")) {
+  // splash (S1 attack_command, ranged units only): half damage, rounded down, to every unit next to
+  // the target not at peace; a poisoning attacker (Exida) only poisons them, no damage
+  if (has(u, "splash") && UNITS[u.type].range > 1) {
     for (const e of s.units.slice()) {
       if (!canHarm(s, p, e.owner) || dist(e, from) !== 1 || e === u) continue;
-      const sr = computeDamageRounded(s, u, e);
-      damage(s, e, sr.damage / 2, u);
-      if (s.units.includes(e) && has(u, "poison")) e.poisoned = true;
+      if (has(u, "poison")) {
+        e.poisoned = true;
+        continue;
+      }
+      damage(s, e, halfDamage(computeDamageRounded(s, u, e).damage), u);
     }
   }
   if (!killed) {
@@ -1151,6 +1196,8 @@ function doCapture(s: GameState, u: Unit) {
       return;
     }
     const old = c.owner;
+    // capturing a tribe's city is an act of war (S1 capture::capture_city)
+    warAct(s, p, old);
     // the connections through this city are cut and the population they gave goes with them (may go negative)
     if (c.capital) {
       for (const o of citiesOf(s, old)) {
@@ -1201,12 +1248,17 @@ function doExamine(s: GameState, u: Unit) {
   t.ruin = false;
   u.hidden = false;
   endUnit(u);
-  const options: string[] = ["resources", "newFriends"];
-  const researchable = TECHS.filter((x) => canResearch(s, p, x.id) && (x.tier === 1 || (x.parent && pl.techs.includes(x.parent))));
+  // eligible rewards (S1 ruins::select_reward; a shuffle taking the first eligible one = an even draw):
+  // resources and population always; the veteran unit on land, the veteran boat on water only with
+  // ocean movement; a free tech among all researchable ones (also an unknown parent of a known tech);
+  // the explorer when a neighbour has terrain the player can move on and fog lies within 2
+  const options: string[] = ["resources", "population"];
+  if (!isWater(t) || pl.techs.includes("sailing")) options.push("newFriends");
+  const researchable = TECHS.filter((x) => canResearch(s, p, x.id));
   if (researchable.length) options.push("scroll");
-  if (capitalOf(s, p)) options.push("population");
   const fogNear = around(s.mapSize, u, 2).some((q) => pl.explored[idx(s.mapSize, q.x, q.y)] !== 1);
-  if (t.terrain !== "mountain" && fogNear) options.push("explorer");
+  const enterable = around(s.mapSize, u, 1).some((q) => explorerCanEnter(s, p, tileAt(s, q.x, q.y)));
+  if (enterable && fogNear) options.push("explorer");
   // 2.18 (S1 ruins::select_reward): an Aquarion examining a valid ocean ruin always raises the Lost City
   const pick = pl.clan === "aquarion" && validLostCity(s, u) ? "lostCity" : withRng(s, (r) => r.pick(options));
   switch (pick) {
@@ -1218,9 +1270,11 @@ function doExamine(s: GameState, u: Unit) {
       pl.techs.push(tech.id);
       break;
     }
-    case "population":
-      addPop(s, capitalOf(s, p)!, 3);
+    case "population": {
+      const cap = capitalOf(s, p);
+      if (cap) addPop(s, cap, 3);
       break;
+    }
     case "explorer":
       runExplorer(s, p, u);
       break;
@@ -1291,24 +1345,37 @@ function raiseLostCity(s: GameState, u: Unit) {
 }
 
 /**
- * Explorer walker (spec "Explorer"): EXPLORER_STEPS automatic moves into the fog.
- * Each step goes to the neighbour that uncovers the most new tiles (3x3 vision);
- * ties go to the step closest to the nearest lighthouse this player hasn't found.
- * If no neighbour uncovers anything, it steps along a shortest path toward the
- * nearest unexplored tile. Remaining ties are broken by the game RNG.
+ * Terrain player p's techs let it move on (S1 routes::movements, game data movement_unlocks): field,
+ * forest, ice and wetland always, a city, a bridge; mountain with Climbing, shallow water with
+ * Fishing (Aquarion: its starting tech Aquabase), ocean with Sailing.
+ */
+function explorerCanEnter(s: GameState, p: number, t: ReturnType<typeof tileAt>): boolean {
+  const pl = s.players[p];
+  if (t.cityId !== null || t.building === "bridge" || t.ice || t.algae) return true;
+  if (t.terrain === "mountain") return pl.techs.includes("climbing");
+  if (t.terrain === "water") return pl.techs.includes("fishing") || pl.clan === "aquarion";
+  if (t.terrain === "ocean") return pl.techs.includes("sailing");
+  return true;
+}
+
+/**
+ * Explorer walker (S1 reward::scout): EXPLORER_STEPS (12) automatic moves into the fog.
+ * Each step goes to the neighbour that uncovers the most new tiles (3x3 vision, 5x5
+ * when it stands on a mountain); ties go to the step closest to the nearest
+ * lighthouse this player hasn't found. If no neighbour uncovers anything, it steps
+ * along a shortest path toward the nearest unexplored tile. It walks into fog, but
+ * on explored tiles only on terrain the player can move on. Remaining ties are
+ * broken by the game RNG (S1's own scoring and hash are not ported).
  */
 export function runExplorer(s: GameState, p: number, from: Coord) {
   const pl = s.players[p];
   const n = s.mapSize;
   let cur = { x: from.x, y: from.y };
   const passable = (q: Coord) => {
-    const t = tileAt(s, q.x, q.y);
     if (pl.explored[idx(n, q.x, q.y)] !== 1) return true; // may walk into fog
-    if (t.terrain === "mountain") return pl.techs.includes("climbing");
-    if (t.terrain === "water") return pl.techs.includes("sailing") || pl.clan === "cymanti";
-    if (t.terrain === "ocean") return pl.techs.includes("navigation") || pl.clan === "cymanti";
-    return true;
+    return explorerCanEnter(s, p, tileAt(s, q.x, q.y));
   };
+  const sight = (q: Coord) => (tileAt(s, q.x, q.y).terrain === "mountain" ? 2 : 1);
   const uncovers = (q: Coord) =>
     around(n, q, 1, true).filter((c) => pl.explored[idx(n, c.x, c.y)] !== 1).length;
   const lighthouseDist = (q: Coord) => {
@@ -1361,13 +1428,15 @@ export function runExplorer(s: GameState, p: number, from: Coord) {
     if (cands.length > 1) cands = lowest(cands.map((q) => ({ q, key: lighthouseDist(q) })));
     const choice = cands.length === 1 ? cands[0] : withRng(s, (r) => r.pick(cands));
     cur = choice;
-    explore(s, p, cur, 1);
+    explore(s, p, cur, sight(cur));
   }
 }
 
 function doInfiltrate(s: GameState, u: Unit, c: City) {
   const p = u.owner;
   s.units = s.units.filter((x) => x !== u);
+  // infiltration is an act of war (S1 attack::attack_command)
+  warAct(s, p, c.owner);
   if (u.type === "moth") {
     mothInfiltrate(s, u, c);
     return;
@@ -1376,7 +1445,7 @@ function doInfiltrate(s: GameState, u: Unit, c: City) {
   if (occ && occ.owner !== p) {
     const dagger = { ...u, type: "dagger", hp: 10, maxHp: 10 };
     const r = computeDamageRounded(s, dagger, occ);
-    damage(s, occ, r.damage, null);
+    damage(s, occ, r.damage, null, p);
   }
   const owner = c.owner;
   const stolen = c.capital ? c.level + 1 : c.level;
@@ -1418,7 +1487,7 @@ function mothInfiltrate(s: GameState, u: Unit, c: City) {
   c.riot = true;
   const occ = occupant(s, c.x, c.y);
   if (occ && occ.owner !== p) {
-    const killed = damage(s, occ, computeDamageRounded(s, u, occ).damage, null);
+    const killed = damage(s, occ, computeDamageRounded(s, u, occ).damage, null, p);
     if (!killed) occ.poisoned = true;
   }
   // Insect Eggs (city level, at most 5) on free land of the city's territory, the city tile too

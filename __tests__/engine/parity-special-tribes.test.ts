@@ -299,6 +299,9 @@ describe("Cymanti", () => {
       st = applyAction(st, { type: "endTurn" });
       while (st.current !== 0) st = applyAction(st, { type: "endTurn" });
     };
+    // Grow at the end of the owner's turn once turn - created reaches the rate (Egg 1, Larva 3)
+    round();
+    expect(st.units.find((u) => u.id === id)?.type).toBe("insectEgg");
     round();
     expect(st.units.find((u) => u.id === id)?.type).toBe("larva");
     round();
@@ -443,7 +446,7 @@ describe("Elyrion", () => {
     const s = blank(["elyrion", "imperius"]);
     const egg = unit(s, "dragonEgg", 0, 5, 5);
     egg.hp = 6;
-    egg.age = 2;
+    egg.createdTurn = s.turn - 3; // grows at the end of this turn (growth rate 3)
     egg.moved = true; // no end-of-turn heal
     let st = applyAction(s, { type: "endTurn" });
     while (st.current !== 0) st = applyAction(st, { type: "endTurn" });

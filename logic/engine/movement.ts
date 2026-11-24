@@ -256,9 +256,9 @@ function search(s: GameState, u: Unit): { targets: MoveTarget[]; parent: Map<num
         if (!creep && !fly && t.terrain === "forest" && !road) stop = true;
         // Skate: on land at most 1 tile
         if (skate && !isWater(t)) stop = true;
-        // algae ends the move of land units; Creep steps cost 1 on water and non-mountain land
-        // before the algae check (S1 Profile::step_cost), so algae don't stop a creeping unit
-        if (!fly && !creep && t.algae && !UNITS[u.type].naval) stop = true;
+        // algae ends the move of units that don't swim (S1 movement::step_cost: ships and amphibious
+        // units swim; flying units and Creep on water are not stopped)
+        if (!fly && !creep && t.algae && !UNITS[u.type].naval && !amphibious) stop = true;
         if (!ignoresZoc && enemyAdjacent(x, y)) stop = true;
         // Aquarion: amphibious units stop on dry land, ships stop on flooded tiles
         if (amphibious && !isWater(t) && !t.flooded) stop = true;

@@ -95,10 +95,11 @@ export type Unit = {
   secondAttack?: boolean;
   /** Centipede segment: id of the Centipede head it belongs to */
   bodyOf?: number;
-  /** Elyrion: turns lived (for Dragon Egg -> Baby Dragon -> Fire Dragon) */
-  age?: number;
-  /** was hidden when its owner's turn began (a Cloak that hides this turn can't infiltrate) */
-  startedHidden?: boolean;
+  /**
+   * turn (round) the unit was created; a Grow stage restarts it. Explode is not allowed in this
+   * turn; Grow units grow when turn - createdTurn reaches their growth rate. Missing in old saves.
+   */
+  createdTurn?: number;
 };
 
 export type City = {

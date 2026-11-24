@@ -29,7 +29,7 @@ import {
 } from "./data";
 import { generateMap, type MapType } from "./mapgen";
 import { around, dist, idx, inBounds, isWater, tileAt } from "./grid";
-import type { City, Coord, Difficulty, GameMode, GameState, Player, Unit } from "./types";
+import type { City, Coord, Difficulty, GameMode, GameState, Player, Tile, Unit } from "./types";
 import { canSee } from "./movement";
 import { atPeace, atWar } from "./diplomacy";
 
@@ -55,7 +55,7 @@ export type NewGameOptions = {
   /** clan per player; default: random distinct clans */
   clans?: string[];
   /**
-   * Perfection turn limit (default 30, turns 0..30). The Weekly Challenge is
+   * Perfection turn limit (default 30, turns 0..29). The Weekly Challenge is
    * Perfection with turnLimit 20 and a fixed seed.
    */
   turnLimit?: number;
@@ -264,14 +264,12 @@ export function canResearch(s: GameState, p: number, tech: string): boolean {
   return TECHS.some((c) => c.parent === tech && pl.techs.includes(c.id));
 }
 
-/** unit score value (§7.1) */
-const SUPER_UNITS = new Set(["giant", "juggernaut", "crab", "dragonEgg", "babyDragon", "fireDragon", "gaami", "centipede"]);
+/**
+ * unit score value (S1 units::unit_score): 5 × (cost + the passenger's cost), so a ship scores its
+ * own cost too (Scout or Rammer +25, Bomber +75) and a Juggernaut (0★) its Giant (50)
+ */
 function unitScore(u: Unit): number {
-  if (SUPER_UNITS.has(u.type) || (u.carried && SUPER_UNITS.has(u.carried))) return SCORE.superUnit;
-  const def = UNITS[u.type];
-  // a ship scores only the unit it carries; upgrading a ship adds nothing (rules doc, Scoring)
-  if (def.naval) return SCORE.perUnitCost * (u.carried ? UNITS[u.carried].cost : 0);
-  return SCORE.perUnitCost * def.cost;
+  return SCORE.perUnitCost * (UNITS[u.type].cost + (u.carried ? UNITS[u.carried].cost : 0));
 }
 
 export function scoreOf(s: GameState, p: number): number {
@@ -346,11 +344,20 @@ export function perfectionStars(rating: number): number {
 
 /* ---------- city connections (§5.6) ---------- */
 
-function networkNode(s: GameState, i: number, p: number): boolean {
+/** a tile that carries a land connection (explored or not: S1 routes::connectable) */
+function networkNode(s: GameState, i: number): boolean {
   const t = s.tiles[i];
-  if (!(t.road || t.building === "bridge" || t.village || t.cityId !== null || t.building === "port" || t.building === "outpost" || t.building === "mycelium")) return false;
-  const c = cityById(s, t.territory);
-  return !c || c.owner === p;
+  return t.road || t.building === "bridge" || t.village || t.cityId !== null || t.building === "port" || t.building === "outpost" || t.building === "mycelium";
+}
+
+/**
+ * A connection step from tile `a` onto tile `b` (S1 routes::owners_allow): b is unowned, has a's
+ * owner, a is unowned, or the two owners are at peace. So a connection may cross peace partners' land.
+ */
+function ownersAllow(s: GameState, a: Tile, b: Tile): boolean {
+  const from = cityById(s, a.territory)?.owner;
+  const to = cityById(s, b.territory)?.owner;
+  return to === undefined || to === from || from === undefined || atPeace(s, from, to);
 }
 
 /** recompute which of p's cities are connected to its capital; adjust population */
@@ -369,8 +376,8 @@ export function updateConnections(s: GameState, p: number) {
       if (t.cityId !== null) connected.add(t.cityId);
       for (const q of around(n, c, 1)) {
         const i = idx(n, q.x, q.y);
-        if (seen.has(i) || explored[i] !== 1) continue;
-        if (networkNode(s, i, p)) {
+        if (seen.has(i)) continue;
+        if (networkNode(s, i) && ownersAllow(s, t, s.tiles[i])) {
           seen.add(i);
           queue.push(i);
         }
@@ -443,7 +450,7 @@ function waterPath(s: GameState, p: number, a: Coord, b: Coord): boolean {
       if (!isWater(t) && !t.flooded) continue;
       if (t.terrain === "ocean" && !sailing) continue;
       const o = cityById(s, t.territory)?.owner;
-      if (o !== undefined && o !== p) continue;
+      if (o !== undefined && o !== p && !atPeace(s, p, o)) continue; // own, neutral or a peace partner's water (S1 routes::accessible)
       seen.add(i);
       queue.push(q);
     }
@@ -496,13 +503,17 @@ export function checkMeetings(s: GameState) {
   }
 }
 
-/** player p meets `other`: stars of 1 + 2 per 1,000 of their score (rounded up), at most 11 */
+/**
+ * player p meets `other` (S1 explore::meet_action): stars of 1 + 2 per 1,000 of their score (rounded
+ * up, at most 5 tiers); the base is 3 instead of 1 when meeting the first seat in a 2-player game
+ */
 export function meet(s: GameState, p: number, other: number) {
   const pl = s.players[p];
   if (p === other || pl.met.includes(other)) return;
   pl.met.push(other);
   const sc = scoreOf(s, other);
-  pl.stars += 1 + 2 * Math.min(Math.ceil(sc / 1000), 5);
+  const base = s.players.length === 2 && other === 0 ? 3 : 1;
+  pl.stars += base + 2 * Math.min(Math.ceil(sc / 1000), 5);
 }
 
 /* ---------- units ---------- */
@@ -536,6 +547,7 @@ export function makeUnit(
     idle: true,
     hidden: false,
     lastDir: null,
+    createdTurn: s.turn,
   };
   s.units.push(u);
   return u;
@@ -611,8 +623,8 @@ export function leader(s: GameState): number | null {
  * turnEnded, after every player's turn:
  * - every mode: the last tribe with a city wins;
  * - single player (exactly one human seat): the human losing all cities ends the game (a loss);
- * - Perfection: after the last turn the highest score among alive players wins;
- * - Glory: at the end of a turn in which someone reached the target, the highest score wins;
+ * - Perfection: after the last turn (turn maxTurns - 1) the highest score among alive players wins;
+ * - Glory: as soon as someone reaches the target (after any action), the highest score wins;
  * - Might: holding every tribe's original capital wins.
  * Domination and Creative end only by elimination (Creative has no turn limit).
  */
@@ -631,9 +643,11 @@ export function checkGameEnd(s: GameState, turnEnded: boolean) {
     const holder = capitals[0]?.owner;
     if (capitals.length > 1 && capitals.every((c) => c.owner === holder)) return end(holder);
   }
-  if (!turnEnded) return;
-  if (s.mode === "perfection" && s.turn > s.maxTurns) return end(leader(s));
+  // Glory (S1 step::add_score): over as soon as a score reaches the target, after any action
   if (s.mode === "glory" && s.players.some((o) => o.alive && scoreOf(s, o.id) >= GLORY_TARGET)) return end(leader(s));
+  if (!turnEnded) return;
+  // Perfection (S1 turns::winner): over when the round counter reaches the limit, so turns 0..limit-1
+  if (s.mode === "perfection" && s.turn >= s.maxTurns) return end(leader(s));
 }
 
 /* ---------- setup ---------- */
@@ -754,18 +768,6 @@ export function startTurn(s: GameState) {
   }
   for (const u of s.units) {
     if (u.owner !== p) continue;
-    // Grow: Dragon Egg -> Baby Dragon (3 turns) -> Fire Dragon (3 more);
-    // Insect Egg -> Larva (1 turn) -> Moth (3 more). The unit keeps its damage.
-    if (s.turn > 0 && (UNITS[u.type].skills as string[]).includes("grow")) {
-      u.age = (u.age ?? 0) + 1;
-      const g = GROWS[u.type];
-      if (g && u.age >= g.at) {
-        const lost = u.maxHp - u.hp;
-        u.type = g.into;
-        u.maxHp = UNITS[g.into].hp! + (u.veteran ? 5 : 0);
-        u.hp = Math.max(1, u.maxHp - lost);
-      }
-    }
     u.secondAttack = false;
     const frozen = !!u.frozen;
     u.canMove = !frozen;
@@ -774,8 +776,6 @@ export function startTurn(s: GameState) {
     u.attacked = false;
     u.done = frozen;
     u.idle = true;
-    if (u.hidden) u.startedHidden = true;
-    else delete u.startedHidden;
   }
   if (s.turn > 0) {
     sanctuaryAnimals(s, p);
@@ -784,13 +784,32 @@ export function startTurn(s: GameState) {
   checkTasks(s, p);
 }
 
-/** Grow: unit type -> what it becomes and at which age (own turns lived) */
-const GROWS: Record<string, { into: string; at: number }> = {
-  dragonEgg: { into: "babyDragon", at: 3 },
-  babyDragon: { into: "fireDragon", at: 6 },
-  insectEgg: { into: "larva", at: 1 },
-  larva: { into: "moth", at: 4 },
+/** Grow: unit type -> what it becomes and its growth rate (game data growth_rate) */
+const GROWS: Record<string, { into: string; rate: number }> = {
+  dragonEgg: { into: "babyDragon", rate: 3 },
+  babyDragon: { into: "fireDragon", rate: 3 },
+  insectEgg: { into: "larva", rate: 1 },
+  larva: { into: "moth", rate: 3 },
 };
+
+/**
+ * Grow (S1 turns::end_command / grow), at the end of the owner's turn: a Grow unit with
+ * turn - createdTurn >= its growth rate becomes the next stage, which counts from this turn again
+ * (Dragon Egg -> Baby Dragon -> Fire Dragon, 3 + 3; Insect Egg -> Larva -> Moth, 1 + 3). The unit
+ * keeps its damage (at least 1 HP).
+ */
+export function growUnits(s: GameState, p: number) {
+  for (const u of s.units) {
+    if (u.owner !== p || !(UNITS[u.type].skills as string[]).includes("grow")) continue;
+    const g = GROWS[u.type];
+    if (!g || s.turn - (u.createdTurn ?? 0) < g.rate) continue;
+    const lost = u.maxHp - u.hp;
+    u.type = g.into;
+    u.maxHp = UNITS[g.into].hp! + (u.veteran ? 5 : 0);
+    u.hp = Math.max(1, u.maxHp - lost);
+    u.createdTurn = s.turn;
+  }
+}
 
 /**
  * Elyrion Sanctuary (S1 elyrion::attract): every 2 turns of its age it puts a wild animal on the first

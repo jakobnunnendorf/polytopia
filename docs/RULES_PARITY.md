@@ -19,11 +19,11 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 | Embassy cost | see 2.18 data corrections: 4★ + 2★ per embassy already built |
 | Cloak attack | 2 (game data), but Infiltrate units never attack units; infiltration damage uses Dagger stats |
 | Cloak detection | every adjacent enemy unit |
-| Splash damage | half the damage, unrounded (HP may be fractional, shown rounded up) |
-| Explosion damage | half the explosion's damage, unrounded, like splash |
+| Splash damage | corrected (second core audit): half the damage rounded down to whole HP, ranged units only; a poisoning splash only poisons |
+| Explosion damage | corrected (second core audit): half the damage rounded down, like splash |
 | Poison and movement | -1 movement only above 1 (game logic), so a 1-move unit still moves 1 |
 | Perfection bonus | score × (1 + round(handicap/5 + ln(opponents)/ln(11.4), 2)) |
-| Meeting a tribe | wiki formula: 1 + 2★ per 1,000 score, at most 11 |
+| Meeting a tribe | wiki formula: 1 + 2★ per 1,000 score, at most 11; base 3 when meeting the first seat in a 2-player game (second core audit) |
 | Market income | +1★ per adjacent building level, at most 8 |
 | Port reach | range 5; ocean links need Sailing |
 | Ice Bank | 2★ per 20 frozen tiles |
@@ -36,7 +36,7 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 | Bot capital income | a bot capital makes 1/2/3/5★ in total for Easy/Normal/Hard/Crazy (Normal = a human capital) |
 | Creep and zone of control | the doc contradicts itself (Terrain and Cloak sections: Creep ignores it; Movement rules: only Sneak, Hide and invisibility do). The engine follows Movement rules; Cloak and Dinghy ignore it through Hide anyway |
 | Escape | after attacking, the unit may move again with its full movement |
-| Stomp | half the damage, unrounded, like splash |
+| Stomp | corrected (second core audit): half the damage rounded down, like splash |
 
 ## Not found in any source (engine choice)
 
@@ -49,17 +49,20 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 - Map size: Perfection 16 and Domination 11/14/16/18 are the defaults and are forced in the
   settings screen; scripts may still pass an explicit size.
 - War: an attack (or conversion) either way in this turn number or the
-  previous one. Splash, stomp and infiltration don't start a war.
+  previous one. Corrected (second core audit): infiltration, capturing a
+  city, moving onto another tribe's city, stomp hits and explosion hits start
+  a war too; splash does not.
 - Hostile: shown during the cease-fire after a broken treaty; neutral or war
   after it.
 - Peace offers: one pending offer per sender and receiver; an offer the
   receiver doesn't answer on its turn lapses. Offering is allowed at war and
   during a cease-fire.
 - Peace partners: their units don't besiege each other's cities, can be
-  passed through (not stopped on), and splash and stomp damage skip them.
-  Polaris freezing, Cymanti explosions and Fungi poison are not changed here.
-- A unit stopped by a hidden enemy ends on the last free tile of its planned
-  path before that tile; its move is spent.
+  passed through (not stopped on), and splash, stomp and explosion damage
+  skip them. Polaris freezing and Fungi poison are not changed here.
+- Corrected (second core audit): a move whose destination holds a hidden
+  enemy reveals it; the mover stays and its move is not spent. Passing through
+  a hidden unit's tile is silent.
 - Daggers: city, then forest or mountain (mountain only with Climbing), then
   other land in the city's borders, then water as Pirates.
 - Bot opinions: each factor of the doc's table counts +1 or -1 (horrible ≤ -3,
@@ -175,6 +178,38 @@ the earlier slot, no star cap.
 Left to the special-tribe and map work: the special tribes' tech trees and
 buildings (for example Sanctuary also on mountains, and Polaris and Cymanti
 movement techs), and starting resources (Luxidoor's 8).
+
+## 2.18 data corrections: second core audit
+
+Source: polybots-engine (Apache-2.0), `src/*.rs`, and the game's 2.18 rules
+data (not copied here). Tests: `__tests__/engine/parity-audit2-core.test.ts`.
+Each line: rule: old behaviour -> new behaviour (reference file::function).
+
+| Rule | Old behaviour | New behaviour |
+| --- | --- | --- |
+| Perfection end | over when turn > maxTurns (31 rounds, turns 0..30) | over when the round counter reaches maxTurns right after the wrap: turns 0..29 (Weekly Challenge 0..19); the UI shows the turns left (turns.rs::winner) |
+| Glory end | at the end of a turn | right after any action that brings a score to 10,000 (step.rs::add_score) |
+| Damage formula | float forces, round half up | integer arithmetic in tenths of HP with truncating divisions and round_damage (combat.rs::battle) |
+| Splash, stomp, explosion | half the damage, unrounded | floor(damage / 2) in whole HP (attack.rs::half_damage) |
+| Splash | any splash unit, poison added to the damage | only units with range > 1; an attacker with Poison (Exida) only poisons the neighbours (attack.rs::attack_command) |
+| Explosion | only with an adjacent enemy, not after the unit is done; hit units of peace partners | any time except the turn the unit was created (a Centipede segment even then) or while frozen, no target needed; skips peace partners; each hit starts war and resets Pacifist (cymanti.rs::can_explode, explode) |
+| Breaking peace | units in the victim's land destroyed | also every other unit of the breaker is spent for the turn (step.rs Diplomacy::BreakPeace) |
+| Roads | not on a tile with any building, ruin or lighthouse | refused only on a road, city, village or bridge: farms, huts, other buildings and ruins take a road (menu.rs::can_build) |
+| Builds and Destroy | allowed under an enemy unit | refused on a tile with a visible unit of a tribe not at peace; Destroy refuses a bridge with any unit on it (menu.rs::can_build, improvement_abilities_into) |
+| Grow | at the start of the owner's turn by turns lived (egg 3, baby 6; insect egg 1, larva 4) | at the end of the owner's turn when turn - createdTurn >= growth rate (3, 3; 1, 3), each stage restarting the count (turns.rs::end_command, grow; units.rs::upgrade) |
+| Cloak infiltration | not on the turn it became hidden | after a move too (Dash), hidden or not (combat.rs::attacks_into) |
+| Unit score | ships scored only the passenger; super units 50 | 5 × (unit cost + passenger cost) for every unit (units.rs::unit_score) |
+| Disband refund | floor(passenger or unit cost / 2) | floor((boat + passenger cost) / 2), only when the total is above 1 (step.rs::disband) |
+| Pacifist count | reset by any attack (even 0 damage, or on a hidden unit) | reset to 0 by an attack that deals damage to a visible unit, a stomp hit, an explosion hit or a freeze; every end of turn then adds 1 (attack.rs::reset_peace, turns.rs::end_turn) |
+| War triggers | attacks and conversions | also infiltration, capture of a city, moving onto another tribe's city, stomp and explosion hits (step.rs::attack_diplomacy call sites) |
+| Hidden enemy on a move | stopped before it on the path, move spent | only a hidden unit on the destination matters: it is revealed, the mover stays and keeps its move; passing through is silent (step.rs Command::Move) |
+| Explorer | 15 steps, sight 1, water needed Sailing, ocean Navigation | 12 steps, sight 2 when it steps on a mountain, explored tiles only on terrain the player can move on (Climbing mountain, Fishing water, Sailing ocean); fog may be entered (reward.rs::scout; its scoring and hash are not ported) |
+| Ruin rewards | population needed a capital; free tech only tier 1 or a child of a known tech; explorer not on mountains; veteran unit always | population and resources always; the veteran unit on land, the veteran boat on water only with ocean movement (Sailing); a free tech among every researchable tech (also an unknown parent of a known tech); explorer when a neighbour has terrain the player can move on and fog lies within 2, mountains included (ruins.rs::select_reward) |
+| Aquatism on ice | 1.5 defence on ice | none: ice is its own terrain (combat.rs::defence_bonus) |
+| Algae | stopped every non-ship | stops only units that don't swim: ships and amphibious units pass, flying units and Creep too (movement.rs::step_cost) |
+| City connections | own or neutral tiles, explored only | no explored tiles needed; a step onto another tribe's tile is allowed from an unowned tile, the same owner's tile or a peace partner's; water links may cross peace partners' water (routes.rs::owners_allow, accessible) |
+| Meeting stars | 1 + 2 per 1,000 score | base 3 instead of 1 when meeting the first seat in a 2-player game (explore.rs::meet_action) |
+| Infiltration kills | no kill credited | a defender killed by infiltration counts for the infiltrating player (kills, Killer task; attack.rs::perform_attack) |
 
 ## 2.18 data corrections: special tribes
 
