@@ -1,0 +1,55 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 07-move-noise
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+Jakob, 24 November: ``what about adding stochastic movement with variance parameter but fixed expectation value the movement weights from the champion to get around obstacles and also units spreading out to a degree which can be hypertuned on top champion like density parameter''.
+
+Diagnosis first (six stalled 8-player self-play games of the champion, opened at turn 250): the leader had 97 to 142 units, of which 53 to 77 could not move at all and most of the rest had no move toward a goal; only 0 to 2 units per game had a useful move. Between 60 and 105 of them had six or more own units as neighbours. The armies are jammed by their own units. \textbf{Hypothesis:} a random term on move scores with mean zero keeps the champion's preferences on average but lets a stuck unit step aside and find another route, so more games finish.
+
+The prediction was not written down as numbers before the first sweep (this notebook did not exist yet). The self-play check before the sweep gave: finished games 34 to 37 or 39 of 40 with 4 players, but 30 to 25 or 29 of 40 with 8 players.
+
+\section{Mechanism}
+Let $g$ be a move's gain toward the unit's goal in tiles and $z \sim U(-\knob{moveNoise}, +\knob{moveNoise})$, seeded by game, turn, unit and target tile, so a game stays reproducible. For $g>0$ the move scores as before plus $z$. For $g\le 0$ (sideways or back), which the base rules out with $-1$, the move scores $g + z$ and is taken when that is positive. The bot already had a small noise term (\knob{greedy.noise} $=1$), but it has mean $+0.5$ and applies only to moves with $g>0$, so it cannot unjam anything. Default 0. Code: \texttt{move\_score} in \texttt{bot\_full.rs}.
+
+\section{Setup}
+Values sized against a move score of about 25 plus the tiles gained: 1, 2, 4, 8. The seven-model panel is the fixed six plus the base.
+
+\section{Results}
+\ExpResults
+
+\textbf{4 players.} Every tested value beats the base in the sweep, on the panel and head to head; 4 is best (79.2\,\% finish on seven models against 74.5\,\%). In the final test \knob{moveNoise} $=4$ beats the champion clearly: finish 60.1\,\%, points 56.9\,\%, won 62\,\% ($\pm$5). Against the fixed six on the final-test maps the finish score rises from 78.8 to 81.3\,\% (the base's figure is from experiment 6, same maps), conquest wins from 76.5 to 80.5\,\%, and games are four turns shorter.
+
+\todo{claude}{8 players: read the second sweep once it has finished.}
+
+\section{Behaviour}
+The six stalled 8-player games of the diagnosis, replayed with \knob{moveNoise} $=4$: four now finish, at turns 50 to 75; none did before. In the two that still stall, the leader's army is as jammed as before (55\,\% of its units cannot move or attack, against 42\,\% for the champion over all six; 72\,\% have six or more own neighbours). The noise keeps most jams from forming; it does not dissolve one that has formed.
+
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\section{Interpretation}
+The gain is far larger than the late-game unjamming alone would give: the replayed games end at turns 50 to 75, not at turn 280. Allowing sideways steps changes play from the start, because a unit behind another unit is no longer frozen until the one in front moves. The response is flat from 1 to 8, as with the front pull (experiment 3): what matters is that the step is allowed at all, and any noise large enough to make $g+z$ positive now and then does that. It is the largest head-to-head gain of the series so far.
+
+One caveat on the design: the knob does two things at once, zero-mean noise on all moves and permission for moves with $g\le 0$. The flat response suggests the permission carries the effect, but the two were not separated.
+
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\begin{itemize}
+\item Noise and the sideways permission are confounded in one knob (see above). A variant with permission but no noise would separate them.
+\item The opponents are all greedy bots that jam the same way; part of the gain is exploiting their jams.
+\item The prediction was not fixed as numbers before the first sweep.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Kept} under the head-to-head rule (finish and points above 50\,\%, the $\pm$5 interval clear of 50\,\%, panel mean above the base's). New champion: \model{greedy-full-movenoise}. Next: spread on top of it (experiment 8); then formations (\issue{132}) and the same knobs for the plain greedy bots (\issue{131}).
+
+\section{Notes for the paper}
+Draft: a deterministic greedy policy deadlocks on its own units; a small zero-mean perturbation with permission for non-improving moves removes most deadlocks and is worth about 60\,\% head to head. Candidate figure: finished games and game length for the six diagnosed seeds, base against new; plus the flat sweep response.
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}
