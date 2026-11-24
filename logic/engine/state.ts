@@ -30,7 +30,7 @@ import {
 import { generateMap, type MapType } from "./mapgen";
 import { around, dist, idx, inBounds, isWater, tileAt } from "./grid";
 import type { City, Coord, Difficulty, GameMode, GameState, Player, Tile, Unit } from "./types";
-import { canSee } from "./movement";
+import { canSee, followerOf, leaderOf } from "./movement";
 import { atPeace, atWar } from "./diplomacy";
 
 const CITY_NAMES = [
@@ -553,10 +553,50 @@ export function makeUnit(
   return u;
 }
 
+/** S1's direction vectors (step.rs facing_direction, units.rs VECTORS), by S1 direction index */
+const S1_DIRS: Coord[] = [
+  { x: -1, y: -1 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: 1 },
+  { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 0, y: -1 },
+];
+/** the S1 direction with the strictly greatest weighted dot product with (x, y), the first on a tie */
+function s1Nearest(x: number, y: number): number {
+  let best = 0;
+  let score = 0;
+  S1_DIRS.forEach((d, i) => {
+    const dot = (d.x * x + d.y * y) * (d.x * d.x + d.y * d.y === 1 ? 1393 : 985);
+    if (score < dot) {
+      score = dot;
+      best = i;
+    }
+  });
+  return best;
+}
+/** S1 step::facing_direction from `a` toward `b` (an S1 direction index) */
+function s1Facing(a: Coord, b: Coord): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) <= 1) {
+    const k = S1_DIRS.findIndex((d) => d.x === dx && d.y === dy);
+    return k < 0 ? 8 : k;
+  }
+  return s1Nearest(dx, dy);
+}
+/** S1 units.rs average: opposite directions give the first turned a quarter, else the nearest to the sum */
+function s1Average(first: number, second: number): number {
+  const a = S1_DIRS[first] ?? { x: 0, y: 0 };
+  const b = S1_DIRS[second] ?? { x: 0, y: 0 };
+  const x = a.x + b.x;
+  const y = a.y + b.y;
+  if (x === 0 && y === 0) return (first + 2) % 8;
+  return s1Nearest(x, y);
+}
+
 /**
  * push a unit off a tile to make room for a spawn (§5.13); removes it if no room.
- * A friendly occupant is pushed the way it faces, an enemy one the opposite way.
+ * A friendly occupant is pushed the way it faces, an enemy one the opposite way; a chain member is
+ * pushed along the chain: toward its leader, its follower, or between the two (S1 units.rs try_push).
  * `spawner` is the owner of the unit being created (default: the occupant's owner).
+ * What the push sets off on the new tile is in actions.ts pushAside.
  */
 export function pushUnit(s: GameState, u: Unit, spawner: number = u.owner) {
   const n = s.mapSize;
@@ -564,6 +604,12 @@ export function pushUnit(s: GameState, u: Unit, spawner: number = u.owner) {
   let dir = u.lastDir ?? { x: Math.sign(c - u.x), y: Math.sign(c - u.y) };
   if (dir.x === 0 && dir.y === 0) dir = { x: 0, y: 1 };
   if (spawner !== u.owner) dir = { x: -dir.x, y: -dir.y };
+  const lead = leaderOf(s, u);
+  const follow = followerOf(s, u);
+  // a chain member whose partner is gone faces S1 direction 0 toward it (linked::find misses)
+  const toward = (o: Unit | undefined) => (o && s.units.includes(o) ? s1Facing(u, o) : 0);
+  const chainDir = lead && follow ? s1Average(toward(lead), toward(follow)) : lead ? toward(lead) : follow ? toward(follow) : -1;
+  if (chainDir >= 0) dir = S1_DIRS[chainDir] ?? S1_DIRS[0];
   const dirs8 = [
     { x: 0, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 0 }, { x: 1, y: 1 },
     { x: 0, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 },

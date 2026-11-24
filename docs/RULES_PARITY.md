@@ -301,8 +301,6 @@ Elyrion
 Not done (left open)
 - Aquarion home climate starts flooded and Cymanti's 2 starting spores belong
   to map generation.
-- A pushed chain member moves like any unit (S1 pushes it along the chain);
-  a pushed unit is not struck by Tentacles (S1 strikes it).
 
 ## Special tribes, audit 2
 
@@ -358,6 +356,19 @@ Aquarion
 - Advance after a kill: no move effects -> Stomp, Tentacles, Auto Freeze and
   Auto Flood fire on it as on a move (not on a push) (step.rs:move_action
   reason 1).
+
+Pushes (a unit pushed off a tile for a spawn: Super Unit, Enchant Animal,
+New Friends ruin; `actions.ts` `pushAside`, `state.ts` `pushUnit`).
+- A pushed chain member moved like any unit (the way it faces, or the
+  opposite for an enemy) -> it is pushed along the chain: toward its leader,
+  its follower, or the average of the two (opposite ones: the leader's
+  direction turned a quarter) (units.rs:try_push, average).
+- A pushed unit set off nothing -> it turns the way it was pushed, and poison
+  buildings, Bubbles and the Tentacles strike fire on its new tile (none of
+  its own move effects: Stomp, Auto Freeze, Auto Flood, a Jelly's strike);
+  a follower 2+ tiles behind steps into its old tile, and when that is the
+  spawn tile it is pushed out again before the spawn (step.rs:move_action
+  reason 2; units.rs:train on an occupied tile). Tests 17-18.
 
 Polaris
 - Freeze Area: land only outside enemy territory -> no territory check: a
