@@ -187,6 +187,27 @@ fn play_game(spec: &Value) -> R<Value> {
     Ok(out)
 }
 
+fn full_weights_to_json(w: &polycore::bot_full::FullWeights) -> Value {
+    use polycore::bot_full::FULL_ACTION_TYPES;
+    let table = |vals: &[f64], id: &dyn Fn(usize) -> &'static str| -> Value {
+        Value::Object(vals.iter().enumerate().map(|(i, v)| (id(i).to_string(), json!(v))).collect())
+    };
+    json!({
+        "greedy": weights_to_json(&w.greedy),
+        "type": table(&w.ty, &|i| FULL_ACTION_TYPES[i]),
+        "open": table(&w.open, &|i| FULL_ACTION_TYPES[i]),
+        "tech": table(&w.tech, &|i| Tech::from_idx(i).id()),
+        "unit": table(&w.unit, &|i| UnitType::from_idx(i).id()),
+        "build": table(&w.build, &|i| Build::from_idx(i).id()),
+        "reward": table(&w.reward, &|i| Reward::from_idx(i).id()),
+        "centre": w.centre,
+    })
+}
+
+fn full_w(v: &Value) -> R<polycore::bot_full::FullWeights> {
+    polycore::bot_full::full_weights(v)
+}
+
 fn weights_to_json(w: &GreedyWeights) -> Value {
     let mut rewards = serde_json::Map::new();
     for (i, r) in w.rewards.iter().enumerate() {
@@ -426,6 +447,20 @@ pub fn call(name: &str, args: &[Value]) -> R<Value> {
         "ruinCount" => json!(mapgen::ruin_count(int(arg(args, 0), "size")?)),
         // ---- grid.ts
         "cloneState" => state_to_json(&polycore::grid::clone_state(&state(args, 0)?)),
+        // ---- botFull.ts
+        "DEFAULT_FULL_WEIGHTS" => full_weights_to_json(&polycore::bot_full::default_full_weights()),
+        "fullWeights" => full_weights_to_json(&full_w(arg(args, 0))?),
+        "FULL_ACTION_TYPES" => json!(polycore::bot_full::FULL_ACTION_TYPES),
+        "REWARD_IDS" => json!((0..Reward::COUNT).map(|i| Reward::from_idx(i).id()).collect::<Vec<_>>()),
+        "centreDist" => json!(polycore::bot_full::centre_dist(int(arg(args, 0), "n")?, coord(arg(args, 1))?)),
+        "scoreFull" => json!(polycore::bot_full::score_full(&state(args, 0)?, &action_from_json(arg(args, 1))?, &full_w(arg(args, 2))?)),
+        "fullBotStep" => action_to_json(&polycore::bot_full::full_bot_step(&state(args, 0)?, &full_w(arg(args, 1))?)),
+        "playFullBotTurn" => {
+            let mut s = state(args, 0)?;
+            let max = arg(args, 1).as_i64().unwrap_or(300) as i32;
+            polycore::bot_full::play_full_bot_turn(&mut s, max, &full_w(arg(args, 2))?);
+            state_to_json(&s)
+        }
         // ---- additions for the facade (logic/engine/rs)
         "DEFAULT_WEIGHTS" => weights_to_json(&GreedyWeights::default_weights()),
         "noise" => json!(polycore::bot::noise(&state(args, 0)?, num(arg(args, 1), "k")? as i64)),
