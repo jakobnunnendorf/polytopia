@@ -192,7 +192,9 @@ function el(tag, attrs = {}, parent) {
 
 // ---------- line chart with crosshair ----------
 // series: [{name, color, dash, points:[{x,y,tip?}], markers?:[{x,y,label}]}]
-function lineChart(host, { series, height = 260, xFmt = count, yFmt = (v) => v, yDomain, refs = [], vlines = [], xLabel = "", tipFmt }) {
+// percent ticks: one decimal when the axis spans under 6 points, so zoomed ticks don't repeat
+const pctTick = (v, span) => (span < 0.06 ? (v * 100).toFixed(1) : Math.round(v * 100)) + "%";
+function lineChart(host, { series, height = 260, xFmt = count, yFmt = (v) => v, yDomain, minSpan = 0, refs = [], vlines = [], xLabel = "", tipFmt }) {
   host.innerHTML = "";
   const all = series.flatMap((s) => s.points);
   if (!all.length) { host.innerHTML = `<div class="empty">No data yet.</div>`; return; }
@@ -200,14 +202,19 @@ function lineChart(host, { series, height = 260, xFmt = count, yFmt = (v) => v, 
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img" }, host);
   let x0 = Math.min(...all.map((p) => p.x)), x1 = Math.max(...all.map((p) => p.x), ...vlines.map((v) => v.x).filter((x) => x <= Math.max(...all.map((p) => p.x)) * 1.05));
   if (x1 === x0) x1 = x0 + 1;
-  let [y0, y1] = yDomain || [Math.min(...all.map((p) => p.y), ...refs.map((r) => r.y)), Math.max(...all.map((p) => p.y), ...refs.map((r) => r.y))];
-  if (!yDomain) { const pad = (y1 - y0) * 0.08 || Math.abs(y1) * 0.1 || 1; y0 -= pad; y1 += pad; }
+  // zoom to where the data is (reference lines only show when they fall inside), with a little
+  // padding and at least minSpan, so near-identical runs are still told apart
+  let [y0, y1] = yDomain || [Math.min(...all.map((p) => p.y)), Math.max(...all.map((p) => p.y))];
+  if (!yDomain) {
+    if (minSpan && y1 - y0 < minSpan) { const mid = (y0 + y1) / 2; y0 = mid - minSpan / 2; y1 = mid + minSpan / 2; }
+    const pad = (y1 - y0) * 0.12 || Math.abs(y1) * 0.1 || 1; y0 -= pad; y1 += pad;
+  }
   const X = (x) => m.l + ((x - x0) / (x1 - x0)) * (W - m.l - m.r);
   const Y = (y) => H - m.b - ((y - y0) / (y1 - y0)) * (H - m.t - m.b);
   const g = el("g", {}, svg);
   for (const t of niceTicks(y0, y1, 5)) {
     el("line", { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t), stroke: css("--grid"), "stroke-width": 1 }, g);
-    el("text", { x: m.l - 6, y: Y(t) + 4, "text-anchor": "end" }, g).textContent = yFmt(t);
+    el("text", { x: m.l - 6, y: Y(t) + 4, "text-anchor": "end" }, g).textContent = yFmt(t, y1 - y0);
   }
   for (const t of niceTicks(x0, x1, Math.max(3, Math.floor(W / 110)))) {
     if (xLabel && X(t) > W - m.r - 70) continue; // leave room for the axis title
@@ -221,6 +228,7 @@ function lineChart(host, { series, height = 260, xFmt = count, yFmt = (v) => v, 
     el("text", { x: X(v.x) + 3, y: m.t + 10 }, g).textContent = v.label;
   }
   for (const r of refs) {
+    if (r.y < y0 || r.y > y1) continue;
     el("line", { x1: m.l, x2: W - m.r, y1: Y(r.y), y2: Y(r.y), stroke: css("--text-secondary"), "stroke-width": 1, "stroke-dasharray": "4 3", opacity: 0.6 }, g);
     el("text", { x: W - m.r, y: Y(r.y) - 4, "text-anchor": "end" }, g).textContent = r.label;
   }
@@ -579,18 +587,16 @@ function render() {
   $("curve-legend").innerHTML = st.runs.map((r, i) => `<span><i style="border-color:${runColor(i)}"></i>${esc(r.id)}</span>`).join("") + `<span><i class="dash" style="border-color:var(--text-secondary)"></i>averaged</span><span><svg width="12" height="12" style="display:inline;width:12px"><circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>new best</span>`;
   const ms = [...new Set(st.runs.flatMap((r) => r.milestones))].sort((a, b) => a - b);
   const tipCurve = (p) => `${pct(p.y)} <span style="color:var(--muted)">${PANEL.map((o) => `${PANEL_LABEL[o]} ${pct(p.c.vs?.[o]?.[METRIC], 0)}`).join(" · ")}</span>`;
-  lineChart($("curve"), { series, height: 300, yFmt: (v) => Math.round(v * 100) + "%", refs: [{ y: 0.5, label: "50%" }], vlines: ms.map((x) => ({ x, label: count(x) })), xLabel: "training games", tipFmt: tipCurve });
+  lineChart($("curve"), { series, height: 300, minSpan: 0.03, yFmt: pctTick, refs: [{ y: 0.5, label: "50%" }], vlines: ms.map((x) => ({ x, label: count(x) })), xLabel: "training games", tipFmt: tipCurve });
   $("curve-table").innerHTML = `<table><thead><tr><th>run</th><th class="num">games</th><th>weights</th>${PANEL.map((o) => `<th class="num">${PANEL_LABEL[o]}</th>`).join("")}<th class="num">mean</th></tr></thead><tbody>${st.runs.flatMap((r) => r.curve.map((c) => `<tr><td>${esc(r.id)}</td><td class="num">${count(c.trainingGames)}</td><td>${c.averaged ? "averaged" : "current"}${c.best ? " · best" : ""}</td>${PANEL.map((o) => `<td class="num">${pct(c.vs?.[o]?.[METRIC])}</td>`).join("")}<td class="num"><b>${pct(metricOf(c))}</b></td></tr>`)).join("")}</tbody></table>`;
 
   // small multiples per opponent
   const mult = $("multiples");
   mult.innerHTML = PANEL.map((o) => `<div class="card"><h3>vs ${PANEL_LABEL[o]}</h3><div data-opp="${o}"></div></div>`).join("");
-  const allVals = st.runs.flatMap((r) => r.curve.filter((c) => !c.averaged).map((c) => metricOf(c, PANEL[0]) ?? 0.5).concat(PANEL.map((o) => r.curve.map((c) => metricOf(c, o) ?? 0.5)).flat()));
-  const dom = [Math.min(0.2, ...allVals) - 0.02, Math.max(0.8, ...allVals) + 0.02];
   for (const o of PANEL) {
     lineChart(mult.querySelector(`[data-opp="${o}"]`), {
       series: st.runs.map((r, i) => ({ name: r.id, color: runColor(i), points: r.curve.filter((c) => !c.averaged && c.vs?.[o]).map((c) => ({ x: c.trainingGames, y: c.vs[o][METRIC] })), dots: false })),
-      height: 150, yDomain: dom, yFmt: (v) => Math.round(v * 100) + "%", refs: [{ y: 0.5, label: "" }], xLabel: "", tipFmt: (p) => pct(p.y),
+      height: 150, minSpan: 0.04, yFmt: pctTick, refs: [{ y: 0.5, label: "" }], xLabel: "", tipFmt: (p) => pct(p.y),
     });
   }
 
