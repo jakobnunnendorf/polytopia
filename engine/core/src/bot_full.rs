@@ -42,7 +42,8 @@ use crate::actions::{apply_action, legal_actions};
 use crate::bot::{cached_goal, find_unit, noise, score_with, GoalCache, GreedyWeights};
 use crate::diplomacy::at_peace;
 use crate::grid::{dist, idx};
-use crate::state::city_by_id;
+use crate::data::{build_def, unit_def};
+use crate::state::{city_by_id, income, tech_cost};
 use crate::types::*;
 
 /// botFull.ts FULL_ACTION_TYPES (every action type but endTurn), in order;
@@ -139,6 +140,9 @@ pub struct FullWeights {
     pub break_peace: f64,
     /// weight of the economy plan's advantage on research and economy builds (0 = off)
     pub plan: f64,
+    /// saving: a purchase that would leave us unable to afford next turn's best purchase loses
+    /// `reserve` times that purchase's score (0 = off)
+    pub reserve: f64,
 }
 
 /// botFull.ts DEFAULT_FULL_WEIGHTS
@@ -160,6 +164,7 @@ pub fn default_full_weights() -> FullWeights {
         roads: 0.0,
         break_peace: 0.0,
         plan: 0.0,
+        reserve: 0.0,
     }
 }
 
@@ -198,7 +203,7 @@ pub fn full_weights(p: &serde_json::Value) -> Result<FullWeights, String> {
     merge_table(&mut w.unit, o.get("unit"), "unit", |k| UnitType::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.build, o.get("build"), "build", |k| Build::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.reward, o.get("reward"), "reward", |k| Reward::from_id(k).map(|t| t as usize))?;
-    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius), ("techUse", &mut w.tech_use), ("techUseless", &mut w.tech_useless), ("front", &mut w.front), ("roads", &mut w.roads), ("breakPeace", &mut w.break_peace), ("plan", &mut w.plan)] {
+    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius), ("techUse", &mut w.tech_use), ("techUseless", &mut w.tech_useless), ("front", &mut w.front), ("roads", &mut w.roads), ("breakPeace", &mut w.break_peace), ("plan", &mut w.plan), ("reserve", &mut w.reserve)] {
         match o.get(key) {
             None | Some(serde_json::Value::Null) => {}
             Some(c) => *slot = c.as_f64().ok_or_else(|| format!("full.{key}: expected a number"))?,
@@ -456,6 +461,38 @@ fn score_full_with(s: &GameState, a: &Action, w: &FullWeights, cache: &mut Optio
     out
 }
 
+/// the stars an action spends: research, train, build and upgrade (0 for everything else)
+fn purchase_cost(s: &GameState, a: &Action) -> i32 {
+    match *a {
+        Action::Research { tech } => tech_cost(s, s.current, tech),
+        Action::Train { unit, .. } => unit_def(unit).cost,
+        Action::Upgrade { to, .. } => unit_def(to).cost,
+        Action::Build { building, .. } if building != Build::Embassy => build_def(building).cost,
+        _ => 0,
+    }
+}
+
+/// the saving plan: the best purchase we cannot afford now but could next turn (stars + income),
+/// as (its cost, its score). legal_actions only lists affordable actions, so they are listed on a
+/// copy of the state that holds next turn's stars.
+fn reserve_reference(s: &GameState, w: &FullWeights, stars: i32, next: i32) -> Option<(i32, f64)> {
+    let mut later = s.clone();
+    later.players[s.current as usize].stars = next;
+    let mut cache: Option<GoalCache> = Some(GoalCache::default());
+    let mut best: Option<(i32, f64)> = None;
+    for a in legal_actions(&later) {
+        let cost = purchase_cost(&later, &a);
+        if cost <= stars || cost > next {
+            continue;
+        }
+        let sc = score_full_with(&later, &a, w, &mut cache);
+        if sc > 0.0 && best.is_none_or(|(_, b)| sc > b) {
+            best = Some((cost, sc));
+        }
+    }
+    best
+}
+
 /// botFull.ts fullBotStep
 pub fn full_bot_step(s: &GameState, w: &FullWeights) -> Action {
     full_best_of(s, &legal_actions(s), w)
@@ -467,11 +504,26 @@ fn full_best_of(s: &GameState, actions: &[Action], w: &FullWeights) -> Action {
     let mut best = Action::EndTurn;
     let mut best_score = 0.0f64;
     let mut cache: Option<GoalCache> = Some(GoalCache::default());
+    // saving (reserve): only when something affordable would be bought at all
+    let stars = s.players[s.current as usize].stars;
+    let next = stars + income(s, s.current);
+    let saving = if w.reserve > 0.0 && actions.iter().any(|a| purchase_cost(s, a) > 0) {
+        reserve_reference(s, w, stars, next)
+    } else {
+        None
+    };
     for a in actions {
         if *a == Action::EndTurn {
             continue;
         }
-        let sc = score_full_with(s, a, w, &mut cache);
+        let mut sc = score_full_with(s, a, w, &mut cache);
+        if let Some((ref_cost, ref_score)) = saving {
+            let cost = purchase_cost(s, a);
+            // spending that leaves next turn's stars short of the planned purchase, on something worth less
+            if cost > 0 && sc > 0.0 && sc < ref_score && next - cost < ref_cost {
+                sc -= w.reserve * ref_score;
+            }
+        }
         if sc > best_score {
             best_score = sc;
             best = *a;
@@ -1398,6 +1450,37 @@ mod tests {
         let a = crate::json::action_from_json(&serde_json::json!({"type": "breakPeace", "player": 1})).unwrap();
         assert_eq!(FULL_ACTION_TYPES[full_type_index(&a).unwrap()], "breakPeace");
         assert_eq!(centre_dist(16, Coord::new(3, 3)), 4.5);
+    }
+
+    /// reserve: off by default, and when on it only ever turns a purchase into something else
+    #[test]
+    fn reserve_saves_instead_of_a_cheap_purchase() {
+        use crate::state::{create_game, NewGameOptions};
+        let off = default_full_weights();
+        assert_eq!(off.reserve, 0.0);
+        let mut on = off.clone();
+        on.reserve = 1.0;
+        let (mut steps, mut saved, mut other) = (0, 0, 0);
+        for seed in 1..=6 {
+            let opts = NewGameOptions { map_size: Some(16), players: 4, mode: GameMode::Domination, difficulty: None, seed, humans: None, map_type: None, clans: None, turn_limit: None };
+            let mut s = create_game(&opts).unwrap();
+            while !s.over && s.turn < 12 {
+                let a0 = full_bot_step(&s, &off);
+                let a1 = full_bot_step(&s, &on);
+                steps += 1;
+                if a0 != a1 {
+                    // only a purchase can be given up; the replacement is a free action or the end of the turn
+                    assert!(purchase_cost(&s, &a0) > 0, "reserve changed a non-purchase {a0:?} into {a1:?}");
+                    let stars = s.players[s.current as usize].stars;
+                    let next = stars + income(&s, s.current);
+                    eprintln!("  seed {seed} turn {} p{}: stars {stars} income {} | bought {a0:?} (cost {}, score {:.1}) -> {a1:?} | saving for {:?}", s.turn, s.current, next - stars, purchase_cost(&s, &a0), score_full(&s, &a0, &off), reserve_reference(&s, &on, stars, next));
+                    if a1 == Action::EndTurn { saved += 1 } else { other += 1 }
+                }
+                apply_action(&mut s, &a0).unwrap();
+            }
+        }
+        eprintln!("reserve: {steps} steps, {saved} purchases replaced by ending the turn, {other} by another action");
+        assert!(saved + other > 0, "reserve never changed a choice");
     }
 
     /// TS reference rows from bot-full-ref.ts: POLY_BOT_FULL_REF or the default path; skipped when missing

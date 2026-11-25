@@ -209,6 +209,7 @@ fn full_weights_to_json(w: &polycore::bot_full::FullWeights) -> Value {
         "roads": w.roads,
         "breakPeace": w.break_peace,
         "plan": w.plan,
+        "reserve": w.reserve,
     })
 }
 
