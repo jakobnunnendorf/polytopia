@@ -65,14 +65,26 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
   a hidden unit's tile is silent.
 - Daggers: city, then forest or mountain (mountain only with Climbing), then
   other land in the city's borders, then water as Pirates.
-- Bot opinions: each factor of the doc's table counts +1 or -1 (horrible ≤ -3,
-  poor -2..-1, indifferent 0, decent 1..2, great ≥ 3). Peaceful = no attack on
-  the bot for 3 turns, Violent otherwise; Threatening = a unit inside or next
-  to the bot's land; Annoying on Hard and Crazy; Charming by a fixed roll per
-  game (50/30/15/5% for Easy/Normal/Hard/Crazy); Dominating = at least half of
-  all cities (4 or more cities on the map); Brave = at war with the
-  highest-scoring other tribe. Bots accept and send peace offers only at
-  great and never break a treaty.
+- Bot opinions follow the game's own model, per a community decompile of a
+  pre-February-2024 build (raphael-64/polyterra-env); POLYTOPIA_RULES.md, What
+  bots think of you, lists every term. Ported: all thirteen terms with their
+  constants, the level thresholds (great > 2, decent > 0.5, poor < -0.5,
+  horrible < -2), accept peace above 2, offer when opinion x roll > 2 (the roll
+  is a hash of game seed, turn, bot and tribe), break below 0 when
+  -500 x opinion - 200 per own unit inside the partner's borders is positive,
+  and aggression (-1000 x opinion) as a (1 - opinion) factor on the greedy
+  bots' positive attack scores. To support it the state records the turn of
+  each meeting (`metTurns`) and of the last broken treaty per pair
+  (`diplomacy.brokenTurns`); older saves count earlier meetings as turn 0.
+  Not ported: the AI's other uses of aggression (capture and city-target
+  mission scores, embassy scores, the -1000 position penalty for standing in
+  a disliked partner's land; our greedy bots have no matching scores), the
+  difficulty noise (StupidFactor, +-25 x max(0, 2 - handicap); 0 on Hard and
+  Crazy), the Shaman "boosted" effect in the military sum, and the game's
+  caching (it refreshes opinions at set moments and keeps eliminated tribes'
+  old entries, which can absorb the -0.5 Annoying; we compute them fresh from
+  the state, living tribes only). Opinions of a tribe that was never met
+  and never attacked are 0 (indifferent), as in the game.
 
 ## Kept on purpose
 

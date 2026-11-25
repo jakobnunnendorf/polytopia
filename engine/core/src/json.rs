@@ -254,6 +254,9 @@ pub fn player_to_json(p: &Player) -> Value {
     if let Some(c) = p.conversions {
         m.insert("conversions".into(), c.into());
     }
+    if !p.met_turns.is_empty() {
+        m.insert("metTurns".into(), p.met_turns.clone().into());
+    }
     if let Some(b) = &p.built_unique {
         m.insert("builtUnique".into(), b.iter().map(|t| t.id()).collect::<Vec<_>>().into());
     }
@@ -276,6 +279,7 @@ pub fn player_from_json(v: &Value) -> R<Player> {
         kills: opt_int(o, "kills")?.unwrap_or(0),
         losses: opt_int(o, "losses")?.unwrap_or(0),
         met: ints(o, "met")?,
+        met_turns: ints(o, "metTurns")?,
         tasks: ids(o, "tasks", Task::from_id)?,
         monuments: ids(o, "monuments", Build::from_id)?,
         pacifist_turns: opt_int(o, "pacifistTurns")?.unwrap_or(0),
@@ -292,13 +296,17 @@ pub fn player_from_json(v: &Value) -> R<Player> {
 }
 
 pub fn diplomacy_to_json(d: &Diplomacy) -> Value {
-    json!({
+    let mut v = json!({
         "peace": d.peace,
         "offers": d.offers.iter().map(|x| json!({"from": x.from, "to": x.to})).collect::<Vec<_>>(),
         "attacks": d.attacks.iter().map(|x| json!({"by": x.by, "on": x.on, "turn": x.turn})).collect::<Vec<_>>(),
         "ceasefires": d.ceasefires.iter().map(|x| json!({"breaker": x.breaker, "victim": x.victim, "until": x.until})).collect::<Vec<_>>(),
         "broken": d.broken,
-    })
+    });
+    if !d.broken_turns.is_empty() {
+        v.as_object_mut().unwrap().insert("brokenTurns".into(), json!(d.broken_turns));
+    }
+    v
 }
 
 fn pairs(o: &Map<String, Value>, k: &str) -> R<Vec<[i32; 2]>> {
@@ -337,6 +345,13 @@ pub fn diplomacy_from_json(v: &Value) -> R<Diplomacy> {
             })
             .collect::<R<_>>()?,
         broken: pairs(o, "broken")?,
+        broken_turns: arr(o, "brokenTurns")?
+            .iter()
+            .map(|v| match v.as_array() {
+                Some(a) if a.len() == 3 => Ok([int(&a[0], "brokenTurns")?, int(&a[1], "brokenTurns")?, int(&a[2], "brokenTurns")?]),
+                _ => Err("brokenTurns: expected [low, high, turn]".to_string()),
+            })
+            .collect::<R<_>>()?,
     })
 }
 

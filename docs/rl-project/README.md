@@ -145,6 +145,23 @@ seeds 1,500,000,000.., N = 5,000; `--no-info15` skips it), and appends one row e
 wallSeconds, commit). The opponents and seeds are fixed forever, so rows stay comparable across versions. It
 decides nothing. Run it after every promotion.
 
+### Opponent model: how the bots judge the learner
+
+The opponents' opinions of other tribes (and so of the learner) follow the real game's model, per a community
+decompile of a pre-February-2024 build (raphael-64/polyterra-env); the current app may behave differently, and that
+build's Perfection bonus already differs from today's. The full list of terms is in `POLYTOPIA_RULES.md`
+(Diplomacy, What bots think of you); `docs/RULES_PARITY.md` says what is and is not ported. What matters for the
+learner on the gate's setup (Crazy, learner seat human):
+
+- No Charming bonus on Crazy, so a bot's opinion of the learner comes from calm (Peaceful, at most +1), embassies,
+  shared friends and enemies, military balance, and penalties for units near its land, land next to its land,
+  leading the standings late in the game (Dominating, up to -4 for the leader at turn 30) and not being at peace.
+- Bots accept peace above an opinion of 2, offer it when opinion x a per-turn roll is above 2, break it below 0,
+  and scale their attacks on a tribe by (1 - opinion): a bot that rates the learner 1 or more stops attacking it.
+- Measured on the gate's setup (N = 2,000, 25 Nov 2026), switching from the old +-1-per-factor model:
+  `greedy-full-probe` mean seat-0 score 6821 -> 6711 (median 7998 -> 7875, win rate 2.5% -> 2.6%);
+  `greedy-v1` 3723 -> 3718; probe vs v1 still PASS (mean d +2993, lower bound +2841).
+
 ### Final benchmark: the official leaderboard
 
 The final agent (fine-tuned on Crazy with 15 opponents) is compared with the game's official Perfection

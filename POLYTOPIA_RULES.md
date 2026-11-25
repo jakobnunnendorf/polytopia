@@ -689,7 +689,7 @@ Two techs carry diplomacy. Strategy unlocks peace treaties; Diplomacy, a tier-3 
   - Every unit of the breaker inside the victim's borders is destroyed, with no refund.
   - A cease-fire follows until the next turn (sources disagree on who exactly is frozen; see Open questions).
   - The relation shows as Hostile.
-  - An AI victim keeps a permanent Foolish opinion of the breaker.
+  - An AI victim thinks the breaker Foolish: -4 / (turns since the break + 1), so -4 on the turn itself, -1 three turns later (see What bots think of you).
 - **War and neutral:** two tribes count as at war if either attacked the other within the last turn; otherwise they are neutral. ([Tribe relations](https://polytopia.fandom.com/wiki/Tribe_Relations))
 
 ### Embassy
@@ -728,17 +728,34 @@ Sources: [Embassy](https://polytopia.fandom.com/wiki/Embassy), [2025 Balance Pas
 
 ### What bots think of you
 
-Each bot rates you horrible, poor, indifferent, decent or great; red flames around its head mean horrible, a halo means great. A bot accepts peace only at **great** (2022 FAQ).
+Each bot rates you horrible, poor, indifferent, decent or great; red flames around its head mean horrible, a halo means great. Per a community decompile of a pre-February-2024 build (raphael-64/polyterra-env), the rating is a sum of terms, each shown as a reason when it is larger than 0.1 either way, and the level is **great above 2**, decent above 0.5, poor below -0.5, horrible below -2, indifferent otherwise. A bot has no opinion (indifferent) of a tribe it has neither met nor been attacked by. The behaviour may have changed since that build.
 
-| Raises the opinion | Lowers the opinion |
+In the table, g is how far the game has gone: in Perfection the turn divided by the turn limit; in Domination the leader's capitals divided by the number of players; in Might your capitals divided by the number of players; in Glory whole multiples of the score target only.
+
+| Reason | Term |
 | --- | --- |
-| Wise: you share their friends or enemies | Violent: you attacked them recently |
-| Charming: random, more often on easy bots | Threatening: your units are near or inside their land |
-| Peaceful: no attacks on them for several turns | Weak: they see fewer of your units than they have |
-| Diplomatic: an embassy exists either way | Annoying: a penalty on higher difficulties |
-| Powerful: you have more units than they do | Foolish: at war with their friends or at peace with their enemies; permanent after you break a treaty with them |
-| Brave: you are at war with the strongest tribe | Intrusive: your borders touch |
-|  | Dominating: you are close to winning Domination |
+| Charming | Only toward human players: (2 − handicap) × 2 when positive, with handicap Easy 0, Normal 1, Hard 2, Crazy 4. So +4 on Easy, +2 on Normal, nothing on Hard and Crazy |
+| Annoying | When the bot is not at peace with you: minus the share of the other living tribes it is at peace with. The tribe it already rates lowest gets −0.5 more |
+| Peaceful / Violent | t = (turn − your last attack on the bot − 4) / 4; an attack before you met (or none) counts as meeting turn − 4. t > 0 gives +0.5 × min(t, 2) (at most +1, 12 turns after an attack); otherwise 2t (−2 on the turn of an attack, fading to 0 four turns later) |
+| Diplomatic | +1 for its embassy with you, +1 for yours with it |
+| Wise / Foolish | Over every third tribe: both at war with it +2; the bot at war with it and you at peace with it −1; the bot at peace with it and you at war with it −2; both at peace with it +1. Then −4 / (turns since your treaty with the bot was last broken + 1). Capped at +2, no floor |
+| Threatening | Each of your units the bot sees on its land: −1 (−0.2 while at peace), −2 more on one of its cities; each on a tile next to its land: −0.5 unless at peace |
+| Intrusive | −0.1 per tile of your land on or next to its land; −2 while you hold its first capital |
+| Powerful / Weak | a = min(2, its military / your military), 1 when neither has units; military = the sum over units of 9 × defence × defence bonus + 10 × attack + 7 × movement + 14 × (range − 1). a < 1 gives +(1 − a), a > 1 gives −(a − 1) |
+| Dominating | −4g² / rank², rank being your place in the standings (1 = leading) |
+| Brave | +g² while you are at war with the leader (when that is neither you nor the bot) |
+
+"At war" here means: not at peace, and one side attacked the other since the attacker's previous turn.
+
+**What bots do with it** (same decompile):
+
+- **Accept peace** when the opinion is above 2.
+- **Offer peace** when opinion × a random number in [0, 1) is above 2.
+- **Break peace** only below 0, scored −500 × opinion − 200 per own unit inside your borders (those would be lost), so only when that is positive.
+- **Aggression** toward a tribe is −1000 × opinion. A worthwhile attack on that tribe counts (1 + aggression / 1000) = (1 − opinion) times, so a bot that rates you 1 or more no longer attacks you on its own initiative; capturing your cities is worth more and an embassy with you less, the lower its opinion.
+- **Difficulty noise:** easier bots add a random term to their move scores, ±25 × max(0, 2 − handicap), so Easy ±50, Normal ±25, Hard and Crazy none.
+
+Older community notes (2022 FAQ, wiki) agree on the reasons' names and that a bot accepts peace only at great; their descriptions (a random Charming, Annoying on higher difficulties, Dominating near a Domination win) are summaries of the terms above.
 
 ### Meeting tribes and the Altar of Peace
 
@@ -805,8 +822,8 @@ Difficulty changes two things, per the developers: how many stars a bot's capita
 | Hard | 3★ | More aggressive | +40% | 75% |
 | Crazy | 5★ | May attack at once | +80% | 100% |
 
-- **Opinions:** harder bots start with the Annoying opinion of you, and their Charming opinion is rarer (see Diplomacy).
-- **Diplomacy behaviour:** bots gang up on a player who is winning and take pity on one who is losing. The Brave and Dominating opinions steer them against the leader. They send peace offers too; whether they ever break a treaty themselves is unconfirmed.
+- **Opinions:** bots find a human Charming only on Easy (+4) and Normal (+2), and all bots weigh the leader as Dominating more as the game goes on (see Diplomacy, What bots think of you).
+- **Diplomacy behaviour:** bots gang up on a player who is winning and take pity on one who is losing. The Brave and Dominating opinions steer them against the leader. They send peace offers too, and per the decompile they break a treaty when their opinion of the partner falls below 0 (see What bots think of you).
 - **Weekly Challenge:** bot difficulty follows your league, from Easy in Entry to Crazy in Gold.
 - **Resigned players:** since 2.7.2 (September 2023) they show as bots, which suggests an AI takes over their tribe (unconfirmed).
 - **Changes over time:**

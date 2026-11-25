@@ -719,7 +719,18 @@ pub fn meet(s: &mut GameState, p: i32, other: i32) {
     if p == other || s.players[p as usize].met.contains(&other) {
         return;
     }
-    s.players[p as usize].met.push(other);
+    let turn = s.turn;
+    let pl = &mut s.players[p as usize];
+    // out of step with `met` (a state saved before met_turns existed, or `met` edited by hand):
+    // its earlier meetings count as turn 0
+    if pl.met_turns.len() > pl.met.len() {
+        pl.met_turns.clear();
+    }
+    while pl.met_turns.len() < pl.met.len() {
+        pl.met_turns.push(0);
+    }
+    pl.met.push(other);
+    pl.met_turns.push(turn);
     let sc = score_of(s, other);
     let base = if s.players.len() == 2 && other == 0 { 3 } else { 1 };
     let tiers = 5.min(((sc as f64) / 1000.0).ceil() as i32);
@@ -1047,6 +1058,7 @@ pub fn create_game(opts: &NewGameOptions) -> Result<GameState, String> {
             kills: 0,
             losses: 0,
             met: vec![],
+            met_turns: vec![],
             tasks: vec![],
             monuments: vec![],
             pacifist_turns: 0,
@@ -1335,6 +1347,7 @@ mod tests {
                 } else if k == "resetMet" {
                     for o in x.players.iter_mut() {
                         o.met.clear();
+                        o.met_turns.clear();
                     }
                     check_meetings(&mut x);
                 } else if k == "eliminate1" {
