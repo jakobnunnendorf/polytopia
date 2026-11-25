@@ -1,9 +1,13 @@
 # CI: every pull request and every push to main runs the three test layers of the repo.
 #   engine  Rust workspace: compile everything, unit tests (polycore, polyapi), wasm build,
 #           and the Python module test (engine/py/test_env.py)
-#   app     builds the Node addon the Jest suite loads (logic/engine/rust.ts), then tsc and Jest
-# Deployment is not done here: the game on :8082 and the ranking server on :8091 pull
-# origin/main every minute through launchd on Jakob's Mac, so a merge to main is the deploy.
+#   app     builds the Node addon the Jest suite loads (logic/engine/rust.ts), then tsc, Jest
+#           and the static web export
+#   deploy  pushes to main only: web export to EAS Hosting (https://polytopia.expo.app),
+#           needs the EXPO_TOKEN repository secret (an expo.dev access token)
+# "Rust engine" and "TypeScript and Jest" are required checks on main (branch protection).
+# The game on :8082 and the ranking server on :8091 still update on Jakob's Mac through the
+# launchd pull of origin/main.
 name: CI
 
 on:
@@ -79,3 +83,59 @@ jobs:
         run: npx tsc --noEmit
       - name: Jest
         run: npm run test:ci
+      - name: Web export (what the deploy job ships)
+        run: npx expo export -p web
+
+  deploy:
+    name: Deploy web to EAS Hosting
+    # only merges to main, and only after both test jobs passed
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [engine, app]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: deploy-web
+      cancel-in-progress: false
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Skip when EXPO_TOKEN is not set
+        if: env.EXPO_TOKEN == ''
+        run: echo "::notice::EXPO_TOKEN secret missing, web deploy skipped"
+      - uses: actions/checkout@v4
+        if: env.EXPO_TOKEN != ''
+      - uses: dtolnay/rust-toolchain@stable
+        if: env.EXPO_TOKEN != ''
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        if: env.EXPO_TOKEN != ''
+        with:
+          workspaces: engine
+      - name: Rebuild public/polyengine.wasm from the merged engine
+        if: env.EXPO_TOKEN != ''
+        env:
+          # the same flags as scripts/rust/build-engine.sh
+          CARGO_PROFILE_RELEASE_LTO: "fat"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+          CARGO_PROFILE_RELEASE_STRIP: "true"
+        run: |
+          cd engine && cargo build --release -p polywasm --target wasm32-unknown-unknown && cd ..
+          cp engine/target/wasm32-unknown-unknown/release/polywasm.wasm public/polyengine.wasm
+      - uses: actions/setup-node@v4
+        if: env.EXPO_TOKEN != ''
+        with:
+          node-version: "22"
+          cache: npm
+      - if: env.EXPO_TOKEN != ''
+        run: npm ci
+      - uses: expo/expo-github-action@v8
+        if: env.EXPO_TOKEN != ''
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Export and deploy to https://polytopia.expo.app
+        if: env.EXPO_TOKEN != ''
+        run: |
+          npx expo export -p web
+          eas deploy --prod --non-interactive
