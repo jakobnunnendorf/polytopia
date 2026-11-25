@@ -31,7 +31,7 @@ const UNIT_SPRITES: Record<string, ImageSourcePropType> = {
   dinghy: require("@/assets/sprites/dinghy.png"),
   scout: require("@/assets/sprites/scout.png"),
   rammer: require("@/assets/sprites/rammer.png"),
-  pirate: require("@/assets/sprites/rammer.png"),
+  pirate: require("@/assets/sprites/pirate.png"),
   bomber: require("@/assets/sprites/bomber.png"),
   juggernaut: require("@/assets/sprites/juggernaut.png"),
 };
@@ -43,9 +43,8 @@ const RESOURCE_SPRITES: Record<string, ImageSourcePropType> = {
   fish: require("@/assets/sprites/fish.png"),
   metal: require("@/assets/sprites/metal.png"),
   starfish: require("@/assets/sprites/starfish.png"),
-  // no own art yet: Aquarion Aqua Crops and Cymanti spores reuse the crop sprite
-  aquaCrop: require("@/assets/sprites/crop.png"),
-  spores: require("@/assets/sprites/crop.png"),
+  aquaCrop: require("@/assets/sprites/aquaCrop.png"),
+  spores: require("@/assets/sprites/spores.png"),
 };
 
 const BUILDING_SPRITES: Record<string, ImageSourcePropType> = {
@@ -61,6 +60,14 @@ const BUILDING_SPRITES: Record<string, ImageSourcePropType> = {
   temple: require("@/assets/sprites/temple.png"),
   forestTemple: require("@/assets/sprites/forestTemple.png"),
   waterTemple: require("@/assets/sprites/waterTemple.png"),
+  mountainTemple: require("@/assets/sprites/mountainTemple.png"),
+  altarOfPeace: require("@/assets/sprites/altarOfPeace.png"),
+  towerOfWisdom: require("@/assets/sprites/towerOfWisdom.png"),
+  emperorsTomb: require("@/assets/sprites/emperorsTomb.png"),
+  gateOfPower: require("@/assets/sprites/gateOfPower.png"),
+  parkOfFortune: require("@/assets/sprites/parkOfFortune.png"),
+  grandBazaar: require("@/assets/sprites/grandBazaar.png"),
+  eyeOfGod: require("@/assets/sprites/eyeOfGod.png"),
 };
 
 const STAR_SPRITE: ImageSourcePropType = require("@/assets/sprites/star.png");

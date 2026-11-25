@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Platform, type ImageSourcePropType } from "react-native";
 import { Asset } from "expo-asset";
 
-const BASE_HUE = 223; // the stock sprites' team blue
+const BASE_HUE = 240; // official Imperius royal blue (tunics, shields, sails)
 const cache = new Map<string, string | Promise<string | null>>();
 
 function hsv(hex: string) {
@@ -51,9 +51,9 @@ async function tint(uri: string, color: string): Promise<string | null> {
   for (let i = 0; i < px.length; i += 4) {
     if (px[i + 3] < 8) continue;
     const [h, s, v] = rgbToHsv(px[i] / 255, px[i + 1] / 255, px[i + 2] / 255);
-    // team blue: hue near the base, clearly coloured
+    // team blue: hue near Imperius royal blue (240°), avoiding cyan accents (<212°)
     const dh = Math.abs(((h - BASE_HUE + 540) % 360) - 180);
-    if (dh > 32 || s < 0.22) continue;
+    if (dh > 28 || s < 0.28) continue;
     const nh = (th + (h - BASE_HUE) + 360) % 360;
     const ns = Math.min(1, s * (ts / 0.72));
     const nv = Math.min(1, v * (0.6 + 0.45 * tv));

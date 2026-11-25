@@ -23,6 +23,7 @@ const TECH_SPRITES: Record<string, ImageSourcePropType> = {
   // Climbing branch
   mining: require("@/assets/sprites/mine.png"),
   smithery: require("@/assets/sprites/swordsman.png"),
+  meditation: require("@/assets/sprites/mountainTemple.png"),
   philosophy: require("@/assets/sprites/mindBender.png"),
   // Hunting branch
   hunting: require("@/assets/sprites/animal.png"),

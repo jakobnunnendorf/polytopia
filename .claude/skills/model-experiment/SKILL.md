@@ -22,7 +22,7 @@ see gains under ~1 point. Run a long tuning run (`train-full`, settings below) o
 | Part | Value |
 |---|---|
 | Names | model id `greedy-full-<mechanism>` (e.g. `greedy-full-defend`); branch `model/<id>`; worktree `.claude/worktrees/<id>`; log `logs/<id>.log`; notebook folder `experiments/NN-<mechanism>` (NN = next number) |
-| Base | the current champion: the last experiment whose verdict was **kept** (see #31 comments; `greedy-full-peacebreak` since step 6) |
+| Base | the current champion: the last experiment whose verdict was **kept** (the notebook index, http://localhost:8095/experiments, shows the lineage; `git fetch` first, other sessions merge champions too) |
 | Change | exactly one mechanism or trainer change, **off by default** (old models play unchanged) |
 | Panel | `greedy-v1,greedy-hill-v1,greedy-hill-v2,greedy-hill-v3,greedy-hill-v4,greedy-full-v1` (fixed: curves stay comparable across steps). Add the base only when it is not `greedy-full-v1`, as a 7th entry, and compare means on the fixed six |
 | Metric | `--metric finish` on every sweep and tuning run (from step 5, #124): a conquest win scores 75-100% (the earlier, the more), a conquest loss 0-25%, a game stopped at the turn cap 25-75% by points. Report finish, points, won, conquest rate and turns |
