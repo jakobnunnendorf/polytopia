@@ -91,7 +91,7 @@ function processes(): { pid: number; cmd: string }[] {
 function trainerProcess(procs: { pid: number; cmd: string }[], id: string) {
   // the node process running the trainer script: not npm's wrapper, and not a shell
   // whose command line merely mentions it (a watcher loop calling pgrep, say)
-  return procs.find((p) => /^(\S*\/)?node\s.*scripts\/(train-(es|hill|full)|sweep)\.ts\s/.test(p.cmd) && new RegExp(`--id ${id}(\\s|$)`).test(p.cmd)) ?? null;
+  return procs.find((p) => /^(\S*\/)?node\s.*scripts\/(train-(es|hill|full|probe)|sweep)\.ts\s/.test(p.cmd) && new RegExp(`--id ${id}(\\s|$)`).test(p.cmd)) ?? null;
 }
 const flag = (args: string, name: string) => args.match(new RegExp(`--${name}\\s+(\\S+)`))?.[1];
 
