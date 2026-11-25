@@ -1,0 +1,45 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 01-defend-cities
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+No part of the full-action bot keeps a unit in a city. Every unit is pulled toward the nearest village, ruin, enemy city or enemy unit, so cities next to enemies are often empty and captured for free. \textbf{Hypothesis:} a garrison rule stops these free captures and raises strength against \model{greedy-full-v1}.
+
+\section{Mechanism}
+A city is \emph{threatened} when an enemy unit (not at peace) is within \knob{defendRadius} tiles. A move into an empty threatened own city scores $+\knob{defend}$; a move that leaves one empty scores $-\knob{defend}$, unless a capture or attack elsewhere outweighs it. With \knob{defend} $=0$ the bot plays exactly like the base. Code: \texttt{engine/core/src/bot\_full.rs}.
+
+\section{Setup}
+First experiment of the series (\issue{31}), run under the original protocol: one hill-climbing run of 100,000 games from the base (seed 4242, league \texttt{self,past}, batch 30), compared with a control run of the same budget and no new mechanism (\model{greedy-full-v2-ctrl}: 66.0\,\% on the panel at 100,000 games). The knobs started at hand-set values: \knob{defend} 30, \knob{defendRadius} 2.
+
+\section{Results}
+\ExpResults
+
+Untrained, the mechanism hurts: at the hand-set values the panel mean is 65.9\,\%, 1.8 points below the base (67.7\,\%), and 46.1\,\% of points against the base. Training repaired it. The first kept change cut the radius from 2 to 1; later kept changes raised \knob{defend} from 30 to 37.9. The trained model reaches 67.6\,\% on the panel and 50.7\,\% of points against the base (51\,\% won, $\pm$5), which is 1.6 points above the control and level with the base.
+
+\section{Behaviour}
+The behaviour metric planned for this step was not measured; the strength result was judged clear enough on its own. This is a gap in the record. Planned metric: cities lost while empty.
+
+\section{Interpretation}
+Holding units back for every enemy within two tiles costs more tempo than the saved cities are worth. Training wants the rule only against enemies directly next to the city, where it is neutral. The hypothesis (free captures are a major loss) is not supported at this strength level: either they are rarer than assumed, or a unit that stays home is worth about as much as the city it saves.
+
+\todo{jakob}{Your reading: does this match what you saw? Anything to add or correct?}
+
+\section{Threats to validity}
+\begin{itemize}
+\item One run with one seed; hill climbing kept only 3 changes in 320 rounds, so the tuned values are weakly determined.
+\item Measured before the finish score existed; the effect on game length and conquest rate is unknown.
+\item The behaviour metric was not measured, so the claim about free captures rests on the strength result alone.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Tie, not kept.} The code stays, switched off by default. The champion remains \model{greedy-full-v1}. Next: research usefulness (experiment 2).
+
+\section{Notes for the paper}
+Draft: a plausible hand-written heuristic (garrison threatened cities) is neutral once tuned and harmful at its hand-set size. Supports the general point that mechanism strength must be measured, not assumed.
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

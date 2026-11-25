@@ -1,0 +1,44 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 02-research-usefulness
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+Research is scored as a fixed weight minus cost and tier. It never asks whether the tech unlocks anything the player can use, so bots buy Fishing with no water in reach. \textbf{Hypothesis:} scoring a tech by what it would let the player do now avoids wasted stars and raises strength.
+
+\section{Mechanism}
+$\mathit{uses}(t)$ counts the actions tech $t$ would add right now: builds and harvests on own tiles it unlocks, unit types a city could train, abilities with a valid target. The research score gets $+\,\knob{techUse}\cdot\mathit{uses}(t) - \knob{techUseless}\cdot[\mathit{uses}(t)=0]$. Both knobs default to 0.
+
+\section{Setup}
+Same protocol as experiment 1: one hill-climbing run of 100,000 games from the base against the same control. Hand-set start: \knob{techUse} 3, \knob{techUseless} 15. The research score these compete with is about 28 minus cost and tier, so the start values were large against it.
+
+\section{Results}
+\ExpResults
+
+The mechanism costs 4.3 points on the panel at its hand-set values (63.4\,\% against 67.7\,\%) and loses clearly to the base: 39.8\,\% of points, 28\,\% won ($\pm$4). Training could not repair it: one kept change in 244 rounds (\knob{techUseless} 15 to 12.8).
+
+\section{Behaviour}
+The behaviour metric planned for this step was not measured; the strength result was judged clear enough on its own. This is a gap in the record. Planned metric: share of researched techs whose unlocks are never used.
+
+\section{Interpretation}
+``What can I build right now'' undervalues techs whose payoff comes later (a unit tech before a war, the parent of a needed tech) and overvalues cheap terrain builds. The base had already tuned its research order through per-tech weights, so the new term mostly overrode a tuned order. The start was also about five times too strong, and multiplicative nudges of $\pm$40\,\% cannot walk a knob that far within the budget. This experiment is the reason later sweeps always include a weak value.
+
+\todo{jakob}{Your reading: does this match what you saw? Anything to add or correct?}
+
+\section{Threats to validity}
+\begin{itemize}
+\item Only one strength was effectively tested. A mild version (for example \knob{techUse} 0.3, \knob{techUseless} 2) is untested and could behave differently.
+\item The behaviour metric was not measured.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Not kept.} The code stays, switched off. A retry at a much weaker strength would be a new experiment. Next: front pull (experiment 3).
+
+\section{Notes for the paper}
+Draft: a myopic usefulness heuristic for research loses 10 points of share against tuned per-tech weights; and hill climbing cannot recover from a badly sized start. Motivates the move from tuning runs to strength sweeps.
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

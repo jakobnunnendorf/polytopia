@@ -1,0 +1,69 @@
+{
+  "n": 8,
+  "slug": "spread",
+  "title": "Spread out: thin own crowds",
+  "kind": "mechanism",
+  "issue": 130,
+  "date": "2026-11-25",
+  "status": "done",
+  "verdict": "not kept",
+  "base": "greedy-full-peacebreak",
+  "result": null,
+  "question": "Do armies jam less when a move is rewarded for leaving a crowd of own units?",
+  "change": "A move gets +spread per own unit fewer next to the target tile than next to the unit's current tile; like movement noise, it also allows a sideways step when that makes the score positive.",
+  "method": "Strength sweeps (200 games per point, final test 400): on the champion, and on the champion plus movement noise",
+  "measured": "Sweeps on two bases",
+  "metric": "finish score",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150"
+  ],
+  "knobs": [
+    {
+      "name": "spread",
+      "tested": [
+        0.25,
+        0.5,
+        1,
+        2,
+        4
+      ],
+      "chosen": 0.5
+    }
+  ],
+  "headline": [
+    {
+      "label": "Finish score, 6-model panel, on top of movement noise",
+      "base": 81.3,
+      "new": 81.6,
+      "unit": "%"
+    },
+    {
+      "label": "Finish vs base, final test, on top of movement noise",
+      "base": 50.0,
+      "new": 48.8,
+      "unit": "%"
+    },
+    {
+      "label": "Finish score, 6-model panel, alone on the champion",
+      "base": 78.8,
+      "new": 79.9,
+      "unit": "%"
+    },
+    {
+      "label": "Finish vs base, final test, alone on the champion",
+      "base": 50.0,
+      "new": 54.7,
+      "unit": "%"
+    }
+  ],
+  "runs": [
+    {
+      "id": "greedy-full-spread",
+      "label": "Sweep on the champion (peacebreak)"
+    },
+    {
+      "id": "greedy-full-noise-spread",
+      "label": "Sweep on top of movement noise 4"
+    }
+  ]
+}

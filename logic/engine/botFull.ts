@@ -44,6 +44,10 @@ export type FullWeights = {
   plan: number;
   /** saving: a purchase that would leave us unable to afford next turn's best purchase loses reserve times that purchase's score (0 = off) */
   reserve: number;
+  /** half-width of a zero-mean random term on every move; also lets stuck units step sideways (0 = off) */
+  moveNoise: number;
+  /** bonus per own neighbouring unit fewer at a move's target than now: crowds thin out (0 = off) */
+  spread: number;
 };
 
 export type PartialFullWeights = { [K in keyof FullWeights]?: FullWeights[K] extends number ? number : Partial<FullWeights[K]> };

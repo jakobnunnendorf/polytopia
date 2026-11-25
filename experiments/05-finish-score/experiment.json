@@ -1,0 +1,76 @@
+{
+  "n": 5,
+  "slug": "finish-score",
+  "title": "The finish score: reward winning fast",
+  "kind": "method",
+  "issue": 124,
+  "pr": 127,
+  "date": "2026-11-24",
+  "status": "done",
+  "verdict": "adopted",
+  "base": "greedy-full-front",
+  "result": null,
+  "question": "How often do games end by conquest, and does a yardstick that rewards early wins rank bots differently from points share?",
+  "change": "A new yardstick. A conquest win scores 75-100% (the earlier, the more), a conquest loss 0-25%, a game stopped at the turn cap 25-75% by points share.",
+  "method": "Measurement of how the champion's games end, then a re-sweep of the front pull under the new metric",
+  "measured": "How games end; front pull re-swept",
+  "metric": "finish score",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150",
+    "8 players, 20×20, drylands, turn cap 300 (self-play measurement)"
+  ],
+  "knobs": [
+    {
+      "name": "front",
+      "tested": [
+        0.5,
+        2,
+        4,
+        8,
+        16,
+        32
+      ],
+      "chosen": 8
+    }
+  ],
+  "headline": [
+    {
+      "label": "Finish score, 7-model panel (front 1.13 → 8)",
+      "base": 72.43,
+      "new": 73.31,
+      "unit": "%"
+    },
+    {
+      "label": "Points vs champion, final test (front 8)",
+      "base": 50.0,
+      "new": 49.5,
+      "unit": "%"
+    },
+    {
+      "label": "Self-play games not finished by the cap, 4 players",
+      "base": null,
+      "new": 19,
+      "unit": "%"
+    },
+    {
+      "label": "Self-play games not finished by the cap, 8 players",
+      "base": null,
+      "new": 36,
+      "unit": "%"
+    }
+  ],
+  "runs": [
+    {
+      "id": "greedy-full-front-finish",
+      "label": "The champion under the finish score"
+    },
+    {
+      "id": "greedy-full-front-finish-sweep",
+      "label": "Front pull re-swept, 0.5 to 8"
+    },
+    {
+      "id": "greedy-full-front-finish-sweep2",
+      "label": "Front pull re-swept, 8 to 32"
+    }
+  ]
+}
