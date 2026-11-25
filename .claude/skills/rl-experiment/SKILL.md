@@ -26,8 +26,14 @@ experiment; the agent is measured against our current models.
 5. **Evaluate** the new version and the base version on the **same fixed seeds** against the same opponents.
    Report at least: mean final score, win rate, both with confidence intervals; value-prediction error on
    held-out games when the change is about V.
-6. **Quality gate.** Not defined yet: until Jakob and David record it as a DECISION on #166, post the numbers
-   as a QUESTION with mentions and wait. Once defined, apply it as written there.
+6. **Quality gate.** 99% one-sided paired test on 10,000 evaluation seeds (agreed 25 Nov 2026, #166; details in
+   `docs/rl-project/README.md`, "The quality gate"). Run:
+   `npm run rl:gate -- --candidate <new> --base <base> --difficulty <d> --out experiments/NN-rl-<slug>/`
+   Difficulty: not decided yet, pass it explicitly and name it in the report. Candidate and base play seat 0
+   (Xin-Xi, Perfection, 16x16 Continents, 3 players, opponents `greedy-full-probe`) on the same seeds
+   1,000,000,000.. (never use these for training). **PASS iff mean(d) − 2.326·sd(d)/√N > 0**, d = seat-0
+   score(candidate) − score(base) per seed; exit 0 = PASS, 1 = FAIL. Apply the verdict as printed, never rerun
+   with other seeds or a smaller N to change it; copy the summary and cite the JSON in the report.
 7. **Close.**
    - Pass: PR into `dev`, merge, post STATUS on #166 naming the new base version.
    - Fail: verdict `not kept` in `experiment.json` and the report (failures go in the course report too),
