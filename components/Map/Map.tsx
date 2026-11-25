@@ -189,6 +189,7 @@ export default function Map({
                 <UnitSprite
                   key={u.id}
                   unit={u}
+                  clan={state.players[u.owner]?.clan}
                   inCity={state.tiles[u.y * n + u.x].cityId !== null}
                   TILE={TILE}
                   selected={highlights[`${u.x},${u.y}`] === "selected"}
@@ -196,7 +197,7 @@ export default function Map({
                 />
               ))}
           </View>
-          <FxLayer fx={fx} TILE={TILE} />
+          <FxLayer fx={fx} TILE={TILE} clans={Object.fromEntries(state.players.map((p) => [p.id, p.clan]))} />
         </View>
       </ScrollView>
     </ScrollView>

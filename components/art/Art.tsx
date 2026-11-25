@@ -10,6 +10,7 @@ import { Image, type ImageSourcePropType } from "react-native";
 import Svg, { Circle, Ellipse, G, Line, Path, Polygon, Rect } from "react-native-svg";
 import type { Terrain } from "@/logic/engine/types";
 import { SpecialBuildingArt, SpecialUnitArt, TribeEmblem } from "./TribeArt";
+import { TRIBE_UNIT_SPRITES } from "./tribeUnits";
 import { useTeamSprite } from "./teamTint";
 
 export { TribeEmblem };
@@ -716,10 +717,12 @@ export function CityArt({
   );
 }
 
-// ---------- units (3D Polytopia PNG sprites + special tribe low-poly units) ----------
-export function UnitArt({ type, color, size }: { type: string; color: string; size: number }) {
+// ---------- units (official per-tribe Polytopia PNG sprites + special tribe units) ----------
+export function UnitArt({ type, color, clan, size }: { type: string; color: string; clan?: string; size: number }) {
+  const tribeSprite = clan ? TRIBE_UNIT_SPRITES[clan]?.[type] : undefined;
+  if (tribeSprite) return <Sprite source={tribeSprite} size={size} pad={size * 0.02} />;
   const sprite = UNIT_SPRITES[type];
-  // the stock sprites are all one blue tribe: recolour their team parts to the owner's colour
+  // fallback when no clan is provided: Imperius stock sprite recoloured to the owner's colour
   if (sprite) return <Sprite source={sprite} size={size} pad={size * 0.02} team={color} />;
   const special = SpecialUnitArt({ type, color, size });
   if (special) return special;

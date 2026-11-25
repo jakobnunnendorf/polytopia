@@ -567,7 +567,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
                 {(unitAtSel || citySel) && (
                   <View style={{ width: 44, height: 44, marginRight: 10, borderRadius: 10, backgroundColor: "#1c3158", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                     {unitAtSel ? (
-                      <UnitArt type={unitAtSel.type} color={clanColor(unitAtSel.owner)} size={42} />
+                      <UnitArt type={unitAtSel.type} color={clanColor(unitAtSel.owner)} clan={state.players[unitAtSel.owner]?.clan} size={42} />
                     ) : citySel ? (
                       <CityArt color={clanColor(citySel.owner)} level={citySel.level} capital={citySel.capital} walls={citySel.walls} size={42} />
                     ) : null}
