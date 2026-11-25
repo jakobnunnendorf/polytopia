@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import Settings, { pickerModels } from "../../components/Settings/Settings";
 import { modelFacts, modelTagline } from "../../components/Settings/ModelCard";
+import { compass, sampleWorld, seatGrid, windowFor } from "../../components/Settings/WorldBoard";
 import { SettingsProvider } from "../../context/SettingsContext";
 import type { ModelSpec } from "../../logic/agents/types";
 import type { Ratings } from "../../logic/arena/elo";
@@ -63,6 +64,9 @@ describe("Game setup: model picker", () => {
         <Settings />
       </SettingsProvider>,
     );
+    // the board shows every seat on its starting region; tapping one opens it in the editor below
+    fireEvent.press(screen.getByTestId("seat-1"));
+    expect(screen.getByTestId("seat-1").props.accessibilityState).toEqual({ selected: true });
     // offline: the built-in models; the qwen LLM is hidden
     expect(screen.queryByTestId("model-card-qwen3-coder-lmstudio")).toBeNull();
     expect(screen.getAllByText("Random legal moves. The floor every model must beat.").length).toBeGreaterThan(0);
@@ -77,8 +81,27 @@ describe("Game setup: model picker", () => {
       created: "2026-11-25",
       training: { from: "greedy-full-combo", trainingGames: 100020, duration: "48m24s" },
     });
-    expect(modelFacts(probe, [parent, probe])).toBe("Full greedy · from Combo · 100k games · 48m24s · 25 Nov");
+    expect(modelFacts(probe, [parent, probe])).toBe("Full greedy, built on Combo\n100k games in 48m24s, 25 Nov");
     expect(modelTagline(spec("x", { description: "First sentence. Second one." }))).toBe("First sentence.");
+  });
+
+  it("the sample world seats every player on a region of its own, and deals a new one on request", () => {
+    for (const players of [2, 4, 9, 16]) {
+      const w = sampleWorld({ mapSize: players > 9 ? 18 : 16, players, mode: "domination", mapType: "continents", seed: 7 })!;
+      expect(w.side).toBe(Math.ceil(Math.sqrt(players)));
+      expect(new Set(w.regionOf).size).toBe(players);
+      expect(w.terrain.length).toBe(w.n * w.n);
+    }
+    const a = sampleWorld({ mapSize: 16, players: 4, mode: "perfection", mapType: "continents", seed: 1 })!;
+    const b = sampleWorld({ mapSize: 16, players: 4, mode: "perfection", mapType: "continents", seed: 2 })!;
+    expect(a.terrain.join()).not.toBe(b.terrain.join());
+    expect(compass({ x: 2, y: 3 }, 16)).toBe("the north-west");
+    expect(compass({ x: 8, y: 7 }, 16)).toBe("the centre");
+    expect(compass({ x: 13, y: 8 }, 16)).toBe("the east");
+    // two capitals in the south-east quarter still get a square each, and keep their relation
+    expect(seatGrid([{ x: 2, y: 8 }, { x: 13, y: 2 }, { x: 10, y: 13 }, { x: 11, y: 9 }], 16, 2)).toEqual([0, 1, 2, 3]);
+    // the card's window keeps the capital inside it, also at the map's edge
+    expect(windowFor({ x: 15, y: 15 }, 16, 8)).toEqual({ x0: 8, y0: 8 });
   });
 
   it("every model folder has a spec, and the gate's champions stay in the picker", () => {

@@ -31,20 +31,15 @@ export function modelTagline(m: ModelSpec): string {
   return first.length > 90 ? `${first.slice(0, 87)}…` : first;
 }
 
-/** the card's facts line: family, parent, training size and time, date */
+/** the card's small print: what kind of bot and what it was built on; then how much training, and when */
 export function modelFacts(m: ModelSpec, all: ModelSpec[]): string {
   const t = m.training;
   const parent = t?.from ? (all.find((x) => x.id === t.from)?.name ?? t.from) : undefined;
   const games = t?.trainingGames ?? (t?.gamesPerPoint && t?.points ? t.gamesPerPoint * t.points.length : undefined);
-  return [
-    FAMILY[m.kind] ?? m.kind,
-    parent ? `from ${parent}` : undefined,
-    games ? `${shortCount(games)} games` : undefined,
-    t?.duration,
-    m.created ? shortDate(m.created) : undefined,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const kind = `${FAMILY[m.kind] ?? m.kind}${parent ? `, built on ${parent}` : ""}`;
+  const effort = games ? `${shortCount(games)} games${t?.duration ? ` in ${t.duration}` : ""}` : "";
+  const made = m.created ? shortDate(m.created) : "";
+  return [kind, [effort, made].filter(Boolean).join(", ")].filter(Boolean).join("\n");
 }
 
 /**
@@ -81,9 +76,8 @@ export function ModelCard({
       accessibilityState={{ selected: on }}
       accessibilityLabel={`${model.name}${elo != null ? `, Elo ${elo}` : ""}`}
       style={{
-        width: 196,
+        width: "48.9%",
         padding: 12,
-        marginRight: 8,
         marginBottom: 8,
         borderRadius: 14,
         borderWidth: 1,
@@ -100,8 +94,8 @@ export function ModelCard({
           {elo != null && <Text style={{ color: ink, fontWeight: "800", fontSize: 16 }}>{elo}</Text>}
         </View>
         <Text style={{ color: soft, fontSize: 11, fontWeight: "700", marginTop: 1 }}>
-          {rank === 1 ? "★ Strongest" : `#${rank}`}
-          {elo != null ? (overall ? " · Elo, all games" : " · Elo, these settings") : " · not rated yet"}
+          {rank === 1 ? "★ Strongest" : `#${rank} by Elo`}
+          {elo == null ? ", not rated yet" : overall ? ", over all games" : ""}
         </Text>
         <Text style={{ color: ink, fontSize: 13, lineHeight: 18, marginTop: 8 }} numberOfLines={3}>
           {modelTagline(model)}

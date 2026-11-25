@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SettingsContext } from "@/context/SettingsContext";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
@@ -13,6 +13,7 @@ import { name as displayName } from "@/logic/engine/names";
 import { tribeDescription } from "@/logic/engine/tribes";
 import { TribeEmblem } from "@/components/art/Art";
 import { ModelCard } from "./ModelCard";
+import { WorldBoard, compass, sampleWorld } from "./WorldBoard";
 
 const MAP_SIZES = [
   { title: "Tiny", size: 11 },
@@ -102,7 +103,10 @@ function SeatRow({
   onChange,
   onRemove,
   onNewProfile,
+  where,
 }: {
+  /** where this seat starts in the sample world, in words */
+  where?: string;
   i: number;
   seat: Seat;
   profiles: Profile[];
@@ -120,12 +124,13 @@ function SeatRow({
   const elo = (key: string) =>
     ratings[key] ? String(Math.round(ratings[key].rating)) : overall[key] ? `${Math.round(overall[key].rating)} overall` : undefined;
   return (
-    <View style={{ paddingVertical: 10, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: UI.line }} testID={`seat-${i}`}>
+    <View style={{ paddingTop: 12, paddingBottom: 6, borderTopWidth: 1, borderTopColor: UI.line }} testID="seat-editor">
       <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
         <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: PLAYER_COLORS[i % PLAYER_COLORS.length], marginRight: 8 }} />
-        <Text style={{ color: UI.mist, fontWeight: "800", fontSize: 15, flex: 1 }}>
-          {i === 0 ? "First to move" : `Seat ${i + 1}`}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: UI.mist, fontWeight: "800", fontSize: 15 }}>{i === 0 ? "First to move" : `Seat ${i + 1}`}</Text>
+          {where ? <Text style={{ color: UI.muted, fontSize: 12 }}>{`Starts in ${where} of this sample`}</Text> : null}
+        </View>
         <Chip label="Person" on={seat.kind === "human"} onPress={() => onChange({ kind: "human", profileId: GUEST.id, name: GUEST.name })} />
         <Chip label="Model" on={seat.kind === "model"} onPress={() => onChange({ kind: "model", modelId: models[0]?.id ?? "greedy-v1" })} />
         {onRemove && (
@@ -135,7 +140,7 @@ function SeatRow({
         )}
       </View>
       {seat.kind === "model" && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: "stretch" }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
           {models.map((m, rank) => {
             const own = ratings[`model:${m.id}`];
             const r = own ?? overall[`model:${m.id}`];
@@ -152,7 +157,7 @@ function SeatRow({
               />
             );
           })}
-        </ScrollView>
+        </View>
       )}
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
         {seat.kind === "model"
@@ -309,6 +314,14 @@ export default function Settings() {
       live = false;
     };
   }, [mode.id, seats.length, settings.mapSize]);
+  // the Players board: one world the engine could deal for these settings; "Deal again" draws another
+  const [deal, setDeal] = useState(1);
+  const [selected, setSelected] = useState(0);
+  const sel = Math.min(selected, seats.length - 1);
+  const world = useMemo(
+    () => sampleWorld({ mapSize: settings.mapSize, players: seats.length, mode: mode.id, mapType: settings.mapType, seed: deal * 7919 + 13 }),
+    [settings.mapSize, seats.length, mode.id, settings.mapType, deal],
+  );
   const setSeat = (i: number, s: Seat) => settings.setSeats(seats.map((x, j) => (j === i ? s : x)));
   const newProfile = async (name: string) => {
     if (!name.trim()) return null;
@@ -372,26 +385,46 @@ export default function Settings() {
       )}
 
       <Heading>Players</Heading>
-      {seats.map((seat, i) => (
-        <SeatRow
-          key={i}
-          i={i}
-          seat={seat}
-          profiles={profiles}
-          models={models}
-          ratings={ratings}
-          overall={overall}
-          onChange={(s) => setSeat(i, s)}
-          onRemove={seats.length > 2 ? () => settings.setSeats(seats.filter((_, j) => j !== i)) : undefined}
-          onNewProfile={newProfile}
-        />
-      ))}
+      <WorldBoard
+        seats={seats}
+        models={models}
+        ratings={ratings}
+        overall={overall}
+        world={world}
+        dealKey={`${deal}-${seats.length}-${settings.mapSize}-${settings.mapType}-${mode.id}`}
+        selected={sel}
+        onSelect={setSelected}
+        onDeal={() => setDeal((d) => d + 1)}
+      />
+      <SeatRow
+        key={sel}
+        i={sel}
+        seat={seats[sel]}
+        where={world ? compass(world.capitals[sel], world.n) : undefined}
+        profiles={profiles}
+        models={models}
+        ratings={ratings}
+        overall={overall}
+        onChange={(s) => setSeat(sel, s)}
+        onRemove={
+          seats.length > 2
+            ? () => {
+                settings.setSeats(seats.filter((_, j) => j !== sel));
+                setSelected(Math.max(0, sel - 1));
+              }
+            : undefined
+        }
+        onNewProfile={newProfile}
+      />
       {seats.length < 16 && (
         <Chip
           testID="add-seat"
           label="+ Add a seat"
           on={false}
-          onPress={() => settings.setSeats([...seats, { kind: "model", modelId: models[0]?.id ?? "greedy-v1" }])}
+          onPress={() => {
+            settings.setSeats([...seats, { kind: "model", modelId: models[0]?.id ?? "greedy-v1" }]);
+            setSelected(seats.length);
+          }}
         />
       )}
       {online === false && (
