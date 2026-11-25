@@ -26,6 +26,7 @@
 (defconst notes-root
   (file-name-directory (or load-file-name buffer-file-name)))
 (defconst notes-out (expand-file-name "_build/" notes-root))
+(defconst notes-snippets (expand-file-name "snippets/" notes-out))
 (defconst notes-site "EMAI in Polytopia")
 
 (defvar notes-ml nil "The tangled OCaml file of the note being built.")
@@ -109,6 +110,28 @@ The tangled file of the current note is loaded first.  Phrases end with `;;'."
     (unless (notes-scene-server-answers)
       (error "No scene server at %s" notes-scene-url))))
 
+(defun notes-scene-margin (scene)
+  "The room around the map of SCENE that its marks need: [top right bottom left], in pixels.
+The figures match the ones app/scene.tsx draws with: an axis takes 20 (top)
+or 22 (left), a spanning arrow with its words 32, words are 8 wide a letter."
+  (let* ((tile (gethash "tile" scene 64))
+         (board (* tile (length (aref (gethash "rows" scene) 0))))
+         (axes (eq (gethash "axes" scene) t))
+         (top (if axes 20 0)) (left (if axes 22 0)) (right 0) (bottom 0)
+         across down)
+    (seq-doseq (mark (gethash "marks" scene []))
+      (let* ((kind (gethash "kind" mark))
+             (text (gethash "text" mark))
+             (wide (if (stringp text) (+ 6 (* 8 (length text))) 0)))
+        (cond ((equal kind "across") (setq across t))
+              ((equal kind "down") (setq down t))
+              ((equal kind "below")
+               (setq bottom 42
+                     right (max right (- (+ (* tile (gethash "x" mark)) 2 wide) board))))
+              ((stringp text)           ; beside, or outlined with words
+               (setq right (max right (+ 40 wide)))))))
+    (vector (+ top (if across 32 0)) right bottom (+ left (if down 32 0)))))
+
 (defun org-babel-execute:scene (body params)
   "Org Babel entry point for the pseudo-language `scene': a picture of a game scene."
   (let* ((pic (or (cdr (assq :pic params)) (error "A scene block needs a :pic name")))
@@ -124,8 +147,10 @@ The tangled file of the current note is loaded first.  Phrases end with `;;'."
          (scene (json-parse-string json))
          (tile (gethash "tile" scene 64))
          (rows (gethash "rows" scene))
-         (width (+ 16 (* tile (length (aref rows 0)))))
-         (height (+ 16 (* tile (length rows)))))
+         (margin (notes-scene-margin scene))
+         (width (+ 16 (aref margin 3) (* tile (length (aref rows 0))) (aref margin 1)))
+         (height (+ 16 (aref margin 0) (* tile (length rows)) (aref margin 2)))
+         (json (progn (puthash "margin" margin scene) (json-serialize scene))))
     (notes-ensure-scene-server)
     ;; The app shows "Loading the game engine..." until its WebAssembly engine
     ;; is compiled, and Chrome's clock does not wait for that.  A picture of
@@ -171,14 +196,32 @@ The tangled file of the current note is loaded first.  Phrases end with `;;'."
                    token))
          code t t)))))
 
+(defun notes-unescape (html)
+  "Undo the escaping that the HTML export applies to code."
+  (replace-regexp-in-string
+   "&amp;" "&"
+   (replace-regexp-in-string "&gt;" ">" (replace-regexp-in-string "&lt;" "<" html))))
+
 (defun notes-highlight-ocaml (text backend _info)
-  "Export filter: colour the OCaml source blocks."
+  "Export filter: colour the OCaml source blocks, and name each one.
+The name (`data-snippet') is a hash of the code.  The code is also written
+to _build/snippets/<name>.ml, where serve.py finds it for the page's
+\"explain the syntax\" button."
   (when (and (eq backend 'html)
-             (string-match "<pre class=\"src src-ocaml\"[^>]*>" text))
-    (let* ((start (match-end 0))
-           (end (string-match "</pre>" text start)))
-      (concat (substring text 0 start)
-              (notes-ocaml-spans (substring text start end))
+             (string-match "<pre class=\"src src-ocaml\"\\([^>]*\\)>" text))
+    (let* ((tag (match-beginning 0))
+           (attributes (match-string 1 text))
+           (start (match-end 0))
+           (end (string-match "</pre>" text start))
+           (code (substring text start end))
+           (raw (notes-unescape code))
+           (id (substring (secure-hash 'sha256 raw) 0 16))
+           (coding-system-for-write 'utf-8))
+      (make-directory notes-snippets t)
+      (write-region raw nil (expand-file-name (concat id ".ml") notes-snippets) nil 'silent)
+      (concat (substring text 0 tag)
+              (format "<pre class=\"src src-ocaml\"%s data-snippet=\"%s\">" attributes id)
+              (notes-ocaml-spans code)
               (substring text end)))))
 
 ;;; ---------- the page around the note ----------
@@ -225,6 +268,65 @@ document.querySelectorAll('#content h2[id], #content h3[id]').forEach(function (
   a.title = 'Permalink to this headline';
   h.appendChild(a);
 });
+</script>\n"
+          ;; "explain the syntax": only when the page comes from serve.py
+          "<script>
+(function () {
+  var blocks = document.querySelectorAll('pre[data-snippet]');
+  function inline(parent, text) {            // `code` and plain text, as nodes
+    text.split(/(`[^`]+`)/).forEach(function (part) {
+      if (part.length > 2 && part[0] === '`' && part[part.length - 1] === '`') {
+        var code = document.createElement('code');
+        code.textContent = part.slice(1, -1);
+        parent.appendChild(code);
+      } else if (part) parent.appendChild(document.createTextNode(part.replace(/\\*\\*/g, '')));
+    });
+  }
+  function show(pre, text) {
+    var box = document.createElement('details');
+    box.className = 'explanation'; box.open = true;
+    var summary = document.createElement('summary');
+    summary.textContent = 'The syntax, explained';
+    box.appendChild(summary);
+    var list = null;
+    text.split('\\n').forEach(function (line) {
+      line = line.trim();
+      if (!line) { list = null; return; }
+      if (line.slice(0, 2) === '- ') {
+        if (!list) { list = document.createElement('ul'); box.appendChild(list); }
+        var item = document.createElement('li'); inline(item, line.slice(2)); list.appendChild(item);
+      } else {
+        list = null;
+        var p = document.createElement('p'); inline(p, line); box.appendChild(p);
+      }
+    });
+    pre.parentNode.insertBefore(box, pre.nextSibling);
+  }
+  fetch('/explanations.json').then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+    .then(function (saved) {
+      blocks.forEach(function (pre) {
+        var id = pre.dataset.snippet;
+        if (saved[id]) { show(pre, saved[id]); return; }
+        var button = document.createElement('button');
+        button.className = 'explain'; button.textContent = 'explain the syntax';
+        button.onclick = function () {
+          button.disabled = true; button.textContent = 'asking Sonnet\\u2026';
+          fetch('/explain/' + id, { method: 'POST' })
+            .then(function (r) { return r.json(); })
+            .then(function (answer) {
+              if (!answer.text) throw new Error(answer.error || 'no answer');
+              button.remove(); show(pre, answer.text);
+            })
+            .catch(function (e) {
+              button.disabled = false; button.textContent = 'explain the syntax';
+              button.title = String(e.message || e); window.console.error(e);
+            });
+        };
+        pre.parentNode.insertBefore(button, pre);
+      });
+    })
+    .catch(function () {});                   // a plain file or another server: no buttons
+})();
 </script>\n"))
 
 ;;; ---------- building one note ----------
@@ -264,6 +366,9 @@ document.querySelectorAll('#content h2[id], #content h3[id]').forEach(function (
       ;; 3. export
       (org-export-to-file 'html html))
     (message "Built %s" html)))
+
+;; the snippets are written afresh, so that none of an older build stays behind
+(when (file-directory-p notes-snippets) (delete-directory notes-snippets t))
 
 (dolist (org-file (directory-files notes-root t "\\`[a-z]+-[0-9]+_.*\\.org\\'"))
   (notes-build org-file))

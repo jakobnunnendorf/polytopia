@@ -157,6 +157,37 @@ pre .nc { color: #0e84b5; font-weight: bold; }
 .epigraph p { text-align: right !important; margin: 0; }
 .epigraph p:last-child { font-style: normal; }
 
+/* "explain the syntax": a button in the corner of a code box, and the saved answer below it */
+.org-src-container { position: relative; }
+button.explain {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    font-family: sans-serif;
+    font-size: 75%;
+    color: #355f7c;
+    background-color: #f8fff0;
+    border: 1px solid #ac9;
+    border-radius: 3px;
+    padding: 1px 6px;
+    cursor: pointer;
+    opacity: 0.55;
+}
+.org-src-container:hover button.explain,
+button.explain:disabled { opacity: 1; }
+button.explain:hover { text-decoration: underline; }
+button.explain:disabled { cursor: wait; }
+details.explanation {
+    background-color: #eee;
+    border: 1px solid #ccc;
+    margin: -0.5em 0 1em 0;
+    padding: 5px 10px;
+    font-size: 92%;
+}
+details.explanation summary { cursor: pointer; color: #20435c; font-weight: bold; }
+details.explanation ul { margin: 6px 0 2px 0; padding-left: 22px; }
+details.explanation code { background-color: #dfe5ea; }
+
 /* a game scene, photographed at twice its displayed size */
 img.scene { display: block; max-width: 100%; height: auto; margin: 1em 0; }
 
