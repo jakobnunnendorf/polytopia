@@ -15,6 +15,7 @@ export type NewGameOptions = {
   seed: number;
   /** player ids controlled by humans (others are bots) */
   humans?: number[];
+  /** default: the type the mode forces (see mapTypeFor), Drylands otherwise */
   mapType?: MapType;
   /** clan per player; default: random distinct clans */
   clans?: string[];
@@ -26,6 +27,8 @@ export type NewGameOptions = {
 };
 
 export const mapSizeFor = (mode: GameMode, opponents: number): number | null => call("mapSizeFor", mode, opponents);
+/** the map type a mode forces (Perfection: Continents), null when the player chooses */
+export const mapTypeFor = (mode: GameMode): MapType | null => call("mapTypeFor", mode);
 export const mapSizeAllowed = (mode: GameMode, mapSize: number): boolean => call("mapSizeAllowed", mode, mapSize);
 export const difficultyOf = (s: GameState): Difficulty => call("difficultyOf", s);
 

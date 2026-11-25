@@ -8,7 +8,7 @@ import type { ModelSpec } from "@/logic/agents/types";
 import type { Ratings } from "@/logic/arena/elo";
 import type { Seat } from "@/logic/arena/record";
 import { CLANS, maxPlayersFor } from "@/logic/engine/data";
-import { mapSizeAllowed } from "@/logic/engine/state";
+import { mapSizeAllowed, mapTypeFor } from "@/logic/engine/state";
 import { name as displayName } from "@/logic/engine/names";
 import { tribeDescription } from "@/logic/engine/tribes";
 import { TribeEmblem } from "@/components/art/Art";
@@ -256,6 +256,8 @@ function TribeNote({ clan }: { clan?: string }) {
 export default function Settings() {
   const settings = useContext(SettingsContext);
   const mode = MODES.find((m) => m.id === settings.gameMode) ?? MODES[0];
+  // the world the mode forces (Perfection: Continents), shown as the only choice
+  const forcedWorld = mapTypeFor(mode.id);
   const [models, setModels] = useState<ModelSpec[]>(BUILTIN_MODELS);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [ratings, setRatings] = useState<Ratings>({});
@@ -314,11 +316,14 @@ export default function Settings() {
 
       <Heading>World</Heading>
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-        {WORLDS.map((w) => (
+        {WORLDS.filter((w) => !forcedWorld || w.id === forcedWorld).map((w) => (
           <Chip key={w.id} testID={`world-${w.id}`} label={w.title} on={settings.mapType === w.id} onPress={() => settings.setMapType(w.id)} />
         ))}
       </View>
-      <Text style={{ color: UI.muted, fontSize: 13 }}>{WORLDS.find((w) => w.id === settings.mapType)?.hint}</Text>
+      <Text style={{ color: UI.muted, fontSize: 13 }}>
+        {WORLDS.find((w) => w.id === settings.mapType)?.hint}
+        {forcedWorld ? ` ${mode.title} is always played on ${WORLDS.find((w) => w.id === forcedWorld)?.title ?? forcedWorld}, as in the game.` : ""}
+      </Text>
 
       <Heading>Map size</Heading>
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>

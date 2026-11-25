@@ -13,6 +13,7 @@ import {
   income,
   makeUnit,
   mapSizeFor,
+  mapTypeFor,
   newCity,
   perfectionRating,
   perfectionStars,
@@ -316,6 +317,22 @@ describe("game setup, modes and victory", () => {
     expect(mapSizeFor("creative", 3)).toBeNull();
     expect(createGame({ players: 2, mode: "perfection", seed: 1 }).mapSize).toBe(16);
     expect(createGame({ players: 3, mode: "domination", seed: 1 }).mapSize).toBe(14);
+  });
+
+  it("map type is forced by mode: Perfection on Continents (as in the game), Domination unchanged", () => {
+    expect(mapTypeFor("perfection")).toBe("continents");
+    expect(mapTypeFor("domination")).toBeNull();
+    expect(mapTypeFor("creative")).toBeNull();
+    const water = (s: GameState) => s.tiles.filter((t) => t.terrain === "water" || t.terrain === "ocean").length / s.tiles.length;
+    const opts = { players: 2, seed: 1, humans: [] };
+    // without a choice Perfection gets the Continents map, exactly as if Continents were passed
+    const perf = createGame({ ...opts, mode: "perfection" });
+    expect(perf.tiles).toEqual(createGame({ ...opts, mode: "perfection", mapType: "continents" }).tiles);
+    // an explicit choice still wins (Drylands is nearly all land), and Domination stays on Drylands
+    const dry = createGame({ ...opts, mode: "perfection", mapType: "drylands" });
+    expect(water(perf)).toBeGreaterThan(water(dry) + 0.1);
+    const dom = createGame({ ...opts, mode: "domination", mapSize: 16 });
+    expect(dom.tiles).toEqual(createGame({ ...opts, mode: "domination", mapSize: 16, mapType: "drylands" }).tiles);
   });
 
   it("a Tiny map holds at most 9 tribes", () => {

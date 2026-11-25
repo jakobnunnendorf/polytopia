@@ -10,7 +10,7 @@
  * The game lives in data/games/ like every other recording and is Elo-rated when it ends.
  */
 import { applyAction, legalActions } from "../logic/engine/actions";
-import { createGame, scoreOf } from "../logic/engine/state";
+import { createGame, mapTypeFor, scoreOf } from "../logic/engine/state";
 import type { GameMode } from "../logic/engine/types";
 import type { MapType } from "../logic/engine/mapgen";
 import { createAgent, directChat } from "../logic/agents/registry";
@@ -76,11 +76,12 @@ async function main() {
     const models = listModels();
     for (const id of [meId, ...opp]) if (!models.some((m) => m.id === id)) throw new Error(`No model "${id}" in models/`);
     const seats: Seat[] = [{ kind: "model", modelId: meId }, ...opp.map((id) => ({ kind: "model", modelId: id }) as Seat)];
-    const mapType = arg("map", "drylands") as MapType;
+    const mode = arg("mode", "perfection") as GameMode;
+    const mapType = arg("map", mapTypeFor(mode) ?? "drylands") as MapType;
     const s = createGame({
       mapSize: Number(arg("size", "11")),
       players: seats.length,
-      mode: arg("mode", "perfection") as GameMode,
+      mode,
       seed: Number(arg("seed", String(Date.now() % 1_000_000))),
       humans: [0],
       mapType,
