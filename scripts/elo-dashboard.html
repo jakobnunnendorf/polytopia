@@ -382,7 +382,9 @@ function render() {
   if (!S.run) { $("meta").textContent = S.note || "no tournament yet"; return; }
   const games = S.ratings?.overall.games || 0;
   const state = S.running ? "running" : S.stopped ? "stopped before the end" : S.progress && S.progress.donePairs < S.progress.pairs ? "incomplete" : "finished";
-  const took = !S.running && S.progress?.seconds ? ` in ${dur(S.progress.seconds)}` : "";
+  // progress.json times only the last start of the run: a resumed run's whole time is not known
+  const whole = S.progress && S.progress.playedThisRun >= S.progress.games;
+  const took = !S.running && S.progress?.seconds ? (whole ? ` in ${dur(S.progress.seconds)}` : ` (played in parts; the last one took ${dur(S.progress.seconds)})`) : "";
   $("meta").textContent = `elo/${S.run} · ${S.meta ? S.meta.agents.length : 0} agents · ${count(games)} games · ${state}${took} · updated ${new Date(S.at).toLocaleTimeString("en-GB")}`;
   renderControls();
   renderProgress();
