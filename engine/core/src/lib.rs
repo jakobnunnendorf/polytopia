@@ -26,3 +26,5 @@ pub mod opinion;
 pub mod rng;
 pub mod state;
 pub mod types;
+#[cfg(test)]
+mod boat_land_tests;

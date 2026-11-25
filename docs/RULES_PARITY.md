@@ -258,7 +258,8 @@ Aquarion
   player with Waterways, whoever owns the amphibious unit); lost when attacked
   or stepping on dry land that is not flooded.
 - Capture: a city or village captured by Aquarion floods, by anyone else
-  drains (its tile becomes field).
+  drains (its tile becomes field); a boat that captured it from the flooded
+  tile then lands as its carried unit (no boat ever stands on dry land).
 - Unit replacements: Rammer -> Shark, Bomber -> Jelly, Dagger -> Mermaid
   Dagger added (Shark and Jelly were extra units).
 - Lost City: a random ruin reward that left a capturable level-3 walled
