@@ -94,9 +94,10 @@ The final agent (fine-tuned on Crazy with 15 opponents) is compared with the gam
 high-score list. That list is kept per tribe. Xin-xi on 25 Nov 2026 (final ratings including the difficulty bonus;
 no player names recorded): **#1 198,083, #20 122,537, #100 90,147.**
 
-- The wiki's formula gives a 291% bonus for 15 Crazy opponents, so the raw score is about rating / 2.91:
-  #1 ≈ 68,100, #20 ≈ 42,100, #100 ≈ 31,000. A February 2024 patch lowered the opponent part of the bonus by an
-  amount that was not published, so these raw figures are lower bounds on what a listed player actually scored.
+- The bonus for 15 Crazy opponents is **245%** (app setup screen, 25 Nov 2026), so the raw score is rating / 2.45:
+  #1 ≈ 80,850, #20 ≈ 50,015, #100 ≈ 36,795. The older 291% (÷ 2.91) comes from the wiki's pre-February-2024
+  formula and is outdated: it matches the community decompile raphael-64/polyterra-env, which is a pre-2024
+  build. The engine uses the app's table (`perfection_bonus_percent` in `engine/core/src/data.rs`).
 - A leaderboard entry is a player's best game. **Decision (Jakob, 25 Nov 2026, reliability first): the demo
   headline is the agent's median score** (and its 10th/90th percentile), because the project is about an agent that
   plays well every time. Comparing with the leaderboard is a **secondary, labelled best-case figure**: the

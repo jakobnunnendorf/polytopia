@@ -22,7 +22,7 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 | Splash damage | corrected (second core audit): half the damage rounded down to whole HP, ranged units only; a poisoning splash only poisons |
 | Explosion damage | corrected (second core audit): half the damage rounded down, like splash |
 | Poison and movement | -1 movement only above 1 (game logic), so a 1-move unit still moves 1 |
-| Perfection bonus | score × (1 + round(handicap/5 + ln(opponents)/ln(11.4), 2)) |
+| Perfection bonus | score × (100 + difficulty part 0/20/40/80 + opponent table 0/20/30/37/42/46/49/52/54/57/59/60/62/64/65 for 1..15 opponents) / 100, read off the app's setup screen (25 Nov 2026) |
 | Meeting a tribe | wiki formula: 1 + 2★ per 1,000 score, at most 11; base 3 when meeting the first seat in a 2-player game (second core audit) |
 | Market income | +1★ per adjacent building level, at most 8 |
 | Port reach | range 5; ocean links need Sailing |
@@ -137,7 +137,7 @@ this repository. Tests: `__tests__/engine/parity-218-core.test.ts`.
 | Buildings on resources | a building that needs no resource (Forge, Lumber Hut, temples, Port, monuments) only on a tile without one | allowed on an unharvested resource; the resource stays underneath and can't be harvested while the building stands |
 | Embassy | 5★, not while at war | 4★ + 2★ per embassy the builder already has; allowed at war; pays nothing to either side while at war; a wiped tribe's embassies end |
 | City score | 100 + 5·pop + Σ(5·l + max(0, 50 − 5·l)) per level | 50 × (level + 1) + 5 per population point toward the next level (same up to level 10, no drop after); negative population costs 105 per point, city part floored at 0 |
-| Perfection bonus | 1 + 0.41·ln(opponents) + d | 1 + round(handicap/5 + ln(opponents)/ln(11.4), 2), handicap 0/1/2/4 |
+| Perfection bonus | 1 + 0.41·ln(opponents) + d (old wiki formula, maximum 291%) | (100 + difficulty 0/20/40/80 + a 15-entry opponent table) / 100, maximum 245%; the table is the app's setup screen of 25 Nov 2026 (`perfection_bonus_percent`, data.rs); the engine's earlier `round(handicap/5 + ln(opponents)/ln(11.4), 2)` was the pre-2024 build |
 | Domination rating | none | `dominationRating`: mean of speed min(1, 10·opponents/turns), battle (kills+1)/(losses+kills+1), destroyed tribes/opponents, difficulty 25/50/75/100%; stars at 20/70/95%, halo at 100%; shown on the game-over screen |
 | Weekly Challenge | none | `createGame({ turnLimit })` sets the last Perfection turn (default 30); the challenge is Perfection with turnLimit 20 and a fixed seed |
 | Market | sum of adjacent upgrade-building levels | each adjacent Windmill/Sawmill/Forge counts its level, at least 1 (cap 8 unchanged) |
