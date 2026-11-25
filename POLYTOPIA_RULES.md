@@ -779,13 +779,20 @@ Each monument can be built once per game by the first tribe to finish its task. 
 
 ### Perfection difficulty bonus
 
-At the end of a Perfection game the score is multiplied by a bonus for the opponent count and their difficulty. The maximum is 291%, against 15 Crazy bots.
+At the end of a Perfection game the score is multiplied by a bonus for the opponent count and their difficulty. The maximum is 245%, against 15 Crazy bots. The Perfection setup screen shows the bonus as "Difficulty bonus: X%" for the chosen opponent count and difficulty.
 
 ```latex
-\text{bonus} = 100\% + 41\% \cdot \ln(\text{opponents}) + d, \quad d = 0, 20, 40, 80\% \text{ for Easy, Normal, Hard, Crazy}
+\text{bonus} = 100\% + d + T(\text{opponents}), \quad d = 0, 20, 40, 80\% \text{ for Easy, Normal, Hard, Crazy}
 ```
 
-The opponent part may be out of date: a February 2024 patch lowered it without giving numbers. Before version 2.0 the bonus was 100/120/140/180% by difficulty plus 10% per opponent. Only Glory states a tie rule (highest score at the end of the turn that crosses the target); Perfection ties are unconfirmed.
+The opponent part T is a table, not a known formula. Read off the app's setup screen (iPhone, 25 November 2026):
+
+| Opponents | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| T (percent) | 0 | 20 | 30 | 37 | 42 | 46 | 49 | 52 | 54 | 57 | 59 | 60 | 62 | 64 | 65 |
+| Crazy, bonus shown | 180 | 200 | 210 | 217 | 222 | 226 | 229 | 232 | 234 | 237 | 239 | 240 | 242 | 244 | 245 |
+
+With 15 opponents the setup screen shows 165% (Easy), 185% (Normal), 205% (Hard) and 245% (Crazy), so the difficulty part is unchanged. The old wiki formula, 100% + 41% × ln(opponents) + d (maximum 291%), is from before the February 2024 "Patch of the Ocean", which lowered the opponent part without giving numbers; the community decompile [raphael-64/polyterra-env](https://github.com/raphael-64/polyterra-env) still has exactly that old formula. Before version 2.0 the bonus was 100/120/140/180% by difficulty plus 10% per opponent. Only Glory states a tie rule (highest score at the end of the turn that crosses the target); Perfection ties are unconfirmed.
 
 ## AI and difficulty
 
@@ -849,7 +856,7 @@ Most conflicts come from wiki pages written before the 2023–2025 reworks. Wher
 | Splash damage | Half the damage unrounded (Combat page) vs half rounded down (Bomber and Fire Dragon pages) | Unrounded |
 | Explosion damage | Equal to the unit's attack (skills page) vs half the attack's damage (Combat page) | Open |
 | Poison and movement | Floor of 1 (Movement page) vs 0 (Combat page) | Open |
-| Perfection bonus | 100% + 41% × ln(opponents) + difficulty, but a February 2024 patch cut the opponent part without numbers | Formula, flagged |
+| Perfection bonus | 100% + 41% × ln(opponents) + difficulty (old wiki formula, maximum 291%) vs the app's setup screen: 100% + difficulty + a table, maximum 245% | App setup screen (25 Nov 2026) |
 | Meeting a tribe | 1 + 2★ per 1,000 score, at most 11 (wiki) vs 3★ per 1,000, at most 12, minus 1 per step since October 2022 (patch notes) | Wiki formula |
 | Market income | +1★ per adjacent building level, at most 8 (data, February 2024 notes) vs 2★ per adjacent building (older pages) | Data |
 | Port reach | Range 5 (data) vs 4 or 5 water tiles (wiki pages); ocean links need Navigation (wiki) vs Sailing (data) | Data |

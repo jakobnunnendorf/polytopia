@@ -251,12 +251,27 @@ describe("scoring (game data 2.18)", () => {
     expect(cityScore(c)).toBe(250);
   });
 
-  it("Perfection bonus = round(handicap/5 + ln(opponents)/ln(11.4), 2) on top of 100%", () => {
-    for (const [difficulty, h] of [["easy", 0], ["normal", 1], ["hard", 2], ["crazy", 4]] as const) {
+  it("Perfection bonus = 100% + difficulty part (0/20/40/80) + opponent part, from the app's setup-screen table", () => {
+    // 3 opponents: the opponent part is +30%
+    for (const [difficulty, percent] of [["easy", 130], ["normal", 150], ["hard", 170], ["crazy", 210]] as const) {
       const s = createGame({ mapSize: 16, players: 4, mode: "perfection", difficulty, seed: 1, clans: ["imperius", "imperius", "imperius", "imperius"] });
-      const bonus = 1 + Math.round((h / 5 + Math.log(3) / Math.log(11.4)) * 100) / 100;
-      expect(perfectionRating(s, 0)).toBe(Math.round(scoreOf(s, 0) * bonus));
+      expect(perfectionRating(s, 0)).toBe(Math.round(scoreOf(s, 0) * (percent / 100)));
     }
+  });
+
+  it("Perfection bonus at 15 opponents is 165 / 185 / 205 / 245% for Easy / Normal / Hard / Crazy (setup screen, 25 Nov 2026)", () => {
+    for (const [difficulty, percent] of [["easy", 165], ["normal", 185], ["hard", 205], ["crazy", 245]] as const) {
+      const s = createGame({ mapSize: 16, players: 16, mode: "perfection", difficulty, seed: 1, clans: Array(16).fill("imperius") });
+      expect(perfectionRating(s, 0)).toBe(Math.round(scoreOf(s, 0) * (percent / 100)));
+    }
+  });
+
+  it("Perfection bonus on Crazy for 1..15 opponents reads 180, 200, 210, 217, ... 245% (setup screen, 25 Nov 2026)", () => {
+    const shown = [180, 200, 210, 217, 222, 226, 229, 232, 234, 237, 239, 240, 242, 244, 245];
+    shown.forEach((percent, i) => {
+      const s = createGame({ mapSize: 16, players: i + 2, mode: "perfection", difficulty: "crazy", seed: 1, clans: Array(i + 2).fill("imperius") });
+      expect(perfectionRating(s, 0)).toBe(Math.round(scoreOf(s, 0) * (percent / 100)));
+    });
   });
 });
 

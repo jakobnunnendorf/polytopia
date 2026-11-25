@@ -275,10 +275,10 @@ describe("scoring", () => {
     expect(cityScore(c)).toBe(200); // + 3 population (15) + 35
   });
 
-  it("Perfection rating = score x (1 + round(handicap/5 + ln(opponents)/ln(11.4), 2)) with the star thresholds", () => {
+  it("Perfection rating = score x the difficulty bonus (Hard, 3 opponents: 170%) with the star thresholds", () => {
     const s = blank(4, { mode: "perfection", difficulty: "hard" });
     city(s, 0, 2, 2, true);
-    expect(perfectionRating(s, 0)).toBe(Math.round(scoreOf(s, 0) * (1 + 0.85)));
+    expect(perfectionRating(s, 0)).toBe(Math.round(scoreOf(s, 0) * 1.7));
     expect([2_999, 3_000, 10_000, 50_000, 100_000].map(perfectionStars)).toEqual([0, 1, 2, 3, 4]);
   });
 });
