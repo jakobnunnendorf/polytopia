@@ -45,8 +45,9 @@ The tangled file of the current note is loaded first.  Phrases end with `;;'."
                            phrases ""))
          (output (with-temp-buffer
                    (insert input)
-                   (call-process-region (point-min) (point-max) "ocaml" t t nil
-                                        "-noprompt" "-no-version" "-init" notes-ml)
+                   (let ((default-directory notes-out)) ; where pictures.ml is
+                     (call-process-region (point-min) (point-max) "ocaml" t t nil
+                                          "-noprompt" "-no-version" "-init" notes-ml))
                    (buffer-string)))
          (answers (split-string output
                                 (concat (regexp-quote notes-mark) "\n- : unit = ()\n"))))
@@ -138,8 +139,9 @@ or 22 (left), a spanning arrow with its words 32, words are 8 wide a letter."
          (png (expand-file-name (format "%s.png" pic) notes-out))
          (output (with-temp-buffer
                    (insert (format "print_string (%s);;\n" body))
-                   (call-process-region (point-min) (point-max) "ocaml" t t nil
-                                        "-noprompt" "-no-version" "-init" notes-ml)
+                   (let ((default-directory notes-out))
+                     (call-process-region (point-min) (point-max) "ocaml" t t nil
+                                          "-noprompt" "-no-version" "-init" notes-ml))
                    (buffer-string)))
          (json (if (string-match "\\`\\({.*}\\)- : unit = ()" output)
                    (match-string 1 output)
@@ -359,9 +361,13 @@ document.querySelectorAll('#content h2[id], #content h3[id]').forEach(function (
       ;; 1. tangle
       ;;    (the note names its own file: `:tangle _build/<name>.ml')
       (org-babel-tangle nil nil "ocaml")
+      ;;    (a note that draws scenes loads pictures.ml from the directory it runs in)
+      (copy-file (expand-file-name "pictures.ml" notes-root)
+                 (expand-file-name "pictures.ml" notes-out) t)
       ;; 2. the unit tests
       (with-temp-buffer
-        (unless (zerop (call-process "ocaml" nil t nil notes-ml))
+        (unless (zerop (let ((default-directory notes-out))
+                         (call-process "ocaml" nil t nil notes-ml)))
           (error "%s does not pass its unit tests:\n%s" notes-ml (buffer-string))))
       ;; 3. export
       (org-export-to-file 'html html))

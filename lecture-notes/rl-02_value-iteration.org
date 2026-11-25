@@ -29,8 +29,9 @@ A journey of a thousand miles begins with a single step.
   ([[file:rl-02_value-iteration.ml][rl-02_value-iteration.ml]]).  It is generated from this page, and
   every interactive session below was obtained by running it.
 - The pictures are drawn by the game itself: the OCaml code describes a
-  scene (function ~picture~, at the end of the file), and the game's own
-  tile and unit components draw it.
+  scene (function ~picture~, at the end of the file, with
+  [[file:pictures.ml][pictures.ml]], which goes in the same directory),
+  and the game's own tile and unit components draw it.
 
 * The map
 
@@ -651,60 +652,24 @@ Elder: That sounds like the rest of the course.
 #+begin_src ocaml :exports none
 (* ********** *)
 
-(* Pictures: a scene for the game to draw (see app/scene.tsx), as JSON. *)
-(* A tile is labelled with its value if this value is not 0.            *)
+(* Pictures: the scenes of this note, for the game to draw. *)
+(* The marks and the function scene are in pictures.ml.     *)
 
-let json_of_list strings =
-  "[" ^ String.concat "," strings ^ "]";;
+#use "pictures.ml";;
 
-(* A mark is an arrow, an outline or a few words on the picture, to tie it to the code. *)
-
-type mark =
-  | Across of string                       (* an arrow over all the columns, above the map *)
-  | Down of string                         (* an arrow over all the rows, left of the map  *)
-  | Beside of (int * int) * string         (* an arrow to a tile, from the right of the map *)
-  | Below of (int * int) * string          (* an arrow to a tile, from below the map *)
-  | Outlined of (int * int) list * string  (* these tiles, tinted, and words for them *)
-;;
-
-let show_tile (x, y) =
-  Printf.sprintf "(%d, %d)" x y;;
-
-let json_of_mark mark =
-  match mark with
-  | Across text ->
-     Printf.sprintf "{\"kind\":\"across\",\"text\":%S}" text
-  | Down text ->
-     Printf.sprintf "{\"kind\":\"down\",\"text\":%S}" text
-  | Beside ((x, y), text) ->
-     Printf.sprintf "{\"kind\":\"beside\",\"x\":%d,\"y\":%d,\"text\":%S}" x y text
-  | Below ((x, y), text) ->
-     Printf.sprintf "{\"kind\":\"below\",\"x\":%d,\"y\":%d,\"text\":%S}" x y text
-  | Outlined (tiles, text) ->
-     Printf.sprintf "{\"kind\":\"outlined\",\"tiles\":%s,\"text\":%S}"
-       (json_of_list (List.map (fun (x, y) -> Printf.sprintf "[%d,%d]" x y) tiles)) text;;
+(* A tile is labelled with its value if this value is not 0. *)
 
 let picture ?(ride = []) ?rider ?(marks = []) ?(axes = false) f =
   let label p =
     if enterable p && p <> village && value_at f p > 0.
-    then Printf.sprintf "\"%.2f\"" (value_at f p)
-    else "null"
-  and json_of_tile (x, y) =
-    Printf.sprintf "[%d,%d]" x y
-  in let rows = json_of_list
-                  (List.map (Printf.sprintf "\"%s\"") (Array.to_list the_map))
-     and labels = json_of_list
-                    (List.init height (fun y ->
-                         json_of_list (List.init width (fun x -> label (x, y)))))
-     and path = json_of_list (List.map json_of_tile ride)
-     and unit = match (rider, ride) with
-                | (Some (x, y), _) | (None, (x, y) :: _) ->
-                   Printf.sprintf "{\"type\":\"rider\",\"x\":%d,\"y\":%d}" x y
-                | (None, []) ->
-                   "null"
-     in Printf.sprintf
-          "{\"rows\":%s,\"labels\":%s,\"path\":%s,\"unit\":%s,\"marks\":%s,\"axes\":%b,\"tile\":64}"
-          rows labels path unit (json_of_list (List.map json_of_mark marks)) axes;;
+    then Some (Printf.sprintf "%.2f" (value_at f p))
+    else None
+  and piece = match (rider, ride) with
+              | (Some p, _) | (None, p :: _) ->
+                 Some ("rider", p)
+              | (None, []) ->
+                 None
+  in scene ~label ~path:ride ?piece ~marks ~axes the_map;;
 #+end_src
 
 * Course material
