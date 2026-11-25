@@ -8,6 +8,7 @@
 #+NEXT: Policy iteration
 #+PROPERTY: header-args:ocaml :tangle _build/rl-02_value-iteration.ml :mkdirp yes :eval no
 #+PROPERTY: header-args:toplevel :exports results :results verbatim
+#+PROPERTY: header-args:scene :exports results :results raw
 
 The goal of this lecture note is to compute, for every tile of a small
 Polytopia map, how good it is for a rider to stand there when a village
@@ -27,6 +28,9 @@ A journey of a thousand miles begins with a single step.
 - The OCaml code for the present lecture note
   ([[file:rl-02_value-iteration.ml][rl-02_value-iteration.ml]]).  It is generated from this page, and
   every interactive session below was obtained by running it.
+- The pictures are drawn by the game itself: the OCaml code describes a
+  scene (function ~picture~, at the end of the file), and the game's own
+  tile and unit components draw it.
 
 * The map
 
@@ -63,6 +67,11 @@ A tile is denoted by a pair ~(x, y)~, where ~x~ is its column, counted
 from the left, and ~y~ is its row, counted from the top, both starting
 at 0.  So the village is at ~(7, 0)~, in the top-right corner, and a
 block of forest stands between it and the western half of the map.
+Here is the map as the game draws it, with a rider waiting at ~(0, 5)~:
+
+#+begin_src scene :pic rl-02_the-map
+picture ~rider:(0, 5) zero_value
+#+end_src
 
 #+begin_src ocaml
 type terrain = Field | Forest | Mountain | Water | Village;;
@@ -290,7 +299,12 @@ show (bellman 0.9 (bellman 0.9 zero_value));;
 In words: after one application, only the tiles that are one turn away
 from the village are worth something.  After two, the tiles that are two
 turns away have joined them, at 0.90.  Each application lets the worth
-of the village spread by one more turn.
+of the village spread by one more turn.  On the map, after two
+applications (a tile without a number is worth 0 so far):
+
+#+begin_src scene :pic rl-02_two-sweeps
+picture (bellman 0.9 (bellman 0.9 zero_value))
+#+end_src
 
 * Unit tests for value iteration
 
@@ -370,6 +384,10 @@ aloud: the zero case is $V_0$, and the successor case is $T^*$.
 show (value_iteration 0.9 20);;
 #+end_src
 
+#+begin_src scene :pic rl-02_the-values
+picture (value_iteration 0.9 20)
+#+end_src
+
 * Interlude
 
 Rider: So I am worth 0.73 at home, in the bottom-left corner.
@@ -417,6 +435,12 @@ from a given tile to the village:
 #+begin_src toplevel
 ride 0.9 (value_iteration 0.9 20) (0, 5);;
 ride 0.9 (value_iteration 0.9 20) (0, 0);;
+#+end_src
+
+The first of these two rides, on the map:
+
+#+begin_src scene :pic rl-02_the-ride
+(let v = value_iteration 0.9 20 in picture ~ride:(ride 0.9 v (0, 5)) v)
 #+end_src
 
 * Interlude
@@ -599,6 +623,37 @@ Elder: Then the tile you stand on is no longer the whole state.
 Rider: That sounds like another lecture note.
 
 Elder: That sounds like the rest of the course.
+
+#+begin_src ocaml :exports none
+(* ********** *)
+
+(* Pictures: a scene for the game to draw (see app/scene.tsx), as JSON. *)
+(* A tile is labelled with its value if this value is not 0.            *)
+
+let json_of_list strings =
+  "[" ^ String.concat "," strings ^ "]";;
+
+let picture ?(ride = []) ?rider f =
+  let label p =
+    if enterable p && p <> village && value_at f p > 0.
+    then Printf.sprintf "\"%.2f\"" (value_at f p)
+    else "null"
+  and json_of_tile (x, y) =
+    Printf.sprintf "[%d,%d]" x y
+  in let rows = json_of_list
+                  (List.map (Printf.sprintf "\"%s\"") (Array.to_list the_map))
+     and labels = json_of_list
+                    (List.init height (fun y ->
+                         json_of_list (List.init width (fun x -> label (x, y)))))
+     and path = json_of_list (List.map json_of_tile ride)
+     and unit = match (rider, ride) with
+                | (Some (x, y), _) | (None, (x, y) :: _) ->
+                   Printf.sprintf "{\"type\":\"rider\",\"x\":%d,\"y\":%d}" x y
+                | (None, []) ->
+                   "null"
+     in Printf.sprintf "{\"rows\":%s,\"labels\":%s,\"path\":%s,\"unit\":%s,\"tile\":64}"
+          rows labels path unit;;
+#+end_src
 
 * Course material
 

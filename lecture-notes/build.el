@@ -10,10 +10,13 @@
 ;; 2. run that file with ocaml, so the unit tests in it must pass,
 ;; 3. export the note to _build/<name>.html.  During the export every
 ;;    `toplevel' block is fed to the OCaml toplevel, phrase by phrase, after
-;;    loading the tangled file, and is replaced by the resulting transcript.
+;;    loading the tangled file, and is replaced by the resulting transcript;
+;;    and every `scene' block is replaced by a picture of a game scene, drawn
+;;    by the game's own components (see "game scenes" below).
 ;;
-;; So every number and every table on a page was computed by the code on
-;; that page.  Needs GNU Emacs with Org (9.6 or later) and OCaml on the PATH.
+;; So every number, table and picture on a page was computed by the code on
+;; that page.  Needs GNU Emacs with Org (9.6 or later) and OCaml on the PATH;
+;; for the pictures also the app's node_modules and Google Chrome (macOS path).
 
 (require 'cl-lib)
 (require 'org)
@@ -61,6 +64,86 @@ The tangled file of the current note is loaded first.  Phrases end with `;;'."
 (defun org-babel-execute:toplevel (body _params)
   "Org Babel entry point for the pseudo-language `toplevel'."
   (notes-toplevel-transcript body))
+
+;;; ---------- game scenes ----------
+
+;; A `scene' block holds an OCaml expression that evaluates to a scene (JSON,
+;; see app/scene.tsx).  The scene is drawn by the game's own components, in
+;; the web build of the app, and photographed with headless Chrome into
+;; _build/<pic>.png.  The pictures use the game's sprites and are for local
+;; viewing only: _build is not committed.
+;;
+;; The web build is exported once into _build/app (about half a minute).
+;; Delete that directory to export it again after changing the game's art.
+
+(defconst notes-repo (file-name-directory (directory-file-name notes-root)))
+(defconst notes-app (expand-file-name "app/" notes-out))
+(defconst notes-scene-port "8099")
+(defconst notes-scene-url (format "http://127.0.0.1:%s/scene/" notes-scene-port))
+(defconst notes-chrome "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+
+(defun notes-scene-server-answers ()
+  (zerop (call-process "curl" nil nil nil "-s" "-f" "-o" "/dev/null" "-m" "2" notes-scene-url)))
+
+(defun notes-ensure-scene-server ()
+  "Export the web build if it is missing, and serve it unless it is served already."
+  (unless (file-exists-p (expand-file-name "scene/index.html" notes-app))
+    (message "Exporting the web build of the app into %s ..." notes-app)
+    (let ((default-directory notes-repo)
+          (process-environment (cons "CI=1" process-environment)))
+      (with-temp-buffer
+        (unless (zerop (call-process "npx" nil t nil "expo" "export" "-p" "web"
+                                     "--output-dir" notes-app))
+          (error "The web build could not be exported:\n%s" (buffer-string)))))
+    ;; the router knows the page as /scene, a plain file server as /scene/
+    (make-directory (expand-file-name "scene" notes-app) t)
+    (copy-file (expand-file-name "scene.html" notes-app)
+               (expand-file-name "scene/index.html" notes-app) t))
+  (unless (notes-scene-server-answers)
+    (start-process "notes-scenes" nil "/usr/bin/python3" "-m" "http.server" notes-scene-port
+                   "--bind" "127.0.0.1" "--directory" notes-app)
+    (let ((tries 0))
+      (while (and (not (notes-scene-server-answers)) (< tries 20))
+        (sleep-for 0.25)
+        (setq tries (1+ tries))))
+    (unless (notes-scene-server-answers)
+      (error "No scene server at %s" notes-scene-url))))
+
+(defun org-babel-execute:scene (body params)
+  "Org Babel entry point for the pseudo-language `scene': a picture of a game scene."
+  (let* ((pic (or (cdr (assq :pic params)) (error "A scene block needs a :pic name")))
+         (png (expand-file-name (format "%s.png" pic) notes-out))
+         (output (with-temp-buffer
+                   (insert (format "print_string (%s);;\n" body))
+                   (call-process-region (point-min) (point-max) "ocaml" t t nil
+                                        "-noprompt" "-no-version" "-init" notes-ml)
+                   (buffer-string)))
+         (json (if (string-match "\\`\\({.*}\\)- : unit = ()" output)
+                   (match-string 1 output)
+                 (error "Not a scene:\n%s" output)))
+         (scene (json-parse-string json))
+         (tile (gethash "tile" scene 64))
+         (rows (gethash "rows" scene))
+         (width (+ 16 (* tile (length (aref rows 0)))))
+         (height (+ 16 (* tile (length rows)))))
+    (notes-ensure-scene-server)
+    ;; The app shows "Loading the game engine..." until its WebAssembly engine
+    ;; is compiled, and Chrome's clock does not wait for that.  A picture of
+    ;; the loading screen is a few kilobytes, a scene well over 50: retake it.
+    (let ((tries 0) (size 0))
+      (while (and (< size 30000) (< tries 8))
+        (when (file-exists-p png) (delete-file png))
+        (call-process notes-chrome nil nil nil
+                      "--headless=new" "--disable-gpu" "--hide-scrollbars"
+                      "--force-device-scale-factor=2" "--virtual-time-budget=8000"
+                      (format "--window-size=%d,%d" width height)
+                      (concat "--screenshot=" png)
+                      (concat notes-scene-url "#" (base64url-encode-string json t)))
+        (setq size (or (file-attribute-size (file-attributes png)) 0)
+              tries (1+ tries)))
+      (when (< size 30000)
+        (error "No scene in %s after %d tries" png tries)))
+    (format "#+ATTR_HTML: :width %d :class scene\n[[file:%s.png]]" width pic)))
 
 ;;; ---------- colours for OCaml code ----------
 

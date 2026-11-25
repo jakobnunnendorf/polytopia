@@ -157,6 +157,9 @@ pre .nc { color: #0e84b5; font-weight: bold; }
 .epigraph p { text-align: right !important; margin: 0; }
 .epigraph p:last-child { font-style: normal; }
 
+/* a game scene, photographed at twice its displayed size */
+img.scene { display: block; max-width: 100%; height: auto; margin: 1em 0; }
+
 table { border-collapse: collapse; margin: 1em 0; }
 th { background-color: #ede; }
 th, td { padding: 2px 10px; border-bottom: 1px solid #aaa; text-align: left; }
