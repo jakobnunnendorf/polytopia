@@ -34,6 +34,7 @@ import { arena, serverChat } from "@/components/game/arenaClient";
 import { BUILTIN_MODELS, DEFAULT_MODEL, createAgent } from "@/logic/agents/registry";
 import type { ModelSpec } from "@/logic/agents/types";
 import { finishRecord, latestState, recordStep, startRecord, type GameRecord, type Seat } from "@/logic/arena/record";
+import WatchView from "@/components/game/WatchView";
 
 const clanColor = (p: number) => PLAYER_COLORS[p % PLAYER_COLORS.length];
 
@@ -204,6 +205,15 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     [resumed, params.seats, params.players, watch],
   );
   const humanSeats = useMemo(() => seats.flatMap((s, i) => (s.kind === "human" ? [i] : [])), [seats]);
+  // models in every seat (no arena server to play it, or ?watch=1): show the watch view with the
+  // speed control, leaderboard and events, as /analyse does for a game the server plays
+  const spectate = humanSeats.length === 0;
+  // ms per move of a spectated game (the speed control sets it) and whether it is paused;
+  // a game with a human keeps the fixed pace of 480 ms
+  const [paceMs, setPaceMs] = useState(500);
+  const paceRef = useRef(paceMs);
+  paceRef.current = spectate ? paceMs : 480;
+  const [paused, setPaused] = useState(false);
 
   const mapType = (params.mapType as MapType | undefined) ?? mapTypeFor((params.mode as GameMode) ?? "perfection") ?? "drylands";
   const [state, setState] = useState<GameState>(() => {
@@ -285,11 +295,10 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   // models play their turns; slow models (the LLM) redraw after every move
   useEffect(() => {
     const agent = agents[state.current];
-    if (state.over || !agent) return;
+    if (state.over || !agent || paused) return;
     let cancelled = false;
     const p = state.current;
     // every bot move takes the same time (thinking included), so it is pleasant to follow
-    const PACE = 480;
     (async () => {
       await wait(300);
       if (agent.spec.kind === "llm") setThinking(agent.spec.name);
@@ -298,7 +307,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         const t0 = Date.now();
         const a = n++ > 300 ? ({ type: "endTurn" } as Action) : await agent.act(stateRef.current);
         if (cancelled) return;
-        await wait(Math.max(0, PACE - (Date.now() - t0)));
+        await wait(Math.max(0, paceRef.current - (Date.now() - t0)));
         if (cancelled) return;
         setState(commit(a));
       }
@@ -310,7 +319,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     return () => {
       cancelled = true;
     };
-  }, [state.current, state.turn, state.over, agents, watch, commit]);
+  }, [state.current, state.turn, state.over, agents, watch, commit, paused]);
 
   const act = useCallback(
     (a: Action) => {
@@ -494,6 +503,29 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     .map((p) => ({ p, score: scoreOf(state, p.id) }))
     .sort((a, b) => b.score - a.score);
   const winnerClan = state.winner !== null ? name("clan", state.players[state.winner].clan) : "";
+
+  // the watch view replays the record; a new object per move tells it the record grew
+  const watchRec = useMemo(() => (spectate ? { ...recRef.current } : null), [spectate, state]);
+  if (spectate && watchRec) {
+    return (
+      <ImageBackground source={require("@/assets/images/menu-background.webp")} resizeMode="cover" style={{ flex: 1, backgroundColor: UI.dusk }}>
+        <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#16213a99" }} />
+        <WatchView
+          rec={watchRec}
+          live
+          local={{
+            paceMs,
+            onPace: setPaceMs,
+            paused,
+            onPause: setPaused,
+            onLeave: leave,
+            over: state.over,
+            footer: saved ? `Recorded in ${saved.file}` : (saveError ?? "Recording the game"),
+          }}
+        />
+      </ImageBackground>
+    );
+  }
 
   return (
     <ImageBackground
