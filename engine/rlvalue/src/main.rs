@@ -120,22 +120,70 @@ pub(crate) struct Setup {
     pub human: bool,
     /// the learner's weights under each strategic action (vi::ACTIONS); index 0 is the model unchanged
     pub learner: Vec<FullWeights>,
-    pub opp: FullWeights,
+    /// the opponent list (rl-gate's default: champions registry entries 0 and 1, then the anchor); seat i (1..)
+    /// plays opps[seat_assignment(seed, opps.len(), players - 1)[i - 1]]
+    pub opps: Vec<FullWeights>,
+}
+
+/// rl-gate's champions registry and fixed anchor (engine/gate/src/main.rs, decision of 25 Nov 2026 on #166)
+const REGISTRY: &str = "docs/rl-project/champions.json";
+const ANCHOR: &str = "greedy-full-probe";
+/// rl-gate's random stream for the seat shuffle
+const SEAT_STREAM: u64 = 0x5EA7_5EA7_0000_0003;
+
+/// rl-gate's seat_assignment, copied exactly: the opponent list repeated to fill the seats, then a Fisher-Yates
+/// permutation drawn only from the seed
+fn seat_assignment(seed: i64, k: usize, seats: usize) -> Vec<usize> {
+    let mut v: Vec<usize> = (0..seats).map(|i| i % k).collect();
+    let mut h = (seed as u64) ^ SEAT_STREAM;
+    for i in (1..seats).rev() {
+        h = splitmix64(h);
+        let j = (h % (i as u64 + 1)) as usize;
+        v.swap(i, j);
+    }
+    v
+}
+
+/// rl-gate's default opponent list: registry entries 0 and 1 (current and previous champion), then the anchor
+fn default_opponents() -> R<Vec<String>> {
+    let f = repo_root().join(REGISTRY);
+    let text = std::fs::read_to_string(&f).map_err(|e| format!("{}: {e}", f.display()))?;
+    let v: Value = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", f.display()))?;
+    let c = v["champions"].as_array().ok_or("champions registry: no champions array")?;
+    if c.len() < 2 {
+        return Err("champions registry: needs at least 2 entries".into());
+    }
+    let mut out = Vec::new();
+    for e in &c[..2] {
+        if e["kind"].as_str() != Some("greedy-model") {
+            return Err(format!("champions registry: {} is not a greedy model; rl-value can only play greedy models", e["id"]));
+        }
+        out.push(e["id"].as_str().ok_or("champions registry: entry without id")?.to_string());
+    }
+    out.push(ANCHOR.to_string());
+    Ok(out)
 }
 
 /// the setup from the command line (shared by collect, check and eval)
 pub(crate) fn setup(m: &HashMap<String, String>) -> R<(Setup, String, String)> {
     let model = m.get("model").cloned().unwrap_or("greedy-full-probe".into());
-    let opp = m.get("opp").cloned().unwrap_or("greedy-full-probe".into());
+    let opp_ids: Vec<String> = match m.get("opp") {
+        Some(l) => l.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect(),
+        None => default_opponents()?,
+    };
+    let opp = opp_ids.join(",");
     let base = model_weights(&model)?;
     let su = Setup {
-        players: get(m, "players", 3)?,
+        players: get(m, "players", 4)?,
         tribe: m.get("tribe").cloned().unwrap_or("xinxi".into()),
         difficulty: m.get("difficulty").cloned().unwrap_or("crazy".into()),
         human: get::<i32>(m, "human", 1)? != 0,
         learner: vi::action_weights(&base, get(m, "boost", 2.0)?),
-        opp: model_weights(&opp)?,
+        opps: opp_ids.iter().map(|id| model_weights(id)).collect::<R<_>>()?,
     };
+    if su.opps.is_empty() || su.opps.len() > su.players - 1 {
+        return Err(format!("{} opponents for {} opponent seats", su.opps.len(), su.players - 1));
+    }
     Ok((su, model, opp))
 }
 
@@ -152,7 +200,7 @@ pub(crate) fn features(s: &polycore::types::GameState, p: i32) -> State {
 }
 
 /// one row per learner turn: state, score, terminal flag 0, the strategic action taken; then the terminal row
-/// (final turn and score, flag 1, action 0). `drive` picks the learner's action at the start of each of its turns.
+/// (final turn and score, flag 1, and 1 in the action column if the learner won). `drive` picks the learner's action at the start of each of its turns.
 pub(crate) fn play(seed: i64, su: &Setup, drive: &vi::Driver) -> R<Vec<[i32; 9]>> {
     let tribes = tribes_for(seed, &su.tribe, su.players);
     let opts = NewGameOptions::from_json(&json!({
@@ -164,6 +212,7 @@ pub(crate) fn play(seed: i64, su: &Setup, drive: &vi::Driver) -> R<Vec<[i32; 9]>
     let mut last = (-1, -1);
     let mut moves = 0;
     let mut act = 0usize;
+    let assign = seat_assignment(seed, su.opps.len(), su.players - 1);
     while !s.over && moves < MAX_MOVES && s.turn <= MAX_TURN {
         if s.current == LEARNER && last != (s.turn, s.current) {
             let f = features(&s, LEARNER);
@@ -171,13 +220,15 @@ pub(crate) fn play(seed: i64, su: &Setup, drive: &vi::Driver) -> R<Vec<[i32; 9]>
             rows.push([f[0], f[1], f[2], f[3], f[4], f[5], st::score_of(&s, LEARNER), 0, act as i32]);
         }
         last = (s.turn, s.current);
-        let w = if s.current == LEARNER { &su.learner[act] } else { &su.opp };
+        let w = if s.current == LEARNER { &su.learner[act] } else { &su.opps[assign[s.current as usize - 1]] };
         let a = full_bot_step(&s, w);
         apply_action(&mut s, &a)?;
         moves += 1;
     }
     let f = features(&s, LEARNER);
-    rows.push([f[0], f[1], f[2], f[3], f[4], f[5], st::score_of(&s, LEARNER), 1, 0]);
+    // terminal row: the action column holds 1 if the learner won
+    let won = (s.winner == Some(LEARNER)) as i32;
+    rows.push([f[0], f[1], f[2], f[3], f[4], f[5], st::score_of(&s, LEARNER), 1, won]);
     Ok(rows)
 }
 
@@ -237,6 +288,8 @@ pub(crate) struct Traj {
     /// the strategic action taken at each learner turn (0 in files without an action column)
     pub actions: Vec<u8>,
     pub fin: i32,
+    /// the learner won (files from before the won flag: false)
+    pub won: bool,
 }
 
 pub(crate) fn read(path: &str) -> R<(Value, Vec<Traj>)> {
@@ -255,13 +308,14 @@ pub(crate) fn read(path: &str) -> R<(Value, Vec<Traj>)> {
         }
         let v: Vec<i64> = line.split('\t').map(|x| x.parse().map_err(|_| format!("{path}: bad row {line:?}"))).collect::<R<_>>()?;
         let seed = v[0];
-        let t = cur.get_or_insert_with(|| (seed, Traj { states: vec![], scores: vec![], actions: vec![], fin: 0 }));
+        let t = cur.get_or_insert_with(|| (seed, Traj { states: vec![], scores: vec![], actions: vec![], fin: 0, won: false }));
         if t.0 != seed {
             return Err(format!("{path}: seed {} has no terminal row", t.0));
         }
         if v[8] == 1 {
             let (_, mut tr) = cur.take().unwrap();
             tr.fin = v[7] as i32;
+            tr.won = v.get(9).copied() == Some(1);
             out.push(tr);
         } else {
             t.1.states.push([v[1] as i32, v[2] as i32, v[3] as i32, v[4] as i32, v[5] as i32, v[6] as i32]);
@@ -496,7 +550,29 @@ fn fit_cmd(m: &HashMap<String, String>) -> R<()> {
         v["turn"] = json!(t);
         v
     }).collect();
-    let summary = json!({"tool": "rl-value fit", "features": FEATURES, "trainSetup": meta, "testSetup": meta_test,
+    let mut fins: Vec<f64> = test.iter().map(|t| t.fin as f64).collect();
+    fins.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let q = |p: f64| {
+        let h = (fins.len() as f64 - 1.0) * p;
+        let lo = h.floor() as usize;
+        let hi = (lo + 1).min(fins.len() - 1);
+        fins[lo] + (h - lo as f64) * (fins[hi] - fins[lo])
+    };
+    let nt = test.len() as f64;
+    let mean_f = fins.iter().sum::<f64>() / nt;
+    let sd_f = (fins.iter().map(|x| (x - mean_f).powi(2)).sum::<f64>() / (nt - 1.0)).sqrt();
+    let wins = test.iter().filter(|t| t.won).count() as f64;
+    let early = test.iter().filter(|t| t.states.len() < 30).count();
+    // Wilson 95% interval of the win rate
+    let (pw, z) = (wins / nt, 1.959964);
+    let centre = (pw + z * z / (2.0 * nt)) / (1.0 + z * z / nt);
+    let half = z * (pw * (1.0 - pw) / nt + z * z / (4.0 * nt * nt)).sqrt() / (1.0 + z * z / nt);
+    let outcome = json!({"games": test.len(), "meanFinal": mean_f, "meanFinalCI95": [mean_f - z * sd_f / nt.sqrt(), mean_f + z * sd_f / nt.sqrt()],
+                         "sdFinal": sd_f, "p10Final": q(0.1), "medianFinal": q(0.5), "p90Final": q(0.9),
+                         "winRate": pw, "winRateCI95": [centre - half, centre + half], "gamesEndedBeforeTurn30": early});
+    println!("test games: mean final {mean_f:.0} (sd {sd_f:.0}), median {:.0}, p10 {:.0}, win rate {:.2}% [{:.2}, {:.2}], ended early {early}",
+             q(0.5), q(0.1), 100.0 * pw, 100.0 * (centre - half), 100.0 * (centre + half));
+    let summary = json!({"tool": "rl-value fit", "features": FEATURES, "testOutcome": outcome, "trainSetup": meta, "testSetup": meta_test,
                          "trainGamesAvailable": train.len(), "testGames": test.len(), "curve": curve, "perTurn": per_turn});
     let f = out.join("value-summary.json");
     std::fs::write(&f, serde_json::to_string_pretty(&summary).unwrap()).map_err(|e| e.to_string())?;
@@ -516,7 +592,7 @@ fn fit_cmd(m: &HashMap<String, String>) -> R<()> {
 }
 
 const USAGE: &str = "usage:
-  rl-value collect --out <file.tsv> [--games 1000] [--seed-start 1] [--driver bot] [--model greedy-full-probe] [--opp greedy-full-probe]
+  rl-value collect --out <file.tsv> [--games 1000] [--seed-start 1] [--driver bot] [--model greedy-full-probe] [--opp a,b,c]
                    [--players 3] [--difficulty crazy] [--tribe xinxi] [--human 1] [--threads 0]
   rl-value fit --train <file.tsv> --test <file.tsv> --out <dir> [--sizes 1000,10000,...]
   rl-value check --games 2000 --seed-start 600000000 --out <file.json>     (each action played every turn)
@@ -550,7 +626,7 @@ mod tests {
     use super::*;
 
     fn tr(states: &[State], scores: &[i32], fin: i32) -> Traj {
-        Traj { states: states.to_vec(), scores: scores.to_vec(), actions: vec![0; states.len()], fin }
+        Traj { states: states.to_vec(), scores: scores.to_vec(), actions: vec![0; states.len()], fin, won: false }
     }
 
     #[test]

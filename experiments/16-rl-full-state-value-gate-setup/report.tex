@@ -1,0 +1,88 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 16-rl-full-state-value-gate-setup
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+\textbf{The idea (David, 25 Nov 2026, issue \#166).} Re-run experiment 13 on the updated environment and the setup
+agreed on \#166, so that David's full-state track and Jakob's feature-by-feature track (experiment 14) are measured
+on the same games. Method unchanged: the state is six exact integers (turn, cities, income, units, sum of city
+levels, techs), no bins; $V(s_t) = \mathbb{E}[\text{final score} - \text{score}_t \mid s_t]$, the remaining score
+of the bot's own play.
+
+\textbf{Prediction} (before the run; from experiment 13, adjusted for more opponents and the new opponent model):
+\begin{enumerate}
+  \item \emph{Coverage stays high:} 93--97\% of held-out learner turns land in a state seen in the 300{,}000
+        training games (13: 96.7\%); more opponents make games more varied, so slightly lower.
+  \item \emph{Same overall picture:} model-based $V$ is 6--12\% below the turn baseline in RMSE over all held-out
+        turns (13: 8.4\%), and 20--30\% below it at turns 20--25 (13: 25--26\%).
+  \item \emph{Same split between the estimators:} Monte Carlo is better in the early turns, the model-based $V$ in
+        the late turns, with the crossover between turns 10 and 18 (13: turn 15).
+  \item \emph{More eliminations:} with three opponents more learners are eliminated before turn 30: 15--25\% of
+        held-out games (13: 12.9\%).
+\end{enumerate}
+\textbf{Against experiment 13's conclusion:} if the model-based $V$ is not below the turn baseline at 300{,}000
+games, or the estimator split reverses, 13's result was specific to its setup.
+
+\section{Mechanism}
+As experiment 13 (\texttt{rl-value collect} and \texttt{fit}, \texttt{engine/rlvalue}): the state is read at the start
+of each learner turn; reward = change in raw score; three estimators on the same training games: model-based
+(certainty equivalence: transitions $(r, s')$ per state, backward induction from the last turn), Monte Carlo
+(mean return-to-go per state) and the turn baseline (mean return-to-go per turn). A held-out state not seen in
+training gets the turn baseline. New in the tool: the terminal row records whether the learner won, so the report
+gives the win rate.
+
+\section{Setup}
+\textbf{What changed against experiment 13} (everything as agreed on \#166, 25 Nov):
+\begin{itemize}
+  \item Engine of \texttt{dev} at 3fa9d33: bot opinions follow the decompiled model (\#174), the Perfection bonus
+        table (\#172; raw scores unaffected).
+  \item 4 players (3 opponents, the symmetric layout) instead of 3.
+  \item Opponents as \texttt{rl-gate}'s defaults: \texttt{greedy-full-probe} and \texttt{greedy-full-combo} (entries 0
+        and 1 of \texttt{docs/rl-project/champions.json}) and the anchor \texttt{greedy-full-probe}, shuffled over
+        the seats per seed by the gate's \texttt{seat\_assignment}; opponents' tribes by the gate's rule.
+\end{itemize}
+Unchanged: Perfection, 16$\times$16 Continents, Crazy, learner Xin-xi as the human seat, learner
+\texttt{greedy-full-probe}. Training seeds $1\dots300{,}000$; held-out seeds $500{,}000{,}000\dots$ (10{,}000);
+both below the gate's evaluation seeds.
+
+\textbf{Sanity check: the games are the gate's games.} \texttt{rl-gate --candidate greedy-full-probe --base
+greedy-full-probe --n 500 --seed-start 1} and \texttt{rl-value collect --games 500 --seed-start 1} give the same
+seat-0 final score and the same win flag on 500 of 500 seeds. Unit tests pass (5).
+
+Commands (from \texttt{engine/}):
+\begin{verbatim}
+B=./target/release/rl-value
+$B collect --games 10000 --seed-start 500000000 --out target/rl-value/g4-test.tsv
+$B collect --games 300000 --seed-start 1 --out target/rl-value/g4-train.tsv
+$B fit --train target/rl-value/g4-train.tsv --test target/rl-value/g4-test.tsv \
+  --sizes 1000,3000,10000,30000,100000,300000 \
+  --out ../experiments/16-rl-full-state-value-gate-setup
+\end{verbatim}
+No gate verdict: there is no new player, only a value function of the bot's own play.
+
+\section{Results}
+\ExpResults
+
+\todo{claude}{Learning curve, per-turn table, state counts, outcome of the held-out games; comparison with 13.}
+
+\section{Behaviour}
+\todo{claude}{States the bot visits; eliminations.}
+
+\section{Interpretation}
+\todo{claude}{Which predictions held; what the new setup changes.}
+\todo{david}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\todo{claude}{Two or three concrete threats.}
+
+\section{Verdict and next step}
+\todo{claude}{Measurement, no gate; the base for experiment 15's re-run.}
+
+\section{Notes for the paper}
+\todo{claude}{Draft: the one-sentence claim and which figure or table would carry it.}
+\todo{david}{Is this worth a place in the talk or report? Where?}
+
+\end{document}

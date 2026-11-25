@@ -1,0 +1,26 @@
+{
+  "n": 16,
+  "slug": "rl-full-state-value-gate-setup",
+  "title": "Full integer state value function, re-run on the decided gate setup",
+  "kind": "method",
+  "issue": 166,
+  "pr": 0,
+  "date": "2026-11-25",
+  "status": "running",
+  "verdict": "pending",
+  "base": "greedy-full-probe",
+  "result": null,
+  "question": "Does experiment 13's result hold on the decided setup (3 opponents from the champions registry, the opponent model of #174): how well does a value function over the exact integer state predict the remaining score, and does the learned model or Monte Carlo predict better?",
+  "change": "Experiment 13 unchanged except the setup: rl-gate's defaults (4 players, opponents greedy-full-probe, greedy-full-combo and the anchor greedy-full-probe shuffled per seed, engine of dev at 3fa9d33).",
+  "method": "Training-set sizes 1k to 300k games (seeds 1..), 10,000 held-out games (seeds 500,000,000..), RMSE of the predicted remaining score",
+  "measured": "Held-out RMSE, 10,000 games",
+  "metric": "RMSE of predicted remaining score",
+  "setups": [
+    "Perfection, 16×16 continents, 4 players, Crazy, seat 0 Xin-Xi (human seat), learner greedy-full-probe; opponents greedy-full-probe, greedy-full-combo, greedy-full-probe (anchor), seats shuffled per seed (rl-gate defaults)"
+  ],
+  "knobs": [],
+  "headline": [
+    {"label": "Held-out RMSE of remaining score, 300k training games: turn baseline vs model-based V", "base": null, "new": null, "unit": "points", "better": "lower"}
+  ],
+  "runs": []
+}

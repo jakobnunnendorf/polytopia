@@ -412,7 +412,7 @@ mod tests {
     use super::*;
 
     fn tr(states: &[State], acts: &[u8], scores: &[i32], fin: i32) -> Traj {
-        Traj { states: states.to_vec(), scores: scores.to_vec(), actions: acts.to_vec(), fin }
+        Traj { states: states.to_vec(), scores: scores.to_vec(), actions: acts.to_vec(), fin, won: false }
     }
 
     #[test]
@@ -449,7 +449,7 @@ mod tests {
     fn bot_driver_is_action_zero_and_random_is_reproducible() {
         let (su, _, _) = setup(&HashMap::new()).unwrap();
         let rows = play(11, &su, &Driver::Bot).unwrap();
-        assert!(rows.iter().all(|r| r[8] == 0));
+        assert!(rows[..rows.len() - 1].iter().all(|r| r[8] == 0));
         let a = play(11, &su, &Driver::Random).unwrap();
         assert_eq!(a, play(11, &su, &Driver::Random).unwrap());
         let used: std::collections::HashSet<i32> = a.iter().take(a.len() - 1).map(|r| r[8]).collect();
