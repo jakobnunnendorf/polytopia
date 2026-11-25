@@ -1,0 +1,50 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 12-perturbation-probe
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+Jakob, 25 November: ``Could we also add noise to other weights and then analyse the distribution and if we find a statistically significant difference between the positive and negative parts of the noise then we adjust the weights in that direction?''
+
+Hill climbing accepts or rejects a whole bundle of changes on 300 to 400 games and found almost nothing in three runs of 100,000 games (experiments 1 to 3). The evolution-strategies trainer moves every weight on every step, significant or not. \textbf{Hypothesis:} measuring every knob in the same games and moving only the significant ones finds real single-knob gains that the other two trainers miss.
+
+\textbf{Prediction, written before the run.} (1) Between 2 and 8 knobs move in 100,000 games, mostly research and tech weights (a 1,200-game smoke test already showed \knob{greedy.research} and three tech weights above $|z|=3$). (2) The panel finish score rises by 0.5 to 1.5 points. (3) Head to head against the base the result is 50 to 54\,\%, probably not clear of 50\,\% at $\pm$5. \textbf{Counts against the idea:} the z-scores of all knobs look like pure noise (spread near 1, nothing repeats after a knob's evidence is reset), or the panel curve falls as knobs move.
+
+\section{Mechanism}
+Each sample draws a sign $s_k\in\{-1,+1\}$ for every knob $k$, independently, and builds two opposite variations of the centre $\theta$: $w^{\pm}_k=\theta_k\,e^{\pm\sigma s_k}$ with $\sigma=0.25$ (a knob at 0 stays 0 and is not probed). On one map, every game from both seats, $w^+$ plays $w^-$, and both play the same league opponent. The outcome is
+\[ x = \underbrace{\mathrm{finish}(w^+\text{ vs }w^-)-\tfrac12}_{\text{self}} \;+\; \underbrace{\mathrm{finish}(w^+\text{ vs }o)-\mathrm{finish}(w^-\text{ vs }o)}_{\text{league}} . \]
+Because the signs are independent, the least-squares slope of $x$ on $s_k$ is $\hat\beta_k=\frac1n\sum_i x_i s_{ik}$: half the difference between the games where the knob was nudged up and those where it was nudged down. Its standard error is $\mathrm{sd}(x s_k)/\sqrt n$ and $z_k=\hat\beta_k/\mathrm{SE}$. After each round a knob with $|z_k|\ge 3$ moves half a nudge in the better direction and its evidence is reset; all other knobs keep accumulating evidence. Code: \texttt{scripts/train-probe.ts}. Course link: least squares and its analytic solution [EMAI ML-13, ML 2.0 p.27].
+
+\section{Setup}
+Base: the combined champion (economy plan plus movement noise 2), which beat both of its parents. 10 rounds of 1,667 samples (6 games each), league \model{hill-v4}, \model{full-v1} and the base. A curve point (200 games against each of the seven panel models, the same maps as every sweep) every two rounds; the centre of the best curve point is saved and plays the final test.
+
+Sizing: one sample's outcome has a spread of about 48 points (smoke test), so after 100,000 games a knob that never moved has a standard error of about 0.4 points and is detected from about 1.1 points. With about 200 knobs and $|z|\ge 3$, about half a knob per round crosses the threshold by chance; such a knob has no real effect, so moving it should cost little, and the final test on unseen maps is the guard.
+
+Control: hill climbing (\texttt{train-full}) from the same base with the skill's settings and the same 100,000 games.
+
+\section{Results}
+\ExpResults
+
+\todo{claude}{Read the curve, the moves and the z-score distribution once both runs have finished.}
+
+\section{Behaviour}
+\todo{claude}{The sensitivity map: which knobs have a measurable effect at all, and which do not.}
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\section{Interpretation}
+\todo{claude}{Was the prediction right? Why or why not.}
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\todo{claude}{Two or three concrete threats.}
+
+\section{Verdict and next step}
+\todo{claude}{Verdict by the keep rules, once both runs are in.}
+
+\section{Notes for the paper}
+\todo{claude}{Draft the one-sentence claim.}
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

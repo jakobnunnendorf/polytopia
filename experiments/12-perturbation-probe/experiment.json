@@ -1,0 +1,38 @@
+{
+  "n": 12,
+  "slug": "perturbation-probe",
+  "title": "Perturbation probe: tune all knobs with a significance test",
+  "kind": "tuning",
+  "issue": 89,
+  "date": "2026-11-25",
+  "status": "running",
+  "verdict": "pending",
+  "base": "greedy-full-combo",
+  "result": null,
+  "question": "Can nudging every knob at random in every game, and moving only the knobs whose up and down games differ significantly, find gains that hill climbing cannot see?",
+  "change": "A new trainer. Each sample nudges all knobs up or down by 25% at random and plays the two opposite variations against each other and against a league; a knob moves half a nudge when its up-versus-down difference reaches z = 3.",
+  "method": "Tuning run of 100,000 games (10 rounds), against a hill-climbing control of the same budget; final test 400 games",
+  "measured": "100,000-game run vs a hill-climbing control",
+  "metric": "finish score",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150"
+  ],
+  "knobs": [
+    {
+      "name": "all non-zero knobs (about 200)",
+      "tested": [],
+      "chosen": null
+    }
+  ],
+  "headline": [],
+  "runs": [
+    {
+      "id": "greedy-full-probe",
+      "label": "Perturbation probe, 100,000 games"
+    },
+    {
+      "id": "greedy-full-probe-ctrl",
+      "label": "Control: hill climbing, 100,000 games"
+    }
+  ]
+}
