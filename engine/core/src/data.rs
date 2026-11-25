@@ -114,6 +114,8 @@ pub fn perfection_opponent_percent(opponents: i32) -> i32 {
 }
 /// The whole Perfection difficulty bonus in percent (the multiplier on the score is this / 100):
 /// 100 + difficulty part + opponent part, e.g. 245 for 15 Crazy opponents.
+/// ASSUMPTION: the opponent table was read for Crazy at every count, but Easy/Normal/Hard only at 15
+/// opponents; we assume every difficulty adds the same opponent part (unchecked in the app).
 pub fn perfection_bonus_percent(d: Difficulty, opponents: i32) -> i32 {
     100 + perfection_difficulty_percent(d) + perfection_opponent_percent(opponents)
 }
