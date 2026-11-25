@@ -1,0 +1,79 @@
+{
+  "n": 11,
+  "slug": "economy-plus-noise",
+  "title": "Combining the two champions: economy plan plus movement noise",
+  "kind": "mechanism",
+  "issue": 31,
+  "pr": 0,
+  "date": "2026-11-25",
+  "status": "done",
+  "verdict": "kept",
+  "base": "greedy-full-economy",
+  "result": "greedy-full-combo",
+  "question": "Experiments 7 and 10 were both kept against greedy-full-peacebreak and never met: which is stronger, and does movement noise still help on top of the economy plan?",
+  "change": "greedy-full-economy (plan 2) with moveNoise added: a zero-mean random term uniform in [−moveNoise, +moveNoise] on every move.",
+  "method": "Strength sweep, 200 games per point against each panel model plus both champions, final test 400 games",
+  "measured": "Sweep, 200 games per point",
+  "metric": "finish score",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150"
+  ],
+  "knobs": [
+    {
+      "name": "moveNoise",
+      "tested": [
+        2,
+        4,
+        8
+      ],
+      "chosen": 2
+    }
+  ],
+  "headline": [
+    {
+      "label": "Finish score, 6-model panel, final-test maps",
+      "base": 82.5,
+      "new": 83.8,
+      "unit": "%"
+    },
+    {
+      "label": "Finish vs greedy-full-economy, final test",
+      "base": 50.0,
+      "new": 55.5,
+      "unit": "%"
+    },
+    {
+      "label": "Finish vs greedy-full-movenoise, final test",
+      "base": 50.0,
+      "new": 55.7,
+      "unit": "%"
+    },
+    {
+      "label": "Points share, 6-model panel",
+      "base": 73.2,
+      "new": 75.1,
+      "unit": "%"
+    },
+    {
+      "label": "Game length in turns",
+      "base": 59.7,
+      "new": 59.1,
+      "unit": "",
+      "better": "lower"
+    }
+  ],
+  "runs": [
+    {
+      "id": "greedy-full-combo",
+      "label": "Sweep, 4 players"
+    },
+    {
+      "id": "greedy-full-economy-final",
+      "label": "Base (economy) on the final-test maps"
+    },
+    {
+      "id": "greedy-full-movenoise-final",
+      "label": "greedy-full-movenoise on the final-test maps"
+    }
+  ]
+}

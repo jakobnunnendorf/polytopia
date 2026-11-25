@@ -1,0 +1,47 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 11-economy-plus-noise
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+Two sessions each produced a champion from \model{greedy-full-peacebreak} on the same evening: experiment 7 (movement noise, \model{greedy-full-movenoise}) and experiment 10 (economy plan, \model{greedy-full-economy}). They never played each other, so the chain of experiments had split in two. The two mechanisms act on different decisions (moves, purchases), so they should add up. \textbf{Hypothesis:} economy plus noise beats each champion head to head and adds more than 1 point of panel finish over the better one.
+
+\section{Mechanism}
+No new code: the branch of experiment 7 is merged with main, so all knobs are present. The model is \model{greedy-full-economy} (\knob{plan} 2) with \knob{moveNoise} added: every move gets a zero-mean random term, uniform in $[-\knob{moveNoise}, +\knob{moveNoise}]$, and a move that gains nothing towards the goal is no longer ruled out (see experiment 7).
+
+\section{Setup}
+The panel is the fixed six plus both champions, so each point is measured against both. The sweep's base row is \model{greedy-full-economy} unchanged, which gives the champions' direct comparison. Values 2, 4 and 8 cover the flat range found in experiment 7, where 4 was chosen. Both champions were measured again on the final-test maps (the extra runs below).
+
+\section{Results}
+\ExpResults
+
+\textbf{The two champions against each other} (200 games, sweep maps): \model{greedy-full-economy} scores 47.9\,\% finish and 47.4\,\% points against \model{greedy-full-movenoise}, a small edge for movenoise inside the noise. On the 6-model panel the economy bot is ahead (final-test maps: 82.5 against 81.3\,\%). In short, they are about level.
+
+\textbf{The combination:} every noise value beats both. Unlike experiment 7, the best value is the smallest, 2, which scores 56.3\,\% finish against economy and 55.2\,\% against movenoise. Final test of moveNoise 2, 400 games: against economy 55.5\,\% finish, 53.9\,\% points, 55\,\% won ($\pm$5); against movenoise 55.7\,\% finish, 54.3\,\% points, 57\,\% won ($\pm$5). On the final-test maps the 6-model panel finish is 83.8\,\%, against 82.5 for economy (+1.3) and 81.3 for movenoise (+2.5).
+
+\section{Behaviour}
+On the final-test maps against the panel, conquest wins are 81.1\,\% (economy 81.0, movenoise 80.5) and games last 59.1 turns (59.7 and 58.6). A behaviour count for unjammed units was not measured here; see experiment 7 for the diagnosis.
+
+\section{Interpretation}
+The mechanisms add up only in part: the combination beats each parent by about 5 points of finish head to head, but its panel gain over the economy bot (+1.3) is smaller than either mechanism's gain alone. Against the panel both mechanisms mostly fix the same thing, games that do not end, so they overlap there. The best noise is smaller than on the old base. A plausible reason is that a bot that builds more already has more ways to make progress, so less randomness is needed to break jams.
+
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\begin{itemize}
+\item The won rate against economy is 55\,\% with an interval of about $\pm$4.9: the lower bound clears 50 only just.
+\item Only the 4-player setup; experiment 7 also used 8 players, where noise helped about as much.
+\item The champions' direct comparison is from 200 games on the sweep maps, not a 400-game final test.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Kept.} Against \model{greedy-full-economy} by the head-to-head rule (finish and points above 50\,\%, won interval clear of 50, panel mean not lower). Against \model{greedy-full-movenoise} by both rules (panel +2.5). New single champion: \model{greedy-full-combo} (plan 2, moveNoise 2), which unifies the two lines. Next: a tuning run over all knobs from this champion (experiment 12), then the value-iteration field over tiles (\#76).
+
+\section{Notes for the paper}
+Draft: a methods point. Parallel experiments from a shared base must be reconciled by playing the resulting champions against each other and against their combination. Here the two mechanisms combined beat both parents, with diminishing returns on the panel.
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

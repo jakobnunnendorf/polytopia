@@ -1,0 +1,44 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 03-front-pull
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+A move scores only if it brings the unit closer to its goal. A unit whose goal is far away or unreachable stays where it is, often at the board edge. \textbf{Hypothesis:} a pull toward the nearest enemy puts idle units to work and raises strength.
+
+\section{Mechanism}
+Let $d(x)$ be the distance from tile $x$ to the nearest enemy city or unit the player has seen (not at peace). A move from $a$ to $b$ gets $+\,\knob{front}\cdot(d(a)-d(b))$. Default 0. Code: \texttt{enemy\_dist}, \texttt{front\_term} in \texttt{bot\_full.rs}.
+
+\section{Setup}
+The tuning run started from \knob{front} $=1$ under the protocol of experiments 1 and 2. After it, the strength sweep was introduced: the base plus the knob at five hand-set values, each against the panel on the same maps as the curve points, then a final test of the best point. The sweep took 1\,min 54\,s; a tuning run takes about 30 minutes.
+
+\section{Results}
+\ExpResults
+
+The trained model reaches 70.3\,\% on the panel (base 67.7\,\%, control 66.0\,\%) and beats the base head to head: 54.8\,\% of points, 58\,\% won ($\pm$5). The sweep shows the gain hardly depends on the strength: every value from 0.5 to 8 adds 0.4 to 1.1 points on the panel and about 53\,\% against the base. Training added about 1.5 points more, from two kept changes late in the run that also moved \knob{open.attack}, \knob{greedy.richAt} and \knob{greedy.hit}.
+
+\section{Behaviour}
+The behaviour metric planned for this step was not measured; the strength result was judged clear enough on its own. This is a gap in the record. Planned metric: mean distance of units to the nearest enemy.
+
+\section{Interpretation}
+The pull mostly gets idle units moving at all, and any strength does that; this is why the response is flat across a factor of 16. The first mechanism of the series that adds something the bot could not do before, instead of re-weighting a decision it already made.
+
+\todo{jakob}{Your reading: does this match what you saw? Anything to add or correct?}
+
+\section{Threats to validity}
+\begin{itemize}
+\item The champion's extra 1.5 points come from two late kept changes in one run; a different seed might not find them.
+\item Under the finish score (experiment 5) a stronger pull trades points for faster conquests, so ``flat'' holds for points share only.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Kept} (head-to-head rule). New champion: \model{greedy-full-front}. Process change: new mechanisms are measured with a strength sweep; tuning runs happen every three to four kept mechanisms. Next: road-aware moves (experiment 4).
+
+\section{Notes for the paper}
+Draft: mechanisms that enable a new behaviour (move when idle) give gains that are insensitive to their weight; a 2-minute sweep finds them as reliably as a 30-minute tuning run. Candidate figure: the sweep plot (flat response) next to the learning curve (170 rounds with nothing kept).
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}
