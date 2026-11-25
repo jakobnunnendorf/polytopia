@@ -26,6 +26,12 @@ What is in the repository:
 Everything below is run from the repository root unless it says otherwise. The commands were
 checked against the scripts in this repository; where a number is an example it says so.
 
+**The command blocks can be pasted as they are.** They hold commands only, without `#`
+comments, because an interactive zsh does not treat `#` as a comment unless
+`setopt interactivecomments` is set: the words after it would be passed to the command. What
+each command does is said in the text or table next to the block. Words in angle brackets
+(`<id>`, `<base>`) are placeholders to replace before running.
+
 ## Contents
 
 1. [Quick start](#1-quick-start)
@@ -54,7 +60,7 @@ checked against the scripts in this repository; where a number is an example it 
 | Tool | Used for | Version here |
 |---|---|---|
 | Node and npm | scripts, the app, jest | Node 25.9 |
-| Rust via rustup, with the `wasm32-unknown-unknown` target | the engine | cargo 1.97 |
+| Rust via rustup, with the `wasm32-unknown-unknown` target (in `~/.cargo/bin`, see below) | the engine | cargo 1.97 |
 | GNU Emacs with Org 9.6 or later | lecture notes | Emacs 30.2 |
 | OCaml | lecture notes | 5.3 |
 | Google Chrome at `/Applications/Google Chrome.app` | lecture-note pictures | |
@@ -67,12 +73,33 @@ The Rust and shell scripts assume macOS (the Node addon is a `.dylib`) and zsh.
 ### First run on a fresh checkout or worktree
 
 ```bash
-npm install                          # or copy node_modules from another checkout, see below
-rustup target add wasm32-unknown-unknown   # once
-npm run engine:build                 # builds engine/node/polyengine.node and public/polyengine.wasm
-npm run test:ci                      # the jest suite, runs against the Rust engine
-npm run simulate -- --games 5        # five bot-vs-bot games, one JSON line each plus a summary
-npm run elo                          # the leaderboard from data/ratings.json
+npm install
+npm run engine:build
+npm run test:ci
+npm run simulate -- --games 5
+npm run elo
+```
+
+| Command | What it does |
+|---|---|
+| `npm install` | installs the packages (or copy `node_modules` from another checkout, see below) |
+| `npm run engine:build` | builds `engine/node/polyengine.node` and `public/polyengine.wasm` |
+| `npm run test:ci` | the jest suite, on the Rust engine |
+| `npm run simulate -- --games 5` | five bot-vs-bot games, one JSON line each plus a summary |
+| `npm run elo` | the leaderboard from `data/ratings.json` |
+
+Rust: `cargo` and `rustup` live in `~/.cargo/bin`. The build script puts that folder on the
+PATH itself, so `npm run engine:build` works even when the shell does not find `cargo`. To run
+`cargo` or `rustup` by hand in such a shell, first run:
+
+```bash
+export PATH="$HOME/.cargo/bin:$PATH"
+```
+
+On a new machine only, if the engine build stops on the WebAssembly target, add it once:
+
+```bash
+~/.cargo/bin/rustup target add wasm32-unknown-unknown
 ```
 
 `npm run engine:build` is required before anything that plays a game: the scripts load
@@ -178,8 +205,10 @@ facade. A per-call cost of about 3 ms per action means hot loops must use bulk c
 
 ### Build
 
+Run this after any change under `engine/`; it builds both targets:
+
 ```bash
-npm run engine:build          # both targets; run after any change under engine/
+npm run engine:build
 ```
 
 This builds `engine/node/polyengine.node` (release, `polynode`) and `public/polyengine.wasm`
@@ -190,20 +219,26 @@ Set `POLYENGINE_NODE=/path/to/polyengine.node` to load a different addon.
 
 ### Test and check the engine
 
+The Rust tests, then the type check (expect 0 errors), then the WebAssembly build compared with
+the Node addon:
+
 ```bash
-cd engine
-cargo test --release                       # the Rust tests
-cargo test --release -p polycore bot_full  # a subset
-cd ..
-npx tsc --noEmit -p .                      # type check, expect 0 errors
-node -r sucrase/register scripts/rust/wasm-check.ts   # WebAssembly build vs Node addon
+(cd engine && cargo test --release)
+npx tsc --noEmit -p .
+node -r sucrase/register scripts/rust/wasm-check.ts
+```
+
+A subset of the Rust tests, here the full bot's:
+
+```bash
+(cd engine && cargo test --release -p polycore bot_full)
 ```
 
 The corpus parity gate compares the Rust engine with the TypeScript engine it replaced (the
-oracle, commit `5d2846d`) on 2,000 recorded games:
+oracle, commit `5d2846d`) on 2,000 recorded games. The first command needs the oracle checkout:
 
 ```bash
-node -r sucrase/register scripts/rust/trace-gen.ts --games 2000 --out engine/corpus/full   # needs the oracle checkout
+node -r sucrase/register scripts/rust/trace-gen.ts --games 2000 --out engine/corpus/full
 engine/target/release/polyengine replay engine/corpus/full
 ```
 
@@ -211,9 +246,17 @@ engine/target/release/polyengine replay engine/corpus/full
 (Rust is 61x to 148x faster than the TypeScript engine on one thread; 0.7 to 1.2 million actions
 per second on 12 cores) and `engine/PORTING.md` for the porting contract.
 
+The speed of the TypeScript engine against the Rust engine (the number of games and of repeats
+may follow the checkout as two more arguments):
+
 ```bash
-scripts/rust/bench-compare.sh <oracle-checkout> [games] [repeats]   # TypeScript vs Rust speed
-scripts/rust/coverage.sh 2000 10                                    # line coverage by the corpus
+scripts/rust/bench-compare.sh <oracle-checkout>
+```
+
+Line coverage of the engine by the corpus:
+
+```bash
+scripts/rust/coverage.sh 2000 10
 ```
 
 ### Adding a knob to the full bot
@@ -237,9 +280,16 @@ A new decision mechanism touches, in this order: `FullWeights` in `engine/core/s
 | 8097 | lecture notes with the "explain the syntax" button | `/usr/bin/python3 lecture-notes/serve.py` |
 | 8099 | the scene page the lecture-note build photographs | started by the lecture-note build |
 
+Expo web on its default port:
+
 ```bash
-npm run web                          # Expo web on its default port
-zsh scripts/relaunch-preview.sh      # port 8090 (PORT=...) and arena server 8091 (ARENA_PORT=...)
+npm run web
+```
+
+The game on port 8090 and the arena server on 8091 (other ports: set `PORT` and `ARENA_PORT`):
+
+```bash
+zsh scripts/relaunch-preview.sh
 ```
 
 `relaunch-preview.sh` kills whatever listens on those two ports, starts the arena server (log in
@@ -305,7 +355,12 @@ Naming: `greedy-hill-vN` (hill climbed greedy bot), `greedy-full-vN` (hill climb
 
 ```bash
 npm run simulate -- --games 20 --players 2 --size 11 --mode perfection
-npm run simulate -- --games 5 --random          # random legal actions for player 0
+```
+
+With `--random`, player 0 plays random legal actions:
+
+```bash
+npm run simulate -- --games 5 --random
 ```
 
 Options: `--games` (10), `--players` (2), `--size` (11), `--mode` `perfection|domination`
@@ -328,11 +383,17 @@ game so each model plays from every seat. Every game is saved to
 into `data/ratings.json`. These are tracked files; a shared leaderboard changes whenever anyone
 runs the arena.
 
-To fill the leaderboard's filters (mode, player count, map size, map type) with data:
+To fill the leaderboard's filters (mode, player count, map size, map type) with data, play every
+pairing of the six reference bots, about 400 games:
 
 ```bash
-zsh scripts/arena-grid.sh                    # every pairing of the six reference bots, about 400 games
-zsh scripts/arena-grid.sh greedy-hill-v4     # rate one new model: its pairings plus 40 games each in 1v1 perfection 11x11
+zsh scripts/arena-grid.sh
+```
+
+To rate one new model (its pairings, plus 40 games each in 1v1 perfection on 11x11):
+
+```bash
+zsh scripts/arena-grid.sh greedy-hill-v4
 ```
 
 ### One seat from a terminal: `play`
@@ -340,10 +401,13 @@ zsh scripts/arena-grid.sh greedy-hill-v4     # rate one new model: its pairings 
 For people and for agents (a Claude subagent, for instance). Opponents move automatically in
 between.
 
+Start a game, then ask for the position with its numbered legal moves (`state`), then play
+move `<n>` (`move`), after which the opponents move:
+
 ```bash
 npm run play -- new --me claude-sonnet-agent --opponent greedy-v1 --size 11 --mode perfection
-npm run play -- state --game <id>            # the position and numbered legal moves
-npm run play -- move --game <id> <n>         # play move n, then the opponents move
+npm run play -- state --game <id>
+npm run play -- move --game <id> <n>
 ```
 
 The game is recorded like any other and rated when it ends.
@@ -371,9 +435,16 @@ There are two ways to measure a model, and they answer different questions.
 
 ### The Elo leaderboard
 
+Print `data/ratings.json`:
+
 ```bash
-npm run elo                    # print data/ratings.json
-npm run elo -- --rebuild       # rebuild data/results.jsonl from every game in data/games/ and refit
+npm run elo
+```
+
+Rebuild `data/results.jsonl` from every game in `data/games/` and fit the ratings again:
+
+```bash
+npm run elo -- --rebuild
 ```
 
 Example (data in this repository at the time of writing):
@@ -404,12 +475,13 @@ How to read it:
   (any combination); Analyse > Rankings has a chip per setting. A model plays every format with
   the same weights, so the filters show where it is strong or weak.
 
-Evaluate a new model on the leaderboard in three steps:
+Evaluate a new model on the leaderboard in three steps: a head to head, then every format, then
+read its interval.
 
 ```bash
-npm run arena -- --models <new>,greedy-hill-v4 --games 40 --mode perfection --size 11   # head to head
-zsh scripts/arena-grid.sh <new>                                                            # every format
-npm run elo                                                                                # read the interval
+npm run arena -- --models <new>,greedy-hill-v4 --games 40 --mode perfection --size 11
+zsh scripts/arena-grid.sh <new>
+npm run elo
 ```
 
 Wait until the new model's interval stops overlapping the neighbour you claim to beat.
@@ -496,25 +568,51 @@ Training games are not recorded and do not change Elo.
 
 ### Commands
 
+Each block below is one run; they are alternatives, not a sequence.
+
+Hill climbing on the greedy bot (for scale: `greedy-hill-v4` had a budget of 3.6M games and
+stopped early at 1.26M, after about 2 hours on 10 threads):
+
 ```bash
-# the greedy bot, hill climbing (greedy-hill-v4 had a budget of 3.6M games, stopped early at
-# 1.26M after about 2 hours on 10 threads)
 npm run train-hill -- --id greedy-hill-v5 --budget 30000
+```
+
+The same, starting from an earlier model and against a mixed league:
+
+```bash
 npm run train-hill -- --id greedy-hill-v5 --from greedy-hill-v4 --league self,past,greedy-v1
+```
 
-# the full bot
+The full bot:
+
+```bash
 npm run train-full -- --id greedy-full-v1 --budget 1260160 --from greedy-hill-v4
+```
 
-# the settings of the experiment routine for a tuning run
+The full bot with the settings of the experiment routine for a tuning run:
+
+```bash
 npm run train-full -- --id <id> --from <base> --metric finish --budget 100000 --patience 0 \
   --league self,past --batch 30 --seed 4242 --curve-every 12500 --workers 10 \
   --panel greedy-v1,greedy-hill-v1,greedy-hill-v2,greedy-hill-v3,greedy-hill-v4,greedy-full-v1
+```
 
-# evolution strategies
-npm run train-es -- --id greedy-es-v1 --budget 30000          # --pop 12 --pairs 2 --lr 0.03 --sigma 0.15
+Evolution strategies (its defaults are `--pop 12 --pairs 2 --lr 0.03 --sigma 0.15`):
 
-# a sweep: the base, then the knob at four strengths, then a final test of the best point
+```bash
+npm run train-es -- --id greedy-es-v1 --budget 30000
+```
+
+A sweep of one knob: the base, then the knob at four strengths, then a final test of the best
+point:
+
+```bash
 npm run sweep -- --id greedy-full-front --from greedy-full-v1 --knob front --values 0.5,1,2,4 --metric finish
+```
+
+A sweep of hand-set points over several knobs:
+
+```bash
 npm run sweep -- --from greedy-full-v1 --points "techUse=0.3,techUseless=2|techUse=1,techUseless=5"
 ```
 
@@ -640,8 +738,15 @@ comment above `SIGMA_MIN` in `scripts/train-hill.ts`, and prefer a sweep for a n
 
 ### 2. The dashboard
 
+The dashboard for the current folder, at http://localhost:8095:
+
 ```bash
-npm run train-dashboard                                   # http://localhost:8095
+npm run train-dashboard
+```
+
+For runs in another worktree, on a chosen port, limited to named runs:
+
+```bash
 npm run train-dashboard -- --root .claude/worktrees/<id> --port 8095 --runs <id>,<id2>
 ```
 
@@ -662,11 +767,14 @@ Run one dashboard at a time: `pkill -f "scripts/train-dashboard.ts"` before star
 
 ### 3. The files
 
+In this order: the state of the run, the learning curve, a sweep point by point, the saved
+champions.
+
 ```bash
 cat models/<id>/checkpoint.json | jq '{round, trainingGames, accepted, sigma, savedAt}'
-jq -c '[.trainingGames, .meanPointShare, .best]' models/<id>/curve.jsonl      # the learning curve
-tail -n 3 models/<id>/sweep.jsonl                                              # a sweep, point by point
-ls models/<id>/snapshots models/<id>/milestones                                # saved champions
+jq -c '[.trainingGames, .meanPointShare, .best]' models/<id>/curve.jsonl
+tail -n 3 models/<id>/sweep.jsonl
+ls models/<id>/snapshots models/<id>/milestones
 ```
 
 `model.json` is rewritten at every curve point with the best champion so far, marked
@@ -674,10 +782,18 @@ ls models/<id>/snapshots models/<id>/milestones                                #
 
 ### 4. The process
 
+Is a trainer running, and which one? And how loaded is the machine (compare the load average
+with the core count)?
+
 ```bash
-pgrep -fl "scripts/train"          # is it running, and which?
-uptime                             # load average against the core count
-pkill -f "scripts/train-full.ts"   # stop it cleanly, then resume with --resume
+pgrep -fl "scripts/train"
+uptime
+```
+
+Stop a run cleanly (resume it later with `--resume`):
+
+```bash
+pkill -f "scripts/train-full.ts"
 ```
 
 A trainer uses `--workers` threads; do not start two on a machine with 12 cores unless you lower it.
@@ -708,10 +824,17 @@ In short:
 6. Fill the rest of the report, set `headline`, `verdict`, `status`, `result` in
    `experiment.json`, and build it.
 
+One experiment (`generated.tex` and `report.pdf`):
+
 ```bash
-npm run experiment:report -- 06-peace-break         # one experiment: generated.tex and report.pdf
-npm run experiment:report -- --all                  # every experiment and experiments/notebook.pdf
-npm run experiment:report -- --all --no-pdf         # only regenerate generated.tex
+npm run experiment:report -- 06-peace-break
+```
+
+Every experiment and `experiments/notebook.pdf`; with `--no-pdf` added, only the `generated.tex`
+files:
+
+```bash
+npm run experiment:report -- --all
 ```
 
 PDFs need `tectonic`. The dashboard rebuilds a PDF whenever its sources change. Report prose
@@ -726,8 +849,10 @@ The experiments so far: `01-defend-cities` to `11-economy-plus-noise`.
 ### Dataset of decisions
 
 ```bash
-npm run export-dataset -- --out data/datasets/all.jsonl [--only-humans]
+npm run export-dataset -- --out data/datasets/all.jsonl
 ```
+
+Add `--only-humans` to keep only the decisions of human players.
 
 One JSON line per decision: `game, step, player, seat, obs, legal, action, actionIndex,
 finalScore, won`. Observations are recomputed by replaying each record through the current
@@ -738,10 +863,13 @@ finalScore, won`. Observations are recomputed by replaying each record through t
 `engine/py` builds the Rust engine as a Python module `polyengine` with `VecEnv`, a vectorised
 environment that runs n games in parallel with the GIL released:
 
+Build `engine/py/polyengine.so`, make the virtual environment with numpy (once), then run the
+smoke test:
+
 ```bash
-engine/py/build.sh                                                          # builds engine/py/polyengine.so
-python3 -m venv engine/py/.venv && engine/py/.venv/bin/pip install numpy   # once
-engine/py/.venv/bin/python engine/py/test_env.py                           # smoke test
+engine/py/build.sh
+python3 -m venv engine/py/.venv && engine/py/.venv/bin/pip install numpy
+engine/py/.venv/bin/python engine/py/test_env.py
 ```
 
 ```python
@@ -806,9 +934,17 @@ delete them by hand.
 
 ### Serve and read
 
+Is the server already running? If this answers, a rebuild needs no restart:
+
 ```bash
-curl -s -m 2 http://127.0.0.1:8097/explanations.json     # already running? then a rebuild needs no restart
-/usr/bin/python3 lecture-notes/serve.py [port]           # http://localhost:8097/<name>.html (this computer only)
+curl -s -m 2 http://127.0.0.1:8097/explanations.json
+```
+
+Otherwise start it (this computer only; a port number may follow, the default is 8097), then
+open `http://localhost:8097/<name>.html`:
+
+```bash
+/usr/bin/python3 lecture-notes/serve.py
 ```
 
 Served this way every OCaml box has an "explain the syntax" button. The first click asks Claude
@@ -929,15 +1065,23 @@ The same holds for the course PDFs: cite page numbers and paraphrase. The app is
 
 ## 14. Tests and checks
 
+| Command | What it does |
+|---|---|
+| `npm run test:ci` | jest once, on the Rust engine (needs `npm run engine:build` first) |
+| `npm test` | jest in watch mode |
+| `npx jest __tests__/engine/bot-full.test.ts` | one test file |
+| `npx tsc --noEmit -p .` | the type check |
+| `npm run lint` | `expo lint` (the repository has no ESLint configuration yet) |
+| `(cd engine && cargo test --release)` | the Rust unit tests |
+| `node -r sucrase/register scripts/dev/smoke.ts` | bot games on every map type, checking that every action was legal |
+| `node -r sucrase/register scripts/dev/mapstats.ts 16 4 drylands` | map density statistics |
+
+The usual three before a pull request:
+
 ```bash
-npm run test:ci                  # jest once, on the Rust engine (needs npm run engine:build)
-npm test                         # jest in watch mode
-npx jest __tests__/engine/bot-full.test.ts   # one file
-npx tsc --noEmit -p .            # type check
-npm run lint                     # expo lint (the repository has no ESLint configuration yet)
-(cd engine && cargo test --release)          # Rust unit tests
-node -r sucrase/register scripts/dev/smoke.ts   # bot games on every map type, checks every action was legal
-node -r sucrase/register scripts/dev/mapstats.ts 16 4 drylands   # map density statistics
+npm run test:ci
+npx tsc --noEmit -p .
+(cd engine && cargo test --release)
 ```
 
 `__tests__/engine/` holds the parity suites (movement and combat, economy and scoring, special
