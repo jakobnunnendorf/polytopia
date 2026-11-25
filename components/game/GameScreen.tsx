@@ -26,6 +26,7 @@ import {
 import TechTree from "@/components/game/TechTree";
 import { actionLabel, name } from "@/logic/engine/names";
 import { unitCapacity } from "@/logic/engine/state";
+import { rewardDescription } from "@/logic/engine/rewards";
 import type { MapType } from "@/logic/engine/mapgen";
 import type { Action, Difficulty, GameMode, GameState } from "@/logic/engine/types";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
@@ -723,6 +724,11 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
                 <View style={{ flexDirection: "row" }}>
                   <Button grow testID={`reward-${i}`} label={actionLabel(state, a)} onPress={() => act(a)} />
                 </View>
+                {a.type === "reward" && (
+                  <Text style={{ color: UI.muted, fontSize: 13, lineHeight: 18, marginTop: -2, marginBottom: 6, paddingHorizontal: 6 }}>
+                    {rewardDescription(a.reward, state.players[state.current]?.clan)}
+                  </Text>
+                )}
               </Pop>
             ))}
           </View>
