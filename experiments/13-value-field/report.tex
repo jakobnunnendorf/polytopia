@@ -1,0 +1,55 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 13-value-field
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+\texttt{goal()} sends each unit to its single nearest target (Chebyshev distance plus a small bias), so a far enemy city and a near village are never weighed against each other. The Reinforcement Learning course solves exactly this navigation problem by value iteration on a gridworld: the state is the tile, the actions are the 8 directions, rewards sit on goal tiles, and repeated Bellman backups spread their value over the grid (RL 2.0 Dynamic Programming, PDF page 107, ``Value iteration in action''; issue \#76). \textbf{Hypothesis:} a field that weighs every reachable target by reward and path cost raises the finish score on the 6-model panel by more than 1.5 points and wins the head-to-head against the base.
+
+\section{Mechanism}
+For the moving unit's player, \texttt{value\_field.rs} builds the graph of explored passable land tiles. Its step costs mirror the engine's movement rules: road steps 0.5 tile, other steps 1, plus 0.5 for stopping on forest, mountain or algae. Fog is never passable. Rewards, in tiles: claimable village 3, ruin 2, visible hostile unit 1, enemy city $2+\text{level}$ (capped at 6), threatened own city within radius 2 $3+\text{level}$ (capped at 6). The field is value iteration with an absorbing collect action,
+\[
+\varphi(i) = \max\Bigl(R(i),\ \max_{j \in N(i)} \varphi(j) - c(i,j)\Bigr),
+\]
+synchronous backups until nothing changes (at most 20; median 7). This is the log form of $V(i)=\max(R(i), \max_j \gamma^{c(i,j)} V(j))$, which a test checks against the literal discounted backup to within $10^{-9}$. A move of a walking unit then scores $s + \knob{field}\cdot\bigl(\varphi(\text{to}) - \max(\varphi(\text{from}), R(\text{from}))\bigr)$. The term is added after the existing move gate, as \knob{front} is, so the score is linear in the knob. Default 0 (off; bit-identical, checked against two golden game hashes). Code: \texttt{engine/core/src/value\_field.rs}, called from \texttt{score\_full\_with} in \texttt{bot\_full.rs}.
+
+\section{Setup}
+A first version added the term before the move gate; a review found that every value above 0 then opened the gate at once (18 changed picks per 60 turn starts already at 0.01), so the knob had no weak setting. Moved after the gate, the changed picks grow with the knob: 1, 1, 2, 5, 9 per 60 at field 0.01, 0.1, 0.5, 1, 2. The field outweighs \texttt{goal()}'s pull only from about 11.5, so the sweep covers 1 to 16. The base is the champion \model{greedy-full-combo} (experiment 11); the panel is the fixed six plus the base.
+
+\section{Results}
+\ExpResults
+
+No value beats the base head to head. Over 200 games each, finish against the base is 44.3, 47.3, 44.8, 42.7 and 42.3\,\% at field 1, 2, 4, 8 and 16. On the panel, field 4 matches the base row (84.3 against 84.5\,\%) and the strongest values lose 1 to 3 points. Final test of field 4, 400 games: against the base 48.2\,\% finish, 49.0\,\% points, 48\,\% won ($\pm$5). Its panel finish on the final-test maps is 84.2\,\%, against 83.8\,\% for the base on the same maps (+0.4, inside the noise of about $\pm$1.2).
+
+\section{Behaviour}
+At field 2 the field changes the bot's choice at 9 of 60 turn starts in a replayed game, rising to 30 at field 32. It acts, and more as the knob grows, but what it changes does not win games.
+
+\section{Interpretation}
+The prediction failed. Three readings, not yet separated:
+\begin{itemize}
+\item \texttt{goal()} plus the champion's other move terms (\knob{front}, \knob{moveNoise}) already send units to good targets; the extra multi-target pull mostly pulls them away from the one target they were about to take.
+\item The rewards are hand-set and the field is the same for every unit: a unit next to a village and a unit beside an enemy city get the same map, so units drift towards the same high-value tiles instead of splitting up.
+\item The field counts only reaching a tile, not what it costs to take it (defenders, the time a capture needs), so far enemy cities look better than they are.
+\end{itemize}
+The course method works as taught: the solver equals Dijkstra and the literal backup exactly. What fails is the model it is given: the rewards and the absorbing collect action, not the algorithm.
+
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\begin{itemize}
+\item Only the 4-player 16×16 setup; on 20×20 maps with 8 players the targets are farther apart and a field might matter more.
+\item The rewards were set by hand from \texttt{goal()}'s biases and were not swept; one sweep of the knob cannot tell a bad weight from bad rewards.
+\item The other session's tuning run loaded the machine during this sweep; that slows games but does not change their results, which are deterministic per seed.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Not kept}: the head-to-head is below 50\,\% at every value, and the panel gain (+0.4) is far below 1.5. The code stays, off by default, as the record. Champion stays \model{greedy-full-combo}. Next: if the field is tried again, give each unit its own reward set (claimed targets removed, as in a task assignment) rather than one shared map; otherwise move on in lecture order.
+
+\section{Notes for the paper}
+Draft: a negative result with a clean method check. Value iteration on the tile graph is exact and cheap, yet a shared value field does not beat a nearest-target rule plus noise. The bottleneck is the reward model and the coordination between units, not the planner.
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

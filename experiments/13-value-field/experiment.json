@@ -1,0 +1,64 @@
+{
+  "n": 13,
+  "slug": "value-field",
+  "title": "Value-iteration field over tiles",
+  "kind": "mechanism",
+  "issue": 76,
+  "pr": 0,
+  "date": "2026-11-25",
+  "status": "done",
+  "verdict": "not kept",
+  "base": "greedy-full-combo",
+  "result": null,
+  "question": "Does a value-iteration field over tiles, which weighs every reachable target by reward and path cost, move units better than goal()'s single nearest target?",
+  "change": "Each move of a walking unit adds field times the gain in the field value phi from its tile to the target tile; phi is the best reachable reward minus path cost, solved by value iteration each decision.",
+  "method": "Strength sweep, 200 games per point against each panel model, final test 400 games",
+  "measured": "Sweep, 200 games per point",
+  "metric": "finish score",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150"
+  ],
+  "knobs": [
+    {
+      "name": "field",
+      "tested": [
+        1,
+        2,
+        4,
+        8,
+        16
+      ],
+      "chosen": 4
+    }
+  ],
+  "headline": [
+    {
+      "label": "Finish vs base, final test",
+      "base": 50.0,
+      "new": 48.2,
+      "unit": "%"
+    },
+    {
+      "label": "Finish score, 6-model panel, final-test maps",
+      "base": 83.8,
+      "new": 84.2,
+      "unit": "%"
+    },
+    {
+      "label": "Points vs base, final test",
+      "base": 50.0,
+      "new": 49.0,
+      "unit": "%"
+    }
+  ],
+  "runs": [
+    {
+      "id": "greedy-full-field",
+      "label": "Sweep, 4 players"
+    },
+    {
+      "id": "greedy-full-combo",
+      "label": "The base (experiment 11), final test on the same maps"
+    }
+  ]
+}
