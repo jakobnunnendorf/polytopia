@@ -25,6 +25,7 @@ import {
 } from "@/logic/engine";
 import TechTree from "@/components/game/TechTree";
 import { actionLabel, name } from "@/logic/engine/names";
+import { unitCapacity } from "@/logic/engine/state";
 import type { Action, Difficulty, GameMode, GameState } from "@/logic/engine/types";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
 import { arena, serverChat } from "@/components/game/arenaClient";
@@ -474,6 +475,16 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           tileSel.ruin ? "Ruins" : null,
         ].filter((w): w is string => !!w)
       : [];
+  // unit supply (a city supports level + 1 units): shown for the viewer's own cities and units only, so nothing leaks through the fog
+  const ownView = (owner: number) => watch || owner === me.id;
+  const cityUnits =
+    citySel && ownView(citySel.owner)
+      ? { homed: state.units.filter((u) => u.homeCity === citySel.id && u.owner === citySel.owner).length, cap: unitCapacity(citySel) }
+      : null;
+  const unitHome =
+    unitAtSel && ownView(unitAtSel.owner) && unitAtSel.homeCity !== null
+      ? (state.cities.find((c) => c.id === unitAtSel.homeCity && c.owner === unitAtSel.owner)?.name ?? null)
+      : null;
   const ranking = [...state.players]
     .map((p) => ({ p, score: scoreOf(state, p.id) }))
     .sort((a, b) => b.score - a.score);
@@ -587,7 +598,8 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
                     </Text>
                     <Text style={{ color: UI.muted, fontSize: 13 }}>
                       {citySel
-                        ? `Lv ${citySel.level}${citySel.capital ? " Capital" : ""} · ${citySel.pop}/${citySel.level + 1} pop`
+                        ? `Lv ${citySel.level}${citySel.capital ? " Capital" : ""} · ${citySel.pop}/${citySel.level + 1} pop` +
+                          (cityUnits ? ` · ${cityUnits.homed}/${cityUnits.cap} units` : "")
                         : tileWords.join(", ")}
                     </Text>
                   </View>
@@ -600,6 +612,11 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
                       <Text style={{ color: UI.muted, fontSize: 11, marginLeft: 8 }}>
                         {UNITS[unitAtSel.type].attack} ATK · {UNITS[unitAtSel.type].defence} DEF · {UNITS[unitAtSel.type].movement} MOV · {UNITS[unitAtSel.type].range} RNG
                       </Text>
+                      {unitHome && (
+                        <Text style={{ color: UI.muted, fontSize: 11, marginLeft: 8 }}>
+                          from <Text style={{ color: UI.mist, fontWeight: "700" }}>{unitHome}</Text>
+                        </Text>
+                      )}
                     </View>
                   )}
                 </View>
