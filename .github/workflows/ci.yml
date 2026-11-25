@@ -7,17 +7,22 @@
 #           and the Python module test (engine/py/test_env.py)
 #   app     builds the Node addon the Jest suite loads (logic/engine/rust.ts), then tsc, Jest
 #           and the static web export
+#   secrets   "Secret scan": only the public /.env may be tracked (EXPO_PUBLIC_ values only), and
+#             gitleaks (.gitleaks.toml, taken from the target branch on PRs) checks the new commits
 #   supabase  applies supabase/migrations to an empty local database and checks the access rules
 #   deploy  pushes to main only: web export to EAS Hosting (https://polytopia.expo.app),
 #           needs the EXPO_TOKEN repository secret (an expo.dev access token)
-# Branch protection: dev requires "Rust engine" and "TypeScript and Jest"; main requires those
-# and "Release source is dev", allows no direct pushes and no admin bypass.
+# Branch protection: dev requires "Rust engine", "TypeScript and Jest", "Supabase migrations" and
+# "Secret scan"; main requires those and "Release source is dev", allows no direct pushes and no
+# admin bypass.
 name: CI
 
 on:
   pull_request:
+  # pushes only on main, where the deploy needs them; a PR run already tests the merge result,
+  # so a push run on dev after merging the PR would repeat the same checks
   push:
-    branches: [main, dev]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -35,6 +40,8 @@ env:
 jobs:
   source:
     name: Release source is dev
+    # only a pull request has a source branch to check
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -105,6 +112,50 @@ jobs:
         run: npm run test:ci
       - name: Web export (what the deploy job ships)
         run: npx expo export -p web
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Only the public /.env is tracked, and it holds only EXPO_PUBLIC_ values
+        run: |
+          bad=$(git ls-files | grep -E '(^|/)\.env(\.[^/]*)?$' | grep -vx '.env' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::env files must not be committed (only the public /.env is allowed): $bad"
+            exit 1
+          fi
+          if [ -f .env ] && grep -vE '^\s*(#.*)?$|^EXPO_PUBLIC_[A-Z0-9_]+=' .env; then
+            echo "::error::/.env may only hold EXPO_PUBLIC_ values (they ship to every browser); put secrets in a .env*.local file or a repository secret"
+            exit 1
+          fi
+          echo "ok"
+      - name: gitleaks on the new commits
+        env:
+          VERSION: 8.30.1
+          SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          BASE_REF: ${{ github.base_ref }}
+          RANGE: >-
+            ${{ github.event_name == 'pull_request'
+                && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha)
+                || (github.event.before != '0000000000000000000000000000000000000000'
+                    && github.event.before != ''
+                    && format('{0}..{1}', github.event.before, github.sha))
+                || github.sha }}
+        run: |
+          curl -sSfL -o gl.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          echo "${SHA256}  gl.tgz" | sha256sum -c -
+          tar -xzf gl.tgz gitleaks
+          # a PR is scanned with the config of its target branch, so it cannot weaken its own scan
+          cfg=.gitleaks.toml
+          if [ -n "$BASE_REF" ] && git show "origin/${BASE_REF}:.gitleaks.toml" > base.gitleaks.toml 2>/dev/null; then
+            cfg=base.gitleaks.toml
+          fi
+          echo "scanning $RANGE with $cfg"
+          ./gitleaks git --config "$cfg" --log-opts="$RANGE" --redact --no-banner --verbose
 
   supabase:
     name: Supabase migrations

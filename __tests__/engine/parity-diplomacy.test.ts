@@ -290,14 +290,16 @@ describe("breaking peace", () => {
     expect(has(t, (a) => a.type === "attack" && a.unitId === outside.id)).toBe(true);
   });
 
-  it("the victim keeps a permanent Foolish opinion of the breaker", () => {
+  it("the victim's opinion drops by 4 / (turns since the treaty was broken + 1)", () => {
     const { s } = atPeaceWithUnits();
-    expect(opinion.opinionFactors(s, 1, 0)).not.toContain("foolish");
-    let t = applyAction(s, { type: "breakPeace", player: 1 });
-    t.turn += 20;
-    expect(opinion.opinionFactors(t, 1, 0)).toContain("foolish");
-    t = cloneState(t);
-    expect(opinion.opinionFactors(t, 1, 0)).toContain("foolish");
+    s.turn = 5;
+    const foolish = (x: GameState) => opinion.opinionReasons(x, 1, 0).find((r) => r.factor === "foolish")?.value ?? 0;
+    expect(foolish(s)).toBe(0);
+    const t = applyAction(s, { type: "breakPeace", player: 1 });
+    expect(foolish(t)).toBeCloseTo(-4);
+    t.turn += 3;
+    expect(foolish(t)).toBeCloseTo(-1);
+    expect(foolish(cloneState(t))).toBeCloseTo(-1);
   });
 });
 
@@ -409,54 +411,77 @@ describe("Cloak", () => {
 });
 
 describe("what bots think of you", () => {
-  /** bot 1 rates player 0 great: Peaceful, plus Diplomatic (an embassy) and Powerful (a unit far from the bot's land) */
-  const greatOpinion = (s: GameState) => {
-    s.players[0].embassies = [1];
-    put(s, "warrior", 0, 3, 3);
-  };
-
-  it("lists the doc's factors: Violent after an attack, Peaceful otherwise, Diplomatic with an embassy, Annoying on hard", () => {
+  /** turn 10, met on turn 0: Peaceful +1 (t = (10 + 4 - 4) / 4, at most 2, times 0.5) */
+  const settled = () => {
     const s = blank();
+    s.turn = 10;
+    s.players[1].bot = true;
+    return s;
+  };
+  const reason = (s: GameState, f: opinion.OpinionFactor) =>
+    opinion.opinionReasons(s, 1, 0).find((r) => r.factor === f)?.value ?? 0;
+
+  it("lists the game's factors: Peaceful after a calm stretch, Violent after an attack, Diplomatic per embassy, Charming toward humans on easy and normal", () => {
+    const s = settled();
     expect(opinion.opinionFactors(s, 1, 0)).toContain("peaceful");
+    expect(reason(s, "peaceful")).toBeCloseTo(1);
     expect(opinion.opinionFactors(s, 1, 0)).not.toContain("diplomatic");
     s.players[0].embassies = [1];
-    expect(opinion.opinionFactors(s, 1, 0)).toContain("diplomatic");
+    expect(reason(s, "diplomatic")).toBe(1);
+    s.players[1].embassies = [0];
+    expect(reason(s, "diplomatic")).toBe(2);
     const w = put(s, "warrior", 0, 5, 5);
     const e = put(s, "warrior", 1, 6, 6);
     const t = applyAction(s, { type: "attack", unitId: w.id, targetId: e.id });
-    expect(opinion.opinionFactors(t, 1, 0)).toContain("violent");
+    // attacked this turn: t = -1, Violent -2
+    expect(reason(t, "violent")).toBeCloseTo(-2);
     expect(opinion.opinionFactors(t, 1, 0)).not.toContain("peaceful");
-    t.difficulty = "hard";
-    expect(opinion.opinionFactors(t, 1, 0)).toContain("annoying");
-    expect(opinion.opinionLevel(3)).toBe("great");
-    expect(opinion.opinionLevel(2)).toBe("decent");
-    expect(opinion.opinionLevel(-3)).toBe("horrible");
+    s.players[0].bot = false;
+    s.difficulty = "easy";
+    expect(reason(s, "charming")).toBe(4);
+    s.difficulty = "normal";
+    expect(reason(s, "charming")).toBe(2);
+    s.difficulty = "crazy";
+    expect(opinion.opinionFactors(s, 1, 0)).not.toContain("charming");
   });
 
-  it("a bot accepts peace only at a great opinion, else declines", () => {
-    let s = blank();
-    s.players[1].bot = true;
+  it("levels: great above 2, decent above 0.5, poor below -0.5, horrible below -2", () => {
+    expect(opinion.opinionLevel(2.01)).toBe("great");
+    expect(opinion.opinionLevel(2)).toBe("decent");
+    expect(opinion.opinionLevel(0.5)).toBe("indifferent");
+    expect(opinion.opinionLevel(-0.51)).toBe("poor");
+    expect(opinion.opinionLevel(-2.01)).toBe("horrible");
+  });
+
+  it("a bot accepts peace only above an opinion of 2, else declines", () => {
+    let s = settled();
     s.players[0].techs.push("strategy");
+    s.difficulty = "crazy";
     s = applyAction(s, { type: "offerPeace", player: 1 });
     s = applyAction(s, { type: "endTurn" });
-    // only Peaceful: decent
-    expect(opinion.opinionOf(s, 1, 0)).toBe("decent");
+    expect(opinion.opinionScore(s, 1, 0)).toBeLessThanOrEqual(2);
     expect(botStep(s)).toEqual({ type: "declinePeace", player: 0 });
-    greatOpinion(s);
+    // a human on easy: Charming +4
+    s.players[0].bot = false;
+    s.difficulty = "easy";
+    expect(opinion.opinionScore(s, 1, 0)).toBeGreaterThan(2);
     expect(opinion.opinionOf(s, 1, 0)).toBe("great");
     expect(botStep(s)).toEqual({ type: "acceptPeace", player: 0 });
   });
 
-  it("a bot offers peace at a great opinion and never breaks a treaty", () => {
-    const s = blank();
+  it("a bot never offers peace at an opinion of 2 or less, and breaks it below 0", () => {
+    const s = settled();
     s.current = 1;
     s.players[1].techs.push("strategy");
-    greatOpinion(s);
-    expect(opinion.opinionOf(s, 1, 0)).toBe("great");
-    expect(scoreAction(s, { type: "offerPeace", player: 0 })).toBeGreaterThan(0);
+    s.difficulty = "crazy";
+    expect(opinion.opinionScore(s, 1, 0)).toBeLessThanOrEqual(2);
+    expect(scoreAction(s, { type: "offerPeace", player: 0 })).toBeLessThan(0);
     peace(s);
-    expect(scoreAction(s, { type: "breakPeace", player: 0 })).toBeLessThan(0);
-    expect(botStep(s).type).not.toBe("breakPeace");
+    // late in the game the leaders count as Dominating: the opinion falls below 0
+    s.turn = 30;
+    const v = opinion.opinionScore(s, 1, 0);
+    expect(v).toBeLessThan(0);
+    expect(scoreAction(s, { type: "breakPeace", player: 0 })).toBeCloseTo(-500 * v);
   });
 });
 

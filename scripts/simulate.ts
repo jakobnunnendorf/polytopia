@@ -6,7 +6,7 @@
  *   node -r sucrase/register scripts/simulate.ts --games 20 --players 2 --size 11 --mode perfection
  *   node -r sucrase/register scripts/simulate.ts --games 5 --random   # random legal actions for player 0
  */
-import { createGame } from "../logic/engine/state";
+import { createGame, mapTypeFor } from "../logic/engine/state";
 import { applyAction, legalActions } from "../logic/engine/actions";
 import { botStep } from "../logic/engine/bot";
 import { observe } from "../logic/engine/observe";
@@ -25,7 +25,7 @@ const games = Number(arg("games", "10"));
 const players = Number(arg("players", "2"));
 const size = Number(arg("size", "11"));
 const mode = arg("mode", "perfection") as GameMode;
-const mapType = arg("map", "drylands") as MapType;
+const mapType = arg("map", mapTypeFor(mode) ?? "drylands") as MapType;
 const seed0 = Number(arg("seed", "1"));
 const randomP0 = flag("random");
 

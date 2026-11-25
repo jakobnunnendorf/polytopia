@@ -378,6 +378,7 @@ pub fn call(name: &str, args: &[Value]) -> R<Value> {
         // ---- state.ts (pure)
         "createGame" => state_to_json(&st::create_game(&NewGameOptions::from_json(arg(args, 0))?)?),
         "mapSizeFor" => json!(st::map_size_for(GameMode::from_id(arg(args, 0).as_str().unwrap_or("")).ok_or("unknown mode")?, int(arg(args, 1), "opponents")?)),
+        "mapTypeFor" => json!(st::map_type_for(GameMode::from_id(arg(args, 0).as_str().unwrap_or("")).ok_or("unknown mode")?).map(|t| t.id())),
         "mapSizeAllowed" => json!(st::map_size_allowed(GameMode::from_id(arg(args, 0).as_str().unwrap_or("")).ok_or("unknown mode")?, int(arg(args, 1), "size")?)),
         "scoreOf" => json!(st::score_of(&state(args, 0)?, int(arg(args, 1), "player")?)),
         "income" => json!(st::income(&state(args, 0)?, int(arg(args, 1), "player")?)),
@@ -394,6 +395,10 @@ pub fn call(name: &str, args: &[Value]) -> R<Value> {
             json!(st::resource_visible(&state(args, 0)?, int(arg(args, 1), "player")?, r))
         }
         "perfectionRating" => json!(st::perfection_rating(&state(args, 0)?, int(arg(args, 1), "player")?)),
+        "perfectionBonusPercent" => {
+            let d = arg(args, 0).as_str().and_then(Difficulty::from_id).ok_or("unknown difficulty")?;
+            json!(polycore::data::perfection_bonus_percent(d, int(arg(args, 1), "opponents")?))
+        }
         "dominationRating" => json!(st::domination_rating(&state(args, 0)?, int(arg(args, 1), "player")?)),
         "dominationStars" => json!(st::domination_stars(num(arg(args, 0), "rating")?)),
         "perfectionStars" => json!(st::perfection_stars(num(arg(args, 0), "rating")?)),
@@ -532,12 +537,15 @@ pub fn call(name: &str, args: &[Value]) -> R<Value> {
             let f = opinion::opinion_factors(&state(args, 0)?, int(arg(args, 1), "bot")?, int(arg(args, 2), "other")?);
             json!(f.iter().map(|x| x.id()).collect::<Vec<_>>())
         }
-        "opinionLevel" => json!(opinion_level(opinion::opinion_level(int(arg(args, 0), "score")?))),
+        "opinionReasons" => {
+            let r = opinion::opinion_reasons(&state(args, 0)?, int(arg(args, 1), "bot")?, int(arg(args, 2), "other")?);
+            json!(r.iter().map(|(f, v)| json!({"factor": f.id(), "value": v})).collect::<Vec<_>>())
+        }
+        "opinionLevel" => json!(opinion_level(opinion::opinion_level(num(arg(args, 0), "score")?))),
+        "LOVE_LIMIT" => json!(opinion::LOVE_LIMIT),
         "PEACEFUL_TURNS" => json!(opinion::PEACEFUL_TURNS),
         "POSITIVE_FACTORS" => {
-            use opinion::OpinionFactor::*;
-            let all = [Wise, Charming, Peaceful, Diplomatic, Powerful, Brave, Violent, Threatening, Weak, Annoying, Foolish, Intrusive, Dominating];
-            json!(all.iter().filter(|f| f.positive()).map(|f| f.id()).collect::<Vec<_>>())
+            json!(opinion::OpinionFactor::ALL.iter().filter(|f| f.positive()).map(|f| f.id()).collect::<Vec<_>>())
         }
         "friendly" => json!(dip::friendly(&state(args, 0)?, int(arg(args, 1), "a")?, opt_player(arg(args, 2), "b")?)),
         "brokeTreatyWith" => json!(dip::broke_treaty_with(&state(args, 0)?, int(arg(args, 1), "breaker")?, int(arg(args, 2), "victim")?)),
@@ -584,6 +592,25 @@ pub fn call_json(name: &str, args_json: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn perfection_bonus_percent_call_reads_the_table() {
+        let call_pct = |d: &str, o: i64| call("perfectionBonusPercent", &[json!(d), json!(o)]).unwrap();
+        // Crazy, 1..15 opponents: the app's setup screen
+        let shown = [180, 200, 210, 217, 222, 226, 229, 232, 234, 237, 239, 240, 242, 244, 245];
+        for (i, pct) in shown.iter().enumerate() {
+            assert_eq!(call_pct("crazy", i as i64 + 1), json!(pct), "Crazy, {} opponents", i + 1);
+        }
+        // 15 opponents by difficulty
+        for (d, pct) in [("easy", 165), ("normal", 185), ("hard", 205), ("crazy", 245)] {
+            assert_eq!(call_pct(d, 15), json!(pct), "{d}, 15 opponents");
+        }
+        // outside the setup screen's range the count is clamped
+        assert_eq!(call_pct("normal", 0), call_pct("normal", 1));
+        assert_eq!(call_pct("normal", 40), call_pct("normal", 15));
+        assert!(call("perfectionBonusPercent", &[json!("brutal"), json!(3)]).is_err());
+        assert!(call("perfectionBonusPercent", &[json!("easy"), json!("three")]).is_err());
+    }
 
     #[test]
     fn full_weights_json_has_plan() {
