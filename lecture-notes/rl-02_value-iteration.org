@@ -1,0 +1,697 @@
+#+TITLE: Value iteration, or how many turns to that village?
+#+AUTHOR: Jakob Nunnendorf
+#+LANGUAGE: en
+#+OPTIONS: toc:nil num:nil ^:nil author:nil date:nil
+#+COURSE: Reinforcement Learning
+#+UP: Lecture Notes, Week 02
+#+PREVIOUS: The Bellman operator is a contraction
+#+NEXT: Policy iteration
+#+PROPERTY: header-args:ocaml :tangle _build/rl-02_value-iteration.ml :mkdirp yes :eval no
+#+PROPERTY: header-args:toplevel :exports results :results verbatim
+#+PROPERTY: header-args:scene :exports results :results raw
+
+The goal of this lecture note is to compute, for every tile of a small
+Polytopia map, how good it is for a rider to stand there when a village
+is waiting to be captured.  The method is /value iteration/, from
+Lecture 2 of the Reinforcement Learning course.  The lecture states it
+in one line; here that line is turned into an OCaml function, tested,
+run, and looked at.
+
+#+begin_epigraph
+A journey of a thousand miles begins with a single step.
+
+---Lao Tzu
+#+end_epigraph
+
+* Resources
+
+- The OCaml code for the present lecture note
+  ([[file:rl-02_value-iteration.ml][rl-02_value-iteration.ml]]).  It is generated from this page, and
+  every interactive session below was obtained by running it.
+- The pictures are drawn by the game itself: the OCaml code describes a
+  scene (function ~picture~, at the end of the file, with
+  [[file:pictures.ml][pictures.ml]], which goes in the same directory),
+  and the game's own tile and unit components draw it.
+
+* The map
+
+The map has 8 columns and 6 rows.  Each character is one tile:
+
+| character | terrain  |
+|-----------+----------|
+| ~.~       | field    |
+| ~F~       | forest   |
+| ~M~       | mountain |
+| =~=       | water    |
+| ~V~       | village  |
+
+#+begin_src ocaml
+(* rl-02_value-iteration.ml *)
+(* EMAI in Polytopia, Reinforcement Learning, Week 02 *)
+(* Jakob Nunnendorf, 25 Nov 2026 *)
+
+let the_map =
+  [| "..FFF..V";
+     "..FFF.M.";
+     "....F...";
+     ".M......";
+     "..~~...F";
+     "...~~..." |];;
+
+let width = String.length the_map.(0)
+and height = Array.length the_map;;
+
+let village = (7, 0);;
+#+end_src
+
+A tile is denoted by a pair ~(x, y)~, where ~x~ is its column, counted
+from the left, and ~y~ is its row, counted from the top, both starting
+at 0.  So the village is at ~(7, 0)~, in the top-right corner, and a
+block of forest stands between it and the western half of the map.
+Here is the map as the game draws it, with a rider waiting at ~(0, 5)~.
+The marks around it are the names defined above, with their values:
+
+#+begin_src scene :pic rl-02_the-map
+picture ~axes:true ~rider:(0, 5)
+  ~marks:[Across (Printf.sprintf "width = String.length the_map.(0) = %d" width);
+          Down (Printf.sprintf "height = Array.length the_map = %d" height);
+          Beside (village, "village = " ^ show_tile village);
+          Below ((0, 5), "the rider, at " ^ show_tile (0, 5))]
+  zero_value
+#+end_src
+
+#+begin_src ocaml
+type terrain = Field | Forest | Mountain | Water | Village;;
+
+let terrain_at (x, y) =
+  match String.get the_map.(y) x with
+  | '.' -> Field
+  | 'F' -> Forest
+  | 'M' -> Mountain
+  | '~' -> Water
+  | 'V' -> Village
+  | _   -> assert false;;
+
+let () = assert (terrain_at village = Village);;
+#+end_src
+
+* The rider
+
+A rider has a movement of 2.  The rules of the game that matter here are
+the following ones (=docs/shardlands/RULES.md=, Sections 2.1, 4.1
+and 4.2):
+
+- in one turn, a rider takes up to two steps, each to one of the 8
+  neighbouring tiles;
+- entering a forest ends the move;
+- a mountain can only be entered with the Climbing technology, which our
+  rider does not have; and
+- water cannot be entered at all by a land unit without a port.
+
+Everything else is left out: there are no roads, no other units, and so
+no zone of control.
+
+Before writing the function that lists where a rider can end its turn,
+here is its unit-test function:
+
+#+begin_src ocaml
+let test_rider_moves candidate =
+      (* in the open, two steps in every direction the map allows: *)
+  let b0 = (candidate (0, 0) = [(0, 1); (0, 2); (1, 0); (1, 1); (1, 2); (2, 0); (2, 1); (2, 2)])
+      (* in the thick of the forest, every first step ends the move: *)
+  and b1 = (candidate (3, 0) = [(2, 0); (2, 1); (3, 1); (4, 0); (4, 1)])
+      (* next to the village, the village is within reach: *)
+  and b2 = List.mem village (candidate (5, 0))
+      (* behind the mountain, it is not: *)
+  and b3 = not (List.mem village (candidate (5, 2)))
+  in b0 && b1 && b2 && b3;;
+#+end_src
+
+And here is the function, in three small steps: which tiles can be
+entered, which tiles are one step away, and which tiles are one turn
+away.
+
+#+begin_src ocaml
+let on_the_map (x, y) =
+  0 <= x && x < width && 0 <= y && y < height;;
+
+let enterable p =
+  match terrain_at p with
+  | Field | Forest | Village -> true
+  | Mountain | Water -> false;;
+
+let ends_the_move p =
+  terrain_at p = Forest;;
+
+let steps_from (x, y) =
+  List.filter (fun q -> on_the_map q && enterable q)
+    [(x - 1, y - 1); (x, y - 1); (x + 1, y - 1);
+     (x - 1, y);                 (x + 1, y);
+     (x - 1, y + 1); (x, y + 1); (x + 1, y + 1)];;
+
+let rider_moves p =
+  let first_steps = steps_from p
+  in let second_steps = List.concat_map
+                          (fun q -> if ends_the_move q then [] else steps_from q)
+                          first_steps
+     in List.sort_uniq compare
+          (List.filter (fun q -> q <> p) (first_steps @ second_steps));;
+
+let () = assert (test_rider_moves rider_moves);;
+#+end_src
+
+#+begin_src toplevel
+rider_moves (0, 0);;
+rider_moves (3, 0);;
+#+end_src
+
+In words: from the top-left corner, the rider can end its turn on 8
+tiles; from the middle of the forest, on 5 tiles only, all of them
+forest.  The second case, on the map:
+
+#+begin_src scene :pic rl-02_rider-moves
+(let moves = rider_moves (3, 0)
+ in picture ~axes:true ~rider:(3, 0)
+      ~marks:[Outlined (moves, Printf.sprintf "rider_moves (3, 0): %d tiles" (List.length moves))]
+      zero_value)
+#+end_src
+
+* Interlude
+
+Rider: Two tiles a turn.  The village is seven tiles east of ~(0, 0)~.
+Four turns.  Why do I need a lecture?
+
+Cartographer: Seven tiles east of ~(0, 0)~ is through three tiles of
+forest.
+
+Rider: Then I go around.
+
+Cartographer: Around which side?  And from ~(3, 3)~?  And from every
+other tile?
+
+Elder: Let us not ride yet.  Let us first say what makes a tile a good
+place to stand, and then let the map answer for all the tiles at once.
+
+* The game as a Markov decision process
+
+- A *state* $x$ is the tile the rider stands on.
+- An *action* $a$ is the tile on which the rider ends its turn: one of
+  the tiles listed by ~rider_moves~, or $x$ itself, since a rider may
+  stay put.
+- The *transition* is deterministic: after action $a$, the rider stands
+  on $a$.  In the notation of the lecture, $P(y|x,a) = 1$ if $y = a$,
+  and $0$ otherwise.
+- The *reward* $r(x,a)$ is 1 if $a$ is the village, and 0 otherwise.
+  Arriving at the village ends the ride, so the village itself is worth
+  0: there is nothing more to gain from it.
+- The *discount factor* $\gamma$ says how much a turn of waiting costs:
+  a village reached one turn later is worth $\gamma$ times as much.
+
+#+begin_src ocaml
+let reward _x a =
+  if a = village then 1. else 0.;;
+#+end_src
+
+The optimal value function $V^*$ says how much each tile is worth to a
+rider who rides as well as possible.  It satisfies the Bellman
+optimality equations [EMAI RL 2.0 p.56: Bellman optimality equations]:
+
+\[
+V^*(x) = \max_a \Big\{ r(x,a) + \gamma \sum_y P(y|x,a)\, V^*(y) \Big\}
+\]
+
+For our rider, the sum has exactly one non-zero term, the one where $y = a$:
+
+\[
+V^*(x) = \max_a \big\{ r(x,a) + \gamma\, V^*(a) \big\}
+\]
+
+In words: a tile is worth as much as the best tile within reach,
+discounted by one turn, plus the reward for getting there.
+
+* Interlude
+
+Rider: Where did the sum go?
+
+Elder: The sum averages over what might happen next.  Nothing /might/
+happen to you: you end up where you ride.
+
+Cartographer: In the gridworld of the lecture, the walker also has 8
+directions and may stay put, but it only goes where it wants half of the
+time [EMAI RL 2.0 p.107: gridworld example].
+
+Rider: I am not a walker.
+
+Elder: Hold that thought until the exercises.
+
+* The Bellman optimality operator
+
+The lecture reads the right-hand side of the equation as an /operator/,
+$T^*$, that maps a function $f$ on the states to another function $T^*f$
+on the states [EMAI RL 2.0 p.94: Bellman optimality operator]:
+
+\[
+(T^*f)(x) = \max_a \Big\{ r(x,a) + \gamma \sum_y P(y|x,a)\, f(y) \Big\}
+\]
+
+A function on the tiles is represented as an array of rows, like the
+map.  The function that is 0 everywhere is our starting point:
+
+#+begin_src ocaml
+let value_at f (x, y) =
+  f.(y).(x);;
+
+let zero_value =
+  Array.make_matrix height width 0.;;
+#+end_src
+
+And here is $T^*$, for a given $\gamma$.  The fold computes the maximum
+over the actions, starting with the action of staying put:
+
+#+begin_src ocaml
+let bellman gamma f =
+  let backup p a = reward p a +. gamma *. value_at f a
+  in Array.init height (fun y ->
+         Array.init width (fun x ->
+             let p = (x, y)
+             in if p = village || not (enterable p)
+                then 0.
+                else List.fold_left
+                       (fun best a -> max best (backup p a))
+                       (backup p p)
+                       (rider_moves p)));;
+#+end_src
+
+To look at a function on the tiles, we print it as a table.  A forest
+tile is marked with ~F~ after its value, and the tiles the rider cannot
+stand on show their terrain instead of a value:
+
+#+begin_src ocaml
+let show f =
+  Array.iteri
+    (fun y row ->
+      Array.iteri
+        (fun x a ->
+          match terrain_at (x, y) with
+          | Mountain -> print_string "   M  "
+          | Water    -> print_string "   ~  "
+          | Village  -> print_string "   V  "
+          | Forest   -> Printf.printf " %.2fF" a
+          | Field    -> Printf.printf " %.2f " a)
+        row;
+      print_newline ())
+    f;;
+#+end_src
+
+Applying $T^*$ once, and then once more, with $\gamma = 0.9$:
+
+#+begin_src toplevel
+show (bellman 0.9 zero_value);;
+show (bellman 0.9 (bellman 0.9 zero_value));;
+#+end_src
+
+In words: after one application, only the tiles that are one turn away
+from the village are worth something.  After two, the tiles that are two
+turns away have joined them, at 0.90.  Each application lets the worth
+of the village spread by one more turn.  On the map, after two
+applications (a tile without a number is worth 0 so far):
+
+#+begin_src scene :pic rl-02_two-sweeps
+(let once = bellman 0.9 zero_value
+ in let twice = bellman 0.9 once
+    in picture ~axes:true
+         ~marks:[Beside ((7, 2), Printf.sprintf "%.2f = 1 + 0.9 * 0, to the village" (value_at twice (7, 2)));
+                 Beside ((7, 3), Printf.sprintf "%.2f = 0 + 0.9 * %.2f, to (7, 2)"
+                                   (value_at twice (7, 3)) (value_at once (7, 2)))]
+         twice)
+#+end_src
+
+* Unit tests for value iteration
+
+To compare two functions on the tiles, the lecture uses their largest
+difference over all states, $\| V - V' \|_\infty$:
+
+#+begin_src ocaml
+let distance v w =
+  let differences = Array.map2
+                      (Array.map2 (fun a b -> abs_float (a -. b)))
+                      v w
+  in Array.fold_left (Array.fold_left max) 0. differences;;
+#+end_src
+
+Value iteration takes a discount factor and a number of sweeps.  What
+should it compute on our map?
+
+#+begin_src ocaml
+let close a b =
+  abs_float (a -. b) < 1e-9;;
+
+let test_value_iteration candidate =
+  let v = candidate 0.9 20
+  in    (* before the first sweep, nothing is worth anything: *)
+  let b0 = (candidate 0.9 0 = zero_value)
+        (* the ride ends at the village: *)
+  and b1 = (value_at v village = 0.)
+        (* one turn away: *)
+  and b2 = close (value_at v (5, 0)) 1.
+        (* four tiles away as the crow flies, but three turns away: *)
+  and b3 = close (value_at v (3, 0)) (0.9 *. 0.9)
+        (* the far corner, four turns away: *)
+  and b4 = close (value_at v (0, 5)) (0.9 *. 0.9 *. 0.9)
+        (* the result is a fixed point of the Bellman optimality operator: *)
+  and b5 = close (distance (bellman 0.9 v) v) 0.
+  in b0 && b1 && b2 && b3 && b4 && b5;;
+#+end_src
+
+The last test is the Bellman optimality equation itself, $V^* = T^*V^*$.
+
+* Value iteration
+
+Value iteration is the following algorithm
+[EMAI RL 2.0 p.100: value iteration]: start from an arbitrary function
+$V_0$, and compute
+
+\[
+V_{k+1} = T^* V_k
+\]
+
+for $k = 0, 1, 2, \ldots$  The lecture then states that $V_k$ converges
+to $V^*$.
+
+So $V_n$ is $T^*$ applied $n$ times to $V_0$.  Applying a function $n$
+times is what a fold over a natural number does:
+
+#+begin_src ocaml
+let nat_fold_right zero_case succ_case n =
+  let () = assert (n >= 0) in
+  let rec visit i =
+    if i = 0
+    then zero_case
+    else let ih = visit (pred i)
+         in succ_case ih
+  in visit n;;
+
+let value_iteration gamma n =
+  nat_fold_right zero_value (bellman gamma) n;;
+
+let () = assert (test_value_iteration value_iteration);;
+#+end_src
+
+The definition of ~value_iteration~ is the line of the lecture, read
+aloud: the zero case is $V_0$, and the successor case is $T^*$.
+
+#+begin_src toplevel
+show (value_iteration 0.9 20);;
+#+end_src
+
+#+begin_src scene :pic rl-02_the-values
+picture (value_iteration 0.9 20)
+#+end_src
+
+* Interlude
+
+Rider: So I am worth 0.73 at home, in the bottom-left corner.
+
+Cartographer: /Standing there/ is worth 0.73.  That is $0.9^3$: you
+arrive on your fourth turn.  1.00 means one turn, 0.90 two, 0.81 three.
+
+Rider: And the forest?
+
+Cartographer: Look at the top row.  From ~(3, 0)~, the village is four
+tiles away, which is two turns for a rider.  The table says three.
+
+Elder: And the table is right.  Each forest tile ends the move, so the
+straight line east costs one turn per tile.
+
+* Riding greedily
+
+Knowing $V^*$ is enough to ride well: an optimal policy picks, in each
+state, an action that attains the maximum in the Bellman optimality
+equation [EMAI RL 2.0 p.57: optimal policy].  For our rider:
+
+\[
+\pi^*(x) \in \arg\max_a \big\{ r(x,a) + \gamma\, V^*(a) \big\}
+\]
+
+#+begin_src ocaml
+let greedy gamma v p =
+  let backup a = reward p a +. gamma *. value_at v a
+  in List.fold_left
+       (fun best a -> if backup a > backup best then a else best)
+       p
+       (rider_moves p);;
+
+let ride gamma v p =
+  let rec visit p fuel =
+    if p = village || fuel = 0
+    then [p]
+    else p :: visit (greedy gamma v p) (pred fuel)
+  in visit p (width * height);;
+#+end_src
+
+The function ~ride~ lists the tiles on which the rider ends its turns,
+from a given tile to the village:
+
+#+begin_src toplevel
+ride 0.9 (value_iteration 0.9 20) (0, 5);;
+ride 0.9 (value_iteration 0.9 20) (0, 0);;
+#+end_src
+
+The first of these two rides, on the map:
+
+#+begin_src scene :pic rl-02_the-ride
+(let v = value_iteration 0.9 20
+ in let the_ride = ride 0.9 v (0, 5)
+    in picture ~axes:true ~ride:the_ride
+         ~marks:[Below ((0, 5), Printf.sprintf "ride 0.9 v (0, 5): %d turns" (List.length the_ride - 1));
+                 Beside (village, "reward 1")]
+         v)
+#+end_src
+
+* Interlude
+
+Rider: Wait.  It sent me /into/ the forest.
+
+Cartographer: As the second step of your turn.  Entering a forest ends
+the move, and your move was ending anyway.
+
+Rider: So a forest costs nothing if I enter it last.
+
+Elder: It costs what is left of your turn.  Sometimes that is nothing.
+
+Rider: Nobody told me that.
+
+Elder: Nobody had to.  It is in the table.
+
+* The contraction, measured
+
+Why does repeating $T^*$ converge?  The key idea of the lecture is that
+$T^*$ is a /contraction/: for any two functions $V$ and $V'$
+[EMAI RL 2.0 p.101: contraction],
+
+\[
+\| T^*V - T^*V' \|_\infty \le \gamma\, \| V - V' \|_\infty
+\]
+
+Let us measure it.  First on two successive sweeps, which are a
+particular $V$ and $V'$:
+
+#+begin_src ocaml
+let successive_distances gamma n =
+  List.init n
+    (fun k -> distance (value_iteration gamma (succ k)) (value_iteration gamma k));;
+#+end_src
+
+#+begin_src toplevel
+successive_distances 0.9 8;;
+successive_distances 0.5 8;;
+#+end_src
+
+In words: each sweep moves the table by $\gamma$ times as much as the
+sweep before, and after four sweeps it does not move at all.  (The
+fourth number is 0.729, as closely as a floating-point number can say
+it.)
+
+Then on pairs of functions that have nothing to do with the game, with
+values drawn at random between 0 and 1:
+
+#+begin_src ocaml
+let random_value seed =
+  let state = Random.State.make [| seed |]
+  in Array.init height (fun _ ->
+         Array.init width (fun _ -> Random.State.float state 1.));;
+
+let contraction_ratio gamma v w =
+  distance (bellman gamma v) (bellman gamma w) /. distance v w;;
+#+end_src
+
+#+begin_src toplevel
+contraction_ratio 0.9 (random_value 1) (random_value 2);;
+contraction_ratio 0.9 (random_value 3) (random_value 4);;
+contraction_ratio 0.9 (random_value 5) (random_value 6);;
+#+end_src
+
+In words: the ratio stays below $\gamma = 0.9$, as promised, and for
+random pairs it is well below it.  The bound is a ceiling.  The
+successive sweeps above are a case where the ceiling is touched.
+
+* As the crow flies
+
+A rider that only knows its distance to the village, counted in tiles,
+would estimate the number of turns by dividing this distance by 2 and
+rounding up.  The table knows better.  For which tiles is the crow too
+optimistic?
+
+#+begin_src ocaml
+let turns_of_value gamma a =
+  1 + int_of_float (Float.round (log a /. log gamma));;
+
+let turns_as_the_crow_flies (x, y) =
+  let (vx, vy) = village
+  in (max (abs (vx - x)) (abs (vy - y)) + 1) / 2;;
+
+let all_tiles =
+  List.concat_map
+    (fun y -> List.init width (fun x -> (x, y)))
+    (List.init height (fun y -> y));;
+
+let too_optimistic gamma v =
+  List.filter
+    (fun p -> enterable p
+              && p <> village
+              && turns_as_the_crow_flies p < turns_of_value gamma (value_at v p))
+    all_tiles;;
+#+end_src
+
+#+begin_src toplevel
+too_optimistic 0.9 (value_iteration 0.9 20);;
+List.length (too_optimistic 0.9 (value_iteration 0.9 20));;
+List.length (List.filter (fun p -> enterable p && p <> village) all_tiles);;
+#+end_src
+
+In words: on 12 of the 41 tiles where a rider can stand, the distance in
+tiles promises one turn fewer than the ride takes.  Eleven of them are
+in the four western columns, on the far side of the forest.  The
+twelfth, ~(5, 2)~, is two tiles away from the village, behind the
+mountain.
+
+* Food for thought
+
+- The lecture promises that $V_k$ gets closer to $V^*$ by a factor
+  $\gamma$ at each sweep, forever.  Here, the table stops moving after
+  four sweeps, and the distance is exactly 0.  Is the lecture wrong, or
+  is our map special?  (Hint: [EMAI RL 2.0 p.64: Bellman and Dijkstra].)
+- What is the smallest number of sweeps that passes the unit tests?
+  What does this number say about the map?
+- What happens to the table as $\gamma$ gets closer to 1?  What happens
+  to the rides?  And what if $\gamma$ is exactly 1?
+- The values in the table are $1$, $\gamma$, $\gamma^2$ and $\gamma^3$.
+  State the general formula for the value of a tile from which the
+  village is $n$ turns away, and say why it holds.
+- In the unit tests, why is ~value_at v village~ compared with ~=~, and
+  the other values with ~close~?
+
+* Exercise 01
+
+Compute by hand the top row of $T^*V_0$ and of $T^*T^*V_0$, where $V_0$
+is ~zero_value~ and $\gamma$ is 0.9, and compare with the two tables
+above.
+
+* Exercise 02
+
+Give the rider the Climbing technology: a mountain can be entered, and
+entering it ends the move (=docs/shardlands/RULES.md=, Section 4.2).
+
+1. Extend the unit-test function for ~rider_moves~.
+2. Adjust ~enterable~ and ~ends_the_move~.
+3. Which tiles become worth more, and why these?
+
+* Exercise 03
+
+The lecture puts Bellman next to Dijkstra: value is immediate reward
+plus future value, and cost-to-go is immediate cost plus future
+cost-to-go [EMAI RL 2.0 p.64: Bellman and Dijkstra].
+
+1. Implement a function ~turns_to_village~ that computes, for every
+   tile, the number of turns a rider needs, without using any value
+   function.  Use ~nat_fold_right~.
+2. Write a unit-test function that checks ~value_iteration~ against it,
+   using your formula from the food for thought.
+3. Simplify ~too_optimistic~ accordingly.
+
+* Exercise 04
+
+Make the rider slip, like the walker of the lecture
+[EMAI RL 2.0 p.107: gridworld example]: with probability 0.5, it ends
+its turn where it wanted to; otherwise, on one of the enterable tiles
+next to that one, each being equally likely.
+
+1. The sum over $y$ is back.  Adjust ~bellman~.
+2. Measure ~successive_distances~ again.  Does the table still stop
+   moving after finitely many sweeps?
+3. Is entering a forest last still free?
+
+* Postlude
+
+Rider: So the map answers for all the tiles at once.
+
+Elder: The map and one line of the lecture, applied four times.
+
+Cartographer: The bots in this repository still count tiles as the crow
+flies.  Two open issues propose to give them this table instead: #76 for
+the value field itself, and #96 for the walking distance.
+
+Rider: And if there is an enemy in the forest?
+
+Elder: Then the tile you stand on is no longer the whole state.
+
+Rider: That sounds like another lecture note.
+
+Elder: That sounds like the rest of the course.
+
+#+begin_src ocaml :exports none
+(* ********** *)
+
+(* Pictures: the scenes of this note, for the game to draw. *)
+(* The marks and the function scene are in pictures.ml.     *)
+
+#use "pictures.ml";;
+
+(* A tile is labelled with its value if this value is not 0. *)
+
+let picture ?(ride = []) ?rider ?(marks = []) ?(axes = false) f =
+  let label p =
+    if enterable p && p <> village && value_at f p > 0.
+    then Some (Printf.sprintf "%.2f" (value_at f p))
+    else None
+  and piece = match (rider, ride) with
+              | (Some p, _) | (None, p :: _) ->
+                 Some ("rider", p)
+              | (None, []) ->
+                 None
+  in scene ~label ~path:ride ?piece ~marks ~axes the_map;;
+#+end_src
+
+* Course material
+
+Reinforcement Learning (UPF, 2026-27, G. Neu), Lecture 2, Dynamic
+Programming: =Reinforcement Learning/2.0 Dynamic Programming - Slides.pdf=.
+The pages are PDF pages; the deck prints no slide numbers.
+
+| page | what it supports here                                                                     |
+|------+-------------------------------------------------------------------------------------------|
+|   56 | the Bellman optimality equations for $V^*$                                                |
+|   57 | an optimal policy attains the maximum in these equations                                  |
+|   64 | Bellman next to Dijkstra: value and cost-to-go                                            |
+|   94 | the Bellman optimality operator $T^*$                                                     |
+|  100 | value iteration, $V_{k+1} = T^*V_k$, and its convergence to $V^*$                         |
+|  101 | $T^*$ is a contraction with factor $\gamma$ in the largest-difference norm                |
+|  107 | the gridworld example: 8 directions or staying put, moving as intended with probability 0.5 |
+
+The rules of the game are quoted from =docs/shardlands/RULES.md= in this
+repository (Sections 2.1, 4.1 and 4.2).  The moves computed here were
+not compared with the game engine.
+
+* Version
+
+Created [25 Nov 2026]
