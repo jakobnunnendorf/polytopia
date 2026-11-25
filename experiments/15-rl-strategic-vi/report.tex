@@ -93,23 +93,108 @@ $B eval --policy <chosen> --n 10000 --base-driver fixed:4 --out .../eval-vs-rese
 \section{Results}
 \ExpResults
 
-\todo{claude}{Value iteration per min-count, validation, final evaluation.}
+All numbers are copied from \texttt{vi-summary.json}, \texttt{val-m*.json}, \texttt{eval-vs-bot.json} and
+\texttt{eval-vs-research.json} (25 Nov 2026). Data: 300{,}000 random-action games, 9{,}044{,}223 rows, 555{,}338
+distinct states; collection 1{,}364\,s on 10 threads.
+
+\paragraph{Value iteration and validation} (2{,}000 validation seeds, policy against the bot on the same seeds).
+$V$(start) is the model's remaining score at the turn-0 state; the real remaining score is the policy's mean
+final score minus the start score of 515.
+
+\begin{center}\small
+\begin{tabular}{rrrrrrr}
+\toprule
+min-count & policy covers & $V$(start) & real remaining & optimism & better / worse & mean, policy vs bot \\
+\midrule
+1  & 100.0\% & 11{,}745 & 7{,}543 & +4{,}202 & 922 / 923 & 8058 vs 8055 \\
+5  & 86.6\%  & 9{,}399  & 7{,}619 & +1{,}780 & 969 / 882 & 8134 vs 8055 \\
+20 & 70.6\%  & 8{,}569  & 7{,}554 & +1{,}015 & 917 / 894 & 8069 vs 8055 \\
+50 & 56.1\%  & 8{,}156  & 7{,}529 & +627     & 861 / 898 & 8044 vs 8055 \\
+\bottomrule
+\end{tabular}
+\end{center}
+``Policy covers'' is the share of training visits in states with a policy entry. Min-count 5 has the highest share
+of better seeds (52.4\%) and is the one evaluated.
+
+\paragraph{Final evaluation} (10{,}000 evaluation seeds from $10^9$, \#171 rule computed by \texttt{rl-value eval}):
+
+\begin{center}\small
+\begin{tabular}{lrrrrrl}
+\toprule
+ & mean & median & 10th pct & better / worse / ties & mean $d$ (99\% upper) & rule \\
+\midrule
+policy (min-count 5)      & 8112 & 9035 & 2740 & & & \\
+bot                       & 7995 & 8850 & 2660 & 4967 / 4368 / 665 & $+117.6$ ($+169.8$) & PASS ($p = 3.0\cdot10^{-10}$) \\
+research every turn       & 8386 & 9305 & 3230 & 3913 / 5505 / 582 & $-273.5$ ($-233.0$) & FAIL \\
+\bottomrule
+\end{tabular}
+\end{center}
+(The ``better / worse'' columns count the seeds where the policy scored higher / lower than that row's player.)
+
+Reading: the value-iteration policy is reliably better than the bot it steers (better on 53.2\% of the decided
+seeds), but by only 118 points on average, and it is clearly worse than the fixed rule ``research every turn''
+(274 points less, better on only 41.5\%).
 
 \section{Behaviour}
-\todo{claude}{Which actions the policy takes, by turn.}
+On the evaluation seeds the policy plays bot 29.6\%, expand 16.7\%, economy 12.0\%, army 17.8\% and research 23.9\%
+of the learner's turns; 86.7\% of turns are in a state with a policy entry (the rest play the bot). The choice is
+close to uniform: value iteration did not single out research, the one action known to help.
 
 \section{Interpretation}
-\todo{claude}{Why the result came out this way, and whether the prediction held.}
+\textbf{Prediction 1 (beats the bot, +300 to +600): half right.} It passes the \#171 rule, but the gain is +118.
+
+\textbf{Prediction 2 (research on more than 40\% of turns): wrong.} 23.9\%, about the uniform 20\%.
+
+\textbf{Prediction 3 (optimistic values, shrinking with min-count): right.} $V$(start) is 4{,}202 points too high at
+min-count 1 and 627 at min-count 50.
+
+\textbf{Prediction 4 (not better than research every turn): right}, and more strongly than predicted: the policy is
+significantly worse.
+
+\textbf{Why: the noise of $\hat Q$ swamps the effects of the actions.} The remaining score has a standard deviation
+of about 2{,}900 points (experiment 13). An action's effect on it is a few hundred points over a whole game, so a
+few dozen points per turn. With 300{,}000 games spread over 555{,}338 states and five actions, a typical
+$(s,a)$ is seen a handful of times, so the standard error of $\hat Q(s,a)$ is around a thousand points: the
+argmax picks whichever action had lucky games, not the better action. That is the maximisation bias the optimism
+column shows, and it is why the choice is nearly uniform. The small gain over the bot comes mostly from the turns
+where the policy happens to choose research. Exact integers make the state precise but leave each state with too
+little data to tell actions apart; the earlier the turn, the less the state says anyway (experiment 13).
+
 \todo{david}{Your reading: agree, disagree, what is missing?}
 
 \section{Threats to validity}
-\todo{claude}{Two or three concrete threats.}
+\begin{itemize}
+  \item \emph{Not the decided setup}: 2 opponents, all \texttt{greedy-full-probe}, and the opponent model before
+        \#174 (the branch starts from \texttt{dev} at 6f99e0e). The \#171 rule was computed by \texttt{rl-value},
+        not \texttt{rl-gate}.
+  \item \emph{Exploration data}: values are learned from random-action play, which visits other states than the
+        policy does; 13.3\% of the policy's turns fall in states without an entry.
+  \item \emph{Min-count chosen on 2{,}000 validation games}: the differences between the four values are within
+        noise there (52.4\% at best); another choice would change little.
+  \item \emph{Expand} hardly differs from the bot and adds a near-duplicate action to the maximum.
+\end{itemize}
 
 \section{Verdict and next step}
-\todo{claude}{Kept or not under the \#171 rule; the next experiment.}
+\textbf{Not kept.} The policy passes the \#171 rule against the bot (on David's setup, not the gate's), but it is
+significantly worse than ``research every turn'', a fixed rule with no learning; keeping it would be keeping noise.
+Nothing is promoted (it could not be: the setup is not the gate's).
+
+Next steps this result points to:
+\begin{itemize}
+  \item \emph{Less noise per $(s,a)$}: more games, or fewer and more different actions (drop expand), or share data
+        between neighbouring states (a linear $Q$ in the six integers, i.e.\ function approximation instead of a
+        table).
+  \item \emph{Spending decisions as actions} (asked on \#166): actions that change the state variables directly.
+  \item \emph{Research every turn} is a strong, simple baseline that every later policy should be compared with.
+\end{itemize}
 
 \section{Notes for the paper}
-\todo{claude}{Draft: the one-sentence claim and which figure or table would carry it.}
+Claim: value iteration over a tabular model of exact integer features finds a policy that is reliably but only
+slightly better than the bot it steers (+118 points, better on 53\% of seeds), and worse than a fixed rule
+(``research every turn'', $-274$); the maximisation bias over sparse $\hat Q$ (the model overestimates the start
+value by 1{,}780 points at min-count 5) explains why. Carried by the validation table (optimism column) and the
+final evaluation table. A good ``what failed and why'' section for the talk.
+
 \todo{david}{Is this worth a place in the talk or report? Where?}
 
 \end{document}
