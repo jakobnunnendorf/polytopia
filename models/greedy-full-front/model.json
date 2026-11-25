@@ -1,6 +1,7 @@
 {
   "id": "greedy-full-front",
   "name": "Front",
+  "tagline": "Full greedy v1 retrained with new knobs that pull armies to the front.",
   "kind": "greedy-full",
   "description": "The full-action-space greedy bot (logic/engine/botFull.ts) with 205 knobs tuned by hill climbing (scripts/train-hill.ts --space full, margin test, opponents self+past): 258 challengers, 100k training games in 4-player domination on drylands 16x16 maps, fine-tuned from greedy-full-v1, 2 kept. Saved the champion of the best learning-curve point (round 199, 75k games). Won 94% against greedy-v1 and 58% against greedy-full-v1 on unseen maps at save time.",
   "hidden": true,

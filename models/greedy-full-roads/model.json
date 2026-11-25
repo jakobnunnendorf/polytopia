@@ -1,6 +1,7 @@
 {
   "id": "greedy-full-roads",
   "name": "Roads",
+  "tagline": "Front that also builds roads.",
   "kind": "greedy-full",
   "description": "greedy-full-front with roads=0.5, the best of a strength sweep (4 points, 200 games against each panel model). Not trained further.",
   "hidden": true,

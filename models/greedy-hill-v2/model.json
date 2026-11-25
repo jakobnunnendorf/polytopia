@@ -1,6 +1,7 @@
 {
   "id": "greedy-hill-v2",
   "name": "Hill climber v2",
+  "tagline": "Greedy v1 with weights tuned by hill climbing.",
   "kind": "greedy",
   "description": "The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts): 600 rounds of 60 self-play games on 11x11 maps, 15 challengers kept. Won 72% against greedy-v1 on unseen maps at save time.",
   "hidden": true,

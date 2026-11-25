@@ -12,6 +12,7 @@ import { mapSizeAllowed, mapTypeFor, perfectionBonusPercent } from "@/logic/engi
 import { name as displayName } from "@/logic/engine/names";
 import { tribeDescription } from "@/logic/engine/tribes";
 import { TribeEmblem } from "@/components/art/Art";
+import { ModelCard } from "./ModelCard";
 
 const MAP_SIZES = [
   { title: "Tiny", size: 11 },
@@ -133,17 +134,29 @@ function SeatRow({
           </Pressable>
         )}
       </View>
+      {seat.kind === "model" && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: "stretch" }}>
+          {models.map((m, rank) => {
+            const own = ratings[`model:${m.id}`];
+            const r = own ?? overall[`model:${m.id}`];
+            return (
+              <ModelCard
+                key={m.id}
+                model={m}
+                all={models}
+                rank={rank + 1}
+                elo={r ? Math.round(r.rating) : undefined}
+                overall={!own}
+                on={seat.modelId === m.id}
+                onPress={() => onChange({ ...seat, kind: "model", modelId: m.id })}
+              />
+            );
+          })}
+        </ScrollView>
+      )}
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
         {seat.kind === "model"
-          ? models.map((m) => (
-              <Chip
-                key={m.id}
-                label={m.name}
-                sub={elo(`model:${m.id}`)}
-                on={seat.modelId === m.id}
-                onPress={() => onChange({ kind: "model", modelId: m.id })}
-              />
-            ))
+          ? null
           : [GUEST, ...profiles].map((p) => (
               <Chip
                 key={p.id}
@@ -192,11 +205,6 @@ function SeatRow({
             }}
           />
         </View>
-      )}
-      {seat.kind === "model" && (
-        <Text style={{ color: UI.muted, fontSize: 12, lineHeight: 17 }} numberOfLines={2}>
-          {models.find((m) => m.id === seat.modelId)?.description}
-        </Text>
       )}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
         <Chip

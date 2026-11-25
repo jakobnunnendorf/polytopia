@@ -21,6 +21,19 @@ export type ModelSpec = {
    * in the setup screen's model picker
    */
   hidden?: boolean;
+  /** one plain line for the model card (what it does, not how it was tuned) */
+  tagline?: string;
+  /** how it was made (scripts/train-*.ts, scripts/sweep.ts); the card shows a few of these */
+  training?: {
+    method?: string;
+    /** the model it started from */
+    from?: string;
+    trainingGames?: number;
+    gamesPerPoint?: number;
+    points?: string[];
+    duration?: string;
+    [k: string]: unknown;
+  };
   created: string;
   /** greedy: weight overrides on top of DEFAULT_WEIGHTS */
   weights?: Partial<GreedyWeights>;
