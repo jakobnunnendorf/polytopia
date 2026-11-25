@@ -65,7 +65,7 @@ The cliff shows the method's blind spot and its safety net at once: marginal eff
 \section{Verdict and next step}
 \textbf{Kept.} \model{greedy-full-probe} is the new champion: 61.3\,\% $\pm$4.8 won against the base (finish 59.0\,\%, points 56.2\,\%) and a panel finish of 85.80\,\% against 83.82\,\%; with 8 players 72.8\,\% $\pm$4.4. The hill-climbing control with the same budget found nothing.
 
-The trainer stays as \texttt{scripts/train-probe.ts} (\texttt{npm run train-probe}). Next steps, each its own experiment: (1) a second probe run from the new champion with a smaller nudge, to see how much is left; (2) the same trainer on the plain greedy bots (issue \issue{131}); (3) the warrior and mind bender cliff as a bug report on the unit choice; (4) repeat with another seed to learn how stable the set of moved knobs is.
+The trainer stays as \texttt{scripts/train-probe.ts} (\texttt{npm run train-probe}). Next steps, each its own experiment: (1) a second probe run from the new champion with a smaller nudge, to see how much is left; (2) the same trainer on the plain greedy bots (issue \issue{131}); (3) the warrior and mind bender cliff, filed as \issue{145}; (4) repeat with another seed to learn how stable the set of moved knobs is.
 
 \section{Notes for the paper}
 \textbf{Claim (draft).} Estimating all 205 weights' effects from the same games by random sign perturbation, and moving only the weights whose effect passes a significance test, improved a hand-built heuristic bot by 2.0 points of finish score and to 61\,\% against its predecessor in 100,000 games, where hill climbing with the same budget found nothing.
