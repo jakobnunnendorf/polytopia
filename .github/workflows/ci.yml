@@ -1,0 +1,81 @@
+# CI: every pull request and every push to main runs the three test layers of the repo.
+#   engine  Rust workspace: compile everything, unit tests (polycore, polyapi), wasm build,
+#           and the Python module test (engine/py/test_env.py)
+#   app     builds the Node addon the Jest suite loads (logic/engine/rust.ts), then tsc and Jest
+# Deployment is not done here: the game on :8082 and the ranking server on :8091 pull
+# origin/main every minute through launchd on Jakob's Mac, so a merge to main is the deploy.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  # the release profile is tuned for training speed (fat LTO, 1 codegen unit); CI only needs
+  # optimised code for the tests, not the last few percent, so it builds much faster this way
+  CARGO_PROFILE_RELEASE_LTO: "false"
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+  CARGO_PROFILE_RELEASE_DEBUG: "0"
+
+jobs:
+  engine:
+    name: Rust engine
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - name: Check the whole workspace
+        working-directory: engine
+        run: cargo check --workspace --all-targets
+      - name: Unit tests
+        working-directory: engine
+        run: cargo test -p polycore -p polyapi
+      - name: WebAssembly build (public/polyengine.wasm)
+        working-directory: engine
+        run: cargo build --release -p polywasm --target wasm32-unknown-unknown
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python module test
+        run: |
+          cd engine && cargo build --release -p polypy && cd ..
+          cp engine/target/release/libpolyengine.so engine/py/polyengine.so
+          pip install numpy
+          python engine/py/test_env.py
+
+  app:
+    name: TypeScript and Jest
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - name: Build the Node addon (engine/node/polyengine.node)
+        run: |
+          cd engine && cargo build --release -p polynode && cd ..
+          cp engine/target/release/libpolynode.so engine/node/polyengine.node
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Jest
+        run: npm run test:ci
