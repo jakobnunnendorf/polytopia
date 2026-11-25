@@ -185,7 +185,9 @@ repository):
 
 The pictures use the game's sprites, which are the official Polytopia art. They stay in
 `lecture-notes/_build/` and are never committed, uploaded, published as an artifact or sent to
-an outside service. The same holds for the course PDFs (see `refer-to-lecture`): cite page
+an outside service. The app is deployed to Vercel from `main`, so `app/scene.tsx` draws a
+scene only when it is opened on 127.0.0.1 or localhost; keep that check. The same holds for
+the course PDFs (see `refer-to-lecture`): cite page
 numbers and paraphrase.
 
 ## Common mistakes

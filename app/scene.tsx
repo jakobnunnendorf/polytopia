@@ -17,7 +17,8 @@
  *     margin?: [top, right, bottom, left], // room around the map for the marks, in pixels
  *                                          // (worked out by lecture-notes/build.el)
  *     tile?: 64 }                          // tile size in pixels
- * Web only. The tile and unit components call the rules engine while drawing, so the page
+ * Web only, and only when the page is opened on this computer (127.0.0.1 or localhost).
+ * The tile and unit components call the rules engine while drawing, so the page
  * waits for the engine like every other page (app/_layout.tsx).
  */
 import React, { useEffect, useState } from "react";
@@ -196,6 +197,10 @@ function tileOf(ch: string): TileData {
 
 function readScene(): Scene | string {
   if (Platform.OS !== "web") return "Scenes are drawn in the web build only.";
+  // the pictures are for local viewing only: on a deployed copy of the app this page draws nothing
+  if (!["127.0.0.1", "localhost"].includes(globalThis.location.hostname)) {
+    return "Scenes for the lecture notes are drawn on the author's computer only.";
+  }
   try {
     const raw = globalThis.location.hash.slice(1).replace(/-/g, "+").replace(/_/g, "/");
     if (!raw) return "No scene given (expected JSON, base64url-encoded, after the #).";
