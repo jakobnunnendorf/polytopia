@@ -429,12 +429,12 @@ pub fn city_score(c: &City) -> i32 {
     }
     score + SCORE.park * c.parks
 }
-/// score × (1 + bonus), bonus = round(handicap/5 + ln(opponents)/ln(11.4), 2)
+/// score × the difficulty bonus, rounded like JS Math.round. The bonus is a whole percent from the app's
+/// table (`perfection_bonus_percent`: 100 + difficulty part + opponent part, e.g. 245% for 15 Crazy
+/// opponents); the multiplier is that percent / 100.
 pub fn perfection_rating(s: &GameState, p: i32) -> f64 {
     let opponents = s.players.len() as i32 - 1;
-    let raw = perfection_difficulty_bonus(difficulty_of(s))
-        + if opponents > 0 { libm::log(opponents as f64) / libm::log(11.4) } else { 0.0 };
-    let bonus = 1.0 + js_round(raw * 100.0) / 100.0;
+    let bonus = perfection_bonus_percent(difficulty_of(s), opponents) as f64 / 100.0;
     js_round(score_of(s, p) as f64 * bonus)
 }
 /// mean of speed, battle, destroyed tribes / opponents and the difficulty part
@@ -719,7 +719,18 @@ pub fn meet(s: &mut GameState, p: i32, other: i32) {
     if p == other || s.players[p as usize].met.contains(&other) {
         return;
     }
-    s.players[p as usize].met.push(other);
+    let turn = s.turn;
+    let pl = &mut s.players[p as usize];
+    // out of step with `met` (a state saved before met_turns existed, or `met` edited by hand):
+    // its earlier meetings count as turn 0
+    if pl.met_turns.len() > pl.met.len() {
+        pl.met_turns.clear();
+    }
+    while pl.met_turns.len() < pl.met.len() {
+        pl.met_turns.push(0);
+    }
+    pl.met.push(other);
+    pl.met_turns.push(turn);
     let sc = score_of(s, other);
     let base = if s.players.len() == 2 && other == 0 { 3 } else { 1 };
     let tiers = 5.min(((sc as f64) / 1000.0).ceil() as i32);
@@ -1047,6 +1058,7 @@ pub fn create_game(opts: &NewGameOptions) -> Result<GameState, String> {
             kills: 0,
             losses: 0,
             met: vec![],
+            met_turns: vec![],
             tasks: vec![],
             monuments: vec![],
             pacifist_turns: 0,
@@ -1335,6 +1347,7 @@ mod tests {
                 } else if k == "resetMet" {
                     for o in x.players.iter_mut() {
                         o.met.clear();
+                        o.met_turns.clear();
                     }
                     check_meetings(&mut x);
                 } else if k == "eliminate1" {
@@ -1370,6 +1383,34 @@ mod tests {
         eprintln!("state functions: {states} states, {checks} checks, {} failed (first 50: {fails:?})", fails.len());
         assert!(states > 0);
         assert!(fails.is_empty(), "{fails:#?}");
+    }
+
+    /// perfection_rating reads the opponent count from the players and the table in data.rs
+    #[test]
+    fn perfection_rating_uses_the_bonus_table() {
+        if !mapgen_ready() {
+            return;
+        }
+        let game = |players: i32, d: Difficulty| {
+            let opts = NewGameOptions {
+                map_size: Some(16),
+                players,
+                mode: GameMode::Perfection,
+                difficulty: Some(d),
+                seed: 1,
+                humans: None,
+                map_type: None,
+                clans: None,
+                turn_limit: None,
+            };
+            create_game(&opts).unwrap()
+        };
+        for (d, pct) in [(Difficulty::Easy, 165), (Difficulty::Normal, 185), (Difficulty::Hard, 205), (Difficulty::Crazy, 245)] {
+            let s = game(16, d);
+            assert_eq!(perfection_rating(&s, 0), js_round(score_of(&s, 0) as f64 * (pct as f64 / 100.0)), "{d:?}, 15 opponents");
+        }
+        let s = game(2, Difficulty::Crazy);
+        assert_eq!(perfection_rating(&s, 0), js_round(score_of(&s, 0) as f64 * 1.8), "Crazy, 1 opponent");
     }
 
     #[test]

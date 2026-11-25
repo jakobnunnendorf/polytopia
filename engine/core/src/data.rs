@@ -91,13 +91,33 @@ pub fn bot_capital_bonus(d: Difficulty) -> i32 {
 pub fn handicap(d: Difficulty) -> i32 {
     bot_capital_bonus(d)
 }
-pub fn perfection_difficulty_bonus(d: Difficulty) -> f64 {
+/// Perfection difficulty bonus, difficulty part in whole percent: +0/20/40/80 for Easy/Normal/Hard/Crazy
+pub fn perfection_difficulty_percent(d: Difficulty) -> i32 {
     match d {
-        Difficulty::Easy => 0.0,
-        Difficulty::Normal => 0.2,
-        Difficulty::Hard => 0.4,
-        Difficulty::Crazy => 0.8,
+        Difficulty::Easy => 0,
+        Difficulty::Normal => 20,
+        Difficulty::Hard => 40,
+        Difficulty::Crazy => 80,
     }
+}
+/// Perfection difficulty bonus, opponent part in whole percent, by number of opponents 1..=15.
+/// Read off the app's Perfection setup screen ("Difficulty bonus: X%", iPhone, 25 Nov 2026; Crazy shows
+/// 180, 200, 210, 217, 222, 226, 229, 232, 234, 237, 239, 240, 242, 244, 245 for 1..15 opponents). A table,
+/// not a formula: several smooth curves fit these 15 points exactly. The old formula
+/// `ln(opponents) / ln(11.4)` (and its 41% coefficient) is from a pre-February-2024 build and gives
+/// larger values (291% for 15 Crazy opponents, against 245% now).
+pub const PERFECTION_OPPONENT_PERCENT: [i32; 15] = [0, 20, 30, 37, 42, 46, 49, 52, 54, 57, 59, 60, 62, 64, 65];
+/// Opponent part of the Perfection bonus in whole percent. The setup screen offers 1..=15 opponents:
+/// fewer than 1 counts as 1 and more than 15 as 15.
+pub fn perfection_opponent_percent(opponents: i32) -> i32 {
+    PERFECTION_OPPONENT_PERCENT[(opponents.clamp(1, 15) - 1) as usize]
+}
+/// The whole Perfection difficulty bonus in percent (the multiplier on the score is this / 100):
+/// 100 + difficulty part + opponent part, e.g. 245 for 15 Crazy opponents.
+/// ASSUMPTION: the opponent table was read for Crazy at every count, but Easy/Normal/Hard only at 15
+/// opponents; we assume every difficulty adds the same opponent part (unchecked in the app).
+pub fn perfection_bonus_percent(d: Difficulty, opponents: i32) -> i32 {
+    100 + perfection_difficulty_percent(d) + perfection_opponent_percent(opponents)
 }
 pub fn domination_difficulty(d: Difficulty) -> f64 {
     match d {
@@ -251,5 +271,29 @@ mod tests {
         // TS: Math.ceil((4 + 2*3) * Math.fround(0.66666) - 1e-9) = 7
         assert_eq!(tech_cost_for(2, 3, true), 7);
         assert_eq!(tech_cost_for(1, 2, false), 6);
+    }
+    /// the setup screen's "Difficulty bonus: X%" (25 Nov 2026): Crazy, 1..15 opponents
+    #[test]
+    fn perfection_bonus_crazy_by_opponents() {
+        let shown = [180, 200, 210, 217, 222, 226, 229, 232, 234, 237, 239, 240, 242, 244, 245];
+        for (i, want) in shown.iter().enumerate() {
+            assert_eq!(perfection_bonus_percent(Difficulty::Crazy, i as i32 + 1), *want, "{} opponents", i + 1);
+        }
+    }
+    /// the setup screen at 15 opponents: Easy, Normal, Hard, Crazy
+    #[test]
+    fn perfection_bonus_15_opponents_by_difficulty() {
+        assert_eq!(perfection_bonus_percent(Difficulty::Easy, 15), 165);
+        assert_eq!(perfection_bonus_percent(Difficulty::Normal, 15), 185);
+        assert_eq!(perfection_bonus_percent(Difficulty::Hard, 15), 205);
+        assert_eq!(perfection_bonus_percent(Difficulty::Crazy, 15), 245);
+    }
+    #[test]
+    fn perfection_bonus_clamps_opponents() {
+        assert_eq!(perfection_opponent_percent(0), 0);
+        assert_eq!(perfection_opponent_percent(-3), 0);
+        assert_eq!(perfection_opponent_percent(16), 65);
+        assert_eq!(perfection_opponent_percent(100), 65);
+        assert_eq!(perfection_bonus_percent(Difficulty::Easy, 1), 100);
     }
 }

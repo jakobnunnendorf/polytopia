@@ -196,6 +196,10 @@ jobs:
     needs: [engine, app]
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # records each deploy under the repo's Deployments, linked to the live site
+    environment:
+      name: production
+      url: https://polytopia.expo.app
     concurrency:
       group: deploy-web
       cancel-in-progress: false

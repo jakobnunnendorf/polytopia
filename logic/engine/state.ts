@@ -63,6 +63,12 @@ export const canResearch = (s: GameState, p: number, tech: string): boolean => c
 export const scoreOf = (s: GameState, p: number): number => call("scoreOf", s, p);
 export const cityScore = (c: City): number => call("cityScore", c);
 export const perfectionRating = (s: GameState, p: number): number => call("perfectionRating", s, p);
+/**
+ * The Perfection difficulty bonus in whole percent, as the setup screen shows it ("Difficulty bonus: 245%"):
+ * 100 + difficulty part + opponent part. `opponents` counts the other tribes (1..15, clamped).
+ */
+export const perfectionBonusPercent = (difficulty: Difficulty, opponents: number): number =>
+  call("perfectionBonusPercent", difficulty, opponents);
 export const dominationRating = (s: GameState, p: number): number => call("dominationRating", s, p);
 export const dominationStars = (rating: number): number => call("dominationStars", rating);
 export const perfectionStars = (rating: number): number => call("perfectionStars", rating);

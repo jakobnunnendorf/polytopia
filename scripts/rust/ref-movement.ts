@@ -1,6 +1,6 @@
 /**
- * Reference values for the Rust port of diplomacy.ts, combat.ts, movement.ts
- * and opinion.ts: plays corpus games (trace-gen specFor) with the TypeScript
+ * Reference values for the Rust port of diplomacy.ts, combat.ts and movement.ts
+ * (opinions follow the game's decompiled model since and are tested in opinion.rs): plays corpus games (trace-gen specFor) with the TypeScript
  * engine and records, at sampled states, what those modules return. The Rust
  * tests (engine/core/src/movement.rs) load the file and compare.
  *
@@ -14,7 +14,6 @@ import { computeDamageRounded, defenceBonus } from "../../logic/engine/combat";
 import { atPeace, atWar, canHarm, hasOffer, relation } from "../../logic/engine/diplomacy";
 import { around, tileAt } from "../../logic/engine/grid";
 import { canSee, enterKind, followerOf, leaderOf, movementRange, pathTo, reachable, sightRadius } from "../../logic/engine/movement";
-import { opinionFactors, opinionOf, opinionScore } from "../../logic/engine/opinion";
 import { createGame } from "../../logic/engine/state";
 import type { GameState } from "../../logic/engine/types";
 import { WEIGHT_SETS, policyRng, specFor } from "./trace-gen";
@@ -69,9 +68,6 @@ function record(s: GameState) {
         war: atWar(s, a.id, b.id),
         harm: canHarm(s, a.id, b.id),
         offer: hasOffer(s, a.id, b.id),
-        ...(a.id !== b.id
-          ? { factors: opinionFactors(s, a.id, b.id), score: opinionScore(s, a.id, b.id), level: opinionOf(s, a.id, b.id) }
-          : {}),
       });
     }
   return { state: s, units, combat, pairs };

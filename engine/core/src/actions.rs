@@ -948,6 +948,7 @@ fn heal(s: &mut GameState, ui: usize) {
 fn break_peace(s: &mut GameState, breaker: i32, victim: i32) {
     let ord = ordinal(s);
     let until = ord + s.players.len() as i32;
+    let turn = s.turn;
     {
         let d = dip_mut(s);
         d.peace.retain(|x| !((x[0] == breaker && x[1] == victim) || (x[0] == victim && x[1] == breaker)));
@@ -955,6 +956,11 @@ fn break_peace(s: &mut GameState, breaker: i32, victim: i32) {
         d.ceasefires.push(Ceasefire { breaker, victim, until });
         if !d.broken.iter().any(|b| b[0] == victim && b[1] == breaker) {
             d.broken.push([victim, breaker]);
+        }
+        let (lo, hi) = if breaker < victim { (breaker, victim) } else { (victim, breaker) };
+        match d.broken_turns.iter_mut().find(|x| x[0] == lo && x[1] == hi) {
+            Some(x) => x[2] = turn,
+            None => d.broken_turns.push([lo, hi, turn]),
         }
     }
     let lost: Vec<Id> = s
@@ -1904,7 +1910,12 @@ fn do_capture(s: &mut GameState, uid: Id) {
     } else if t.flooded {
         t.flooded = false;
     }
+    let dry = !t.flooded;
     let ui = uidx(s, uid).unwrap();
+    // a boat that captured a flooded city stands on dry land now: it lands as its passenger
+    if dry && s.units[ui].carried.is_some() {
+        disembark(&mut s.units[ui]);
+    }
     end_unit(&mut s.units[ui]);
 }
 

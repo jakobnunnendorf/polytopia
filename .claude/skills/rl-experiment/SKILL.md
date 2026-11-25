@@ -26,16 +26,36 @@ experiment; the agent is measured against our current models.
 5. **Evaluate** the new version and the base version on the **same fixed seeds** against the same opponents.
    Report at least: mean final score, win rate, both with confidence intervals; value-prediction error on
    held-out games when the change is about V.
-6. **Quality gate.** 99% one-sided paired test on 10,000 evaluation seeds (agreed 25 Nov 2026, #166; details in
-   `docs/rl-project/README.md`, "The quality gate"). Run:
-   `npm run rl:gate -- --candidate <new> --base <base> --difficulty <d> --out experiments/NN-rl-<slug>/`
-   Difficulty: not decided yet, pass it explicitly and name it in the report. Candidate and base play seat 0
-   (Xin-Xi, Perfection, 16x16 Continents, 3 players, opponents `greedy-full-probe`) on the same seeds
-   1,000,000,000.. (never use these for training). **PASS iff mean(d) − 2.326·sd(d)/√N > 0**, d = seat-0
-   score(candidate) − score(base) per seed; exit 0 = PASS, 1 = FAIL. Apply the verdict as printed, never rerun
-   with other seeds or a smaller N to change it; copy the summary and cite the JSON in the report.
+6. **Quality gate.** Paired **sign test** on 10,000 evaluation seeds (agreed 25 Nov 2026, #166, reliability first;
+   details in `docs/rl-project/README.md`, "The quality gate"). Run:
+   `npm run rl:gate -- --candidate <new> --base <base> --out experiments/NN-rl-<slug>/`
+   Decided setup (Jakob, 25 Nov 2026), the tool's defaults: difficulty **Crazy**; **3 opponents** (`--players 4`,
+   the symmetric map layout; may grow once game time per opponent count is measured); opponents (Jakob, 25 Nov
+   2026) the **current champion** (entry 0 of `docs/rl-project/champions.json`, the base you challenge), the
+   **previous champion** (entry 1) and the fixed anchor **`greedy-full-probe`**, shuffled over the seats per seed,
+   identically for candidate and base (the tool's default; do not pass `--opp` for a verdict); the learner seat counts as **human**
+   (human capital income, as in the app). The final stage fine-tunes and evaluates on 15 Crazy opponents. Train
+   on the same setup. Candidate and base play seat 0 (Xin-Xi, Perfection, 16x16 Continents) on the same seeds
+   1,000,000,000.. (never use these for training). d = seat-0 score(candidate) − score(base) per seed. The
+   candidate must be better on more seeds, not better by more points on a few: **PASS iff** (1) the exact
+   one-sided sign test (ties dropped; better vs worse seeds; H0 P(better) = 0.5) rejects at α = 0.01, **and** the
+   guards hold: (a) the one-sided 99% upper bound of mean(d) is ≥ 0 (the mean is not significantly worse), (b) the
+   candidate's 10th-percentile score ≥ the base's. Exit 0 = PASS, 1 = FAIL (the output names the failed
+   condition). Mean, median, 10th/90th percentile, win rates and best-of-k (k = 1, 10, 100) are reported, not
+   deciding. Apply the verdict as printed, never rerun with other seeds or a smaller N to change it; copy the
+   summary and cite the JSON in the report. For the demo, headline the **median score**; best-of-k against the
+   leaderboard is a secondary, labelled best-case figure.
+   The same command then runs the **15-opponent information run** (16 players, the same three opponents 5 times
+   each, seeds 1,500,000,000.., N = 5,000; JSON block `info15`). It never decides and never changes the exit code.
+   The report records both: the 3-opponent verdict and the 15-opponent information numbers (better share, median,
+   p10, mean, win rates).
 7. **Close.**
-   - Pass: PR into `dev`, merge, post STATUS on #166 naming the new base version.
+   - Pass: PR into `dev`, merge, then **promote** (explicit, never automatic):
+     `npm run rl:gate -- promote <id> --gate <the PASS gate JSON> --experiment NN-rl-<slug> --pr <n>` (the new
+     version becomes the current champion, the old one the previous champion; the anchor stays), then the
+     **progress benchmark** `npm run rl:gate -- --benchmark <id>` (report only: against fixed copies of
+     `greedy-full-probe`, appends to `docs/rl-project/progress.csv`). Commit both files to `dev`, post STATUS on
+     #166 naming the new base version.
    - Fail: verdict `not kept` in `experiment.json` and the report (failures go in the course report too),
      commit the report to `dev`, post STATUS, release the claim.
 

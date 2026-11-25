@@ -363,7 +363,11 @@ export const HUMAN_CAPITAL_BONUS = 1;
 export const BOT_CAPITAL_BONUS = { easy: 0, normal: 1, hard: 2, crazy: 4 } as const;
 /** bot handicap by difficulty (2.18): Easy 0, Normal 1, Hard 2, Crazy 4 */
 export const HANDICAP = { easy: 0, normal: 1, hard: 2, crazy: 4 } as const;
-/** Perfection bonus difficulty part d = handicap / 5 */
+/**
+ * Perfection bonus difficulty part: +0/20/40/80 percent on top of 100%. The opponent part is a table
+ * (+0/20/30/37/42/46/49/52/54/57/59/60/62/64/65 percent for 1..15 opponents, read off the app's setup
+ * screen on 25 Nov 2026) that lives only in the Rust engine (engine/core/src/data.rs, perfectionRating).
+ */
 export const PERFECTION_DIFFICULTY_BONUS = { easy: 0, normal: 0.2, hard: 0.4, crazy: 0.8 } as const;
 /** Domination rating difficulty part (2.18 end screen) */
 export const DOMINATION_DIFFICULTY = { easy: 0.25, normal: 0.5, hard: 0.75, crazy: 1 } as const;
