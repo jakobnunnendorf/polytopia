@@ -31,6 +31,8 @@ export type Rating = {
   /** 95% confidence interval from the bootstrap */
   lo?: number;
   hi?: number;
+  /** set when the rating comes from the bot tournament (elo/<date>/) and not from arena games */
+  source?: "tournament";
 };
 export type Ratings = Record<string, Rating>;
 

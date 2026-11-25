@@ -5,7 +5,7 @@ import { UI } from "@/components/game/theme";
 import { START_RATING, type RatingFilter, type Ratings } from "@/logic/arena/elo";
 import type { ModelSpec } from "@/logic/agents/types";
 
-type Row = { key: string; name: string; kind: string; rating: number; games: number; wins: number; lo?: number; hi?: number };
+type Row = { key: string; name: string; kind: string; rating: number; games: number; wins: number; lo?: number; hi?: number; tournament?: boolean };
 
 type Facets = { mode: Record<string, number>; players: Record<string, number>; size: Record<string, number>; mapType: Record<string, number> };
 
@@ -63,7 +63,7 @@ export default function RankingsTable() {
         setError(false);
         setRows(
           Object.entries(ratings)
-            .map(([key, r]) => ({ key, ...label(key), rating: r.rating, games: r.games, wins: r.wins, lo: r.lo, hi: r.hi }))
+            .map(([key, r]) => ({ key, ...label(key), rating: r.rating, games: r.games, wins: r.wins, lo: r.lo, hi: r.hi, tournament: r.source === "tournament" }))
             .sort((a, b) => b.rating - a.rating),
         );
       })
@@ -109,6 +109,11 @@ export default function RankingsTable() {
           {Object.values(filter).some((v) => v !== undefined) ? "No rated games of this kind yet." : "No rated games yet. Finish a game to appear here."}
         </Text>
       )}
+      {rows && rows.some((r) => r.tournament) && (
+        <Text style={{ color: UI.muted, fontSize: 12, lineHeight: 17, marginTop: 8 }} testID="rankings-source">
+          Rows marked "tournament" are rated on the latest bot tournament (every bot against every other in each mode, see elo/ in the repo); all other rows on the games played and recorded here.
+        </Text>
+      )}
       {rows && rows.length > 0 && (
         <View style={{ marginTop: 10 }} testID="rankings-table">
           <View style={{ flexDirection: "row", paddingBottom: 6 }}>
@@ -126,7 +131,7 @@ export default function RankingsTable() {
                 <Text style={{ color: i === 0 ? UI.gold : UI.mist, fontSize: 15, fontWeight: "800" }} numberOfLines={1}>
                   {r.name}
                 </Text>
-                <Text style={{ color: UI.muted, fontSize: 11 }}>{r.kind}</Text>
+                <Text style={{ color: UI.muted, fontSize: 11 }}>{r.tournament ? `${r.kind} · tournament` : r.kind}</Text>
               </View>
               <View style={{ width: 70, alignItems: "flex-end" }}>
                 <Text style={[cell, { fontSize: 16, fontWeight: "800" }]}>{Math.round(r.rating)}</Text>
