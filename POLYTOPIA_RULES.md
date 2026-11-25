@@ -586,6 +586,7 @@ Their units are listed under Units.
 
 - **Amphibious:** every land unit is amphibious, and none can build or use roads.
 - **Flooded tiles:** both land and water units can use them; for ships they end the move. Aquarion may build land improvements on water.
+- **A ship that captures a flooded city** of another tribe stands on dry land once the capture drains the tile, so it turns back into the unit it carries (as on any landing).
 - **Atoll:** replaces roads and links cities within 3 tiles over water (+1 population, 5★).
 - **Aqua Crops:** only Aquarion sees them. An Aqua Farm (5★) gives +2 population.
 - **Fertilize** replaces Burn Forest and grows crops on flooded fields.

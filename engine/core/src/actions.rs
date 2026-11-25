@@ -1910,7 +1910,12 @@ fn do_capture(s: &mut GameState, uid: Id) {
     } else if t.flooded {
         t.flooded = false;
     }
+    let dry = !t.flooded;
     let ui = uidx(s, uid).unwrap();
+    // a boat that captured a flooded city stands on dry land now: it lands as its passenger
+    if dry && s.units[ui].carried.is_some() {
+        disembark(&mut s.units[ui]);
+    }
     end_unit(&mut s.units[ui]);
 }
 
