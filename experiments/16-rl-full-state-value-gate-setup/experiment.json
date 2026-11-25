@@ -6,8 +6,8 @@
   "issue": 166,
   "pr": 0,
   "date": "2026-11-25",
-  "status": "running",
-  "verdict": "pending",
+  "status": "done",
+  "verdict": "adopted",
   "base": "greedy-full-probe",
   "result": null,
   "question": "Does experiment 13's result hold on the decided setup (3 opponents from the champions registry, the opponent model of #174): how well does a value function over the exact integer state predict the remaining score, and does the learned model or Monte Carlo predict better?",
@@ -20,7 +20,27 @@
   ],
   "knobs": [],
   "headline": [
-    {"label": "Held-out RMSE of remaining score, 300k training games: turn baseline vs model-based V", "base": null, "new": null, "unit": "points", "better": "lower"}
+    {
+      "label": "Held-out RMSE of remaining score, 300k training games: turn baseline vs model-based V",
+      "base": 2817.2,
+      "new": 2482.4,
+      "unit": "points",
+      "better": "lower"
+    },
+    {
+      "label": "Same, turn baseline vs Monte Carlo table",
+      "base": 2817.2,
+      "new": 2435.3,
+      "unit": "points",
+      "better": "lower"
+    },
+    {
+      "label": "Turn 20 only: turn baseline vs model-based V",
+      "base": 2216.5,
+      "new": 1604.9,
+      "unit": "points",
+      "better": "lower"
+    }
   ],
   "runs": []
 }

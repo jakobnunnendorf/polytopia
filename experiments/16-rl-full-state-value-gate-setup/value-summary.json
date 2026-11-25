@@ -1,0 +1,1139 @@
+{
+  "tool": "rl-value fit",
+  "features": [
+    "turn",
+    "cities",
+    "income",
+    "units",
+    "levels",
+    "techs"
+  ],
+  "testOutcome": {
+    "games": 10000,
+    "meanFinal": 6747.3725,
+    "meanFinalCI95": [
+      6679.571555558052,
+      6815.173444441949
+    ],
+    "sdFinal": 3459.2953973618314,
+    "p10Final": 1455.0,
+    "medianFinal": 7925.0,
+    "p90Final": 10370.0,
+    "winRate": 0.0301,
+    "winRateCI95": [
+      0.02692738198506278,
+      0.03363349968939008
+    ],
+    "gamesEndedBeforeTurn30": 2760
+  },
+  "trainSetup": {
+    "model": "greedy-full-probe",
+    "opp": "greedy-full-probe,greedy-full-combo,greedy-full-probe",
+    "players": 4,
+    "tribe": "xinxi",
+    "difficulty": "crazy",
+    "humanLearner": true,
+    "mode": "perfection",
+    "mapSize": 16,
+    "mapType": "continents",
+    "seedStart": 1,
+    "games": 300000,
+    "driver": "bot",
+    "actions": [
+      "bot",
+      "expand",
+      "economy",
+      "army",
+      "research"
+    ]
+  },
+  "testSetup": {
+    "model": "greedy-full-probe",
+    "opp": "greedy-full-probe,greedy-full-combo,greedy-full-probe",
+    "players": 4,
+    "tribe": "xinxi",
+    "difficulty": "crazy",
+    "humanLearner": true,
+    "mode": "perfection",
+    "mapSize": 16,
+    "mapType": "continents",
+    "seedStart": 500000000,
+    "games": 10000,
+    "driver": "bot",
+    "actions": [
+      "bot",
+      "expand",
+      "economy",
+      "army",
+      "research"
+    ]
+  },
+  "trainGamesAvailable": 300000,
+  "testGames": 10000,
+  "curve": [
+    {
+      "trainGames": 1000,
+      "fitSeconds": 0.012373291,
+      "states": {
+        "samples": 27410,
+        "distinctStates": 14149,
+        "statesSeenOnce": 11367,
+        "statesSeenUnder10": 13976,
+        "shareOfVisitsInStatesSeenOnce": 0.41470266326158334,
+        "shareOfVisitsInStatesSeenUnder10": 0.6878876322510032,
+        "meanVisitsPerState": 1.9372393808749735,
+        "distinctSuccessorsPerVisit": 0.8934653494572053,
+        "ranges": {
+          "turn": [
+            0,
+            29
+          ],
+          "cities": [
+            1,
+            9
+          ],
+          "income": [
+            0,
+            55
+          ],
+          "units": [
+            0,
+            45
+          ],
+          "levels": [
+            1,
+            45
+          ],
+          "techs": [
+            1,
+            25
+          ]
+        }
+      },
+      "test": {
+        "samples": 274706.0,
+        "meanReturn": 4053.381815468173,
+        "sdReturn": 3276.951131749347,
+        "coverage": 0.5935582040435957,
+        "coverage10": 0.3016861663014277,
+        "rmseAll": {
+          "turn": 2819.9,
+          "model": 2711.0,
+          "mc": 2774.3
+        },
+        "rmseCovered": {
+          "turn": 3089.9,
+          "model": 2921.0,
+          "mc": 3019.5
+        },
+        "rmseCovered10": {
+          "turn": 3359.6,
+          "model": 3303.3,
+          "mc": 3269.6
+        }
+      }
+    },
+    {
+      "trainGames": 3000,
+      "fitSeconds": 0.015097583,
+      "states": {
+        "samples": 81867,
+        "distinctStates": 32042,
+        "statesSeenOnce": 23097,
+        "statesSeenUnder10": 31355,
+        "shareOfVisitsInStatesSeenOnce": 0.28212833009637583,
+        "shareOfVisitsInStatesSeenUnder10": 0.5988615681532241,
+        "meanVisitsPerState": 2.5549903251981774,
+        "distinctSuccessorsPerVisit": 0.8897515279716112,
+        "ranges": {
+          "turn": [
+            0,
+            29
+          ],
+          "cities": [
+            1,
+            10
+          ],
+          "income": [
+            0,
+            61
+          ],
+          "units": [
+            0,
+            47
+          ],
+          "levels": [
+            1,
+            50
+          ],
+          "techs": [
+            1,
+            25
+          ]
+        }
+      },
+      "test": {
+        "samples": 274706.0,
+        "meanReturn": 4053.381815468173,
+        "sdReturn": 3276.951131749347,
+        "coverage": 0.7219500120128428,
+        "coverage10": 0.3881422320590013,
+        "rmseAll": {
+          "turn": 2817.9,
+          "model": 2643.9,
+          "mc": 2684.7
+        },
+        "rmseCovered": {
+          "turn": 2983.8,
+          "model": 2754.5,
+          "mc": 2808.6
+        },
+        "rmseCovered10": {
+          "turn": 3290.9,
+          "model": 3194.7,
+          "mc": 3148.0
+        }
+      }
+    },
+    {
+      "trainGames": 10000,
+      "fitSeconds": 0.032941459,
+      "states": {
+        "samples": 273812,
+        "distinctStates": 72374,
+        "statesSeenOnce": 46663,
+        "statesSeenUnder10": 68933,
+        "shareOfVisitsInStatesSeenOnce": 0.17041985011613808,
+        "shareOfVisitsInStatesSeenUnder10": 0.45043314390895944,
+        "meanVisitsPerState": 3.7832923425539557,
+        "distinctSuccessorsPerVisit": 0.8710535079079051,
+        "ranges": {
+          "turn": [
+            0,
+            29
+          ],
+          "cities": [
+            1,
+            13
+          ],
+          "income": [
+            0,
+            83
+          ],
+          "units": [
+            0,
+            61
+          ],
+          "levels": [
+            1,
+            69
+          ],
+          "techs": [
+            1,
+            25
+          ]
+        }
+      },
+      "test": {
+        "samples": 274706.0,
+        "meanReturn": 4053.381815468173,
+        "sdReturn": 3276.951131749347,
+        "coverage": 0.8317910784620649,
+        "coverage10": 0.5348481649472527,
+        "rmseAll": {
+          "turn": 2817.1,
+          "model": 2578.0,
+          "mc": 2586.9
+        },
+        "rmseCovered": {
+          "turn": 2904.3,
+          "model": 2623.8,
+          "mc": 2634.3
+        },
+        "rmseCovered10": {
+          "turn": 3153.4,
+          "model": 2969.9,
+          "mc": 2914.4
+        }
+      }
+    },
+    {
+      "trainGames": 30000,
+      "fitSeconds": 0.088054333,
+      "states": {
+        "samples": 820609,
+        "distinctStates": 141948,
+        "statesSeenOnce": 84581,
+        "statesSeenUnder10": 130421,
+        "shareOfVisitsInStatesSeenOnce": 0.10307101189482445,
+        "shareOfVisitsInStatesSeenUnder10": 0.3014407592410027,
+        "meanVisitsPerState": 5.781053625271226,
+        "distinctSuccessorsPerVisit": 0.8461058707153722,
+        "ranges": {
+          "turn": [
+            0,
+            29
+          ],
+          "cities": [
+            1,
+            13
+          ],
+          "income": [
+            0,
+            83
+          ],
+          "units": [
+            0,
+            61
+          ],
+          "levels": [
+            1,
+            69
+          ],
+          "techs": [
+            1,
+            25
+          ]
+        }
+      },
+      "test": {
+        "samples": 274706.0,
+        "meanReturn": 4053.381815468173,
+        "sdReturn": 3276.951131749347,
+        "coverage": 0.8973884807758112,
+        "coverage10": 0.6840622338063238,
+        "rmseAll": {
+          "turn": 2817.2,
+          "model": 2532.2,
+          "mc": 2516.0
+        },
+        "rmseCovered": {
+          "turn": 2868.6,
+          "model": 2555.4,
+          "mc": 2537.5
+        },
+        "rmseCovered10": {
+          "turn": 3009.0,
+          "model": 2766.0,
+          "mc": 2706.9
+        }
+      }
+    },
+    {
+      "trainGames": 100000,
+      "fitSeconds": 0.273532208,
+      "states": {
+        "samples": 2735396,
+        "distinctStates": 282706,
+        "statesSeenOnce": 154400,
+        "statesSeenUnder10": 250913,
+        "shareOfVisitsInStatesSeenOnce": 0.05644520939564143,
+        "shareOfVisitsInStatesSeenUnder10": 0.1822836620365022,
+        "meanVisitsPerState": 9.675762099141865,
+        "distinctSuccessorsPerVisit": 0.825237808666453,
+        "ranges": {
+          "turn": [
+            0,
+            29
+          ],
+          "cities": [
+            1,
+            13
+          ],
+          "income": [
+            0,
+            83
+          ],
+          "units": [
+            0,
+            65
+          ],
+          "levels": [
+            1,
+            69
+          ],
+          "techs": [
+            1,
+            25
+          ]
+        }
+      },
+      "test": {
+        "samples": 274706.0,
+        "meanReturn": 4053.381815468173,
+        "sdReturn": 3276.951131749347,
+        "coverage": 0.9441402808821067,
+        "coverage10": 0.8105465479458038,
+        "rmseAll": {
+          "turn": 2817.2,
+          "model": 2499.7,
+          "mc": 2465.0
+        },
+        "rmseCovered": {
+          "turn": 2845.9,
+          "model": 2512.2,
+          "mc": 2475.6
+        },
+        "rmseCovered10": {
+          "turn": 2915.8,
+          "model": 2625.1,
+          "mc": 2563.7
+        }
+      }
+    },
+    {
+      "trainGames": 300000,
+      "fitSeconds": 0.719623042,
+      "states": {
+        "samples": 8209752,
+        "distinctStates": 502328,
+        "statesSeenOnce": 250108,
+        "statesSeenUnder10": 432926,
+        "shareOfVisitsInStatesSeenOnce": 0.03046474485465578,
+        "shareOfVisitsInStatesSeenUnder10": 0.11213846654563987,
+        "meanVisitsPerState": 16.34340908728958,
+        "distinctSuccessorsPerVisit": 0.8133812286800779,
+        "ranges": {
+          "turn": [
+            0,
+            29
+          ],
+          "cities": [
+            1,
+            13
+          ],
+          "income": [
+            0,
+            84
+          ],
+          "units": [
+            0,
+            75
+          ],
+          "levels": [
+            1,
+            69
+          ],
+          "techs": [
+            1,
+            25
+          ]
+        }
+      },
+      "test": {
+        "samples": 274706.0,
+        "meanReturn": 4053.381815468173,
+        "sdReturn": 3276.951131749347,
+        "coverage": 0.9699824539689704,
+        "coverage10": 0.8837156814922135,
+        "rmseAll": {
+          "turn": 2817.2,
+          "model": 2482.4,
+          "mc": 2435.3
+        },
+        "rmseCovered": {
+          "turn": 2833.1,
+          "model": 2489.4,
+          "mc": 2440.9
+        },
+        "rmseCovered10": {
+          "turn": 2876.4,
+          "model": 2557.4,
+          "mc": 2494.6
+        }
+      }
+    }
+  ],
+  "perTurn": [
+    {
+      "samples": 10000.0,
+      "meanReturn": 6230.9195,
+      "sdReturn": 3458.531475499356,
+      "coverage": 1.0,
+      "coverage10": 1.0,
+      "rmseAll": {
+        "turn": 3458.8,
+        "model": 3458.8,
+        "mc": 3458.8
+      },
+      "rmseCovered": {
+        "turn": 3458.8,
+        "model": 3458.8,
+        "mc": 3458.8
+      },
+      "rmseCovered10": {
+        "turn": 3458.8,
+        "model": 3458.8,
+        "mc": 3458.8
+      },
+      "turn": 0
+    },
+    {
+      "samples": 10000.0,
+      "meanReturn": 6132.392,
+      "sdReturn": 3453.240868855806,
+      "coverage": 1.0,
+      "coverage10": 1.0,
+      "rmseAll": {
+        "turn": 3453.5,
+        "model": 3428.9,
+        "mc": 3408.2
+      },
+      "rmseCovered": {
+        "turn": 3453.5,
+        "model": 3428.9,
+        "mc": 3408.2
+      },
+      "rmseCovered10": {
+        "turn": 3453.5,
+        "model": 3428.9,
+        "mc": 3408.2
+      },
+      "turn": 1
+    },
+    {
+      "samples": 10000.0,
+      "meanReturn": 6074.2705,
+      "sdReturn": 3454.2488706417425,
+      "coverage": 1.0,
+      "coverage10": 0.9999,
+      "rmseAll": {
+        "turn": 3454.5,
+        "model": 3360.1,
+        "mc": 3331.2
+      },
+      "rmseCovered": {
+        "turn": 3454.5,
+        "model": 3360.1,
+        "mc": 3331.2
+      },
+      "rmseCovered10": {
+        "turn": 3454.4,
+        "model": 3359.9,
+        "mc": 3330.7
+      },
+      "turn": 2
+    },
+    {
+      "samples": 10000.0,
+      "meanReturn": 6037.0865,
+      "sdReturn": 3455.204564713607,
+      "coverage": 1.0,
+      "coverage10": 0.9998,
+      "rmseAll": {
+        "turn": 3455.4,
+        "model": 3344.2,
+        "mc": 3301.6
+      },
+      "rmseCovered": {
+        "turn": 3455.4,
+        "model": 3344.2,
+        "mc": 3301.6
+      },
+      "rmseCovered10": {
+        "turn": 3454.7,
+        "model": 3343.8,
+        "mc": 3300.6
+      },
+      "turn": 3
+    },
+    {
+      "samples": 9999.0,
+      "meanReturn": 5838.368336833683,
+      "sdReturn": 3449.276858491675,
+      "coverage": 0.9997999799979999,
+      "coverage10": 0.9992999299929993,
+      "rmseAll": {
+        "turn": 3449.5,
+        "model": 3384.1,
+        "mc": 3268.3
+      },
+      "rmseCovered": {
+        "turn": 3448.9,
+        "model": 3383.5,
+        "mc": 3267.6
+      },
+      "rmseCovered10": {
+        "turn": 3448.1,
+        "model": 3383.5,
+        "mc": 3267.2
+      },
+      "turn": 4
+    },
+    {
+      "samples": 9998.0,
+      "meanReturn": 5704.117823564713,
+      "sdReturn": 3444.667053307476,
+      "coverage": 1.0,
+      "coverage10": 0.9993998799759952,
+      "rmseAll": {
+        "turn": 3444.9,
+        "model": 3394.7,
+        "mc": 3244.4
+      },
+      "rmseCovered": {
+        "turn": 3444.9,
+        "model": 3394.7,
+        "mc": 3244.4
+      },
+      "rmseCovered10": {
+        "turn": 3443.9,
+        "model": 3394.0,
+        "mc": 3242.1
+      },
+      "turn": 5
+    },
+    {
+      "samples": 9998.0,
+      "meanReturn": 5549.857471494299,
+      "sdReturn": 3427.624982373896,
+      "coverage": 0.9996999399879976,
+      "coverage10": 0.9975995199039808,
+      "rmseAll": {
+        "turn": 3427.8,
+        "model": 3374.1,
+        "mc": 3206.5
+      },
+      "rmseCovered": {
+        "turn": 3427.3,
+        "model": 3373.5,
+        "mc": 3205.8
+      },
+      "rmseCovered10": {
+        "turn": 3423.3,
+        "model": 3372.4,
+        "mc": 3200.8
+      },
+      "turn": 6
+    },
+    {
+      "samples": 9997.0,
+      "meanReturn": 5397.97589276783,
+      "sdReturn": 3410.290308128434,
+      "coverage": 0.9985995798739622,
+      "coverage10": 0.9928978693608083,
+      "rmseAll": {
+        "turn": 3410.5,
+        "model": 3293.9,
+        "mc": 3145.8
+      },
+      "rmseCovered": {
+        "turn": 3407.1,
+        "model": 3290.2,
+        "mc": 3141.7
+      },
+      "rmseCovered10": {
+        "turn": 3400.5,
+        "model": 3287.0,
+        "mc": 3136.2
+      },
+      "turn": 7
+    },
+    {
+      "samples": 9994.0,
+      "meanReturn": 5242.199319591755,
+      "sdReturn": 3385.3319644314324,
+      "coverage": 0.9974984990994596,
+      "coverage10": 0.9860916549929958,
+      "rmseAll": {
+        "turn": 3385.5,
+        "model": 3164.2,
+        "mc": 3035.1
+      },
+      "rmseCovered": {
+        "turn": 3380.8,
+        "model": 3158.5,
+        "mc": 3028.9
+      },
+      "rmseCovered10": {
+        "turn": 3363.2,
+        "model": 3151.9,
+        "mc": 3014.8
+      },
+      "turn": 8
+    },
+    {
+      "samples": 9982.0,
+      "meanReturn": 5080.94820677219,
+      "sdReturn": 3347.79191322758,
+      "coverage": 0.9970947705870568,
+      "coverage10": 0.9815668202764977,
+      "rmseAll": {
+        "turn": 3348.0,
+        "model": 2998.3,
+        "mc": 2885.0
+      },
+      "rmseCovered": {
+        "turn": 3344.5,
+        "model": 2993.3,
+        "mc": 2879.5
+      },
+      "rmseCovered10": {
+        "turn": 3324.0,
+        "model": 2989.4,
+        "mc": 2869.8
+      },
+      "turn": 9
+    },
+    {
+      "samples": 9963.0,
+      "meanReturn": 4910.8421158285655,
+      "sdReturn": 3301.6752062224623,
+      "coverage": 0.9948810599217103,
+      "coverage10": 0.9721971293787012,
+      "rmseAll": {
+        "turn": 3301.9,
+        "model": 2834.3,
+        "mc": 2745.1
+      },
+      "rmseCovered": {
+        "turn": 3293.6,
+        "model": 2822.0,
+        "mc": 2732.0
+      },
+      "rmseCovered10": {
+        "turn": 3267.7,
+        "model": 2814.2,
+        "mc": 2718.7
+      },
+      "turn": 10
+    },
+    {
+      "samples": 9932.0,
+      "meanReturn": 4713.789267015707,
+      "sdReturn": 3231.194102156211,
+      "coverage": 0.993052758759565,
+      "coverage10": 0.9606322996375353,
+      "rmseAll": {
+        "turn": 3231.4,
+        "model": 2645.3,
+        "mc": 2571.6
+      },
+      "rmseCovered": {
+        "turn": 3224.9,
+        "model": 2632.8,
+        "mc": 2558.2
+      },
+      "rmseCovered10": {
+        "turn": 3189.4,
+        "model": 2620.4,
+        "mc": 2539.5
+      },
+      "turn": 11
+    },
+    {
+      "samples": 9894.0,
+      "meanReturn": 4532.54295532646,
+      "sdReturn": 3163.1949603063704,
+      "coverage": 0.9908025065696382,
+      "coverage10": 0.9493632504548211,
+      "rmseAll": {
+        "turn": 3163.3,
+        "model": 2496.6,
+        "mc": 2457.4
+      },
+      "rmseCovered": {
+        "turn": 3153.6,
+        "model": 2477.2,
+        "mc": 2437.4
+      },
+      "rmseCovered10": {
+        "turn": 3118.9,
+        "model": 2470.3,
+        "mc": 2411.2
+      },
+      "turn": 12
+    },
+    {
+      "samples": 9814.0,
+      "meanReturn": 4362.478092520889,
+      "sdReturn": 3079.4720634559512,
+      "coverage": 0.9877725697982473,
+      "coverage10": 0.9369268392092929,
+      "rmseAll": {
+        "turn": 3079.5,
+        "model": 2357.6,
+        "mc": 2336.2
+      },
+      "rmseCovered": {
+        "turn": 3067.1,
+        "model": 2330.9,
+        "mc": 2309.0
+      },
+      "rmseCovered10": {
+        "turn": 3019.3,
+        "model": 2304.0,
+        "mc": 2262.8
+      },
+      "turn": 13
+    },
+    {
+      "samples": 9694.0,
+      "meanReturn": 4190.7293171033625,
+      "sdReturn": 2983.4703866715486,
+      "coverage": 0.9849391376108934,
+      "coverage10": 0.9244893748710543,
+      "rmseAll": {
+        "turn": 2983.5,
+        "model": 2244.4,
+        "mc": 2240.9
+      },
+      "rmseCovered": {
+        "turn": 2965.5,
+        "model": 2207.0,
+        "mc": 2203.4
+      },
+      "rmseCovered10": {
+        "turn": 2910.0,
+        "model": 2189.5,
+        "mc": 2163.1
+      },
+      "turn": 14
+    },
+    {
+      "samples": 9558.0,
+      "meanReturn": 4018.8078049801215,
+      "sdReturn": 2879.7781230637834,
+      "coverage": 0.9810629838878426,
+      "coverage10": 0.9115923833437958,
+      "rmseAll": {
+        "turn": 2879.8,
+        "model": 2128.4,
+        "mc": 2127.5
+      },
+      "rmseCovered": {
+        "turn": 2862.0,
+        "model": 2086.9,
+        "mc": 2086.0
+      },
+      "rmseCovered10": {
+        "turn": 2800.2,
+        "model": 2053.8,
+        "mc": 2028.3
+      },
+      "turn": 15
+    },
+    {
+      "samples": 9416.0,
+      "meanReturn": 3839.9399957519117,
+      "sdReturn": 2771.576572499462,
+      "coverage": 0.9783347493627867,
+      "coverage10": 0.8975148683092609,
+      "rmseAll": {
+        "turn": 2771.6,
+        "model": 2026.1,
+        "mc": 2040.7
+      },
+      "rmseCovered": {
+        "turn": 2747.2,
+        "model": 1972.5,
+        "mc": 1987.9
+      },
+      "rmseCovered10": {
+        "turn": 2683.6,
+        "model": 1944.3,
+        "mc": 1923.8
+      },
+      "turn": 16
+    },
+    {
+      "samples": 9249.0,
+      "meanReturn": 3663.9755649259378,
+      "sdReturn": 2643.0887241906885,
+      "coverage": 0.9745918477673262,
+      "coverage10": 0.879878905827657,
+      "rmseAll": {
+        "turn": 2643.1,
+        "model": 1926.7,
+        "mc": 1931.2
+      },
+      "rmseCovered": {
+        "turn": 2618.6,
+        "model": 1870.3,
+        "mc": 1875.0
+      },
+      "rmseCovered10": {
+        "turn": 2555.9,
+        "model": 1833.8,
+        "mc": 1817.6
+      },
+      "turn": 17
+    },
+    {
+      "samples": 9079.0,
+      "meanReturn": 3489.3986121819585,
+      "sdReturn": 2506.527132275533,
+      "coverage": 0.9692697433638066,
+      "coverage10": 0.8564819914087455,
+      "rmseAll": {
+        "turn": 2506.5,
+        "model": 1813.9,
+        "mc": 1829.0
+      },
+      "rmseCovered": {
+        "turn": 2481.8,
+        "model": 1752.7,
+        "mc": 1768.8
+      },
+      "rmseCovered10": {
+        "turn": 2403.6,
+        "model": 1704.3,
+        "mc": 1688.1
+      },
+      "turn": 18
+    },
+    {
+      "samples": 8872.0,
+      "meanReturn": 3314.873760144274,
+      "sdReturn": 2363.5973641556384,
+      "coverage": 0.9635933273219116,
+      "coverage10": 0.83690261496844,
+      "rmseAll": {
+        "turn": 2363.6,
+        "model": 1699.9,
+        "mc": 1729.4
+      },
+      "rmseCovered": {
+        "turn": 2342.8,
+        "model": 1640.1,
+        "mc": 1671.7
+      },
+      "rmseCovered10": {
+        "turn": 2249.9,
+        "model": 1588.9,
+        "mc": 1580.7
+      },
+      "turn": 19
+    },
+    {
+      "samples": 8675.0,
+      "meanReturn": 3122.2057636887607,
+      "sdReturn": 2216.4488217785047,
+      "coverage": 0.9564265129682997,
+      "coverage10": 0.8206340057636887,
+      "rmseAll": {
+        "turn": 2216.5,
+        "model": 1604.9,
+        "mc": 1639.9
+      },
+      "rmseCovered": {
+        "turn": 2192.7,
+        "model": 1537.7,
+        "mc": 1575.8
+      },
+      "rmseCovered10": {
+        "turn": 2094.6,
+        "model": 1474.4,
+        "mc": 1473.5
+      },
+      "turn": 20
+    },
+    {
+      "samples": 8502.0,
+      "meanReturn": 2898.707362973418,
+      "sdReturn": 2066.2248901951125,
+      "coverage": 0.9510703363914373,
+      "coverage10": 0.7958127499411903,
+      "rmseAll": {
+        "turn": 2066.3,
+        "model": 1485.4,
+        "mc": 1524.9
+      },
+      "rmseCovered": {
+        "turn": 2040.4,
+        "model": 1412.1,
+        "mc": 1455.7
+      },
+      "rmseCovered10": {
+        "turn": 1954.5,
+        "model": 1357.2,
+        "mc": 1357.9
+      },
+      "turn": 21
+    },
+    {
+      "samples": 8319.0,
+      "meanReturn": 2652.5099170573385,
+      "sdReturn": 1901.9086724922531,
+      "coverage": 0.9404976559682654,
+      "coverage10": 0.7700444764995793,
+      "rmseAll": {
+        "turn": 1901.9,
+        "model": 1381.9,
+        "mc": 1415.8
+      },
+      "rmseCovered": {
+        "turn": 1874.8,
+        "model": 1303.6,
+        "mc": 1341.6
+      },
+      "rmseCovered10": {
+        "turn": 1783.9,
+        "model": 1247.6,
+        "mc": 1250.8
+      },
+      "turn": 22
+    },
+    {
+      "samples": 8142.0,
+      "meanReturn": 2377.783714075166,
+      "sdReturn": 1722.1537197085886,
+      "coverage": 0.9333087693441415,
+      "coverage10": 0.7323753377548514,
+      "rmseAll": {
+        "turn": 1722.2,
+        "model": 1249.9,
+        "mc": 1285.5
+      },
+      "rmseCovered": {
+        "turn": 1696.2,
+        "model": 1171.9,
+        "mc": 1212.4
+      },
+      "rmseCovered10": {
+        "turn": 1617.6,
+        "model": 1121.9,
+        "mc": 1122.9
+      },
+      "turn": 23
+    },
+    {
+      "samples": 7977.0,
+      "meanReturn": 2053.293218001755,
+      "sdReturn": 1551.2332090124369,
+      "coverage": 0.9220258242447035,
+      "coverage10": 0.6995110943963896,
+      "rmseAll": {
+        "turn": 1551.2,
+        "model": 1142.9,
+        "mc": 1173.1
+      },
+      "rmseCovered": {
+        "turn": 1514.0,
+        "model": 1048.3,
+        "mc": 1083.9
+      },
+      "rmseCovered10": {
+        "turn": 1436.1,
+        "model": 1001.1,
+        "mc": 1008.4
+      },
+      "turn": 24
+    },
+    {
+      "samples": 7830.0,
+      "meanReturn": 1696.5383141762452,
+      "sdReturn": 1371.5918703277362,
+      "coverage": 0.9080459770114943,
+      "coverage10": 0.6710089399744572,
+      "rmseAll": {
+        "turn": 1371.6,
+        "model": 1016.3,
+        "mc": 1042.2
+      },
+      "rmseCovered": {
+        "turn": 1340.6,
+        "model": 928.9,
+        "mc": 960.0
+      },
+      "rmseCovered10": {
+        "turn": 1276.6,
+        "model": 881.4,
+        "mc": 884.8
+      },
+      "turn": 25
+    },
+    {
+      "samples": 7657.0,
+      "meanReturn": 1342.911714770798,
+      "sdReturn": 1180.2389953892066,
+      "coverage": 0.8943450437508162,
+      "coverage10": 0.6492098733185321,
+      "rmseAll": {
+        "turn": 1180.2,
+        "model": 897.9,
+        "mc": 920.7
+      },
+      "rmseCovered": {
+        "turn": 1152.0,
+        "model": 819.1,
+        "mc": 847.0
+      },
+      "rmseCovered10": {
+        "turn": 1084.9,
+        "model": 766.4,
+        "mc": 771.3
+      },
+      "turn": 26
+    },
+    {
+      "samples": 7536.0,
+      "meanReturn": 971.8504511677282,
+      "sdReturn": 988.5479148179846,
+      "coverage": 0.8882696390658175,
+      "coverage10": 0.6354830148619958,
+      "rmseAll": {
+        "turn": 988.6,
+        "model": 755.5,
+        "mc": 775.0
+      },
+      "rmseCovered": {
+        "turn": 962.2,
+        "model": 684.3,
+        "mc": 708.4
+      },
+      "rmseCovered10": {
+        "turn": 899.4,
+        "model": 634.9,
+        "mc": 638.2
+      },
+      "turn": 27
+    },
+    {
+      "samples": 7389.0,
+      "meanReturn": 622.0050074434971,
+      "sdReturn": 762.8151832287701,
+      "coverage": 0.8871295168493707,
+      "coverage10": 0.6239003924753012,
+      "rmseAll": {
+        "turn": 762.8,
+        "model": 612.7,
+        "mc": 621.7
+      },
+      "rmseCovered": {
+        "turn": 736.0,
+        "model": 555.8,
+        "mc": 567.0
+      },
+      "rmseCovered10": {
+        "turn": 677.7,
+        "model": 496.4,
+        "mc": 499.6
+      },
+      "turn": 28
+    },
+    {
+      "samples": 7240.0,
+      "meanReturn": 300.9468232044199,
+      "sdReturn": 503.9074095712894,
+      "coverage": 0.8874309392265194,
+      "coverage10": 0.6201657458563536,
+      "rmseAll": {
+        "turn": 503.9,
+        "model": 417.9,
+        "mc": 417.9
+      },
+      "rmseCovered": {
+        "turn": 485.8,
+        "model": 383.0,
+        "mc": 383.0
+      },
+      "rmseCovered10": {
+        "turn": 440.5,
+        "model": 339.1,
+        "mc": 339.1
+      },
+      "turn": 29
+    }
+  ]
+}
