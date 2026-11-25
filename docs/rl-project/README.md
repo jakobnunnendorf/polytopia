@@ -36,8 +36,17 @@ npm run rl:gate -- --candidate <model id or path> --base <model id or path> --ou
     the square map (map generation splits it into ceil(√players)² domains). This may grow once the game time per
     opponent count is measured.
   - Final stage: fine-tune and evaluate on **15 Crazy opponents** (see "Final benchmark" below).
-  - Opponents are the frozen champion **`greedy-full-probe`** (`--opp`). Do not swap opponents between
-    experiments: every result must be measured against the same opponents.
+  - **Opponents (Jakob, 25 Nov 2026, "generalisation built in by having different models in each game"):** the
+    three opponent seats are (1) the **current champion** (entry 0 of the champions registry, i.e. the base being
+    challenged), (2) the **previous champion** (entry 1) and (3) the **frozen greedy champion
+    `greedy-full-probe`**, the anchor (app-like, uses the engine's relation model; it never changes, whatever the
+    registry says). Per seed the three are assigned to seats 1..3 by a seed-derived permutation (Fisher-Yates
+    from `splitmix64(seed ^ SEAT_STREAM)`, a stream separate from the tribes), computed once per seed and used for
+    both candidate and base, so the pairing stays exact. Each per-seed row records its seating (`opponents`), the
+    JSON records the list (`opp`, `setup.opponents`, `opponentSource`). Until an RL version is promoted, entry 0 is
+    `greedy-full-probe` and entry 1 is `greedy-full-combo`, so two seats are `greedy-full-probe`.
+  - `--opp a,b,c` overrides the list (one entry: every seat that opponent, as before; several: repeated to fill
+    the seats and shuffled per seed). Use it only for diagnostics; a gate verdict uses the default.
   - The **learner seat counts as human**: the gate creates every game with `humans: [0]`, so seat 0 gets the
     human capital income (+1 star; a Crazy bot's capital gets +4), as in the app, and the game ends when seat 0
     is eliminated. The Python `VecEnv` does the same for its learner seat.
@@ -76,7 +85,8 @@ npm run rl:gate -- --candidate <model id or path> --base <model id or path> --ou
   (`rule`, `signTest`, `guards`, `failReasons`, `candidateStats`, `baseStats`, the older flat fields such as
   `meanD`, `lowerBound`, `upperBound`) plus one row per seed (seed, tribes, both scores, d); cite that file in
   the experiment report.
-- **Cost:** 20,000 four-player games, about 1-2 minutes on 12 cores (N = 2,000 took 12-27 s, depending on load).
+- **Cost:** 20,000 four-player games, about 1-2 minutes on 12 cores (N = 2,000 took 12-27 s, depending on load),
+  plus the 15-opponent information run (10,000 sixteen-player games, about 80 s).
 - **Sanity check (25 Nov 2026, the decided setup: Crazy, 4 players, learner seat human, N = 2,000, sign-test rule):**
   `greedy-full-probe` vs `greedy-v1`: better on 1,800 seeds, worse on 198, 2 ties; better share 90.09% of the 1,998
   differing seeds (99% lower bound 88.43%), exact p < 1e-300, PASS; guard (a) upper bound of mean d +3253 (mean d
@@ -85,8 +95,55 @@ npm run rl:gate -- --candidate <model id or path> --base <model id or path> --ou
   (13.8 s). The reverse (`greedy-v1` as candidate) fails the sign test and both guards. Seat 0 wins only 2.5% of
   these games against three Crazy champions. (The first gate, mean(d) lower bound > 0, gave the same ranking:
   mean d +3099, bound +2944, PASS; vs itself FAIL.)
+- **Sanity check of the opponent set (25 Nov 2026; opponents greedy-full-probe, greedy-full-combo and the anchor
+  greedy-full-probe, shuffled; N = 2,000; 12 cores):** `greedy-full-probe` vs `greedy-v1`: better on 1,788 seeds,
+  worse on 210, 2 ties, better share 89.49% (99% lower bound 87.79%), mean d +3119, p10 1480 vs 860, median 8055
+  vs 3015: PASS (14.9 s). 15-opponent information run (N = 5,000): better 4,177, worse 761, 62 ties, share 84.59%,
+  median 1205 vs 690, p10 675 vs 475, mean 2565 vs 1016, rule would PASS (26.1 s). `greedy-full-probe` vs itself:
+  all ties, FAIL, exit 1 (14.7 s; information run all 5,000 ties, 29.9 s). First progress rows
+  (`--benchmark greedy-full-probe`): 3 opponents median 7955, p10 1425, mean 6756, win 2.6% (N = 10,000, 37.3 s);
+  15 opponents median 1205, p10 675, mean 2579, win 1.1% (N = 5,000, 15.4 s).
 - Learners are bot models (`models/<id>/model.json`) for now; the RL agent plugs in as a new `Learner` kind in
-  `engine/gate/src/main.rs`.
+  `engine/gate/src/main.rs`. Opponents go through an `Opponent` enum: greedy models today (registry kind
+  `greedy-model`); an RL policy (kind `rl-policy`) fills a seat once a variant and a step-by-step game loop are
+  added there (playGames only drives the engine's own bot policies). Not built yet.
+
+### Information only: 15 opponents
+
+Jakob, 25 Nov 2026: "a second evaluation purely for information on 15 opponents for every candidate so we can just
+learn what the difference is." After the 3-opponent gate, `rl-gate` plays the same candidate and base again with
+**16 players (15 opponents)**, Crazy, learner seat 0 human, the **same three opponents** repeated to fill the 15
+seats (5 copies each), seated by the same kind of seed-derived shuffle (identical for both versions), on a fixed
+seed range of its own from **1,500,000,000** with **N = 5,000** (`--info15-n`; `--no-info15` skips it). It prints the
+same numbers as the gate (sign test, better/worse/equal, mean/median/p10/p90/best-of-k, win rates) and writes them
+in the JSON block **`info15`** (`informationOnly: true`; what the rule would say is `ruleWouldSay`, not `verdict`).
+**It never decides and never changes the exit code**; if it fails, the gate's verdict stands and `info15.error`
+says why. The experiment report records both the 3-opponent verdict and the 15-opponent information numbers.
+
+### Champions registry and promotion
+
+`docs/rl-project/champions.json` lists the promoted versions best first (id, path, kind, date, experiment, PR,
+gate result). The gate's default opponents are entries 0 and 1 plus the fixed anchor. Seeded 25 Nov 2026 with
+the three best greedy models of the Elo tournament of 25 Nov 2026 (`elo/2026-11-25/README.md`), which are also
+the last three greedy champions in promotion order: `greedy-full-probe` (Perfection 1742, #1), `greedy-full-combo`
+(1635, #2; the model probe was tuned from) and `greedy-full-economy` (1617, #3; history only). After a PASS and
+its merge, promote explicitly (never automatic):
+
+```bash
+npm run rl:gate -- promote <id> --gate experiments/NN-rl-<slug>/gate-<id>-vs-<base>-n10000.json --experiment NN-rl-<slug> --pr <n>
+```
+
+It checks that the JSON is a PASS for that candidate, puts it at the top (the old champion becomes entry 1, the
+older ones stay listed for history) and prints the new opponent set. Commit the registry change.
+
+### Progress curve (report only)
+
+`npm run rl:gate -- --benchmark <id>` plays the model in seat 0 against **three copies of the frozen
+`greedy-full-probe`** (Crazy, 4 players, seeds 1,000,000,000.., N = 10,000) and against **15 copies** (16 players,
+seeds 1,500,000,000.., N = 5,000; `--no-info15` skips it), and appends one row each to
+`docs/rl-project/progress.csv` (date, model, players, opponents, n, seedStart, median, p10, mean, p90, winRate,
+wallSeconds, commit). The opponents and seeds are fixed forever, so rows stay comparable across versions. It
+decides nothing. Run it after every promotion.
 
 ### Final benchmark: the official leaderboard
 

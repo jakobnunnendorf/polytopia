@@ -1,0 +1,3 @@
+date,model,players,opponents,n,seedStart,median,p10,mean,p90,winRate,wallSeconds,commit
+2026-11-25,greedy-full-probe,4,3x greedy-full-probe,10000,1000000000,7955.0,1425.0,6756.1,10385.0,0.0258,37.3,0e8d415
+2026-11-25,greedy-full-probe,16,15x greedy-full-probe,5000,1500000000,1205.0,675.0,2579.2,7490.5,0.0110,15.4,0e8d415
