@@ -10,14 +10,16 @@
 #   supabase  applies supabase/migrations to an empty local database and checks the access rules
 #   deploy  pushes to main only: web export to EAS Hosting (https://polytopia.expo.app),
 #           needs the EXPO_TOKEN repository secret (an expo.dev access token)
-# Branch protection: dev requires "Rust engine" and "TypeScript and Jest"; main requires those
-# and "Release source is dev", allows no direct pushes and no admin bypass.
+# Branch protection: dev requires "Rust engine", "TypeScript and Jest" and "Supabase migrations";
+# main requires those and "Release source is dev", allows no direct pushes and no admin bypass.
 name: CI
 
 on:
   pull_request:
+  # pushes only on main, where the deploy needs them; a PR run already tests the merge result,
+  # so a push run on dev after merging the PR would repeat the same checks
   push:
-    branches: [main, dev]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -35,6 +37,8 @@ env:
 jobs:
   source:
     name: Release source is dev
+    # only a pull request has a source branch to check
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
