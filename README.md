@@ -874,12 +874,13 @@ engine/py/.venv/bin/python engine/py/test_env.py
 
 ```python
 import sys; sys.path.insert(0, "engine/py"); import polyengine
-env = polyengine.VecEnv(8, '{"mode":"perfection","mapSize":11,"players":2,"mapType":"drylands","humans":[]}', 1)
+env = polyengine.VecEnv(8, '{"mode":"perfection","mapSize":11,"players":2,"mapType":"drylands"}', 1)
 obs = env.reset()                       # float32 bytes, shape (n, channels, N, N)
 obs, rewards, dones = env.step([0] * 8) # each env applies its learner's legal action number
 ```
 
-The learner is player 0 (change with `learner=`), everyone else is the greedy bot; the reward is
+The learner is player 0 (change with `learner=`) and always the game's human seat (human capital
+income, as in the app; `humans` in the options is ignored), everyone else is the greedy bot; the reward is
 +1 for a win, -1 for a loss or elimination (`shaping=True` adds a score-difference term). See
 `engine/py/README.md` for every method, and `docs/shardlands/RL.md` for the action and
 observation format.
