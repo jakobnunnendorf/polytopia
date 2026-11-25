@@ -28,6 +28,7 @@ function StartButton() {
               mapSize: settings.mapSize,
               mode: settings.gameMode,
               difficulty: settings.difficulty,
+              mapType: settings.mapType,
               seed,
               seats: settings.seats,
             });
@@ -45,6 +46,7 @@ function StartButton() {
             seats: JSON.stringify(settings.seats),
             mode: settings.gameMode,
             difficulty: settings.difficulty,
+            mapType: settings.mapType,
             seed: String(seed),
           },
         });

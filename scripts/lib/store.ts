@@ -1,6 +1,6 @@
 /**
  * File storage for the arena (Node only). Everything lives in the repo:
- *   data/games/<YYYY-MM-DD>/<id>.json.gz   one gzipped GameRecord per game
+ *   data/games/<YYYY-MM-DD>/<id>.json.gz   one gzipped GameRecord per game (.json.br: an old full record, see gamePath)
  *   data/profiles.json                      human player profiles
  *   data/ratings.json                       Elo per "model:<id>" / "human:<profileId>" (fitted, see logic/arena/elo.ts)
  *   data/results.jsonl                      one line per rated game: who played and how they placed
@@ -68,8 +68,29 @@ export function readRatings(): Ratings {
   return readJson<Ratings>(RATINGS, {});
 }
 
+/**
+ * Game files are gzipped JSON (`.json.gz`). Records saved before 58729ca hold a board snapshot per
+ * player-turn and no longer replay under today's rules, so their snapshots are the true record: they
+ * are kept whole and brotli-compressed (`.json.br`, about 8x smaller than gzip on such files).
+ */
+const GAME_EXTS = [".json.gz", ".json.br"] as const;
+const isGameFile = (f: string) => GAME_EXTS.some((e) => f.endsWith(e));
+
+/** the record's file: its existing `.json.br` when there is one, else `.json.gz` */
 export function gamePath(rec: GameRecord): string {
-  return path.join(GAMES, rec.startedAt.slice(0, 10), `${rec.id}.json.gz`);
+  const base = path.join(GAMES, rec.startedAt.slice(0, 10), rec.id);
+  return fs.existsSync(base + ".json.br") ? base + ".json.br" : base + ".json.gz";
+}
+
+export function encodeGame(file: string, json: string): Buffer {
+  return file.endsWith(".json.br")
+    ? zlib.brotliCompressSync(json, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: Buffer.byteLength(json) } })
+    : zlib.gzipSync(json);
+}
+
+export function decodeGame(file: string): string {
+  const raw = fs.readFileSync(file);
+  return (file.endsWith(".json.br") ? zlib.brotliDecompressSync(raw) : zlib.gunzipSync(raw)).toString("utf8");
 }
 
 /** the rated games, oldest first; built from data/games/ the first time */
@@ -202,7 +223,7 @@ export function saveGame(rec: GameRecord): { file: string; deltas: number[]; rat
     }
   }
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, zlib.gzipSync(JSON.stringify(rec)));
+  fs.writeFileSync(file, encodeGame(file, JSON.stringify(rec)));
   const ratings = readRatings();
   if (ratedBefore || !rec.result?.over) return { file: path.relative(ROOT, file), deltas: rec.seats.map(() => 0), ratings };
   const row = resultRow(rec)!;
@@ -217,7 +238,7 @@ export function saveGame(rec: GameRecord): { file: string; deltas: number[]; rat
 
 /** read a record; one saved with a snapshot per turn (up to 150 MB) is slimmed, so nothing downstream carries them */
 export function readGame(file: string): GameRecord {
-  return slimRecord(JSON.parse(zlib.gunzipSync(fs.readFileSync(file)).toString("utf8")) as GameRecord);
+  return slimRecord(JSON.parse(decodeGame(file)) as GameRecord);
 }
 
 export function listGameFiles(): string[] {
@@ -226,7 +247,7 @@ export function listGameFiles(): string[] {
   for (const day of fs.readdirSync(GAMES).sort()) {
     const dir = path.join(GAMES, day);
     if (!fs.statSync(dir).isDirectory()) continue;
-    for (const f of fs.readdirSync(dir).sort()) if (f.endsWith(".json.gz")) out.push(path.join(dir, f));
+    for (const f of fs.readdirSync(dir).sort()) if (isGameFile(f)) out.push(path.join(dir, f));
   }
   return out;
 }
@@ -288,6 +309,6 @@ export function listGames(): GameSummary[] {
 }
 
 export function findGame(id: string): GameRecord | null {
-  const f = listGameFiles().find((x) => path.basename(x) === `${id}.json.gz`);
+  const f = listGameFiles().find((x) => GAME_EXTS.some((e) => path.basename(x) === id + e));
   return f ? readGame(f) : null;
 }

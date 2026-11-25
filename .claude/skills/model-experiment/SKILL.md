@@ -41,9 +41,9 @@ not run `npm run arena` for it: arena writes `data/games/` and changes the share
 
 ## Steps
 
-1. **Worktree from main**, so the live arena and web app in the main checkout are untouched:
+1. **Worktree from dev** (the integration branch; main only takes releases from dev), so the live arena and web app in the main checkout are untouched:
    ```bash
-   git worktree add .claude/worktrees/<id> -b model/<id> main
+   git worktree add .claude/worktrees/<id> -b model/<id> origin/dev
    ln -s ../../../node_modules .claude/worktrees/<id>/node_modules
    ```
 2. **Open the notebook entry, before any run**: `cp -r experiments/TEMPLATE experiments/NN-<slug>`,
@@ -110,7 +110,7 @@ not run `npm run arena` for it: arena writes `data/games/` and changes the share
 9. **Save and PR**: `cp logs/<id>.log models/<id>/train.log` (tuning runs also
    `rm models/<id>/checkpoint.json`),
    commit code, model and notebook folder on `model/<id>` (the model folder is committed either
-   way: it is the experiment's record), PR to main with the result table, `Closes #<issue>`.
+   way: it is the experiment's record), PR to dev with the result table, `Closes #<issue>`.
    Kept: a model PR (standing go to merge). Not kept: ask before merging, and keep the spec
    as `record.json` instead of `model.json` (a folder with `model.json` is listed as a model in
    the game, the arena and the tournament). Then remove the worktree.

@@ -19,13 +19,43 @@
  *
  *   node -r sucrase/register scripts/arena-server.ts      (started by relaunch-preview.sh)
  */
+import { spawn } from "node:child_process";
 import http from "node:http";
+import path from "node:path";
 import { directChat } from "../logic/agents/registry";
 import { liveWindow, type GameRecord } from "../logic/arena/record";
 import { createProfile, findGame, listGames, listModels, listProfiles, ratingFacets, ratingsFor, saveGame } from "./lib/store";
 import { isRunning, paceOf, resumeMatch, setPace, startMatch, stopMatch } from "./lib/matches";
 
 const PORT = Number(process.env.ARENA_PORT ?? 8091);
+
+// ---------- copy to Supabase for the hosted web game (scripts/supabase-sync.ts) ----------
+// in a child process, so a slow sync never blocks a request; every 5 minutes (also bot matches,
+// which save without a request) and a few seconds after a saved game or a new profile.
+let syncing = false;
+let syncAgain = false;
+let syncTimer: NodeJS.Timeout | null = null;
+function runSync() {
+  if (syncing) {
+    syncAgain = true;
+    return;
+  }
+  syncing = true;
+  const child = spawn(process.execPath, ["-r", "sucrase/register", path.join(__dirname, "supabase-sync.ts")], { stdio: ["ignore", "inherit", "inherit"] });
+  child.on("exit", () => {
+    syncing = false;
+    if (syncAgain) {
+      syncAgain = false;
+      scheduleSync(1000);
+    }
+  });
+}
+function scheduleSync(ms: number) {
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(runSync, ms);
+}
+setInterval(runSync, 5 * 60 * 1000);
+scheduleSync(10 * 1000);
 
 function send(res: http.ServerResponse, code: number, body: unknown) {
   res.writeHead(code, {
@@ -97,6 +127,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url === "/api/profiles") {
       const { name } = (await body(req)) as { name?: string };
       if (!name || !name.trim()) return send(res, 400, { error: "Profile needs a name" });
+      scheduleSync(3000);
       return send(res, 200, createProfile(name));
     }
     if (req.method === "POST" && url === "/api/games") {
@@ -104,6 +135,7 @@ const server = http.createServer(async (req, res) => {
       if (rec?.version !== 1 || !Array.isArray(rec.steps)) return send(res, 400, { error: "Not a game record" });
       const out = saveGame(rec);
       console.log(`saved ${out.file} (${rec.steps.length} steps${rec.result?.over ? ", rated" : ""})`);
+      scheduleSync(3000);
       return send(res, 200, out);
     }
     if (req.method === "POST" && url === "/api/chat") {

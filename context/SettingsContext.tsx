@@ -2,6 +2,7 @@ import { createContext, useState } from "react";
 import type { Seat } from "@/logic/arena/record";
 import { maxPlayersFor } from "@/logic/engine/data";
 import { mapSizeAllowed, mapSizeFor } from "@/logic/engine/state";
+import type { MapType } from "@/logic/engine/mapgen";
 import type { Difficulty, GameMode } from "@/logic/engine/types";
 
 type GameModeTypes = GameMode;
@@ -23,6 +24,9 @@ type SettingsContextType = {
   /** bot difficulty */
   difficulty: Difficulty;
   setDifficulty: (d: Difficulty) => void;
+  /** the world: how much land and water the map generator makes */
+  mapType: MapType;
+  setMapType: (t: MapType) => void;
   /** who sits in each seat: a human profile or an opponent model */
   seats: Seat[];
   setSeats: (seats: Seat[]) => void;
@@ -37,6 +41,8 @@ export const SettingsContext = createContext<SettingsContextType>({
   setGameMode: () => {},
   difficulty: "normal",
   setDifficulty: () => {},
+  mapType: "drylands",
+  setMapType: () => {},
   seats: DEFAULT_SEATS,
   setSeats: () => {},
 });
@@ -46,6 +52,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [size, setSize] = useState<number | null>(null);
   const [gameMode, setGameMode] = useState<GameModeTypes>("perfection");
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
+  const [mapType, setMapType] = useState<MapType>("drylands");
   const [seats, setSeats] = useState<Seat[]>(DEFAULT_SEATS);
   // any size the mode allows (Huge/Massive only in Creative and multiplayer) that holds every tribe;
   // without a choice, the suggested size for the mode and opponent count
@@ -71,6 +78,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setGameMode,
         difficulty,
         setDifficulty,
+        mapType,
+        setMapType,
         seats,
         setSeats,
       }}
