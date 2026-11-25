@@ -1,6 +1,6 @@
 {
   "id": "greedy-full-defend",
-  "name": "greedy-full-defend",
+  "name": "Defend",
   "kind": "greedy-full",
   "description": "The full-action-space greedy bot (logic/engine/botFull.ts) with 202 knobs tuned by hill climbing (scripts/train-hill.ts --space full, margin test, opponents self+past): 320 challengers, 100k training games in 4-player domination on drylands 16x16 maps, fine-tuned from greedy-full-v1, 3 kept. Saved the champion of the best learning-curve point (round 39, 13k games). Won 95% against greedy-v1 and 51% against greedy-full-v1 on unseen maps at save time.",
   "hidden": true,

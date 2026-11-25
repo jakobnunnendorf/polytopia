@@ -1,6 +1,6 @@
 {
   "id": "greedy-full-front-sweep",
-  "name": "greedy-full-v1 + front=2",
+  "name": "Front sweep",
   "kind": "greedy-full",
   "description": "greedy-full-v1 with front=2, the best of a strength sweep (5 points, 200 games against each panel model). Not trained further.",
   "hidden": true,

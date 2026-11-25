@@ -1,6 +1,6 @@
 {
   "id": "greedy-full-economy",
-  "name": "greedy-full-peacebreak + plan=2",
+  "name": "Economy",
   "kind": "greedy-full",
   "description": "greedy-full-peacebreak with plan=2, the best of a strength sweep (4 points, 200 games against each panel model). Not trained further.",
   "created": "2026-11-24",
