@@ -6,8 +6,8 @@
   "issue": 166,
   "pr": 0,
   "date": "2026-11-25",
-  "status": "running",
-  "verdict": "pending",
+  "status": "done",
+  "verdict": "not kept",
   "base": "greedy-full-probe",
   "result": null,
   "question": "Can a value function over the exact integer state (turn, cities, income, units, sum of city levels, techs), learned from recorded Perfection games, predict the learner's remaining score better than the turn alone, and does a learned transition model (backward induction) predict better than Monte Carlo averages?",
@@ -21,9 +21,23 @@
   "knobs": [],
   "headline": [
     {
-      "label": "Held-out RMSE of remaining score, model-based V vs turn baseline (300k training games)",
-      "base": null,
-      "new": null,
+      "label": "Held-out RMSE of remaining score, 300k training games: turn baseline vs model-based V",
+      "base": 2414.3,
+      "new": 2210.4,
+      "unit": "points",
+      "better": "lower"
+    },
+    {
+      "label": "Same, turn baseline vs Monte Carlo table",
+      "base": 2414.3,
+      "new": 2180.6,
+      "unit": "points",
+      "better": "lower"
+    },
+    {
+      "label": "Turn 20 only: turn baseline vs model-based V",
+      "base": 2124.3,
+      "new": 1595.0,
       "unit": "points",
       "better": "lower"
     }
