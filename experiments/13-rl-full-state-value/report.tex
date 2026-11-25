@@ -1,0 +1,103 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 13-rl-full-state-value
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+% WHEN: before the first run.
+\textbf{The idea (David, 25 Nov 2026, issue \#166).} Model the game state directly with all features at once,
+as exact integers and without bins: number of cities, income (stars per turn), number of units, sum of city
+levels, number of techs, and the turn (Perfection ends after 30 turns, so time is part of the state). Learn the
+value of these states from play; later, use value iteration on them to play the game. This runs in parallel
+with Jakob's track, which starts from cities alone and adds one feature at a time.
+
+\textbf{This experiment} is the first step: the value function of the current bot's own play (policy
+evaluation, no decisions yet). The value of a state is the expected remaining score,
+$V(s_t) = \mathbb{E}[\,\text{final score} - \text{score}_t \mid s_t\,]$, which is the sum of the rewards
+(score changes) still to come.
+
+\textbf{Prediction} (written before the main run; a 200-game pilot was run only to check the tool and time it):
+\begin{enumerate}
+  \item \emph{The state space is sparse.} Distinct states grow almost in proportion to the games played. With
+        300{,}000 training games, more than half of the distinct states are seen only once, and the held-out
+        coverage (share of held-out visits whose exact state was seen in training) is about 85\%: close to
+        100\% in the first turns, below 60\% in the last ten.
+  \item \emph{The learned model beats Monte Carlo.} On held-out visits to states seen in training, the
+        model-based $V$ (backward induction) has a lower RMSE than the Monte Carlo table at every training size,
+        by at least 5\% at 300{,}000 games, because it pools the successors of rarely seen states.
+  \item \emph{The full state beats the turn alone, given enough data.} At small sizes (the pilot: 200 games) the
+        tables are worse than the turn-only baseline; from about 30{,}000 games on, model-based $V$ beats it,
+        and at 300{,}000 games its RMSE over all held-out visits is at least 25\% below the baseline's.
+\end{enumerate}
+\textbf{Against the idea:} if model-based $V$ is not at least 10\% below the turn baseline at 300{,}000 games,
+the exact-integer state is too sparse to learn as a table at this data size.
+
+\section{Mechanism}
+\textbf{State.} At the start of each turn of seat 0 (the learner), \texttt{rl-value} (\texttt{engine/rlvalue})
+reads $s = (\text{turn}, \text{cities}, \text{income}, \text{units}, \text{levels}, \text{techs})$:
+cities and units owned by seat 0, \texttt{state::income} (stars at the start of its next turn), the sum of
+\texttt{level} over its cities, and the number of techs owned. It also records \texttt{score\_of}, the raw
+Perfection score. A terminal row holds the final score.
+
+\textbf{Reward.} $r_t = \text{score}_{t+1} - \text{score}_t$; the last step runs to the final score.
+
+\textbf{Three estimators, all fitted on the same training games.}
+\begin{itemize}
+  \item \emph{Model-based (certainty equivalence).} For each visited state the list of observed transitions
+        $(r, s')$ is the maximum-likelihood model $\hat P(s'\mid s)$, $\hat r(s,s')$. Backward induction from the
+        last turn: $V(s) = \frac{1}{n(s)} \sum_{(r,s')} \bigl(r + V(s')\bigr)$, $V(\text{terminal}) = 0$. A
+        successor is always one turn later, so this is exact finite-horizon dynamic programming, no
+        discounting. It is also the fixed point that batch TD(0) converges to.
+  \item \emph{Monte Carlo.} $V(s)$ = mean return-to-go of the training visits to $s$.
+  \item \emph{Turn baseline.} $V(t)$ = mean return-to-go at turn $t$.
+\end{itemize}
+A held-out state never seen in training has no table entry; it gets the turn baseline (reported separately as
+coverage).
+
+\section{Setup}
+Perfection, 16$\times$16 Continents, 3 players, difficulty Crazy (DECISION on \#166, 25 Nov), seat 0 Xin-Xi as
+the game's human seat (\texttt{humans: [0]}, as on Jakob's branch \texttt{rl/learner-human}; on \texttt{dev}
+the gate still has no human seat), opponents' tribes from the gate's rule, \texttt{greedy-full-probe} in every
+seat. Training seeds $1, 2, \dots$; held-out seeds $500{,}000{,}000, \dots$ (10{,}000 games); both below the
+gate's evaluation seeds ($\geq 10^9$). Training sizes 1k, 3k, 10k, 30k, 100k, 300k games (each a prefix of the
+same seed list).
+
+Commands:
+\begin{verbatim}
+cargo run --release -p rl-value -- collect --games 300000 --seed-start 1 \
+  --out target/rl-value/train.tsv
+cargo run --release -p rl-value -- collect --games 10000 --seed-start 500000000 \
+  --out target/rl-value/test.tsv
+cargo run --release -p rl-value -- fit --train target/rl-value/train.tsv \
+  --test target/rl-value/test.tsv --sizes 1000,3000,10000,30000,100000,300000 \
+  --out ../experiments/13-rl-full-state-value
+\end{verbatim}
+Sanity checks: unit tests (backward induction on two hand-made games; one row per learner turn from turn 0;
+the same seed gives the same game). Pilot, 200 games: 0.9\,s on 10 threads, 30 learner turns per game, final
+scores around 9{,}000.
+
+\section{Results}
+\ExpResults
+
+\todo{claude}{Tables from value-summary.json: learning curve over training size; per-turn coverage and RMSE.}
+
+\section{Behaviour}
+\todo{claude}{Not a policy change: which states the bot visits (ranges, visits per state).}
+
+\section{Interpretation}
+\todo{claude}{Why the result came out this way, and whether the prediction held.}
+\todo{david}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\todo{claude}{Two or three concrete threats.}
+
+\section{Verdict and next step}
+\todo{claude}{No gate run (no new player). What this means for value iteration.}
+
+\section{Notes for the paper}
+\todo{claude}{Draft: the one-sentence claim and which figure or table would carry it.}
+\todo{david}{Is this worth a place in the talk or report? Where?}
+
+\end{document}

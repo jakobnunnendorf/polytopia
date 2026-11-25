@@ -1,0 +1,32 @@
+{
+  "n": 13,
+  "slug": "rl-full-state-value",
+  "title": "Full integer state: value function learned from recorded games",
+  "kind": "method",
+  "issue": 166,
+  "pr": 0,
+  "date": "2026-11-25",
+  "status": "running",
+  "verdict": "pending",
+  "base": "greedy-full-probe",
+  "result": null,
+  "question": "Can a value function over the exact integer state (turn, cities, income, units, sum of city levels, techs), learned from recorded Perfection games, predict the learner's remaining score better than the turn alone, and does a learned transition model (backward induction) predict better than Monte Carlo averages?",
+  "change": "New tool engine/rlvalue (rl-value): records the six-integer state of seat 0 at the start of each of its turns, learns a tabular transition and reward model, computes V by backward induction from the last turn, and compares it with a Monte Carlo table and a turn-only baseline on held-out games.",
+  "method": "Training-set sizes 1k to 300k games (seeds 1..), 10,000 held-out games (seeds 500,000,000..), RMSE of the predicted return-to-go",
+  "measured": "Held-out RMSE, 10,000 games",
+  "metric": "RMSE of predicted remaining score",
+  "setups": [
+    "Perfection, 16×16 continents, 3 players, Crazy, seat 0 Xin-Xi (human seat), greedy-full-probe in every seat"
+  ],
+  "knobs": [],
+  "headline": [
+    {
+      "label": "Held-out RMSE of remaining score, model-based V vs turn baseline (300k training games)",
+      "base": null,
+      "new": null,
+      "unit": "points",
+      "better": "lower"
+    }
+  ],
+  "runs": []
+}
