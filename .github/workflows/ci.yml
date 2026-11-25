@@ -9,7 +9,7 @@
 #           and the static web export
 #   supabase  applies supabase/migrations to an empty local database and checks the access rules
 #   deploy  pushes to main only: web export to EAS Hosting (https://polytopia.expo.app),
-#           needs the EXPO repository secret (an expo.dev access token)
+#           needs the EXPO_TOKEN repository secret (an expo.dev access token)
 # Branch protection: dev requires "Rust engine" and "TypeScript and Jest"; main requires those
 # and "Release source is dev", allows no direct pushes and no admin bypass.
 name: CI
@@ -149,11 +149,11 @@ jobs:
       group: deploy-web
       cancel-in-progress: false
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
-      - name: Skip when the EXPO secret is not set
+      - name: Skip when the EXPO_TOKEN secret is not set
         if: env.EXPO_TOKEN == ''
-        run: echo "::notice::EXPO secret missing, web deploy skipped"
+        run: echo "::notice::EXPO_TOKEN secret missing, web deploy skipped"
       - uses: actions/checkout@v4
         if: env.EXPO_TOKEN != ''
       - uses: dtolnay/rust-toolchain@stable
@@ -185,7 +185,7 @@ jobs:
         if: env.EXPO_TOKEN != ''
         with:
           eas-version: latest
-          token: ${{ secrets.EXPO }}
+          token: ${{ secrets.EXPO_TOKEN }}
       - name: Export and deploy to https://polytopia.expo.app
         if: env.EXPO_TOKEN != ''
         run: |
