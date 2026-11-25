@@ -247,6 +247,10 @@ fn full_weights_to_json(w: &polycore::bot_full::FullWeights) -> Value {
         "front": w.front,
         "roads": w.roads,
         "breakPeace": w.break_peace,
+        "plan": w.plan,
+        "reserve": w.reserve,
+        "moveNoise": w.move_noise,
+        "spread": w.spread,
     })
 }
 
@@ -574,5 +578,19 @@ pub fn call_json(name: &str, args_json: &str) -> String {
     match call(name, &list) {
         Ok(v) => json!({"ok": v}).to_string(),
         Err(e) => json!({"error": e}).to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn full_weights_json_has_plan() {
+        let w = full_w(&json!({"plan": 0.5})).unwrap();
+        let v = full_weights_to_json(&w);
+        assert_eq!(v["plan"], json!(0.5));
+        assert_eq!(full_w(&v).unwrap(), w);
+        assert_eq!(full_weights_to_json(&polycore::bot_full::default_full_weights())["plan"], json!(0.0));
     }
 }

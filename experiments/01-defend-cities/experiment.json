@@ -1,0 +1,62 @@
+{
+  "n": 1,
+  "slug": "defend-cities",
+  "title": "Defend threatened cities",
+  "kind": "mechanism",
+  "issue": 28,
+  "date": "2026-11-24",
+  "status": "done",
+  "verdict": "tie",
+  "base": "greedy-full-v1",
+  "result": null,
+  "question": "Does keeping a unit in a threatened city make the bot stronger?",
+  "change": "A move into an empty threatened own city scores +defend; a move that empties one scores −defend. A city is threatened when an enemy unit is within defendRadius tiles.",
+  "method": "Tuning run (hill climbing), 100,000 games, against a control run of the same budget",
+  "measured": "Tuning run, 100,000 games, vs a control",
+  "metric": "points share",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150"
+  ],
+  "knobs": [
+    {
+      "name": "defend",
+      "tested": [
+        30
+      ],
+      "chosen": 37.9
+    },
+    {
+      "name": "defendRadius",
+      "tested": [
+        2
+      ],
+      "chosen": 1
+    }
+  ],
+  "headline": [
+    {
+      "label": "Points vs base, final test",
+      "base": 50.0,
+      "new": 50.7,
+      "unit": "%"
+    },
+    {
+      "label": "Won vs base, final test",
+      "base": 50.0,
+      "new": 51.0,
+      "unit": "%"
+    },
+    {
+      "label": "Points share, 6-model panel",
+      "base": 67.7,
+      "new": 67.6,
+      "unit": "%"
+    }
+  ],
+  "runs": [
+    {
+      "id": "greedy-full-defend",
+      "label": "Tuning run, 100,000 games"
+    }
+  ]
+}

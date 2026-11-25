@@ -16,6 +16,7 @@ pub mod combat;
 pub mod data;
 pub mod data_gen;
 pub mod diplomacy;
+pub mod econ_plan;
 pub mod grid;
 pub mod json;
 pub mod mapgen;

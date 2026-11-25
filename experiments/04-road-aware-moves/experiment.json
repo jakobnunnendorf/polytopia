@@ -1,0 +1,59 @@
+{
+  "n": 4,
+  "slug": "road-aware-moves",
+  "title": "Road-aware moves",
+  "kind": "mechanism",
+  "issue": 34,
+  "pr": 125,
+  "date": "2026-11-24",
+  "status": "done",
+  "verdict": "not kept",
+  "base": "greedy-full-front",
+  "result": null,
+  "question": "Does the bot get stronger when moves count real movement cost, so that roads are used?",
+  "change": "A move's progress becomes tiles gained + roads × (road-aware gain − tiles gained); steps between two road tiles cost half, as in the engine.",
+  "method": "Strength sweep, 200 games per point against each panel model, final test 400 games",
+  "measured": "Strength sweep, 4 values",
+  "metric": "points share",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150"
+  ],
+  "knobs": [
+    {
+      "name": "roads",
+      "tested": [
+        0.25,
+        0.5,
+        1,
+        2
+      ],
+      "chosen": 0.5
+    }
+  ],
+  "headline": [
+    {
+      "label": "Points vs base, final test",
+      "base": 50.0,
+      "new": 50.2,
+      "unit": "%"
+    },
+    {
+      "label": "Won vs base, final test",
+      "base": 50.0,
+      "new": 50.7,
+      "unit": "%"
+    },
+    {
+      "label": "Points share, 7-model panel",
+      "base": 67.36,
+      "new": 67.4,
+      "unit": "%"
+    }
+  ],
+  "runs": [
+    {
+      "id": "greedy-full-roads",
+      "label": "Strength sweep"
+    }
+  ]
+}

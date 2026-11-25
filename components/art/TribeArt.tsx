@@ -28,6 +28,12 @@ const TRIBE_EMBLEMS: Record<string, ImageSourcePropType> = {
 const SPECIAL_UNIT_SPRITES: Record<string, ImageSourcePropType> = {
   // Aquarion
   mermaid: require("@/assets/sprites/mermaid.png"),
+  mermaidArcher: require("@/assets/sprites/mermaidArcher.png"),
+  mermaidDefender: require("@/assets/sprites/mermaidDefender.png"),
+  swordsmaid: require("@/assets/sprites/swordsmaid.png"),
+  siren: require("@/assets/sprites/siren.png"),
+  scuba: require("@/assets/sprites/scuba.png"),
+  mermaidDagger: require("@/assets/sprites/mermaidDagger.png"),
   amphibian: require("@/assets/sprites/amphibian.png"),
   shark: require("@/assets/sprites/shark.png"),
   jelly: require("@/assets/sprites/jelly.png"),
@@ -59,9 +65,8 @@ const SPECIAL_UNIT_SPRITES: Record<string, ImageSourcePropType> = {
   livingIsland: require("@/assets/sprites/livingIsland.png"),
   centipede: require("@/assets/sprites/centipede.png"),
   segment: require("@/assets/sprites/segment.png"),
-  // no own art yet: reuse the closest sprites
-  insectEgg: require("@/assets/sprites/dragonEgg.png"),
-  larva: require("@/assets/sprites/segment.png"),
+  insectEgg: require("@/assets/sprites/insectEgg.png"),
+  larva: require("@/assets/sprites/larva.png"),
 };
 
 const SPECIAL_BUILDING_SPRITES: Record<string, ImageSourcePropType> = {
@@ -71,8 +76,7 @@ const SPECIAL_BUILDING_SPRITES: Record<string, ImageSourcePropType> = {
   fungi: require("@/assets/sprites/fungi.png"),
   mycelium: require("@/assets/sprites/mycelium.png"),
   clathrus: require("@/assets/sprites/clathrus.png"),
-  // no own art yet: reuse the Water Temple sprite
-  iceTemple: require("@/assets/sprites/waterTemple.png"),
+  iceTemple: require("@/assets/sprites/iceTemple.png"),
 };
 
 export function TribeEmblem({ clan, size }: { clan: string; size: number }) {

@@ -1,0 +1,44 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 04-road-aware-moves
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+In a live 9-bot game at turn 40 the bots had built 166 road tiles (41\,\% of the map, about 330 stars), yet only 17 of 825 moves started and ended on the road network. Move scoring counts tiles gained and ignores movement cost. \textbf{Hypothesis:} scoring moves by road-aware distance makes units use roads and reach goals sooner.
+
+\section{Mechanism}
+A Dijkstra map from the unit's goal gives a road-aware distance in half-steps. Progress of a move $= t + \knob{roads}\cdot(r - t)$, with $t$ the tiles gained and $r$ the road-aware gain. A step between two road tiles (road, bridge, village or city on friendly or unclaimed land) costs half. Default 0. Code: \texttt{road\_dist} in \texttt{bot\_full.rs}.
+
+\section{Setup}
+Sanity check on the live game at \knob{roads} $=1$: 13\,\% of units pick a different best move, and slightly more moves end on a road or city (992 against 935 of 1,247). The panel has seven models here, because the base is added to the fixed six.
+
+\section{Results}
+\ExpResults
+
+No effect at weak values, a small cost at strong ones (\knob{roads} 2: $-0.6$ points). Final test of the best point against the base: 50.2\,\% of points, 51\,\% won ($\pm$5).
+
+\section{Behaviour}
+Moves ending on a road or city at \knob{roads} $=1$: 992 of 1,247, against 935 for the base (one live position).
+
+\section{Interpretation}
+Roads change which tile a unit ends on, but rarely what it achieves. On 16$\times$16 maps most moves reach their goal within one or two turns, so a half-cost path saves little. The hypothesis that unused roads are a strength problem is not supported; they are a waste of stars, and stars are not the bottleneck (2,500 banked by the late game).
+
+\todo{jakob}{Your reading: does this match what you saw? Anything to add or correct?}
+
+\section{Threats to validity}
+\begin{itemize}
+\item Only 16$\times$16 maps; on larger maps paths are longer and roads could matter.
+\item The other half of the idea (build roads only where they connect something) is untested.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Not kept.} The code stays, switched off. The champion remains \model{greedy-full-front}. Next: a yardstick that rewards finishing (experiment 5).
+
+\section{Notes for the paper}
+Draft: a clean negative result. Correcting a visibly ``wrong'' behaviour (roads built but unused) does not change strength, because it is not on the critical path to winning.
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

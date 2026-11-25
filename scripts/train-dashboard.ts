@@ -11,7 +11,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 
 const argv = process.argv.slice(2);
 const arg = (name: string, dflt: string) => {
@@ -22,6 +22,9 @@ const ROOT = path.resolve(arg("root", process.cwd()));
 const PORT = Number(arg("port", "8095"));
 const RUNS_ARG = arg("runs", "");
 const PAGE = path.join(__dirname, "train-dashboard.html");
+const EXPERIMENTS_PAGE = path.join(__dirname, "experiments.html");
+// the lab notebook: experiments/<NN-slug>/experiment.json (structured facts) + report.md (fixed sections)
+const EXPERIMENTS = path.join(ROOT, "experiments");
 const SAMPLE_EVERY_MS = 20_000;
 
 type Json = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -62,12 +65,20 @@ function runIds(): string[] {
   const ids = new Set<string>();
   for (const d of fs.existsSync(models) ? fs.readdirSync(models) : []) {
     if (fs.existsSync(path.join(models, d, "checkpoint.json"))) ids.add(d);
-    if (fs.existsSync(path.join(models, d, "sweep.jsonl")) && !fs.existsSync(path.join(models, d, "model.json"))) ids.add(d); // a sweep in progress
+    // a sweep: while it runs (no final row yet) and for 30 minutes after it finished; older
+    // records stay reachable with --runs
+    const sw = path.join(models, d, "sweep.jsonl");
+    if (fs.existsSync(sw)) {
+      // by the time written in its last row: a checkout resets file times
+      const text = fs.readFileSync(sw, "utf8");
+      const last = Date.parse(text.trim().split("\n").at(-1)?.match(/"at":"([^"]+)"/)?.[1] ?? "") || fs.statSync(sw).mtimeMs;
+      if (Date.now() - last < (text.includes('"final":true') ? 30 * 60_000 : 6 * 3600_000)) ids.add(d);
+    }
   }
   const logs = path.join(ROOT, "logs");
   for (const f of fs.existsSync(logs) ? fs.readdirSync(logs) : []) {
     const id = f.replace(/\.log$/, "");
-    if (f.endsWith(".log") && fs.existsSync(path.join(models, id, "model.json"))) ids.add(id);
+    if (f.endsWith(".log") && fs.existsSync(path.join(models, id, "model.json")) && !fs.existsSync(path.join(models, id, "sweep.jsonl"))) ids.add(id);
   }
   return [...ids].sort();
 }
@@ -280,6 +291,108 @@ function runState(id: string, procs: { pid: number; cmd: string }[]) {
     samples: samples.get(id) ?? [],
   };
 }
+// ---------- experiments (the lab notebook) ----------
+// experiments/<NN-slug>/: experiment.json (facts), report.tex (fixed sections, written by Jakob and
+// Claude), generated.tex + report.pdf (built by scripts/experiment-report.ts, here on demand).
+type Open = { section: string; who: string; what: string };
+/** the parts of a report still marked \todo{who}{what}, by section */
+function openSections(report: string): Open[] {
+  const out: Open[] = [];
+  for (const part of report.split(/\\section\{/).slice(1)) {
+    const section = part.slice(0, part.indexOf("}"));
+    for (const m of part.matchAll(/\\todo\{(\w+)\}\{([^}]*)\}/g)) out.push({ section, who: m[1], what: m[2].replace(/\s+/g, " ").trim() });
+  }
+  return out;
+}
+/** the report's sections in order, with whether each still has an open part */
+function sections(report: string) {
+  return report.split(/\\section\{/).slice(1).map((part) => {
+    const body = part.slice(part.indexOf("}") + 1).split("\\end{document}")[0];
+    const text = body.replace(/\\todo\{\w+\}\{[^}]*\}/g, "").replace(/%.*$/gm, "").replace(/\\ExpResults/g, "x").trim();
+    return { section: part.slice(0, part.indexOf("}")), open: /\\todo\{/.test(body), empty: text.length === 0 };
+  });
+}
+function experimentDirs(): string[] {
+  if (!fs.existsSync(EXPERIMENTS)) return [];
+  return fs.readdirSync(EXPERIMENTS).filter((d) => /^\d/.test(d) && fs.existsSync(path.join(EXPERIMENTS, d, "experiment.json"))).sort();
+}
+const reportOf = (dir: string) => {
+  const f = path.join(EXPERIMENTS, dir, "report.tex");
+  return fs.existsSync(f) ? fs.readFileSync(f, "utf8") : "";
+};
+const mtime = (f: string) => (fs.existsSync(f) ? fs.statSync(f).mtimeMs : 0);
+
+// PDFs are built when asked for and out of date (never committed)
+const builds = new Map<string, { running: boolean; error: string | null }>();
+function build(key: string, args: string[]) {
+  const b = builds.get(key) ?? { running: false, error: null };
+  if (b.running) return;
+  builds.set(key, { running: true, error: null });
+  execFile(process.execPath, ["-r", "sucrase/register", path.join(__dirname, "experiment-report.ts"), ...args], { cwd: ROOT }, (err, _out, stderr) => {
+    builds.set(key, { running: false, error: err ? String(stderr || err.message).split("\n").slice(-12).join("\n") : null });
+  });
+}
+function pdfOf(dir: string, runIds: string[], anyRunning: boolean) {
+  const pdf = path.join(EXPERIMENTS, dir, "report.pdf");
+  const sources = [
+    path.join(EXPERIMENTS, dir, "experiment.json"),
+    path.join(EXPERIMENTS, dir, "report.tex"),
+    path.join(EXPERIMENTS, "polyexp.cls"),
+    path.join(__dirname, "experiment-report.ts"),
+    ...runIds.flatMap((id) => ["sweep.jsonl", "curve.jsonl", "model.json"].map((f) => path.join(ROOT, "models", id, f))),
+  ];
+  const stale = mtime(pdf) < Math.max(...sources.map(mtime));
+  const b = builds.get(dir);
+  // while a run of this experiment is going, its data changes every minute: rebuild only once it rests
+  if (stale && !b?.running && !b?.error && (!anyRunning || !mtime(pdf))) build(dir, [dir]);
+  if (b?.error && mtime(path.join(EXPERIMENTS, dir, "report.tex")) > mtime(pdf) && !b.running) builds.delete(dir); // edited since the failure: try again next time
+  return { exists: mtime(pdf) > 0, at: mtime(pdf), stale, building: !!builds.get(dir)?.running, error: builds.get(dir)?.error ?? null };
+}
+function experimentSummary(dir: string) {
+  const meta = readJson(path.join(EXPERIMENTS, dir, "experiment.json"));
+  const report = reportOf(dir);
+  const procs = processes();
+  const running = ((meta?.runs ?? []) as { id: string }[]).some((r) => !!trainerProcess(procs, r.id));
+  return { dir, meta, open: openSections(report), sections: sections(report), running };
+}
+function experimentList() {
+  const dirs = experimentDirs();
+  const nb = path.join(EXPERIMENTS, "notebook.pdf");
+  return { experiments: dirs.map(experimentSummary), notebook: { exists: mtime(nb) > 0, building: !!builds.get("notebook")?.running, error: builds.get("notebook")?.error ?? null } };
+}
+function experimentDetail(dir: string) {
+  if (!experimentDirs().includes(dir)) return null;
+  const sum = experimentSummary(dir);
+  const procs = processes();
+  const runs = ((sum.meta?.runs ?? []) as { id: string; label?: string }[]).map((r) => {
+    const m = path.join(ROOT, "models", r.id);
+    const model = readJson(path.join(m, "model.json"));
+    const log = path.join(ROOT, "logs", `${r.id}.log`);
+    const tail = fs.existsSync(log) ? fs.readFileSync(log, "utf8").trimEnd().split("\n").slice(-1)[0] ?? "" : "";
+    return {
+      ...r,
+      exists: fs.existsSync(m),
+      running: !!trainerProcess(procs, r.id),
+      progress: /^\s*\[\d/.test(tail) ? tail.trim().slice(0, 160) : "",
+      sweep: readJsonl(path.join(m, "sweep.jsonl")) ?? null,
+      curve: (readJsonl(path.join(m, "curve.jsonl")) ?? []).filter((c: Json) => !c.averaged),
+      final: model?.training?.final ?? null,
+    };
+  });
+  const dirsAll = experimentDirs();
+  const at = dirsAll.indexOf(dir);
+  return { ...sum, runs, pdf: pdfOf(dir, runs.map((r) => r.id), runs.some((r) => r.running)), prev: dirsAll[at - 1] ?? null, next: dirsAll[at + 1] ?? null };
+}
+function sendPdf(res: http.ServerResponse, file: string) {
+  if (!fs.existsSync(file)) {
+    res.writeHead(404, { "content-type": "text/plain" });
+    res.end("not built yet");
+    return;
+  }
+  res.writeHead(200, { "content-type": "application/pdf", "cache-control": "no-store" });
+  res.end(fs.readFileSync(file));
+}
+
 function state() {
   const procs = processes();
   const load = os.loadavg();
@@ -301,6 +414,28 @@ http
       if (url.pathname === "/api/state") {
         res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
         res.end(JSON.stringify(state()));
+      } else if (url.pathname === "/api/experiments") {
+        res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+        res.end(JSON.stringify({ root: ROOT, ...experimentList() }));
+      } else if (url.pathname === "/experiments/notebook.pdf") {
+        // the whole notebook: built on the first request and whenever asked again with ?build
+        const nb = path.join(EXPERIMENTS, "notebook.pdf");
+        if (!fs.existsSync(nb) || url.searchParams.has("build")) {
+          build("notebook", ["--all"]);
+          res.writeHead(202, { "content-type": "text/html; charset=utf-8", refresh: "4;url=/experiments/notebook.pdf" });
+          res.end("<p style='font:14px system-ui;padding:24px'>Building the notebook PDF. This page reloads by itself.</p>");
+        } else sendPdf(res, nb);
+      } else if (/^\/experiment\/[^/]+\/report\.pdf$/.test(url.pathname)) {
+        const dir = decodeURIComponent(url.pathname.split("/")[2]);
+        if (!experimentDirs().includes(dir)) throw new Error("no such experiment");
+        sendPdf(res, path.join(EXPERIMENTS, dir, "report.pdf"));
+      } else if (url.pathname.startsWith("/api/experiment/")) {
+        const d = experimentDetail(decodeURIComponent(url.pathname.slice("/api/experiment/".length)));
+        res.writeHead(d ? 200 : 404, { "content-type": "application/json", "cache-control": "no-store" });
+        res.end(JSON.stringify(d ?? { error: "no such experiment" }));
+      } else if (url.pathname === "/experiments" || url.pathname.startsWith("/experiment/")) {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+        res.end(fs.readFileSync(EXPERIMENTS_PAGE));
       } else if (url.pathname === "/" || url.pathname === "/index.html") {
         res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
         res.end(fs.readFileSync(PAGE));
