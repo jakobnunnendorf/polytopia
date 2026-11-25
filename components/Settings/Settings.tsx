@@ -8,7 +8,7 @@ import type { ModelSpec } from "@/logic/agents/types";
 import type { Ratings } from "@/logic/arena/elo";
 import type { Seat } from "@/logic/arena/record";
 import { CLANS, maxPlayersFor } from "@/logic/engine/data";
-import { mapSizeAllowed, mapTypeFor } from "@/logic/engine/state";
+import { mapSizeAllowed, mapTypeFor, perfectionBonusPercent } from "@/logic/engine/state";
 import { name as displayName } from "@/logic/engine/names";
 import { tribeDescription } from "@/logic/engine/tribes";
 import { TribeEmblem } from "@/components/art/Art";
@@ -348,6 +348,11 @@ export default function Settings() {
           />
         ))}
       </View>
+      {mode.id === "perfection" && (
+        <Text testID="perfection-bonus" style={{ color: UI.muted, fontSize: 13 }}>
+          {`Difficulty bonus: ${perfectionBonusPercent(settings.difficulty, seats.length - 1)}%`}
+        </Text>
+      )}
 
       <Heading>Players</Heading>
       {seats.map((seat, i) => (

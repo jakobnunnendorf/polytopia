@@ -17,6 +17,7 @@ import {
   dominationStars,
   income,
   makeUnit,
+  perfectionBonusPercent,
   perfectionRating,
   scoreOf,
 } from "@/logic/engine/state";
@@ -272,6 +273,30 @@ describe("scoring (game data 2.18)", () => {
       const s = createGame({ mapSize: 16, players: i + 2, mode: "perfection", difficulty: "crazy", seed: 1, clans: Array(i + 2).fill("imperius") });
       expect(perfectionRating(s, 0)).toBe(Math.round(scoreOf(s, 0) * (percent / 100)));
     });
+  });
+});
+
+describe("perfectionBonusPercent (the number the setup screen shows)", () => {
+  it("is 180, 200, 210, 217, ... 245 on Crazy for 1..15 opponents", () => {
+    const shown = [180, 200, 210, 217, 222, 226, 229, 232, 234, 237, 239, 240, 242, 244, 245];
+    expect(shown.map((_, i) => perfectionBonusPercent("crazy", i + 1))).toEqual(shown);
+  });
+
+  it("is 165 / 185 / 205 / 245 at 15 opponents for Easy / Normal / Hard / Crazy", () => {
+    expect((["easy", "normal", "hard", "crazy"] as const).map((d) => perfectionBonusPercent(d, 15))).toEqual([165, 185, 205, 245]);
+  });
+
+  it("is the multiplier perfectionRating applies to the score", () => {
+    for (const difficulty of ["easy", "normal", "hard", "crazy"] as const) {
+      const s = createGame({ mapSize: 16, players: 5, mode: "perfection", difficulty, seed: 1, clans: Array(5).fill("imperius") });
+      expect(perfectionRating(s, 0)).toBe(Math.round(scoreOf(s, 0) * (perfectionBonusPercent(difficulty, 4) / 100)));
+    }
+  });
+
+  it("clamps the opponent count to 1..15 and rejects an unknown difficulty", () => {
+    expect(perfectionBonusPercent("normal", 0)).toBe(perfectionBonusPercent("normal", 1));
+    expect(perfectionBonusPercent("normal", 40)).toBe(perfectionBonusPercent("normal", 15));
+    expect(() => perfectionBonusPercent("brutal" as never, 3)).toThrow(/unknown difficulty/);
   });
 });
 
