@@ -582,7 +582,7 @@ pub fn play_full_bot_turn(s: &mut GameState, max_actions: i32, w: &FullWeights) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bot::tests::{from_bits, guarded};
+    use crate::bot::tests::{from_bits, guarded, opinion_dependent};
 
     /// the champion's raw weights JSON (models/greedy-full-front)
     pub(crate) fn champion_json() -> serde_json::Value {
@@ -629,8 +629,9 @@ mod tests {
     }
 
     /// play_hash of the champion over seeds 11, 22, 33 for 60 rounds, recorded at the base
-    /// commit ab56662 before the economy plan existed
-    const GOLDEN: (u64, usize) = (0xf413bd635d505e7d, 7009);
+    /// commit ab56662 before the economy plan existed (0xf413bd635d505e7d, 7009), and again
+    /// when the bots' opinions became the game's decompiled model (opinion.rs)
+    const GOLDEN: (u64, usize) = (0x3faeb44c4e72ffc5, 9130);
 
     #[test]
     fn plan_off_is_identity() {
@@ -1527,14 +1528,20 @@ mod tests {
         let (mut pick_ok, mut pick_bad) = (0usize, 0usize);
         let (mut step_ok, mut step_bad, mut step_gated) = (0usize, 0usize, 0usize);
         let mut rows = 0;
+        let mut skipped = 0usize;
         for l in lines {
             let row: serde_json::Value = serde_json::from_str(l).unwrap();
             rows += 1;
             let s = crate::json::state_from_json(&row["state"]).unwrap();
             let legal: Vec<Action> = row["legal"].as_array().unwrap().iter().map(|a| crate::json::action_from_json(a).unwrap()).collect();
+            let opinion_row = legal.iter().any(opinion_dependent);
             for (name, w) in &sets {
                 let scores = row["scores"][name].as_array().unwrap();
                 for (i, a) in legal.iter().enumerate() {
+                    if opinion_dependent(a) {
+                        skipped += 1;
+                        continue;
+                    }
                     let want = from_bits(&scores[i]);
                     match guarded(|| score_full(&s, a, w)) {
                         Ok(got) if got.to_bits() == want.to_bits() => ok += 1,
@@ -1547,6 +1554,10 @@ mod tests {
                         Err(true) => gated += 1,
                         Err(false) => bad += 1,
                     }
+                }
+                if opinion_row {
+                    skipped += 1;
+                    continue;
                 }
                 let want = crate::json::action_from_json(&row["step_"][name]).unwrap();
                 match guarded(|| full_best_of(&s, &legal, w)) {
@@ -1565,7 +1576,7 @@ mod tests {
             }
         }
         eprintln!(
-            "bot_full over {rows} states, {} weight sets: score_full {ok} equal, {bad} different, {gated} gated; choice among TS legal actions {pick_ok} equal, {pick_bad} different; full_bot_step {step_ok} equal, {step_bad} different, {step_gated} gated",
+            "bot_full over {rows} states, {} weight sets: score_full {ok} equal, {bad} different, {gated} gated; choice among TS legal actions {pick_ok} equal, {pick_bad} different; full_bot_step {step_ok} equal, {step_bad} different, {step_gated} gated; {skipped} opinion-dependent scores and choices skipped",
             sets.len()
         );
         assert_eq!(bad, 0);

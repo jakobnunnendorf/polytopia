@@ -533,12 +533,15 @@ pub fn call(name: &str, args: &[Value]) -> R<Value> {
             let f = opinion::opinion_factors(&state(args, 0)?, int(arg(args, 1), "bot")?, int(arg(args, 2), "other")?);
             json!(f.iter().map(|x| x.id()).collect::<Vec<_>>())
         }
-        "opinionLevel" => json!(opinion_level(opinion::opinion_level(int(arg(args, 0), "score")?))),
+        "opinionReasons" => {
+            let r = opinion::opinion_reasons(&state(args, 0)?, int(arg(args, 1), "bot")?, int(arg(args, 2), "other")?);
+            json!(r.iter().map(|(f, v)| json!({"factor": f.id(), "value": v})).collect::<Vec<_>>())
+        }
+        "opinionLevel" => json!(opinion_level(opinion::opinion_level(num(arg(args, 0), "score")?))),
+        "LOVE_LIMIT" => json!(opinion::LOVE_LIMIT),
         "PEACEFUL_TURNS" => json!(opinion::PEACEFUL_TURNS),
         "POSITIVE_FACTORS" => {
-            use opinion::OpinionFactor::*;
-            let all = [Wise, Charming, Peaceful, Diplomatic, Powerful, Brave, Violent, Threatening, Weak, Annoying, Foolish, Intrusive, Dominating];
-            json!(all.iter().filter(|f| f.positive()).map(|f| f.id()).collect::<Vec<_>>())
+            json!(opinion::OpinionFactor::ALL.iter().filter(|f| f.positive()).map(|f| f.id()).collect::<Vec<_>>())
         }
         "friendly" => json!(dip::friendly(&state(args, 0)?, int(arg(args, 1), "a")?, opt_player(arg(args, 2), "b")?)),
         "brokeTreatyWith" => json!(dip::broke_treaty_with(&state(args, 0)?, int(arg(args, 1), "breaker")?, int(arg(args, 2), "victim")?)),
