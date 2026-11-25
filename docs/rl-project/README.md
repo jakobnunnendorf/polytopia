@@ -20,3 +20,35 @@ The working project plan is the Claude Doc "RL final project plan: learning to p
 An empirical project on the Shardlands engine (`engine/py` VecEnv, see `docs/shardlands/RL.md`): do the course's
 value-based and policy-gradient methods beat the ES-tuned greedy bot at an equal game budget? The candidate
 experiments are the `[RL]` issues indexed in #123.
+
+## The quality gate: `rl-gate`
+
+Whether an experiment's new agent (the candidate) replaces the current one (the base) is decided by one
+command (agreed by Jakob, 25 Nov 2026, #166). The tool lives in `engine/gate` (crate and binary `rl-gate`):
+
+```bash
+npm run rl:gate -- --candidate <model id or path> --base <model id or path> --difficulty <easy|normal|hard|crazy> \
+  --out experiments/NN-rl-<slug>/
+```
+
+- **Setup:** Perfection, 16x16 Continents, 3 players. The learner plays seat 0 as Xin-Xi (`--tribe xinxi`);
+  the two opponents' tribes are distinct and fixed per seed, so candidate and base meet the same tribes on the same
+  map. Opponents are the champion `greedy-full-probe` (`--opp`).
+- **Difficulty: not decided yet, pass it explicitly** (`--difficulty`; `normal` is only the technical default).
+  Open modelling question: with no human seats the engine treats every seat as a bot, so the learner in seat 0
+  also gets that difficulty's bot capital bonus. The score compared is the raw `score_of`, not the
+  difficulty-scaled rating.
+- **Paired test:** candidate and base each play seat 0 on the same N = 10,000 seeds (`--n`, fixed in advance, no
+  early stopping). Per seed d = score(candidate) − score(base) of seat 0's final Perfection score.
+- **Pass rule:** one-sided at α = 0.01 (`--alpha`): **PASS iff mean(d) − 2.326 · sd(d)/√N > 0**. The paired t
+  bound is printed too (identical at this N). Exit code 0 = PASS, 1 = FAIL, 2 = error.
+- **Seed rule:** evaluation seeds start at **1,000,000,000** (`--seed-start`) and run upwards. **Training must never
+  use seeds ≥ 1,000,000,000.** The tool warns when started below that range.
+- **Output:** a summary on the terminal (means, mean and sd of d, correlation, lower bound, verdict, wall time)
+  and `gate-<candidate>-vs-<base>-n<N>.json` in `--out` (default `engine/target/rl-gate/`) with the same numbers
+  plus one row per seed (seed, tribes, both scores, d); cite that file in the experiment report.
+- **Cost:** 20,000 games, about 50 s on 12 cores.
+- **Sanity check (25 Nov 2026, difficulty normal):** `greedy-full-probe` vs `greedy-v1`: mean d = +3453, lower bound
+  +3396, PASS; `greedy-full-probe` vs itself: d = 0 on every seed, lower bound 0, FAIL.
+- Learners are bot models (`models/<id>/model.json`) for now; the RL agent plugs in as a new `Learner` kind in
+  `engine/gate/src/main.rs`.
