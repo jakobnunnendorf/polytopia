@@ -6,7 +6,7 @@
 \begin{document}
 {\sffamily\Huge\bfseries Polytopia AI research}\par\medskip
 {\sffamily\Large Experiment notebook}\par\medskip
-{\sffamily\small\color{expgrey}8 experiments \textperiodcentered\ built 2026-11-24}\par\bigskip
+{\sffamily\small\color{expgrey}12 experiments \textperiodcentered\ built 2026-11-25}\par\bigskip
 \tableofcontents
 \clearpage\phantomsection\addcontentsline{toc}{section}{Experiment 1: Defend threatened cities (tie)}
 
@@ -372,6 +372,217 @@ Spread and movement noise act on the same jam and largely do the same job: both 
 
 \subsection{Notes for the paper}
 Draft: two mechanisms aimed at the same failure are substitutes, not complements; measured one at a time on top of each other, the second adds nothing. A caution against crediting each of several simultaneous changes with the joint gain.
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+
+\clearpage\phantomsection\addcontentsline{toc}{section}{Experiment 9: Saving stars for a better purchase (not kept)}
+
+\input{09-reserve/generated}
+\ExpHeader
+
+\subsection{Question and hypothesis}
+The greedy bot spends stars on the best affordable action every step. The Autonomous Systems course calls this kind of one-step choice myopic and motivates planning as looking ahead and delaying action (AS 2.0 Planning as Search, PDF page 15, slide 8/51; technique AS-05, issue \#41). \textbf{Hypothesis:} skipping a cheap purchase that would block a clearly better one next turn raises the points share against the panel by about one point and wins the head-to-head against the base.
+
+\subsection{Mechanism}
+Each turn the bot finds the best purchase it cannot afford now but can afford next turn (stars set to next turn's income, cost in $(\mathit{stars}, \mathit{next}]$), with score $R$ and cost $C$. A purchase with cost $c>0$ and score $0<s<R$ for which $\mathit{next}-c<C$ scores $s-\knob{reserve}\cdot R$ instead. Default 0 (off). Code: \texttt{purchase\_cost}, \texttt{reserve\_reference} and the saving branch in \texttt{full\_best\_of}, \texttt{engine/core/src/bot\_full.rs}.
+
+\subsection{Setup}
+Values were sized so that at 1.0 a blocked purchase loses its full reference score, enough to push any cheaper purchase below 0. This experiment ran before the finish metric (\#124), so it uses the points share. Base: \model{greedy-full-front}, the champion at the time.
+
+\subsection{Results}
+\ExpResults
+
+All four points lie within 0.2 points of the base on the 6-model panel (70.25\,\%), inside the noise of about $\pm$1.2. The final test of the best point (0.15) against the base is an exact tie: 50.0\,\% points, 50\,\% won ($\pm$5).
+
+\subsection{Behaviour}
+At \knob{reserve} 1.0 the mechanism changed 4 of 1,879 bot decisions (about 2 per 1,000) in the first 12 turns of generated 4-player games. The knob saturates at 1.0: larger values change nothing more.
+
+\subsection{Interpretation}
+The prediction failed because the condition almost never holds: a better purchase affordable next turn but not now, blocked by a cheaper one now. The idea is sound, but a one-turn lookahead on a single reference purchase is too narrow to change play. A plan over several turns is the DP of experiment 10.
+
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\subsection{Threats to validity}
+\begin{itemize}
+\item The behaviour count comes from the first 12 turns only; later turns, with more stars, may trigger it more often.
+\item The reference is one purchase. A plan that weighs several future purchases might act often enough to show an effect.
+\end{itemize}
+
+\subsection{Verdict and next step}
+\textbf{Not kept}: the head-to-head is a tie and the panel moves less than the noise. Merged off by default (PR \#126) as the record. Champion stays \model{greedy-full-front}. Next: the multi-turn version, an economy plan by dynamic programming (experiment 10, \#68).
+
+\subsection{Notes for the paper}
+Draft: a negative result worth one line. A myopia patch that looks one turn ahead at one purchase almost never fires (2 per 1,000 decisions); the gain needs a real multi-step plan (experiment 10).
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+
+\clearpage\phantomsection\addcontentsline{toc}{section}{Experiment 10: Economy plan by dynamic programming (kept)}
+
+\input{10-economy-plan/generated}
+\ExpHeader
+
+\subsection{Question and hypothesis}
+The greedy bot scores research and economy builds with fixed weights, so it cannot tell a build that pays back in five rounds from one that never does. The Reinforcement Learning course solves finite-horizon problems by backward induction: value equals immediate reward plus the value of what follows (RL 2.0 Dynamic Programming, PDF page 63, ``Easy answer for finite-horizon problems''; issue \#68). \textbf{Hypothesis:} scoring purchases by a DP over the economy raises the finish score on the 6-model panel by more than 1.5 points and wins the head-to-head against the base.
+
+\subsection{Mechanism}
+\texttt{econ\_plan.rs} solves a finite-horizon DP once per process (about 5\,ms) over one representative city: rounds left, cumulative population, buildable population supply and stars per city. For a purchase with cost $c$ it reads the advantage
+\[
+A = (1-\gamma)\,\bigl(V(\text{buy now}) - V(\text{never buy}) - \lambda c\bigr),
+\]
+the value of buying now rather than next round, in stars, clamped to $\pm 10$. Research, population builds, leveling buildings and markets score $s + \knob{plan}\cdot A$; training and upgrades are unchanged. Default 0 (off), and at 0 the scores are bit-identical. Code: \texttt{advantage} in \texttt{engine/core/src/econ\_plan.rs}, called from \texttt{score\_full\_with} in \texttt{bot\_full.rs}.
+
+\subsection{Setup}
+Values were sized so that $\knob{plan}\cdot A$ at plan 2 can tip a build against a move (about 25 plus tiles gained). The base was measured again on the final-test maps (\model{greedy-full-peacebreak-final}), so the panel means of base and new model come from the same maps.
+
+\subsection{Results}
+\ExpResults
+
+Every value beats the base on the panel: finish 78.5\,\% (base) against 82.7, 83.1, 82.9 and 82.8\,\% at plan 1, 2, 4 and 8. Head to head against the base the effect fades as plan grows (finish 57.0, 56.3, 54.8 and 50.1\,\%). Final test of plan 2, 400 games: against the base 57.0\,\% finish, 54.7\,\% points, 58\,\% won ($\pm$5). On the final-test maps the panel finish rises from 78.8 to 82.5\,\%, conquest wins from 76.5 to 81.0\,\%, and games are 3 turns shorter.
+
+\subsection{Behaviour}
+The plan changes about 21 of 1,000 decisions. Forges, sawmills and markets get built where the bot used to end its turn, and research follows payback instead of noise. Play is about 8\,\% slower.
+
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\subsection{Interpretation}
+The prediction held, by both keep rules. An economy that compounds rewards early spending that pays back within the game's horizon, and the DP prices that horizon. The fade at plan 8 suggests that a large weight lets the economy crowd out military play.
+
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\subsection{Threats to validity}
+\begin{itemize}
+\item The DP models one representative city, with no war and no losses; its values are a proxy, not the true game's value.
+\item Only the 4-player setup was swept; 8-player maps have longer games, where the horizon matters more.
+\item $\gamma$ and $\lambda$ were set by hand, not swept.
+\end{itemize}
+
+\subsection{Verdict and next step}
+\textbf{Kept} by both rules (head-to-head and panel). New champion: \model{greedy-full-economy}, PR \#135. Next: it was never measured against experiment 7's champion, \model{greedy-full-movenoise}, which was kept against the same base. Experiment 11 does that.
+
+\subsection{Notes for the paper}
+Draft: dynamic programming over an abstract economy, solved once in 5\,ms, adds 4 points of finish score to a hand-tuned greedy bot. A course method carries over almost unchanged to a real game. Candidate figure: the sweep curve of the finish score over plan.
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+
+\clearpage\phantomsection\addcontentsline{toc}{section}{Experiment 11: Combining the two champions: economy plan plus movement noise (kept)}
+
+\input{11-economy-plus-noise/generated}
+\ExpHeader
+
+\subsection{Question and hypothesis}
+Two sessions each produced a champion from \model{greedy-full-peacebreak} on the same evening: experiment 7 (movement noise, \model{greedy-full-movenoise}) and experiment 10 (economy plan, \model{greedy-full-economy}). They never played each other, so the chain of experiments had split in two. The two mechanisms act on different decisions (moves, purchases), so they should add up. \textbf{Hypothesis:} economy plus noise beats each champion head to head and adds more than 1 point of panel finish over the better one.
+
+\subsection{Mechanism}
+No new code: the branch of experiment 7 is merged with main, so all knobs are present. The model is \model{greedy-full-economy} (\knob{plan} 2) with \knob{moveNoise} added: every move gets a zero-mean random term, uniform in $[-\knob{moveNoise}, +\knob{moveNoise}]$, and a move that gains nothing towards the goal is no longer ruled out (see experiment 7).
+
+\subsection{Setup}
+The panel is the fixed six plus both champions, so each point is measured against both. The sweep's base row is \model{greedy-full-economy} unchanged, which gives the champions' direct comparison. Values 2, 4 and 8 cover the flat range found in experiment 7, where 4 was chosen. Both champions were measured again on the final-test maps (the extra runs below).
+
+\subsection{Results}
+\ExpResults
+
+\textbf{The two champions against each other} (200 games, sweep maps): \model{greedy-full-economy} scores 47.9\,\% finish and 47.4\,\% points against \model{greedy-full-movenoise}, a small edge for movenoise inside the noise. On the 6-model panel the economy bot is ahead (final-test maps: 82.5 against 81.3\,\%). In short, they are about level.
+
+\textbf{The combination:} every noise value beats both. Unlike experiment 7, the best value is the smallest, 2, which scores 56.3\,\% finish against economy and 55.2\,\% against movenoise. Final test of moveNoise 2, 400 games: against economy 55.5\,\% finish, 53.9\,\% points, 55\,\% won ($\pm$5); against movenoise 55.7\,\% finish, 54.3\,\% points, 57\,\% won ($\pm$5). On the final-test maps the 6-model panel finish is 83.8\,\%, against 82.5 for economy (+1.3) and 81.3 for movenoise (+2.5).
+
+\subsection{Behaviour}
+On the final-test maps against the panel, conquest wins are 81.1\,\% (economy 81.0, movenoise 80.5) and games last 59.1 turns (59.7 and 58.6). A behaviour count for unjammed units was not measured here; see experiment 7 for the diagnosis.
+
+\subsection{Interpretation}
+The mechanisms add up only in part: the combination beats each parent by about 5 points of finish head to head, but its panel gain over the economy bot (+1.3) is smaller than either mechanism's gain alone. Against the panel both mechanisms mostly fix the same thing, games that do not end, so they overlap there. The best noise is smaller than on the old base. A plausible reason is that a bot that builds more already has more ways to make progress, so less randomness is needed to break jams.
+
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\subsection{Threats to validity}
+\begin{itemize}
+\item The won rate against economy is 55\,\% with an interval of about $\pm$4.9: the lower bound clears 50 only just.
+\item Only the 4-player setup; experiment 7 also used 8 players, where noise helped about as much.
+\item The champions' direct comparison is from 200 games on the sweep maps, not a 400-game final test.
+\end{itemize}
+
+\subsection{Verdict and next step}
+\textbf{Kept.} Against \model{greedy-full-economy} by the head-to-head rule (finish and points above 50\,\%, won interval clear of 50, panel mean not lower). Against \model{greedy-full-movenoise} by both rules (panel +2.5). New single champion: \model{greedy-full-combo} (plan 2, moveNoise 2), which unifies the two lines. Next: a tuning run over all knobs from this champion (experiment 12), then the value-iteration field over tiles (\#76).
+
+\subsection{Notes for the paper}
+Draft: a methods point. Parallel experiments from a shared base must be reconciled by playing the resulting champions against each other and against their combination. Here the two mechanisms combined beat both parents, with diminishing returns on the panel.
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+
+\clearpage\phantomsection\addcontentsline{toc}{section}{Experiment 12: Perturbation probe: tune all knobs with a significance test (kept)}
+
+\input{12-perturbation-probe/generated}
+\ExpHeader
+
+\subsection{Question and hypothesis}
+Jakob, 25 November: ``Could we also add noise to other weights and then analyse the distribution and if we find a statistically significant difference between the positive and negative parts of the noise then we adjust the weights in that direction?''
+
+Hill climbing accepts or rejects a whole bundle of changes on 300 to 400 games and found almost nothing in three runs of 100,000 games (experiments 1 to 3). The evolution-strategies trainer moves every weight on every step, significant or not. \textbf{Hypothesis:} measuring every knob in the same games and moving only the significant ones finds real single-knob gains that the other two trainers miss.
+
+\textbf{Prediction, written before the run.} (1) Between 2 and 8 knobs move in 100,000 games, mostly research and tech weights (a 1,200-game smoke test already showed \knob{greedy.research} and three tech weights above $|z|=3$). (2) The panel finish score rises by 0.5 to 1.5 points. (3) Head to head against the base the result is 50 to 54\,\%, probably not clear of 50\,\% at $\pm$5. \textbf{Counts against the idea:} the z-scores of all knobs look like pure noise (spread near 1, nothing repeats after a knob's evidence is reset), or the panel curve falls as knobs move.
+
+\subsection{Mechanism}
+Each sample draws a sign $s_k\in\{-1,+1\}$ for every knob $k$, independently, and builds two opposite variations of the centre $\theta$: $w^{\pm}_k=\theta_k\,e^{\pm\sigma s_k}$ with $\sigma=0.25$ (a knob at 0 stays 0 and is not probed). On one map, every game from both seats, $w^+$ plays $w^-$, and both play the same league opponent. The outcome is
+\[ x = \underbrace{\mathrm{finish}(w^+\text{ vs }w^-)-\tfrac12}_{\text{self}} \;+\; \underbrace{\mathrm{finish}(w^+\text{ vs }o)-\mathrm{finish}(w^-\text{ vs }o)}_{\text{league}} . \]
+Because the signs are independent, the least-squares slope of $x$ on $s_k$ is $\hat\beta_k=\frac1n\sum_i x_i s_{ik}$: half the difference between the games where the knob was nudged up and those where it was nudged down. Its standard error is $\mathrm{sd}(x s_k)/\sqrt n$ and $z_k=\hat\beta_k/\mathrm{SE}$. After each round a knob with $|z_k|\ge 3$ moves half a nudge in the better direction and its evidence is reset; all other knobs keep accumulating evidence. Code: \texttt{scripts/train-probe.ts}. Course link: least squares and its analytic solution [EMAI ML-13, ML 2.0 p.27].
+
+\subsection{Setup}
+Base: the combined champion (economy plan plus movement noise 2), which beat both of its parents. 10 rounds of 1,667 samples (6 games each), league \model{hill-v4}, \model{full-v1} and the base. A curve point (200 games against each of the seven panel models, the same maps as every sweep) every two rounds; the centre of the best curve point is saved and plays the final test.
+
+Sizing: one sample's outcome has a spread of about 48 points (smoke test), so after 100,000 games a knob that never moved has a standard error of about 0.4 points and is detected from about 1.1 points. With about 200 knobs and $|z|\ge 3$, about half a knob per round crosses the threshold by chance; such a knob has no real effect, so moving it should cost little, and the final test on unseen maps is the guard.
+
+Control: hill climbing (\texttt{train-full}) from the same base with the skill's settings and the same 100,000 games.
+
+\subsection{Results}
+\ExpResults
+
+\textbf{The probe.} The finish score against the seven panel models rose from 79.6\,\% to 82.5\,\% after two rounds and stayed between 82.3 and 83.0 from then on; the centre after round 8 (83.0\,\%) was saved. In the final test it won 61.3\,\% $\pm$4.8 of 400 games against the base (finish 59.0\,\%, points 56.2\,\%), and against the six fixed panel models its finish score is 85.80\,\% against the base's 83.82\,\%, with more conquests (85.5\,\% against 81.1\,\%) in shorter games (52.9 turns against 59.1).
+
+\textbf{The moves.} 26 of 205 knobs moved, in 60 steps; 24 of the steps came in the first two rounds. The saved model holds the 52 steps up to round 8. The run is not noise: (i) in every one of the 60 moves the self-play comparison and the league comparison, which are different games, agree on the direction; (ii) \knob{defendRadius}, which cannot matter because \knob{defend} is 0, ended at $z=+0.07$; (iii) the 179 knobs that never moved have z-scores with a spread of 1.14 (chance: 1.00), 14 of them beyond $|z|=2$ where chance gives 8; (iv) only one knob, \knob{unit.warrior}, ever moved in both directions.
+
+\textbf{The control.} Hill climbing with the same 100,000 games kept one challenger out of 297 (four small changes, panel finish 79.6\,\% to 79.7\,\%). Its saved model is the base itself: 50.0\,\% against the base, 83.82\,\% against the panel.
+
+\textbf{8 players} (20$\times$20, final test only). The tuned model won 72.8\,\% $\pm$4.4 against the base (finish 67.9\,\%, points 64.6\,\%); against the six panel models its finish score is 87.13\,\% against the base's 83.08\,\%. The gain is larger than with 4 players, although no 8-player game was used in tuning.
+
+\subsection{Behaviour}
+\textbf{What changed in the bot.} Research is reweighted, not raised: the general research factor \knob{type.research} fell from 1 to 0.54 while the base research score \knob{greedy.research} rose from 27.6 to 35.4 and single technologies moved apart: philosophy 2.05 to 3.82, meditation 1.27 to 1.85, climbing 1 to 1.28; riding 0.95 to 0.65, fishing 1 to 0.69, strategy 0.94 to 0.73. Attacks count more (\knob{type.attack} 1 to 1.65). Among units, mind benders (2.00 to 2.56), warriors (1 to 1.28) and sirens went up, riders (1 to 0.78) and moonis down. Three mechanisms of earlier experiments moved slightly up or down: \knob{moveNoise} 2 to 2.27, \knob{centre} 1 to 0.78; \knob{front} moved only after the saved round.
+
+\textbf{The sensitivity map.} After 100,000 games a knob that never moved has a standard error of 0.30 points, so an effect of 0.9 points per nudge would have been found. 179 of 205 knobs (87\,\%) are below that. The bot's strength, as far as a 25\,\% change can show, sits in about two dozen weights: research, a handful of technologies, unit choice and the attack factor. All building weights and almost all reward weights are in the insensitive group.
+
+\textbf{A cliff, found and checked.} In round 3 \knob{unit.warrior} (then 1.284) showed $z=-22.3$ and \knob{unit.mindBender} (1.995) $z=+14.0$, and the spread of the outcome jumped from 48 to 58 points. The two effects have the size a pure interaction predicts: a loss only when the warrior weight is nudged up \emph{and} the mind bender weight down. The check run confirms it on the base (panel finish, seven models): warrior weight 1.649 alone gives 79.47\,\% (base 79.33\,\%), mind bender weight 1.554 alone plays exactly like the base (79.33\,\%), and both together fall to 54.21\,\% and take 30.4\,\% of the points against the base. So the bot collapses as soon as warriors outweigh mind benders in the unit choice. The trainer stepped back in the same round and the cliff did not recur once the mind bender weight had risen.
+
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\subsection{Interpretation}
+The prediction was wrong three times, each time too cautious: 26 knobs moved (predicted 2 to 8), the panel finish rose by 2.0 points (predicted 0.5 to 1.5), and the head-to-head result is 61\,\% (predicted 50 to 54\,\%). The prediction about \emph{where} the effects sit was right: research and technology weights lead.
+
+Why the probe finds what hill climbing does not: hill climbing spends a whole round of 300 to 400 games on one question (is this bundle of random changes better?) and answers yes or no. The probe asks 205 questions of the same games, and because the signs are drawn independently, every knob's answer is an unbiased slope with the other 204 knobs acting as noise. That noise is the price: one sample's outcome spreads by 40 to 48 points, so only effects above about 3 points per nudge show within one round. The base evidently had many of those. The hand-set unit and technology weights of the base had never been tuned in this space, so the first tuning method able to see single knobs found a lot at once; a second run from the new champion should find much less.
+
+The cliff shows the method's blind spot and its safety net at once: marginal effects cannot represent an interaction, but a step into a bad region produces an enormous z-score in the next round and is undone.
+
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\subsection{Threats to validity}
+\begin{itemize}
+\item \textbf{One run, one seed.} The probe was run once. The final tests use unseen maps and the 8-player check a different format, which guards the strength claim, but which knobs move first may differ between seeds.
+\item \textbf{The comparison of methods is not clean.} The control used the skill's hill-climbing settings (league: itself and its past), the probe a league of two panel models and the base. The probe therefore trained against opponents that are also in the test panel (\model{hill-v4}, \model{full-v1}); the head-to-head result against the base and the four other panel models do not have this overlap, and they improved as well.
+\item \textbf{Multiple comparisons.} With 205 knobs and $|z|\ge 3$, about 0.55 false moves per round are expected, so roughly 5 of the 60 steps may be chance. They are half-nudges of knobs without a measurable effect; the final test bounds their cost.
+\item \textbf{The saved round was chosen on the panel curve.} Picking the best of six curve points favours the trainer slightly on those maps; the final test uses other maps.
+\item \textbf{The neighbourhood is noisy.} Effects are measured between variations that differ in all knobs by $\pm$25\,\%, not at the centre itself. A knob's effect at the centre can be smaller.
+\end{itemize}
+
+\subsection{Verdict and next step}
+\textbf{Kept.} \model{greedy-full-probe} is the new champion: 61.3\,\% $\pm$4.8 won against the base (finish 59.0\,\%, points 56.2\,\%) and a panel finish of 85.80\,\% against 83.82\,\%; with 8 players 72.8\,\% $\pm$4.4. The hill-climbing control with the same budget found nothing.
+
+The trainer stays as \texttt{scripts/train-probe.ts} (\texttt{npm run train-probe}). Next steps, each its own experiment: (1) a second probe run from the new champion with a smaller nudge, to see how much is left; (2) the same trainer on the plain greedy bots (issue \issue{131}); (3) the warrior and mind bender cliff as a bug report on the unit choice; (4) repeat with another seed to learn how stable the set of moved knobs is.
+
+\subsection{Notes for the paper}
+\textbf{Claim (draft).} Estimating all 205 weights' effects from the same games by random sign perturbation, and moving only the weights whose effect passes a significance test, improved a hand-built heuristic bot by 2.0 points of finish score and to 61\,\% against its predecessor in 100,000 games, where hill climbing with the same budget found nothing.
+
+\textbf{Figures worth keeping.} The z-score histogram against the chance curve after round 1; the sensitivity map (87\,\% of weights without measurable effect); the cliff as a worked example of an interaction that marginal effects miss and the next round corrects. Course link: least squares on a designed experiment [EMAI ML-13, ML 2.0 p.27]; issue \issue{89}.
 
 \todo{jakob}{Is this worth a place in the paper? Where?}
 

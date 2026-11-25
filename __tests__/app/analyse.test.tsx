@@ -72,5 +72,7 @@ describe("Analyse, live view", () => {
     expect((arena.gameSteps as jest.Mock).mock.calls[0]).toEqual(["g1", have]);
     await waitFor(() => expect(arena.gameSteps).toHaveBeenCalledWith("g1", full.steps.length), { timeout: 4000 });
     expect(arena.liveGame).toHaveBeenCalledTimes(1);
-  });
+    // own timeout: a game is simulated first and the two waits above allow 4 s each for the
+    // screen's poll, more than Jest's 5 s default; slower CI runners crossed it
+  }, 20000);
 });
