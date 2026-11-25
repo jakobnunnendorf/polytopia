@@ -96,6 +96,15 @@ pub fn map_size_for(mode: GameMode, opponents: i32) -> Option<i32> {
         _ => None,
     }
 }
+/// Map type a mode forces: Perfection is always played on Continents, the game's default map type
+/// (developer, Steam, May 2021). None when the mode lets the player choose. Domination is also
+/// Continents in the game, but stays free here: the trained champions were tuned on Drylands.
+pub fn map_type_for(mode: GameMode) -> Option<MapType> {
+    match mode {
+        GameMode::Perfection => Some(MapType::Continents),
+        _ => None,
+    }
+}
 /// Huge (20) and Massive (30) maps exist only in Creative and the multiplayer modes
 pub fn map_size_allowed(mode: GameMode, map_size: i32) -> bool {
     map_size <= 18 || matches!(mode, GameMode::Creative | GameMode::Glory | GameMode::Might)
@@ -987,7 +996,7 @@ pub fn create_game(opts: &NewGameOptions) -> Result<GameState, String> {
         &mut rng,
         n,
         opts.players,
-        opts.map_type.unwrap_or(MapType::Drylands),
+        opts.map_type.or_else(|| map_type_for(opts.mode)).unwrap_or(MapType::Drylands),
         &mods,
         &MapOptions {
             start_resources: Some(clan_ids.iter().map(|&c| tribe_def(c).start_resources.to_vec()).collect()),
@@ -1363,6 +1372,8 @@ mod tests {
         assert_eq!(map_size_for(GameMode::Domination, 4), Some(18));
         assert_eq!(map_size_for(GameMode::Glory, 4), None);
         assert!(!map_size_allowed(GameMode::Perfection, 20));
+        assert_eq!(map_type_for(GameMode::Perfection), Some(MapType::Continents));
+        assert_eq!(map_type_for(GameMode::Domination), None);
         assert_eq!(domination_stars(0.6999999999), 2);
         assert_eq!(perfection_stars(10_000.0), 2);
         assert_eq!(s1_facing(Coord::new(0, 0), Coord::new(0, 0)), 8);

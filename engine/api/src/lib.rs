@@ -378,6 +378,7 @@ pub fn call(name: &str, args: &[Value]) -> R<Value> {
         // ---- state.ts (pure)
         "createGame" => state_to_json(&st::create_game(&NewGameOptions::from_json(arg(args, 0))?)?),
         "mapSizeFor" => json!(st::map_size_for(GameMode::from_id(arg(args, 0).as_str().unwrap_or("")).ok_or("unknown mode")?, int(arg(args, 1), "opponents")?)),
+        "mapTypeFor" => json!(st::map_type_for(GameMode::from_id(arg(args, 0).as_str().unwrap_or("")).ok_or("unknown mode")?).map(|t| t.id())),
         "mapSizeAllowed" => json!(st::map_size_allowed(GameMode::from_id(arg(args, 0).as_str().unwrap_or("")).ok_or("unknown mode")?, int(arg(args, 1), "size")?)),
         "scoreOf" => json!(st::score_of(&state(args, 0)?, int(arg(args, 1), "player")?)),
         "income" => json!(st::income(&state(args, 0)?, int(arg(args, 1), "player")?)),

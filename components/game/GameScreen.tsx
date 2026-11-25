@@ -25,7 +25,7 @@ import {
 } from "@/logic/engine";
 import TechTree from "@/components/game/TechTree";
 import { actionLabel, name } from "@/logic/engine/names";
-import { unitCapacity } from "@/logic/engine/state";
+import { mapTypeFor, unitCapacity } from "@/logic/engine/state";
 import { rewardDescription } from "@/logic/engine/rewards";
 import type { MapType } from "@/logic/engine/mapgen";
 import type { Action, Difficulty, GameMode, GameState } from "@/logic/engine/types";
@@ -205,7 +205,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   );
   const humanSeats = useMemo(() => seats.flatMap((s, i) => (s.kind === "human" ? [i] : [])), [seats]);
 
-  const mapType = (params.mapType as MapType | undefined) ?? "drylands";
+  const mapType = (params.mapType as MapType | undefined) ?? mapTypeFor((params.mode as GameMode) ?? "perfection") ?? "drylands";
   const [state, setState] = useState<GameState>(() => {
     if (resumed) return latestState(resumed);
     const hasExplicitTribes = seats.some((s) => !!s.clan);
