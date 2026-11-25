@@ -23,7 +23,9 @@
     "train-es": "node -r sucrase/register scripts/train-es.ts",
     "train-dashboard": "node -r sucrase/register scripts/train-dashboard.ts",
     "sweep": "node -r sucrase/register scripts/sweep.ts",
-    "experiment:report": "node -r sucrase/register scripts/experiment-report.ts"
+    "experiment:report": "node -r sucrase/register scripts/experiment-report.ts",
+    "elo-tournament": "node -r sucrase/register scripts/elo-tournament.ts",
+    "elo-dashboard": "node -r sucrase/register scripts/elo-dashboard.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.2",
