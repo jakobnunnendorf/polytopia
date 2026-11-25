@@ -268,6 +268,13 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
 
   const myTurn = state.current === viewer && seats[viewer]?.kind === "human" && !state.over && !watch && !handoff;
   const actions = useMemo(() => (myTurn ? legalActions(state) : []), [state, myTurn]);
+  // units that can still do something this turn (disbanding does not count); the others are drawn dimmed
+  const activeUnits = useMemo(() => {
+    if (!myTurn) return undefined;
+    const ids = new Set<number>();
+    for (const a of actions) if ("unitId" in a && a.type !== "disband") ids.add(a.unitId);
+    return ids;
+  }, [actions, myTurn]);
 
   // models play their turns; slow models (the LLM) redraw after every move
   useEffect(() => {
@@ -535,7 +542,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           </View>
         </Banner>
       )}
-      <Map state={state} viewer={viewer} highlights={highlights} onTilePress={onTilePress} />
+      <Map state={state} viewer={viewer} highlights={highlights} onTilePress={onTilePress} activeUnits={activeUnits} />
 
       {/* Polytopia-style selection card + circular action tray */}
       <View
