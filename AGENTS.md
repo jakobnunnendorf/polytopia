@@ -29,6 +29,10 @@ by step. v1 uses only cities captured. The game mode is Perfection (30-turn limi
 opponents and fog) and are learned from play. The RL agent is measured against our current models, which a
 human can beat only when paying attention, so they are a sensible baseline.
 
+**Skills (every agent follows them; agents without skill support read the files):**
+`.claude/skills/rl-board/SKILL.md` (reading and posting on #166, the overlap check, claims) and
+`.claude/skills/rl-experiment/SKILL.md` (the experiment loop below, in full).
+
 **Experiment loop (one idea per experiment):**
 1. **Check #166 first.** Read the open CLAIMs. If the other person's agent already works on the same or an
    overlapping idea, do not claim it: tell your human, who picks a different idea.
