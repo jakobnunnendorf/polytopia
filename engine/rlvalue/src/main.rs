@@ -23,6 +23,8 @@ use std::io::{BufRead, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+mod vi;
+
 type R<T> = Result<T, String>;
 
 /// Seeds from here up are the gate's evaluation seeds (engine/gate); training and held-out data stay below.
@@ -39,9 +41,9 @@ const TRIBES: [&str; 16] = [
     "yadakk", "aquarion", "elyrion", "polaris", "cymanti",
 ];
 const FEATURES: [&str; 6] = ["turn", "cities", "income", "units", "levels", "techs"];
-const TERM: u32 = u32::MAX;
+pub(crate) const TERM: u32 = u32::MAX;
 
-type State = [i32; 6];
+pub(crate) type State = [i32; 6];
 
 // ---------------------------------------------------------------- command line
 
@@ -59,7 +61,7 @@ fn args() -> (String, HashMap<String, String>) {
     (cmd, m)
 }
 
-fn get<T: std::str::FromStr>(m: &HashMap<String, String>, k: &str, d: T) -> R<T> {
+pub(crate) fn get<T: std::str::FromStr>(m: &HashMap<String, String>, k: &str, d: T) -> R<T> {
     match m.get(k) {
         None => Ok(d),
         Some(s) => s.parse().map_err(|_| format!("--{k}: cannot parse {s:?}")),
@@ -89,7 +91,7 @@ fn model_weights(id: &str) -> R<FullWeights> {
     full_weights(&v["full"])
 }
 
-fn splitmix64(x: u64) -> u64 {
+pub(crate) fn splitmix64(x: u64) -> u64 {
     let mut z = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
@@ -111,17 +113,34 @@ fn tribes_for(seed: i64, tribe: &str, players: usize) -> Vec<String> {
 
 // ---------------------------------------------------------------- collect
 
-struct Setup {
-    players: usize,
-    tribe: String,
-    difficulty: String,
-    human: bool,
-    learner: FullWeights,
-    opp: FullWeights,
+pub(crate) struct Setup {
+    pub players: usize,
+    pub tribe: String,
+    pub difficulty: String,
+    pub human: bool,
+    /// the learner's weights under each strategic action (vi::ACTIONS); index 0 is the model unchanged
+    pub learner: Vec<FullWeights>,
+    pub opp: FullWeights,
+}
+
+/// the setup from the command line (shared by collect, check and eval)
+pub(crate) fn setup(m: &HashMap<String, String>) -> R<(Setup, String, String)> {
+    let model = m.get("model").cloned().unwrap_or("greedy-full-probe".into());
+    let opp = m.get("opp").cloned().unwrap_or("greedy-full-probe".into());
+    let base = model_weights(&model)?;
+    let su = Setup {
+        players: get(m, "players", 3)?,
+        tribe: m.get("tribe").cloned().unwrap_or("xinxi".into()),
+        difficulty: m.get("difficulty").cloned().unwrap_or("crazy".into()),
+        human: get::<i32>(m, "human", 1)? != 0,
+        learner: vi::action_weights(&base, get(m, "boost", 2.0)?),
+        opp: model_weights(&opp)?,
+    };
+    Ok((su, model, opp))
 }
 
 /// the learner's state now
-fn features(s: &polycore::types::GameState, p: i32) -> State {
+pub(crate) fn features(s: &polycore::types::GameState, p: i32) -> State {
     let mut cities = 0;
     let mut levels = 0;
     for c in s.cities.iter().filter(|c| c.owner == p) {
@@ -132,8 +151,9 @@ fn features(s: &polycore::types::GameState, p: i32) -> State {
     [s.turn, cities, st::income(s, p), units, levels, s.players[p as usize].techs.len() as i32]
 }
 
-/// one row per learner turn: state, score, terminal flag 0; then the terminal row (final turn and score, flag 1)
-fn play(seed: i64, su: &Setup) -> R<Vec<[i32; 8]>> {
+/// one row per learner turn: state, score, terminal flag 0, the strategic action taken; then the terminal row
+/// (final turn and score, flag 1, action 0). `drive` picks the learner's action at the start of each of its turns.
+pub(crate) fn play(seed: i64, su: &Setup, drive: &vi::Driver) -> R<Vec<[i32; 9]>> {
     let tribes = tribes_for(seed, &su.tribe, su.players);
     let opts = NewGameOptions::from_json(&json!({
         "mapSize": MAP_SIZE, "players": su.players, "mode": MODE, "seed": seed,
@@ -143,19 +163,21 @@ fn play(seed: i64, su: &Setup) -> R<Vec<[i32; 8]>> {
     let mut rows = Vec::with_capacity(32);
     let mut last = (-1, -1);
     let mut moves = 0;
+    let mut act = 0usize;
     while !s.over && moves < MAX_MOVES && s.turn <= MAX_TURN {
         if s.current == LEARNER && last != (s.turn, s.current) {
             let f = features(&s, LEARNER);
-            rows.push([f[0], f[1], f[2], f[3], f[4], f[5], st::score_of(&s, LEARNER), 0]);
+            act = drive.pick(seed, &f);
+            rows.push([f[0], f[1], f[2], f[3], f[4], f[5], st::score_of(&s, LEARNER), 0, act as i32]);
         }
         last = (s.turn, s.current);
-        let w = if s.current == LEARNER { &su.learner } else { &su.opp };
+        let w = if s.current == LEARNER { &su.learner[act] } else { &su.opp };
         let a = full_bot_step(&s, w);
         apply_action(&mut s, &a)?;
         moves += 1;
     }
     let f = features(&s, LEARNER);
-    rows.push([f[0], f[1], f[2], f[3], f[4], f[5], st::score_of(&s, LEARNER), 1]);
+    rows.push([f[0], f[1], f[2], f[3], f[4], f[5], st::score_of(&s, LEARNER), 1, 0]);
     Ok(rows)
 }
 
@@ -165,31 +187,24 @@ fn collect(m: &HashMap<String, String>) -> R<()> {
     if seed_start < 0 || seed_start + games > EVAL_SEED_START {
         return Err(format!("seeds {seed_start}..{} reach the gate's evaluation range ({EVAL_SEED_START}..)", seed_start + games));
     }
-    let model = m.get("model").cloned().unwrap_or("greedy-full-probe".into());
-    let opp = m.get("opp").cloned().unwrap_or("greedy-full-probe".into());
-    let su = Setup {
-        players: get(m, "players", 3)?,
-        tribe: m.get("tribe").cloned().unwrap_or("xinxi".into()),
-        difficulty: m.get("difficulty").cloned().unwrap_or("crazy".into()),
-        human: get::<i32>(m, "human", 1)? != 0,
-        learner: model_weights(&model)?,
-        opp: model_weights(&opp)?,
-    };
+    let (su, model, opp) = setup(m)?;
+    let drive = vi::Driver::parse(m.get("driver").map(|x| x.as_str()).unwrap_or("bot"))?;
     let out = PathBuf::from(m.get("out").ok_or("--out <file.tsv> is required")?);
     let threads: usize = get(m, "threads", 0)?;
     let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().map_err(|e| e.to_string())?;
     eprintln!(
-        "rl-value collect: {games} games from seed {seed_start}, {model} vs {opp}, {} players, {}, human learner {}, {} threads",
+        "rl-value collect: {games} games from seed {seed_start}, {model} ({}) vs {opp}, {} players, {}, human learner {}, {} threads",
+        drive.label(),
         su.players,
         su.difficulty,
         su.human,
         pool.current_num_threads()
     );
     let t0 = Instant::now();
-    let all: Vec<(i64, Vec<[i32; 8]>)> = pool.install(|| {
+    let all: Vec<(i64, Vec<[i32; 9]>)> = pool.install(|| {
         (seed_start..seed_start + games)
             .into_par_iter()
-            .map(|seed| play(seed, &su).map(|r| (seed, r)).map_err(|e| format!("seed {seed}: {e}")))
+            .map(|seed| play(seed, &su, &drive).map(|r| (seed, r)).map_err(|e| format!("seed {seed}: {e}")))
             .collect::<R<Vec<_>>>()
     })?;
     let wall = t0.elapsed().as_secs_f64();
@@ -199,13 +214,13 @@ fn collect(m: &HashMap<String, String>) -> R<()> {
     let mut w = BufWriter::new(std::fs::File::create(&out).map_err(|e| format!("{}: {e}", out.display()))?);
     let meta = json!({"model": model, "opp": opp, "players": su.players, "tribe": su.tribe, "difficulty": su.difficulty,
                       "humanLearner": su.human, "mode": MODE, "mapSize": MAP_SIZE, "mapType": MAP_TYPE,
-                      "seedStart": seed_start, "games": games});
+                      "seedStart": seed_start, "games": games, "driver": drive.label(), "actions": vi::ACTION_NAMES});
     writeln!(w, "# {meta}").unwrap();
-    writeln!(w, "seed\tturn\tcities\tincome\tunits\tlevels\ttechs\tscore\tterminal").unwrap();
+    writeln!(w, "seed\tturn\tcities\tincome\tunits\tlevels\ttechs\tscore\tterminal\taction").unwrap();
     let mut rows = 0;
     for (seed, rs) in &all {
         for r in rs {
-            writeln!(w, "{seed}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}", r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]).unwrap();
+            writeln!(w, "{seed}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}", r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]).unwrap();
             rows += 1;
         }
     }
@@ -216,13 +231,15 @@ fn collect(m: &HashMap<String, String>) -> R<()> {
 
 // ---------------------------------------------------------------- fit
 
-struct Traj {
-    states: Vec<State>,
-    scores: Vec<i32>,
-    fin: i32,
+pub(crate) struct Traj {
+    pub states: Vec<State>,
+    pub scores: Vec<i32>,
+    /// the strategic action taken at each learner turn (0 in files without an action column)
+    pub actions: Vec<u8>,
+    pub fin: i32,
 }
 
-fn read(path: &str) -> R<(Value, Vec<Traj>)> {
+pub(crate) fn read(path: &str) -> R<(Value, Vec<Traj>)> {
     let f = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
     let mut meta = Value::Null;
     let mut out: Vec<Traj> = Vec::new();
@@ -238,7 +255,7 @@ fn read(path: &str) -> R<(Value, Vec<Traj>)> {
         }
         let v: Vec<i64> = line.split('\t').map(|x| x.parse().map_err(|_| format!("{path}: bad row {line:?}"))).collect::<R<_>>()?;
         let seed = v[0];
-        let t = cur.get_or_insert_with(|| (seed, Traj { states: vec![], scores: vec![], fin: 0 }));
+        let t = cur.get_or_insert_with(|| (seed, Traj { states: vec![], scores: vec![], actions: vec![], fin: 0 }));
         if t.0 != seed {
             return Err(format!("{path}: seed {} has no terminal row", t.0));
         }
@@ -249,6 +266,7 @@ fn read(path: &str) -> R<(Value, Vec<Traj>)> {
         } else {
             t.1.states.push([v[1] as i32, v[2] as i32, v[3] as i32, v[4] as i32, v[5] as i32, v[6] as i32]);
             t.1.scores.push(v[7] as i32);
+            t.1.actions.push(v.get(9).copied().unwrap_or(0) as u8);
         }
     }
     Ok((meta, out))
@@ -498,9 +516,14 @@ fn fit_cmd(m: &HashMap<String, String>) -> R<()> {
 }
 
 const USAGE: &str = "usage:
-  rl-value collect --out <file.tsv> [--games 1000] [--seed-start 1] [--model greedy-full-probe] [--opp greedy-full-probe]
+  rl-value collect --out <file.tsv> [--games 1000] [--seed-start 1] [--driver bot] [--model greedy-full-probe] [--opp greedy-full-probe]
                    [--players 3] [--difficulty crazy] [--tribe xinxi] [--human 1] [--threads 0]
   rl-value fit --train <file.tsv> --test <file.tsv> --out <dir> [--sizes 1000,10000,...]
+  rl-value check --games 2000 --seed-start 600000000 --out <file.json>     (each action played every turn)
+  rl-value fit-vi --train <file.tsv> --out <dir> [--min-count 1,5,20]     (value iteration -> policy-mN.tsv)
+  rl-value eval --policy <policy.tsv> [--n 10000] [--seed-start 1000000000] --out <file.json>
+collect, check and eval take the setup flags; --driver bot|random|fixed:K|policy:<file> picks the strategic
+action of the learner each turn; --boost 2 is the weight multiplier of an action.
 Seeds must stay below 1,000,000,000 (the gate's evaluation seeds).";
 
 fn main() {
@@ -508,6 +531,9 @@ fn main() {
     let r = match cmd.as_str() {
         "collect" => collect(&m),
         "fit" => fit_cmd(&m),
+        "check" => vi::check(&m),
+        "fit-vi" => vi::fit_vi_cmd(&m),
+        "eval" => vi::eval(&m),
         _ => {
             println!("{USAGE}");
             Ok(())
@@ -524,7 +550,7 @@ mod tests {
     use super::*;
 
     fn tr(states: &[State], scores: &[i32], fin: i32) -> Traj {
-        Traj { states: states.to_vec(), scores: scores.to_vec(), fin }
+        Traj { states: states.to_vec(), scores: scores.to_vec(), actions: vec![0; states.len()], fin }
     }
 
     #[test]
@@ -548,21 +574,14 @@ mod tests {
 
     #[test]
     fn collect_rows_are_consistent() {
-        let su = Setup {
-            players: 3,
-            tribe: "xinxi".into(),
-            difficulty: "crazy".into(),
-            human: true,
-            learner: model_weights("greedy-full-probe").unwrap(),
-            opp: model_weights("greedy-full-probe").unwrap(),
-        };
-        let rows = play(7, &su).unwrap();
+        let (su, _, _) = setup(&HashMap::new()).unwrap();
+        let rows = play(7, &su, &vi::Driver::Bot).unwrap();
         assert_eq!(rows.last().unwrap()[7], 1);
         for (k, r) in rows.iter().enumerate().take(rows.len() - 1) {
             assert_eq!(r[0], k as i32, "one row per learner turn, from turn 0");
             assert_eq!(r[7], 0);
         }
         // the same seed gives the same game
-        assert_eq!(rows, play(7, &su).unwrap());
+        assert_eq!(rows, play(7, &su, &vi::Driver::Bot).unwrap());
     }
 }

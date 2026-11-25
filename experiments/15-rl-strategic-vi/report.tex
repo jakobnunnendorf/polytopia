@@ -1,0 +1,115 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 15-rl-strategic-vi
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+\textbf{The idea (David, 25 Nov 2026, issue \#166).} Use the full integer state of experiment 13 (turn, cities,
+income, units, sum of city levels, techs) to play more strategically: learn from play how each strategic choice
+changes the state and the score, then run value iteration backwards from turn 30 to get $V$, $Q$ and a policy.
+
+\textbf{What the action check already showed} (before the main run; Setup): of the five actions played every
+turn, only \emph{research} changes the outcome clearly: mean final score 8{,}377 against the bot's 7{,}927, better
+on 1{,}167 of 2{,}000 seeds and worse on 792. So the bar is not only the bot but also ``research every turn''.
+
+\textbf{Prediction} (written before the main run):
+\begin{enumerate}
+  \item \emph{The policy beats the bot.} On the 10{,}000 evaluation seeds the value-iteration policy passes the
+        \#171 rule against the bot, with a mean gain of 300--600 points (``research every turn'' gains about 450).
+  \item \emph{It mostly researches.} The policy picks research on more than 40\% of learner turns; expand, which
+        hardly changes the game, matters little.
+  \item \emph{Values are optimistic.} The model's $V$(start) at min-count 1 exceeds the policy's real mean final
+        score minus the start score by more than 500 points (the maximum over noisy $Q$ estimates is biased
+        upwards, and the state is not Markov); the gap shrinks with a higher min-count.
+  \item \emph{The state cannot time the actions much better than a fixed rule.} Against ``research every turn''
+        on the same seeds, the policy does not pass the \#171 rule (experiment 13: the six integers carry almost
+        no information in the first ten turns, where most of the choice is).
+\end{enumerate}
+\textbf{Against the idea:} if the policy fails against the bot, value iteration on this state does not even find
+the one action that is known to help.
+
+\section{Mechanism}
+\textbf{Strategic actions.} At the start of each learner turn one action $a \in \{0,\dots,4\}$ is chosen and holds
+for the whole turn: it multiplies the bot's move-type weights (\texttt{FullWeights::ty}, the factor on the score of
+every move of that type) by the boost 2. 0 \emph{bot}: no change; 1 \emph{expand}: capture, examine;
+2 \emph{economy}: build; 3 \emph{army}: train, attack; 4 \emph{research}: research
+(\texttt{engine/rlvalue/src/vi.rs}, \texttt{BOOSTED}).
+
+\textbf{Data.} 300{,}000 games in which the learner picks a uniformly random action each turn (fixed by seed and
+turn); each row records the state, the score and the action.
+
+\textbf{Value iteration.} For each state $s$ and action $a$ the observed transitions $(r, s')$ form $\hat P(s'\mid
+s,a)$ and $\hat r$. Backwards from the last turn: $Q(s,a) = \frac{1}{n(s,a)}\sum \bigl(r + V(s')\bigr)$,
+$V(s) = \max_{a:\,n(s,a) \ge m} Q(s,a)$, $V(\text{terminal}) = 0$; the policy is the argmax. A state where no action
+has $m$ visits keeps the mean over all its transitions and has no policy entry. When playing, a state without an
+entry gets action 0 (the bot).
+
+\textbf{Choice of $m$.} $m \in \{1, 5, 20, 50\}$; each policy plays 2{,}000 validation games (seeds
+$700{,}000{,}000\dots$) against the bot on the same seeds; the $m$ with the highest share of better seeds is kept.
+Only that one is evaluated on the evaluation seeds.
+
+\section{Setup}
+As experiment 13 (David's choice, \#166, 25 Nov): Perfection, 16$\times$16 Continents, 3 players, Crazy, seat 0
+Xin-Xi as the human seat, \texttt{greedy-full-probe} in every seat. This is not the decided 3-opponent gate setup,
+so \texttt{rl-gate} is not used: \texttt{rl-value eval} plays the policy and the base on the same seeds and applies
+the \#171 rule itself (sign test, exact, one-sided 99\%; mean not significantly worse; 10th percentile not lower).
+Seeds: training $1\dots300{,}000$; action check $600{,}000{,}000\dots$ (2{,}000); validation
+$700{,}000{,}000\dots$ (2{,}000); evaluation $10^9\dots$ (10{,}000).
+
+\textbf{Action check} (each action every turn, 2{,}000 seeds, \texttt{check-boost2.json}, \texttt{check-boost4.json}):
+
+\begin{center}\small
+\begin{tabular}{lrrrrr}
+\toprule
+action (boost 2) & mean score & median & 10th pct & better / worse vs bot \\
+\midrule
+bot      & 7927 & 8765 & 2634 & -- \\
+expand   & 7924 & 8778 & 2634 & 117 / 110 \\
+economy  & 7950 & 8800 & 2585 & 941 / 907 \\
+army     & 7969 & 8830 & 2805 & 597 / 606 \\
+research & 8377 & 9318 & 3214 & 1167 / 792 \\
+\bottomrule
+\end{tabular}
+\end{center}
+With boost 4, research gains more (8{,}497) but costs cities (3.25 against 3.57), economy loses (7{,}686), and
+expand still changes little; boost 2 is kept.
+
+Sanity checks: unit tests (value iteration picks the better action; min-count fallback; exact sign test against
+$P(X\ge 60\mid 100) = 0.02844$; type-7 quantile; random driver reproducible); the bot driver reproduces experiment
+13's games row for row.
+
+Commands (from \texttt{engine/}):
+\begin{verbatim}
+B=./target/release/rl-value
+$B collect --driver random --games 300000 --seed-start 1 --out target/rl-value/train-random.tsv
+$B fit-vi --train target/rl-value/train-random.tsv --min-count 1,5,20,50 --out target/rl-value/vi
+$B eval --policy target/rl-value/vi/policy-mM.tsv --n 2000 --seed-start 700000000 --out ...
+$B eval --policy <chosen> --n 10000 --out ../experiments/15-rl-strategic-vi/eval-vs-bot.json
+$B eval --policy <chosen> --n 10000 --base-driver fixed:4 --out .../eval-vs-research.json
+\end{verbatim}
+
+\section{Results}
+\ExpResults
+
+\todo{claude}{Value iteration per min-count, validation, final evaluation.}
+
+\section{Behaviour}
+\todo{claude}{Which actions the policy takes, by turn.}
+
+\section{Interpretation}
+\todo{claude}{Why the result came out this way, and whether the prediction held.}
+\todo{david}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\todo{claude}{Two or three concrete threats.}
+
+\section{Verdict and next step}
+\todo{claude}{Kept or not under the \#171 rule; the next experiment.}
+
+\section{Notes for the paper}
+\todo{claude}{Draft: the one-sentence claim and which figure or table would carry it.}
+\todo{david}{Is this worth a place in the talk or report? Where?}
+
+\end{document}
