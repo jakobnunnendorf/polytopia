@@ -1,9 +1,9 @@
 {
-  "id": "greedy-full-reserve",
-  "name": "greedy-full-front + reserve=0.15",
+  "id": "greedy-full-combo",
+  "name": "greedy-full-economy + moveNoise=2",
   "kind": "greedy-full",
-  "description": "greedy-full-front with reserve=0.15, the best of a strength sweep (4 points, 200 games against each panel model). Not trained further.",
-  "created": "2026-11-24",
+  "description": "greedy-full-economy with moveNoise=2, the best of a strength sweep (3 points, 200 games against each panel model). Not trained further.",
+  "created": "2026-11-25",
   "full": {
     "greedy": {
       "capture": 407.904,
@@ -235,19 +235,23 @@
     "techUse": 0,
     "techUseless": 0,
     "front": 1.133,
-    "reserve": 0.15
+    "roads": 0,
+    "breakPeace": 0.5,
+    "plan": 2,
+    "reserve": 0,
+    "moveNoise": 2,
+    "spread": 0
   },
   "training": {
     "method": "strength-sweep",
-    "from": "greedy-full-front",
+    "from": "greedy-full-economy",
     "points": [
       "base",
-      "reserve=0.15",
-      "reserve=0.3",
-      "reserve=0.6",
-      "reserve=1"
+      "moveNoise=2",
+      "moveNoise=4",
+      "moveNoise=8"
     ],
-    "chosen": "reserve=0.15",
+    "chosen": "moveNoise=2",
     "gamesPerPoint": 200,
     "panel": [
       "greedy-v1",
@@ -256,47 +260,77 @@
       "greedy-hill-v3",
       "greedy-hill-v4",
       "greedy-full-v1",
-      "greedy-full-front"
+      "greedy-full-economy",
+      "greedy-full-movenoise"
     ],
     "mode": "domination",
     "players": 4,
     "mapSize": 16,
-    "seconds": 163,
+    "seconds": 211,
     "final": {
       "greedy-v1": {
-        "winRate": 0.94,
-        "pointShare": 0.756,
-        "games": 400
+        "winRate": 0.975,
+        "pointShare": 0.805,
+        "games": 400,
+        "finish": 0.883,
+        "conquest": 0.8675,
+        "turns": 54
       },
       "greedy-hill-v1": {
-        "winRate": 0.9125,
-        "pointShare": 0.723,
-        "games": 400
+        "winRate": 0.985,
+        "pointShare": 0.794,
+        "games": 400,
+        "finish": 0.889,
+        "conquest": 0.8875,
+        "turns": 54.4
       },
       "greedy-hill-v2": {
-        "winRate": 0.945,
-        "pointShare": 0.737,
-        "games": 400
+        "winRate": 0.9725,
+        "pointShare": 0.772,
+        "games": 400,
+        "finish": 0.875,
+        "conquest": 0.8625,
+        "turns": 57.3
       },
       "greedy-hill-v3": {
-        "winRate": 0.91,
-        "pointShare": 0.703,
-        "games": 400
+        "winRate": 0.9525,
+        "pointShare": 0.744,
+        "games": 400,
+        "finish": 0.852,
+        "conquest": 0.83,
+        "turns": 60.1
       },
       "greedy-hill-v4": {
-        "winRate": 0.8675,
-        "pointShare": 0.686,
-        "games": 400
+        "winRate": 0.965,
+        "pointShare": 0.751,
+        "games": 400,
+        "finish": 0.841,
+        "conquest": 0.77,
+        "turns": 67.5
       },
       "greedy-full-v1": {
-        "winRate": 0.5775,
-        "pointShare": 0.548,
-        "games": 400
+        "winRate": 0.7275,
+        "pointShare": 0.639,
+        "games": 400,
+        "finish": 0.689,
+        "conquest": 0.65,
+        "turns": 61.2
       },
-      "greedy-full-front": {
-        "winRate": 0.5,
-        "pointShare": 0.5,
-        "games": 400
+      "greedy-full-economy": {
+        "winRate": 0.5525,
+        "pointShare": 0.539,
+        "games": 400,
+        "finish": 0.555,
+        "conquest": 0.495,
+        "turns": 62.9
+      },
+      "greedy-full-movenoise": {
+        "winRate": 0.57,
+        "pointShare": 0.543,
+        "games": 400,
+        "finish": 0.557,
+        "conquest": 0.5075,
+        "turns": 58.8
       }
     },
     "sweep": "sweep.jsonl"

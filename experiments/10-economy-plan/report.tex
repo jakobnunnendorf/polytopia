@@ -1,0 +1,51 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 10-economy-plan
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+The greedy bot scores research and economy builds with fixed weights, so it cannot tell a build that pays back in five rounds from one that never does. The Reinforcement Learning course solves finite-horizon problems by backward induction: value equals immediate reward plus the value of what follows (RL 2.0 Dynamic Programming, PDF page 63, ``Easy answer for finite-horizon problems''; issue \#68). \textbf{Hypothesis:} scoring purchases by a DP over the economy raises the finish score on the 6-model panel by more than 1.5 points and wins the head-to-head against the base.
+
+\section{Mechanism}
+\texttt{econ\_plan.rs} solves a finite-horizon DP once per process (about 5\,ms) over one representative city: rounds left, cumulative population, buildable population supply and stars per city. For a purchase with cost $c$ it reads the advantage
+\[
+A = (1-\gamma)\,\bigl(V(\text{buy now}) - V(\text{never buy}) - \lambda c\bigr),
+\]
+the value of buying now rather than next round, in stars, clamped to $\pm 10$. Research, population builds, leveling buildings and markets score $s + \knob{plan}\cdot A$; training and upgrades are unchanged. Default 0 (off), and at 0 the scores are bit-identical. Code: \texttt{advantage} in \texttt{engine/core/src/econ\_plan.rs}, called from \texttt{score\_full\_with} in \texttt{bot\_full.rs}.
+
+\section{Setup}
+Values were sized so that $\knob{plan}\cdot A$ at plan 2 can tip a build against a move (about 25 plus tiles gained). The base was measured again on the final-test maps (\model{greedy-full-peacebreak-final}), so the panel means of base and new model come from the same maps.
+
+\section{Results}
+\ExpResults
+
+Every value beats the base on the panel: finish 78.5\,\% (base) against 82.7, 83.1, 82.9 and 82.8\,\% at plan 1, 2, 4 and 8. Head to head against the base the effect fades as plan grows (finish 57.0, 56.3, 54.8 and 50.1\,\%). Final test of plan 2, 400 games: against the base 57.0\,\% finish, 54.7\,\% points, 58\,\% won ($\pm$5). On the final-test maps the panel finish rises from 78.8 to 82.5\,\%, conquest wins from 76.5 to 81.0\,\%, and games are 3 turns shorter.
+
+\section{Behaviour}
+The plan changes about 21 of 1,000 decisions. Forges, sawmills and markets get built where the bot used to end its turn, and research follows payback instead of noise. Play is about 8\,\% slower.
+
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\section{Interpretation}
+The prediction held, by both keep rules. An economy that compounds rewards early spending that pays back within the game's horizon, and the DP prices that horizon. The fade at plan 8 suggests that a large weight lets the economy crowd out military play.
+
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\begin{itemize}
+\item The DP models one representative city, with no war and no losses; its values are a proxy, not the true game's value.
+\item Only the 4-player setup was swept; 8-player maps have longer games, where the horizon matters more.
+\item $\gamma$ and $\lambda$ were set by hand, not swept.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Kept} by both rules (head-to-head and panel). New champion: \model{greedy-full-economy}, PR \#135. Next: it was never measured against experiment 7's champion, \model{greedy-full-movenoise}, which was kept against the same base. Experiment 11 does that.
+
+\section{Notes for the paper}
+Draft: dynamic programming over an abstract economy, solved once in 5\,ms, adds 4 points of finish score to a hand-tuned greedy bot. A course method carries over almost unchanged to a real game. Candidate figure: the sweep curve of the finish score over plan.
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

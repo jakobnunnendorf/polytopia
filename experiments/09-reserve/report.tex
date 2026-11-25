@@ -1,0 +1,44 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 09-reserve
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+The greedy bot spends stars on the best affordable action every step. The Autonomous Systems course calls this kind of one-step choice myopic and motivates planning as looking ahead and delaying action (AS 2.0 Planning as Search, PDF page 15, slide 8/51; technique AS-05, issue \#41). \textbf{Hypothesis:} skipping a cheap purchase that would block a clearly better one next turn raises the points share against the panel by about one point and wins the head-to-head against the base.
+
+\section{Mechanism}
+Each turn the bot finds the best purchase it cannot afford now but can afford next turn (stars set to next turn's income, cost in $(\mathit{stars}, \mathit{next}]$), with score $R$ and cost $C$. A purchase with cost $c>0$ and score $0<s<R$ for which $\mathit{next}-c<C$ scores $s-\knob{reserve}\cdot R$ instead. Default 0 (off). Code: \texttt{purchase\_cost}, \texttt{reserve\_reference} and the saving branch in \texttt{full\_best\_of}, \texttt{engine/core/src/bot\_full.rs}.
+
+\section{Setup}
+Values were sized so that at 1.0 a blocked purchase loses its full reference score, enough to push any cheaper purchase below 0. This experiment ran before the finish metric (\#124), so it uses the points share. Base: \model{greedy-full-front}, the champion at the time.
+
+\section{Results}
+\ExpResults
+
+All four points lie within 0.2 points of the base on the 6-model panel (70.25\,\%), inside the noise of about $\pm$1.2. The final test of the best point (0.15) against the base is an exact tie: 50.0\,\% points, 50\,\% won ($\pm$5).
+
+\section{Behaviour}
+At \knob{reserve} 1.0 the mechanism changed 4 of 1,879 bot decisions (about 2 per 1,000) in the first 12 turns of generated 4-player games. The knob saturates at 1.0: larger values change nothing more.
+
+\section{Interpretation}
+The prediction failed because the condition almost never holds: a better purchase affordable next turn but not now, blocked by a cheaper one now. The idea is sound, but a one-turn lookahead on a single reference purchase is too narrow to change play. A plan over several turns is the DP of experiment 10.
+
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\begin{itemize}
+\item The behaviour count comes from the first 12 turns only; later turns, with more stars, may trigger it more often.
+\item The reference is one purchase. A plan that weighs several future purchases might act often enough to show an effect.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Not kept}: the head-to-head is a tie and the panel moves less than the noise. Merged off by default (PR \#126) as the record. Champion stays \model{greedy-full-front}. Next: the multi-turn version, an economy plan by dynamic programming (experiment 10, \#68).
+
+\section{Notes for the paper}
+Draft: a negative result worth one line. A myopia patch that looks one turn ahead at one purchase almost never fires (2 per 1,000 decisions); the gain needs a real multi-step plan (experiment 10).
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}
