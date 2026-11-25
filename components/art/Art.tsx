@@ -549,11 +549,13 @@ function IsoBastion({ cx, cy, s = 1 }: { cx: number; cy: number; s?: number }) {
 export function VillageArt({ size }: { size: number }) {
   return (
     <Box size={size}>
-      {/* humble neutral dirt clearing (smaller than a city's stone plaza) */}
-      <Polygon points={pts([24, 78, 50, 65, 76, 78, 50, 91])} fill="#c9b894" opacity={0.85} />
-      {/* 2 small low-profile neutral huts */}
-      <IsoBuilding cx={42} cy={76} rx={8.5} ry={4.6} h={8.5} roof="#8e95a0" roofH={7} wall="#ede5d4" door />
-      <IsoBuilding cx={61} cy={81} rx={7.5} ry={4.1} h={7.5} roof="#7d8590" roofH={6.5} wall="#e5dcc9" />
+      {/* dirt clearing with a dark rim so it reads against grass (still smaller than a city's plaza) */}
+      <Polygon points={pts([14, 76, 50, 57, 86, 76, 50, 95])} fill="#7a6238" opacity={0.55} />
+      <Polygon points={pts([18, 75, 50, 59, 82, 75, 50, 91])} fill="#c4a46a" />
+      {/* 3 neutral huts with warm brown roofs: high contrast on green, no tribe colour (unclaimed) */}
+      <IsoBuilding cx={36} cy={72} rx={10} ry={5.4} h={10} roof="#8a4b25" roofH={9} wall="#f3e8cf" door />
+      <IsoBuilding cx={60} cy={70} rx={9} ry={4.9} h={9} roof="#9c5a2e" roofH={8} wall="#efe2c6" />
+      <IsoBuilding cx={50} cy={86} rx={9.5} ry={5.1} h={9.5} roof="#7c4220" roofH={8.5} wall="#f3e8cf" door />
     </Box>
   );
 }

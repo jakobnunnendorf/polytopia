@@ -36,6 +36,15 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "6aeb1739-92e4-4f61-89d2-78baedcfa638"
+      }
+    },
+    "owner": "jakobnunnendorf"
   }
 }
