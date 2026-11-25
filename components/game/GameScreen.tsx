@@ -26,6 +26,7 @@ import {
 import TechTree from "@/components/game/TechTree";
 import { actionLabel, name } from "@/logic/engine/names";
 import { unitCapacity } from "@/logic/engine/state";
+import type { MapType } from "@/logic/engine/mapgen";
 import type { Action, Difficulty, GameMode, GameState } from "@/logic/engine/types";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
 import { arena, serverChat } from "@/components/game/arenaClient";
@@ -184,6 +185,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     players?: string;
     mode?: string;
     difficulty?: string;
+    mapType?: string;
     seed?: string;
     watch?: string;
     seats?: string;
@@ -202,6 +204,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   );
   const humanSeats = useMemo(() => seats.flatMap((s, i) => (s.kind === "human" ? [i] : [])), [seats]);
 
+  const mapType = (params.mapType as MapType | undefined) ?? "drylands";
   const [state, setState] = useState<GameState>(() => {
     if (resumed) return latestState(resumed);
     const hasExplicitTribes = seats.some((s) => !!s.clan);
@@ -213,6 +216,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
       players: seats.length,
       mode: (params.mode as GameMode) ?? "perfection",
       difficulty: (params.difficulty as Difficulty) ?? "normal",
+      mapType,
       seed: Number(params.seed ?? 1),
       humans: humanSeats,
       clans: chosenClans,
@@ -221,7 +225,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   // the record of every action, saved to the repo through the arena server
   const stateRef = useRef(state);
   const recRef = useRef<GameRecord>(
-    resumed ? { ...resumed, endedAt: null, result: null } : startRecord(state, seats, humanSeats.length ? "play" : "arena"),
+    resumed ? { ...resumed, endedAt: null, result: null } : startRecord(state, seats, humanSeats.length ? "play" : "arena", mapType),
   );
   const savedRef = useRef(false);
   const [saved, setSaved] = useState<{ file: string; deltas: number[] } | null>(null);

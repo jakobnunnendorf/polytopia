@@ -61,7 +61,7 @@ export const arena = {
   ratingFacets: () =>
     call<{ mode: Record<string, number>; players: Record<string, number>; size: Record<string, number>; mapType: Record<string, number> }>("/api/ratings/facets"),
   games: () => call<GameSummary[]>("/api/games"),
-  startMatch: (m: { mapSize: number; mode: string; difficulty?: string; seed: number; seats: GameRecord["seats"] }) =>
+  startMatch: (m: { mapSize: number; mode: string; difficulty?: string; mapType?: string; seed: number; seats: GameRecord["seats"] }) =>
     call<{ id: string }>("/api/matches", { method: "POST", body: JSON.stringify(m) }),
   resumeMatch: (id: string) =>
     call<{ ok: boolean; reason?: string }>(`/api/matches/${encodeURIComponent(id)}/resume`, { method: "POST" }),

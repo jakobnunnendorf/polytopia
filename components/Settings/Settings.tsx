@@ -10,6 +10,7 @@ import type { Seat } from "@/logic/arena/record";
 import { CLANS, maxPlayersFor } from "@/logic/engine/data";
 import { mapSizeAllowed } from "@/logic/engine/state";
 import { name as displayName } from "@/logic/engine/names";
+import { tribeDescription } from "@/logic/engine/tribes";
 import { TribeEmblem } from "@/components/art/Art";
 
 const MAP_SIZES = [
@@ -27,6 +28,15 @@ const MODES = [
   { id: "creative", title: "Creative", hint: "Any size and opponents, no turn limit; the last tribe holding a city wins." },
   { id: "glory", title: "Glory", hint: "First to 10,000 points wins; if several reach it in one turn, the highest score." },
   { id: "might", title: "Might", hint: "Capture every tribe's capital to win; other cities don't count." },
+] as const;
+
+const WORLDS = [
+  { id: "drylands", title: "Drylands", hint: "All land, no water." },
+  { id: "lakes", title: "Lakes", hint: "Mostly land (about three quarters) with lakes." },
+  { id: "continents", title: "Continents", hint: "A few large land masses split by water." },
+  { id: "pangea", title: "Pangea", hint: "One big continent surrounded by ocean." },
+  { id: "archipelago", title: "Archipelago", hint: "Many islands; boats matter early." },
+  { id: "waterworld", title: "Water World", hint: "Mostly ocean (about 85%) with small islands." },
 ] as const;
 
 const DIFFICULTIES = [
@@ -224,7 +234,22 @@ function SeatRow({
           );
         })}
       </ScrollView>
+      <TribeNote clan={seat.clan} />
     </View>
+  );
+}
+
+/** what the chosen tribe starts with and what makes it different */
+function TribeNote({ clan }: { clan?: string }) {
+  if (!clan) {
+    return <Text style={{ color: UI.muted, fontSize: 12, lineHeight: 17 }}>A tribe is dealt at random when the game starts.</Text>;
+  }
+  const d = tribeDescription(clan);
+  return (
+    <Text testID={`tribe-note-${clan}`} style={{ color: UI.muted, fontSize: 12, lineHeight: 17 }}>
+      <Text style={{ color: UI.mist, fontWeight: "700" }}>{displayName("clan", clan)}: </Text>
+      {d.start} {d.character}
+    </Text>
   );
 }
 
@@ -286,6 +311,14 @@ export default function Settings() {
         ))}
       </View>
       <Text style={{ color: UI.muted, fontSize: 13 }}>{mode.hint}</Text>
+
+      <Heading>World</Heading>
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+        {WORLDS.map((w) => (
+          <Chip key={w.id} testID={`world-${w.id}`} label={w.title} on={settings.mapType === w.id} onPress={() => settings.setMapType(w.id)} />
+        ))}
+      </View>
+      <Text style={{ color: UI.muted, fontSize: 13 }}>{WORLDS.find((w) => w.id === settings.mapType)?.hint}</Text>
 
       <Heading>Map size</Heading>
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
