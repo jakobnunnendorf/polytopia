@@ -1,0 +1,19 @@
+
+> polytopia@1.0.0 sweep
+> node -r sucrase/register scripts/sweep.ts --id greedy-full-economy-final --from greedy-full-economy --metric finish --games 2 --workers 8
+
+sweep from greedy-full-economy: 0 points + base, 2 games against each of greedy-v1, greedy-hill-v1, greedy-hill-v2, greedy-hill-v3, greedy-hill-v4, greedy-full-v1
+point  base                         | greedy 100% won, 74.8% pts (+191)  v1 100% won, 76.6% pts (+191)  v2 100% won, 80.5% pts (+191)  v3 100% won, 73.3% pts (+191)  v4 100% won, 73.9% pts (+191)  full-v1 100% won, 73.2% pts (+191)  | mean 100% won, 75.4% pts, finish 90.7%, conquest 92%, 52 turns
+
+best: base, mean 90.7% finish (base 90.7%)
+
+final (400 unseen games against each):
+  vs greedy-v1        won  99% ± 1%  (+759 Elo)  points 79.9%  finish 90.0%  conquest 91%  52 turns
+  vs greedy-hill-v1   won  96% ± 2%  (+531 Elo)  points 76.2%  finish 86.7%  conquest 88%  56 turns
+  vs greedy-hill-v2   won  96% ± 2%  (+564 Elo)  points 76.1%  finish 86.1%  conquest 85%  61 turns
+  vs greedy-hill-v3   won  95% ± 2%  (+494 Elo)  points 73.5%  finish 85.5%  conquest 86%  58 turns
+  vs greedy-hill-v4   won  96% ± 2%  (+541 Elo)  points 73.9%  finish 83.7%  conquest 79%  66 turns
+  vs greedy-full-v1   won  66% ± 5%  (+115 Elo)  points 59.8%  finish 63.1%  conquest 58%  64 turns
+changed against greedy-full-economy: base
+saved models/greedy-full-economy-final/model.json and sweep.jsonl
+sweep took 38s

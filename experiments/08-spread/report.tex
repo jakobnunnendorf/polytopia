@@ -1,0 +1,51 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 08-spread
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+Jakob, 24 November: ``what about adding stochastic movement with variance parameter but fixed expectation value the movement weights from the champion to get around obstacles and also units spreading out to a degree which can be hypertuned on top champion like density parameter''.
+
+Diagnosis first (six stalled 8-player self-play games of the champion, opened at turn 250): the leader had 97 to 142 units, of which 53 to 77 could not move at all and most of the rest had no move toward a goal; only 0 to 2 units per game had a useful move. Between 60 and 105 of them had six or more own units as neighbours. The armies are jammed by their own units. \textbf{Hypothesis:} a bonus for moving to a tile with fewer own neighbours thins the crowds, so fewer units are boxed in and more games finish. Open question: does it add anything once movement noise (experiment 7) is on, since both act on the same jam?
+
+\section{Mechanism}
+Let $c(x)$ be the number of own units within one tile of $x$. A move from $a$ to $b$ gets $+\,\knob{spread}\cdot(c(a)-c(b))$. As in experiment 7, a move with no gain toward the goal is taken when this makes its score positive. Default 0. Code: \texttt{move\_score} in \texttt{bot\_full.rs}.
+
+\section{Setup}
+One mechanism per experiment: the knob is first swept alone on the champion of experiment 6, then on top of \knob{moveNoise} $=4$ to see whether the two overlap.
+
+\section{Results}
+\ExpResults
+
+\textbf{Alone on the champion} the knob helps a little: every value raises the panel finish score in the sweep (best 0.5: 79.1\,\% against 74.5\,\% on seven models), but on the unseen final-test maps the gain shrinks to 1.1 points on the fixed six (79.9\,\% against 78.8\,\%) and the head-to-head is 54.7\,\% finish, 55\,\% won ($\pm$5), which does not clear 50\,\%.
+
+\textbf{On top of movement noise} it adds nothing: no value beats the base row in the sweep, and the final test of 0.5 gives 48.8\,\% finish and 49\,\% won ($\pm$5) against the base, with 81.6\,\% against 81.3\,\% on the fixed six.
+
+\section{Behaviour}
+The six stalled 8-player games of the diagnosis, replayed with \knob{spread} $=0.5$ alone: four now finish (turns 47 to 59), none did before. In the two that still stall, the leader's army is as jammed as before (58\,\% of its units cannot move or attack; 68\,\% have six or more own neighbours).
+
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\section{Interpretation}
+Spread and movement noise act on the same jam and largely do the same job: both let a boxed-in unit take a step that gains nothing toward its goal. Once noise does that, the extra pull away from own units has nothing left to fix, and at higher values it costs points (units leave useful positions). Alone, spread is the weaker of the two: 54.7\,\% against 60.1\,\% finish head to head.
+
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\begin{itemize}
+\item Only the 4-player setup was swept; crowding is worst in 8-player games, where spread might add more.
+\item Crowds are counted within one tile only; a wider radius or a cap per region (the formation idea, \issue{132}) is a different mechanism and untested.
+\item The sweep picks its best point on 200 games per opponent; the gap between sweep and final test (79.1 against 76.3\,\% on seven models) shows how much of a sweep's best value is selection luck.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Not kept.} Alone it fails both keep rules narrowly (head-to-head interval touches 50\,\%; panel gain 1.1 points, below 1.5). On top of movement noise it is a tie. The code stays, switched off. Next: formations with a strength cap (\issue{132}), which is the structured version of this idea.
+
+\section{Notes for the paper}
+Draft: two mechanisms aimed at the same failure are substitutes, not complements; measured one at a time on top of each other, the second adds nothing. A caution against crediting each of several simultaneous changes with the joint gain.
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

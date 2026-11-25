@@ -1,0 +1,59 @@
+{
+  "n": 9,
+  "slug": "reserve",
+  "title": "Saving stars for a better purchase",
+  "kind": "mechanism",
+  "issue": 41,
+  "pr": 126,
+  "date": "2026-11-24",
+  "status": "done",
+  "verdict": "not kept",
+  "base": "greedy-full-front",
+  "result": null,
+  "question": "Does a one-step greedy bot gain from skipping a cheap purchase that would leave it unable to afford a better one next turn?",
+  "change": "A purchase that leaves next turn's stars short of the best purchase then affordable, and scores below it, loses reserve times that purchase's score.",
+  "method": "Strength sweep, 200 games per point against each panel model, final test 400 games",
+  "measured": "Sweep, 200 games per point",
+  "metric": "points share",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150"
+  ],
+  "knobs": [
+    {
+      "name": "reserve",
+      "tested": [
+        0.15,
+        0.3,
+        0.6,
+        1
+      ],
+      "chosen": 0.15
+    }
+  ],
+  "headline": [
+    {
+      "label": "Points vs base, final test",
+      "base": 50.0,
+      "new": 50.0,
+      "unit": "%"
+    },
+    {
+      "label": "Points share, 6-model panel, sweep",
+      "base": 70.25,
+      "new": 70.3,
+      "unit": "%"
+    },
+    {
+      "label": "Decisions changed per 1,000",
+      "base": 0,
+      "new": 2,
+      "unit": ""
+    }
+  ],
+  "runs": [
+    {
+      "id": "greedy-full-reserve",
+      "label": "Sweep, 4 players"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+
+> polytopia@1.0.0 sweep
+> node -r sucrase/register scripts/sweep.ts --id greedy-full-combo --from greedy-full-economy --metric finish --knob moveNoise --values 2,4,8 --workers 8 --panel greedy-v1,greedy-hill-v1,greedy-hill-v2,greedy-hill-v3,greedy-hill-v4,greedy-full-v1,greedy-full-economy,greedy-full-movenoise
+
+sweep from greedy-full-economy: 3 points + base, 200 games against each of greedy-v1, greedy-hill-v1, greedy-hill-v2, greedy-hill-v3, greedy-hill-v4, greedy-full-v1, greedy-full-economy, greedy-full-movenoise
+point  base                         | greedy 99% won, 81.0% pts (+798)  v1 96% won, 77.1% pts (+552)  v2 97% won, 76.4% pts (+604)  v3 95% won, 74.1% pts (+512)  v4 96% won, 74.4% pts (+552)  full-v1 70% won, 61.2% pts (+143)  full-economy 50% won, 50.0% pts (+0)  full-movenoise 46% won, 47.4% pts (-31)  | mean 81% won, 67.7% pts, finish 74.6%, conquest 71%, 62 turns
+point  moveNoise=2                  | greedy 98% won, 80.7% pts (+676)  v1 98% won, 79.5% pts (+676)  v2 97% won, 76.7% pts (+576)  v3 98% won, 75.5% pts (+636)  v4 96% won, 75.0% pts (+531)  full-v1 76% won, 64.7% pts (+196)  full-economy 61% won, 55.6% pts (+74)  full-movenoise 57% won, 54.2% pts (+49)  | mean 85% won, 70.2% pts, finish 77.3%, conquest 74%, 59 turns
+  [01:03] point moveNoise=4: 72/1600 games, done in ~1 min | so far: vs greedy 82.4% of points, won 72/72 | 3272 games in the last 60s, 3270/min overall | run: 
+point  moveNoise=4                  | greedy 100% won, 82.0% pts (+920)  v1 98% won, 79.1% pts (+636)  v2 99% won, 78.4% pts (+727)  v3 98% won, 76.7% pts (+636)  v4 97% won, 76.7% pts (+604)  full-v1 67% won, 61.0% pts (+123)  full-economy 53% won, 51.7% pts (+17)  full-movenoise 53% won, 52.6% pts (+21)  | mean 83% won, 69.8% pts, finish 76.9%, conquest 75%, 58 turns
+  [01:04] point moveNoise=8: 813/1600 games, done in ~1 min | so far: vs greedy 82.9% of points, won 200/200; vs v1 78.9% of points, won 192/200; vs v2 78.0% of points, won 195/200; vs v3 76.3% of points, won 193/199; vs v4 78.6% of points, won 14/14 | 2341 games in the last 60s, 2806/min overall | run: 
+point  moveNoise=8                  | greedy 100% won, 83.0% pts (+1040)  v1 96% won, 78.8% pts (+552)  v2 98% won, 77.8% pts (+636)  v3 97% won, 76.3% pts (+604)  v4 93% won, 73.4% pts (+436)  full-v1 70% won, 62.1% pts (+147)  full-economy 52% won, 50.6% pts (+14)  full-movenoise 54% won, 53.1% pts (+24)  | mean 82% won, 69.4% pts, finish 76.6%, conquest 76%, 58 turns
+
+best: moveNoise=2, mean 77.3% finish (base 74.6%)
+  [01:05] final test (vs panel): 1896/3200 games, done in ~1 min | so far: vs greedy 80.5% of points, won 390/400; vs v1 79.3% of points, won 394/400; vs v2 77.3% of points, won 389/400; vs v3 74.4% of points, won 381/400; vs v4 75.1% of points, won 286/296 | 2683 games in the last 60s, 2765/min overall | run: 
+
+final (400 unseen games against each):
+  vs greedy-v1        won  98% ± 2%  (+636 Elo)  points 80.5%  finish 88.3%  conquest 87%  54 turns
+  vs greedy-hill-v1   won  99% ± 1%  (+727 Elo)  points 79.4%  finish 88.9%  conquest 89%  54 turns
+  vs greedy-hill-v2   won  97% ± 2%  (+619 Elo)  points 77.2%  finish 87.5%  conquest 86%  57 turns
+  vs greedy-hill-v3   won  95% ± 2%  (+521 Elo)  points 74.4%  finish 85.2%  conquest 83%  60 turns
+  vs greedy-hill-v4   won  97% ± 2%  (+576 Elo)  points 75.1%  finish 84.1%  conquest 77%  68 turns
+  vs greedy-full-v1   won  73% ± 4%  (+171 Elo)  points 63.9%  finish 68.9%  conquest 65%  61 turns
+  vs greedy-full-economy won  55% ± 5%  (+37 Elo)  points 53.9%  finish 55.5%  conquest 50%  63 turns
+  vs greedy-full-movenoise won  57% ± 5%  (+49 Elo)  points 54.3%  finish 55.7%  conquest 51%  59 turns
+changed against greedy-full-economy: moveNoise=2
+saved models/greedy-full-combo/model.json and sweep.jsonl
+sweep took 3m31s
