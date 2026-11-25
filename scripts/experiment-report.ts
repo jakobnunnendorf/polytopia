@@ -165,7 +165,7 @@ function probePart(rows: any[]): string {
 \\addplot[ybar interval,fill=expblue!55,draw=white] coordinates {${counts.map((c, i) => `(${(-lim + i * bw).toFixed(1)},${c})`).join(" ")} (${lim.toFixed(1)},0)};
 \\addplot[dashed,expgrey,line width=0.8pt,domain=-5:5,samples=80] {${ks.length}*${bw}*exp(-x^2/2)/sqrt(2*pi)};
 \\draw[expgrey,line width=0.4pt] (axis cs:-${last.z},0) -- (axis cs:-${last.z},\\pgfkeysvalueof{/pgfplots/ymax}) (axis cs:${last.z},0) -- (axis cs:${last.z},\\pgfkeysvalueof{/pgfplots/ymax});
-\\end{axis}\\end{tikzpicture}\\\\[-2pt]{\\footnotesize\\color{expgrey}z-scores of all ${ks.length} knobs after round ${last.round} (${(last.trainingGames / 1000).toFixed(0)}k training games). Dashed: pure chance. Vertical lines: the threshold $|z|=${last.z}$; ${beyond} beyond it.}\\end{center}`;
+\\end{axis}\\end{tikzpicture}\\\\[-2pt]{\\footnotesize\\color{expgrey}z-scores of all ${ks.length} knobs after round ${last.round} (${(last.trainingGames / 1000).toFixed(0)}k training games). Dashed: pure chance. Vertical lines: the threshold $|z|=${last.z}$; ${beyond} beyond it. The outer bars hold everything past $\\pm 5$.}\\end{center}`;
   const shown = moved.slice(0, 30);
   const moves = moved.length
     ? `\\begin{center}\\sffamily\\small\\begin{tabular}{@{}rlrrr@{}}\\toprule
@@ -177,7 +177,7 @@ ${shown.map((v) => `${v.round} & \\texttt{${tex(v.knob)}} & ${v.from} & ${v.to} 
   const top = `\\begin{center}\\sffamily\\small\\begin{tabular}{@{}lrrrrrr@{}}\\toprule
 Knob & Value & Samples & Effect (pts) & z & z self & z league\\\\\\midrule
 ${strong.map((k) => `\\texttt{${tex(k.knob)}} & ${k.value} & ${k.n} & ${sg(k.effect * 100, 2)} & ${sg(k.z)} & ${sg(k.zSelf)} & ${sg(k.zLeague)}\\\\`).join("\n")}
-\\bottomrule\\end{tabular}\\\\[3pt]{\\footnotesize\\color{expgrey}Strongest evidence at the end of the run. Effect: finish score gained by one nudge up against one nudge down, halved.}\\end{center}`;
+\\bottomrule\\end{tabular}\\\\[3pt]{\\footnotesize\\color{expgrey}Strongest evidence at the end of the run. Effect: outcome gained per sample when the knob is nudged up instead of down, halved; the outcome adds the self-play and the league comparison.}\\end{center}`;
   return `${hist}\n${moves}\n${top}`;
 }
 

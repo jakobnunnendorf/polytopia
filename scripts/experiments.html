@@ -137,9 +137,14 @@ let pdfAt = null;
 // ---------- index ----------
 function renderIndex(d) {
   const ex = d.experiments;
-  const kept = ex.filter((e) => e.meta.verdict === "kept");
-  const first = ex[0]?.meta.base;
+  const allKept = ex.filter((e) => e.meta.verdict === "kept" && e.meta.result);
+  // the champion's line: from the latest kept experiment back through each base to the experiment that made it
+  const kept = [];
+  for (let e = allKept[allKept.length - 1]; e; e = allKept.find((x) => x.meta.result === e.meta.base)) kept.unshift(e);
+  const side = allKept.filter((e) => !kept.includes(e));
+  const first = kept[0]?.meta.base ?? ex[0]?.meta.base;
   const lineage = [`<span class="n mono"><b>${esc(short(first))}</b></span>`, ...kept.map((e) => `<span class="a">experiment ${e.meta.n}<br>${esc(e.meta.title)} →</span><span class="n mono"><b>${esc(short(e.meta.result))}</b></span>`)].join("");
+  const sideNote = side.length ? ` Kept on a parallel line and taken up by a later experiment: ${side.map((e) => `experiment ${e.meta.n} (<span class="mono">${esc(short(e.meta.base))}</span> → <span class="mono">${esc(short(e.meta.result))}</span>)`).join(", ")}.` : "";
   const rows = ex.map((e) => { const m = e.meta, h = (m.headline ?? [])[0];
     return `<tr><td class="num">${m.n}</td><td class="t"><a href="/experiment/${esc(e.dir)}">${esc(m.title)}</a><div class="note" style="margin:0">${esc(m.kind)} · base <span class="mono">${esc(short(m.base))}</span>${e.running ? ' · <b style="color:var(--series-2)">● running now</b>' : ""}</div></td>
       <td>${verdict(m.verdict)}</td><td>${h ? `${esc(h.label)}` : "–"}</td><td class="num">${h ? `${h.base != null ? fmt(h, h.base) + " → " : ""}${fmt(h, h.new)}` : ""}</td><td class="num">${h ? delta(h) : ""}</td>
@@ -150,7 +155,7 @@ function renderIndex(d) {
     <header><h1>Experiments</h1><span class="meta">the lab notebook · ${ex.length} experiments · ${esc(d.root)}/experiments</span>
       <span class="controls"><a href="/experiments/notebook.pdf">${nb.building ? "Building the notebook PDF…" : "Notebook PDF (all reports)"}</a> · <a href="/experiments/notebook.pdf?build">rebuild</a></span></header>
     <h2>Champion lineage</h2>
-    <div class="card"><div class="lineage">${lineage}</div><div class="note">Each arrow is a kept experiment; every other experiment left the champion unchanged.</div></div>
+    <div class="card"><div class="lineage">${lineage}</div><div class="note">Each arrow is a kept experiment; every other experiment left the champion unchanged.${sideNote}</div></div>
     <h2>All experiments</h2>
     <div class="card"><table><thead><tr><th class="num">#</th><th>Experiment</th><th>Verdict</th><th>Headline measure</th><th class="num">Base → new</th><th class="num">Change</th><th>Report: still to fill in</th><th>Issue</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="note">New experiment: copy <span class="mono">experiments/TEMPLATE</span> (see <span class="mono">experiments/README.md</span>). Reports are LaTeX; the PDF is rebuilt here whenever its sources change.</div></div>
@@ -206,7 +211,7 @@ function probeCard(r) {
     ${[-p.z, p.z].map((z) => `<line x1="${X(z)}" x2="${X(z)}" y1="${T}" y2="${Y(0)}" stroke="var(--axis)"/>`).join("")}
     ${[-4, -2, 0, 2, 4].map((z) => `<text x="${X(z)}" y="${H - 18}" text-anchor="middle">${z > 0 ? "+" : ""}${z}</text>`).join("")}
     <text x="${(L + W - R) / 2}" y="${H - 3}" text-anchor="middle">z-score of a knob: up games minus down games, in standard errors</text></svg>
-    <div class="note">${n} knobs after round ${p.round} (${(p.trainingGames / 1000).toFixed(0)}k training games). Dashed: what pure chance would give. Vertical lines: the threshold |z| = ${p.z}; <b>${beyond}</b> knob${beyond === 1 ? " is" : "s are"} beyond it now (chance alone: ${chance.toFixed(1)}). One sample's outcome spreads by ${(p.sdOutcome * 100).toFixed(0)} points.</div>`;
+    <div class="note">${n} knobs after round ${p.round} (${(p.trainingGames / 1000).toFixed(0)}k training games). Dashed: what pure chance would give; the outer bars hold everything past ±5. Vertical lines: the threshold |z| = ${p.z}; <b>${beyond}</b> knob${beyond === 1 ? " is" : "s are"} beyond it now (chance alone: ${chance.toFixed(1)}). One sample's outcome spreads by ${(p.sdOutcome * 100).toFixed(0)} points.</div>`;
   const sgn = (v, d = 1) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(d);
   const strong = [...ks].sort((a, b) => Math.abs(b.z) - Math.abs(a.z)).slice(0, 10);
   const table = `<details open><summary>Strongest evidence now (10 of ${n} knobs)</summary><table><thead><tr><th>Knob</th><th class="num">Value</th><th class="num">Samples</th><th class="num">Effect of one nudge up</th><th class="num">z</th><th class="num">z, self-play part</th><th class="num">z, league part</th></tr></thead><tbody>
