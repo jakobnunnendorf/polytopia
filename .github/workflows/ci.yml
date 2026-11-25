@@ -1,19 +1,22 @@
-# CI: every pull request and every push to main runs the three test layers of the repo.
+# CI for the two long-lived branches:
+#   dev   the integration branch: every feature and model PR targets dev
+#   main  releases only: the one way in is a PR from dev, and every push to main deploys
+# Jobs:
+#   source  PRs into main must come from dev ("Release source is dev")
 #   engine  Rust workspace: compile everything, unit tests (polycore, polyapi), wasm build,
 #           and the Python module test (engine/py/test_env.py)
 #   app     builds the Node addon the Jest suite loads (logic/engine/rust.ts), then tsc, Jest
 #           and the static web export
 #   deploy  pushes to main only: web export to EAS Hosting (https://polytopia.expo.app),
-#           needs the EXPO_TOKEN repository secret (an expo.dev access token)
-# "Rust engine" and "TypeScript and Jest" are required checks on main (branch protection).
-# The game on :8082 and the ranking server on :8091 still update on Jakob's Mac through the
-# launchd pull of origin/main.
+#           needs the EXPO repository secret (an expo.dev access token)
+# Branch protection: dev requires "Rust engine" and "TypeScript and Jest"; main requires those
+# and "Release source is dev", allows no direct pushes and no admin bypass.
 name: CI
 
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 concurrency:
@@ -29,6 +32,22 @@ env:
   CARGO_PROFILE_RELEASE_DEBUG: "0"
 
 jobs:
+  source:
+    name: Release source is dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: PRs into main must come from dev
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          if [ "$BASE" = "main" ] && [ "$HEAD" != "dev" ]; then
+            echo "::error::main only takes pull requests from dev (this one comes from '$HEAD'); target dev instead"
+            exit 1
+          fi
+          echo "ok: ${HEAD:-push} -> ${BASE:-$GITHUB_REF_NAME}"
+
   engine:
     name: Rust engine
     runs-on: ubuntu-latest
@@ -97,11 +116,11 @@ jobs:
       group: deploy-web
       cancel-in-progress: false
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_TOKEN: ${{ secrets.EXPO }}
     steps:
-      - name: Skip when EXPO_TOKEN is not set
+      - name: Skip when the EXPO secret is not set
         if: env.EXPO_TOKEN == ''
-        run: echo "::notice::EXPO_TOKEN secret missing, web deploy skipped"
+        run: echo "::notice::EXPO secret missing, web deploy skipped"
       - uses: actions/checkout@v4
         if: env.EXPO_TOKEN != ''
       - uses: dtolnay/rust-toolchain@stable
@@ -133,7 +152,7 @@ jobs:
         if: env.EXPO_TOKEN != ''
         with:
           eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+          token: ${{ secrets.EXPO }}
       - name: Export and deploy to https://polytopia.expo.app
         if: env.EXPO_TOKEN != ''
         run: |
