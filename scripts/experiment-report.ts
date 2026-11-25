@@ -151,14 +151,46 @@ ${base ? `\\addplot[only marks,mark=*,mark size=2.6pt,expgrey] coordinates {(${p
   return `${table}\n${plot}\n${final}`;
 }
 
-function curvePart(curve: any[], final: Vs | null): string {
+/** the perturbation probe's evidence: the z-scores of all knobs against chance, the moves, the strongest knobs */
+function probePart(rows: any[]): string {
+  const last = rows[rows.length - 1];
+  const ks: any[] = last.knobs;
+  const lim = 5, bw = 0.5;
+  const counts = Array.from({ length: (2 * lim) / bw }, () => 0);
+  for (const k of ks) counts[Math.min(counts.length - 1, Math.max(0, Math.floor((k.z + lim) / bw)))]++;
+  const moved: any[] = rows.flatMap((r) => r.moved ?? []);
+  const beyond = ks.filter((k) => Math.abs(k.z) >= last.z).length;
+  const sg = (v: number, d = 1) => `$${v >= 0 ? "+" : "-"}${Math.abs(v).toFixed(d)}$`;
+  const hist = `\\begin{center}\\begin{tikzpicture}\\begin{axis}[expplot,height=4.8cm,xmin=-5,xmax=5,ymin=0,xlabel={z-score of a knob (up games minus down games, in standard errors)},ylabel={knobs}]
+\\addplot[ybar interval,fill=expblue!55,draw=white] coordinates {${counts.map((c, i) => `(${(-lim + i * bw).toFixed(1)},${c})`).join(" ")} (${lim.toFixed(1)},0)};
+\\addplot[dashed,expgrey,line width=0.8pt,domain=-5:5,samples=80] {${ks.length}*${bw}*exp(-x^2/2)/sqrt(2*pi)};
+\\draw[expgrey,line width=0.4pt] (axis cs:-${last.z},0) -- (axis cs:-${last.z},\\pgfkeysvalueof{/pgfplots/ymax}) (axis cs:${last.z},0) -- (axis cs:${last.z},\\pgfkeysvalueof{/pgfplots/ymax});
+\\end{axis}\\end{tikzpicture}\\\\[-2pt]{\\footnotesize\\color{expgrey}z-scores of all ${ks.length} knobs after round ${last.round} (${(last.trainingGames / 1000).toFixed(0)}k training games). Dashed: pure chance. Vertical lines: the threshold $|z|=${last.z}$; ${beyond} beyond it.}\\end{center}`;
+  const shown = moved.slice(0, 30);
+  const moves = moved.length
+    ? `\\begin{center}\\sffamily\\small\\begin{tabular}{@{}rlrrr@{}}\\toprule
+Round & Knob & From & To & z\\\\\\midrule
+${shown.map((v) => `${v.round} & \\texttt{${tex(v.knob)}} & ${v.from} & ${v.to} & ${sg(v.z)}\\\\`).join("\n")}
+\\bottomrule\\end{tabular}\\\\[3pt]{\\footnotesize\\color{expgrey}Knobs moved: ${moved.length}${moved.length > shown.length ? ` (the first ${shown.length} shown; all in \\texttt{probe.jsonl})` : ""}.}\\end{center}`
+    : "{\\small\\color{expgrey}No knob reached the threshold.}";
+  const strong = [...ks].sort((a, b) => Math.abs(b.z) - Math.abs(a.z)).slice(0, 10);
+  const top = `\\begin{center}\\sffamily\\small\\begin{tabular}{@{}lrrrrrr@{}}\\toprule
+Knob & Value & Samples & Effect (pts) & z & z self & z league\\\\\\midrule
+${strong.map((k) => `\\texttt{${tex(k.knob)}} & ${k.value} & ${k.n} & ${sg(k.effect * 100, 2)} & ${sg(k.z)} & ${sg(k.zSelf)} & ${sg(k.zLeague)}\\\\`).join("\n")}
+\\bottomrule\\end{tabular}\\\\[3pt]{\\footnotesize\\color{expgrey}Strongest evidence at the end of the run. Effect: finish score gained by one nudge up against one nudge down, halved.}\\end{center}`;
+  return `${hist}\n${moves}\n${top}`;
+}
+
+function curvePart(curve: any[], final: Vs | null, m: Meta, probe: any[] = []): string {
   const main = curve.filter((c) => !c.averaged);
   if (!main.length) return "";
-  const plot = `\\begin{center}\\begin{tikzpicture}\\begin{axis}[expplot,height=4.6cm,xlabel={training games (thousands)},ylabel={Points share, panel mean (\\%)},enlarge y limits=0.2]
+  const fin = /finish/.test(m.metric ?? "") && main.every((c) => c.meanFinish != null);
+  for (const c of main) c.meanPointShare = fin ? c.meanFinish : c.meanPointShare; // the measure plotted
+  const plot = `\\begin{center}\\begin{tikzpicture}\\begin{axis}[expplot,height=4.6cm,xlabel={training games (thousands)},ylabel={${fin ? "Finish score" : "Points share"}, panel mean (\\%)},enlarge y limits=0.2]
 \\addplot[dashed,expgrey,line width=0.7pt,forget plot] coordinates {(${(main[0].trainingGames / 1000).toFixed(1)},${(main[0].meanPointShare * 100).toFixed(2)}) (${(main[main.length - 1].trainingGames / 1000).toFixed(1)},${(main[0].meanPointShare * 100).toFixed(2)})};
 \\addplot[expblue,mark=*,mark size=1.8pt] coordinates {${main.map((c) => `(${(c.trainingGames / 1000).toFixed(1)},${(c.meanPointShare * 100).toFixed(2)})`).join(" ")}};
-\\end{axis}\\end{tikzpicture}\\\\[-2pt]{\\footnotesize\\color{expgrey}Learning curve of the tuning run (${main[main.length - 1].kept ?? 0} kept changes in ${main[main.length - 1].round ?? "?"} rounds). Dashed: the start, i.e. the mechanism at its hand-set value.}\\end{center}`;
-  return `${plot}\n${final ? finalTable(final, "Final test of the saved model: 400 unseen games against each panel model.") : ""}`;
+\\end{axis}\\end{tikzpicture}\\\\[-2pt]{\\footnotesize\\color{expgrey}Learning curve of the tuning run (${main[main.length - 1].kept ?? 0} kept changes in ${main[main.length - 1].round ?? "?"} rounds). Dashed: the start.}\\end{center}`;
+  return `${plot}\n${final ? finalTable(final, "Final test of the saved model: 400 unseen games against each panel model.", m.base) : ""}${probe.length ? "\n" + probePart(probe) : ""}`;
 }
 
 function results(m: Meta): string {
@@ -167,7 +199,7 @@ function results(m: Meta): string {
     const sweep = readJsonl(path.join(dir, "sweep.jsonl"));
     const curve = readJsonl(path.join(dir, "curve.jsonl")) as any[];
     const model = fs.existsSync(path.join(dir, "model.json")) ? JSON.parse(fs.readFileSync(path.join(dir, "model.json"), "utf8")) : null;
-    const body = sweep.length ? sweepPart(m, sweep) : curve.length ? curvePart(curve, model?.training?.final ?? null) : "{\\small\\color{expgrey}No data recorded for this run yet.}";
+    const body = sweep.length ? sweepPart(m, sweep) : curve.length ? curvePart(curve, model?.training?.final ?? null, m, readJsonl(path.join(dir, "probe.jsonl")) as any[]) : "{\\small\\color{expgrey}No data recorded for this run yet.}";
     return `\\subsection{${tex(r.label ?? r.id)} {\\normalfont\\small(\\model{${tex(r.id)}})}}\n${body}`;
   });
   return parts.join("\n\n") || "{\\small\\color{expgrey}No runs recorded.}";
