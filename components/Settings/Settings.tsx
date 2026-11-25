@@ -23,7 +23,7 @@ const MAP_SIZES = [
 ];
 
 const MODES = [
-  { id: "perfection", title: "Perfection", hint: "Highest score after 30 turns wins. Normal map unless you pick another size." },
+  { id: "perfection", title: "Perfection", hint: "Highest score after 30 turns wins. Always a Normal (16×16) map, as in the game." },
   { id: "domination", title: "Domination", hint: "The last tribe holding a city wins. The size is preset from the opponent count; pick another if you like." },
   { id: "creative", title: "Creative", hint: "Any size and opponents, no turn limit; the last tribe holding a city wins." },
   { id: "glory", title: "Glory", hint: "First to 10,000 points wins; if several reach it in one turn, the highest score." },

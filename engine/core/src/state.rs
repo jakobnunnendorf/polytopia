@@ -105,9 +105,15 @@ pub fn map_type_for(mode: GameMode) -> Option<MapType> {
         _ => None,
     }
 }
-/// Huge (20) and Massive (30) maps exist only in Creative and the multiplayer modes
+/// Sizes the setup screen offers: Perfection only Normal (16); Huge (20) and Massive (30) only in Creative
+/// and the multiplayer modes
 pub fn map_size_allowed(mode: GameMode, map_size: i32) -> bool {
-    map_size <= 18 || matches!(mode, GameMode::Creative | GameMode::Glory | GameMode::Might)
+    match mode {
+        // Perfection is always Normal (16x16) in the game; create_game still accepts other sizes for research
+        GameMode::Perfection => map_size == 16,
+        GameMode::Creative | GameMode::Glory | GameMode::Might => true,
+        _ => map_size <= 18,
+    }
 }
 #[inline]
 pub fn difficulty_of(s: &GameState) -> Difficulty {
@@ -1372,6 +1378,9 @@ mod tests {
         assert_eq!(map_size_for(GameMode::Domination, 4), Some(18));
         assert_eq!(map_size_for(GameMode::Glory, 4), None);
         assert!(!map_size_allowed(GameMode::Perfection, 20));
+        assert!(!map_size_allowed(GameMode::Perfection, 11));
+        assert!(map_size_allowed(GameMode::Perfection, 16));
+        assert!(map_size_allowed(GameMode::Domination, 11));
         assert_eq!(map_type_for(GameMode::Perfection), Some(MapType::Continents));
         assert_eq!(map_type_for(GameMode::Domination), None);
         assert_eq!(domination_stars(0.6999999999), 2);
