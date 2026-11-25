@@ -215,6 +215,14 @@ ${Object.entries(meta.modes).map(([m, s]) => setupLine(m, s)).join("\n")}
 
 Left out: ${meta.excluded.map((e) => `${e.id} (${e.why})`).join("; ") || "nobody"}.
 
+## Rating by mode
+
+Rating, with the place in that mode in brackets. Every column is its own fit with ${ANCHOR_ID} at ${ANCHOR_RATING}: compare places and gaps across columns, not levels.
+
+| agent | overall | ${modes.join(" | ")} |
+|---|--:|${modes.map(() => "--:|").join("")}
+${ratings.overall.ranking.map((r) => `| ${r.id} | ${[ratings.overall, ...modes.map((m) => ratings.modes[m])].map((f) => { const k = f.ranking.findIndex((x) => x.id === r.id); return k < 0 ? "" : `${f.ranking[k].wins ? "" : "at most "}${f.ranking[k].rating} (${k + 1})`; }).join(" | ")} |`).join("\n")}
+
 ## Overall
 
 ${table(ratings.overall, previous)}
@@ -239,7 +247,12 @@ async function main() {
       const p = JSON.parse(fs.readFileSync(PROGRESS, "utf8"));
       if (!p.running && p.playedThisRun >= p.games) seconds = p.seconds;
     } catch {
-      // no progress file: the time stays unknown
+      // no progress file (it is not kept in git): the time of the last fit, if there is one
+      try {
+        seconds = JSON.parse(fs.readFileSync(path.join(OUT, "ratings.json"), "utf8")).seconds;
+      } catch {
+        // no earlier fit either: the time stays unknown
+      }
     }
     const r = report(prior.meta, prior.rows, seconds);
     console.log(`refitted ${r.overall.games} games: ${path.join(OUT, "ratings.json")}, README.md`);
