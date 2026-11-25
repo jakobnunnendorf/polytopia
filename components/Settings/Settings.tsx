@@ -253,12 +253,21 @@ function TribeNote({ clan }: { clan?: string }) {
   );
 }
 
+/**
+ * the models the picker offers: no external players, no superseded (hidden) models, strongest first by
+ * overall Elo, so a new model seat starts with the champion
+ */
+export function pickerModels(models: ModelSpec[], overall: Ratings): ModelSpec[] {
+  const elo = (m: ModelSpec) => overall[`model:${m.id}`]?.rating ?? -Infinity;
+  return models.filter((m) => m.kind !== "external" && !m.hidden).sort((a, b) => elo(b) - elo(a));
+}
+
 export default function Settings() {
   const settings = useContext(SettingsContext);
   const mode = MODES.find((m) => m.id === settings.gameMode) ?? MODES[0];
   // the world the mode forces (Perfection: Continents), shown as the only choice
   const forcedWorld = mapTypeFor(mode.id);
-  const [models, setModels] = useState<ModelSpec[]>(BUILTIN_MODELS);
+  const [models, setModels] = useState<ModelSpec[]>(() => pickerModels(BUILTIN_MODELS, {}));
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [ratings, setRatings] = useState<Ratings>({});
   const [overall, setOverall] = useState<Ratings>({});
@@ -269,7 +278,7 @@ export default function Settings() {
     Promise.all([arena.models(), arena.profiles(), arena.ratings()])
       .then(([m, p, r]) => {
         if (!live) return;
-        if (m.length) setModels(m.filter((x) => x.kind !== "external"));
+        if (m.length) setModels(pickerModels(m, r));
         setProfiles(p);
         setOverall(r);
         setOnline(true);

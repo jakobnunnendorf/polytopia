@@ -3,6 +3,7 @@
   "name": "Hill climber v4",
   "kind": "greedy",
   "description": "The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts): 8549 challengers tested with an SPRT (1.26M self-play games) on 11x11 maps, 66 challengers kept. Saved the champion of the best learning-curve point (round 3352, 540k games, 35 kept). Won 72% against greedy-v1 and 56% against greedy-hill-v3 on unseen maps at save time.",
+  "hidden": true,
   "created": "2026-11-23",
   "weights": {
     "capture": 357.52,

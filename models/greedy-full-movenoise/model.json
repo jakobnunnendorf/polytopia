@@ -3,6 +3,7 @@
   "name": "Full greedy + front pull + peace break + movement noise",
   "kind": "greedy-full",
   "description": "greedy-full-peacebreak with moveNoise 4 (#130): a zero-mean random term on every move, and stuck units may step sideways, so armies jam less. Chosen by a strength sweep under the finish metric. Final test against greedy-full-peacebreak: finish 60.1%, points 56.9%, won 62% (400 games). Against the 6-model panel on the final-test maps: finish 81.3% (base 78.8%), conquest wins 80.5% (76.5%), 59 turns (63).",
+  "hidden": true,
   "created": "2026-11-24",
   "full": {
     "greedy": {

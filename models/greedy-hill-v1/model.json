@@ -3,6 +3,7 @@
   "name": "Hill climber v1",
   "kind": "greedy",
   "description": "The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts): 60 rounds of 60 self-play games on 11x11 maps, 6 challengers kept. Won 58% against greedy-v1 on unseen maps at save time.",
+  "hidden": true,
   "created": "2026-11-23",
   "weights": {
     "capture": 87.31,

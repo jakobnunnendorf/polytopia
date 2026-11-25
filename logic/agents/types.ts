@@ -16,6 +16,11 @@ export type ModelSpec = {
   name: string;
   kind: ModelKind;
   description: string;
+  /**
+   * superseded: kept for training scripts, tests and old games (which still replay), but not offered
+   * in the setup screen's model picker
+   */
+  hidden?: boolean;
   created: string;
   /** greedy: weight overrides on top of DEFAULT_WEIGHTS */
   weights?: Partial<GreedyWeights>;

@@ -3,6 +3,7 @@
   "name": "greedy-full-front + roads=0.5",
   "kind": "greedy-full",
   "description": "greedy-full-front with roads=0.5, the best of a strength sweep (4 points, 200 games against each panel model). Not trained further.",
+  "hidden": true,
   "created": "2026-11-24",
   "full": {
     "greedy": {
