@@ -25,6 +25,9 @@ import {
 } from "@/logic/engine";
 import TechTree from "@/components/game/TechTree";
 import { actionLabel, name } from "@/logic/engine/names";
+import { unitCapacity } from "@/logic/engine/state";
+import { rewardDescription } from "@/logic/engine/rewards";
+import type { MapType } from "@/logic/engine/mapgen";
 import type { Action, Difficulty, GameMode, GameState } from "@/logic/engine/types";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
 import { arena, serverChat } from "@/components/game/arenaClient";
@@ -183,6 +186,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     players?: string;
     mode?: string;
     difficulty?: string;
+    mapType?: string;
     seed?: string;
     watch?: string;
     seats?: string;
@@ -201,6 +205,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   );
   const humanSeats = useMemo(() => seats.flatMap((s, i) => (s.kind === "human" ? [i] : [])), [seats]);
 
+  const mapType = (params.mapType as MapType | undefined) ?? "drylands";
   const [state, setState] = useState<GameState>(() => {
     if (resumed) return latestState(resumed);
     const hasExplicitTribes = seats.some((s) => !!s.clan);
@@ -212,6 +217,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
       players: seats.length,
       mode: (params.mode as GameMode) ?? "perfection",
       difficulty: (params.difficulty as Difficulty) ?? "normal",
+      mapType,
       seed: Number(params.seed ?? 1),
       humans: humanSeats,
       clans: chosenClans,
@@ -220,7 +226,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   // the record of every action, saved to the repo through the arena server
   const stateRef = useRef(state);
   const recRef = useRef<GameRecord>(
-    resumed ? { ...resumed, endedAt: null, result: null } : startRecord(state, seats, humanSeats.length ? "play" : "arena"),
+    resumed ? { ...resumed, endedAt: null, result: null } : startRecord(state, seats, humanSeats.length ? "play" : "arena", mapType),
   );
   const savedRef = useRef(false);
   const [saved, setSaved] = useState<{ file: string; deltas: number[] } | null>(null);
@@ -268,6 +274,13 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
 
   const myTurn = state.current === viewer && seats[viewer]?.kind === "human" && !state.over && !watch && !handoff;
   const actions = useMemo(() => (myTurn ? legalActions(state) : []), [state, myTurn]);
+  // units that can still do something this turn (disbanding does not count); the others are drawn dimmed
+  const activeUnits = useMemo(() => {
+    if (!myTurn) return undefined;
+    const ids = new Set<number>();
+    for (const a of actions) if ("unitId" in a && a.type !== "disband") ids.add(a.unitId);
+    return ids;
+  }, [actions, myTurn]);
 
   // models play their turns; slow models (the LLM) redraw after every move
   useEffect(() => {
@@ -467,6 +480,16 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           tileSel.ruin ? "Ruins" : null,
         ].filter((w): w is string => !!w)
       : [];
+  // unit supply (a city supports level + 1 units): shown for the viewer's own cities and units only, so nothing leaks through the fog
+  const ownView = (owner: number) => watch || owner === me.id;
+  const cityUnits =
+    citySel && ownView(citySel.owner)
+      ? { homed: state.units.filter((u) => u.homeCity === citySel.id && u.owner === citySel.owner).length, cap: unitCapacity(citySel) }
+      : null;
+  const unitHome =
+    unitAtSel && ownView(unitAtSel.owner) && unitAtSel.homeCity !== null
+      ? (state.cities.find((c) => c.id === unitAtSel.homeCity && c.owner === unitAtSel.owner)?.name ?? null)
+      : null;
   const ranking = [...state.players]
     .map((p) => ({ p, score: scoreOf(state, p.id) }))
     .sort((a, b) => b.score - a.score);
@@ -535,7 +558,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
           </View>
         </Banner>
       )}
-      <Map state={state} viewer={viewer} highlights={highlights} onTilePress={onTilePress} />
+      <Map state={state} viewer={viewer} highlights={highlights} onTilePress={onTilePress} activeUnits={activeUnits} />
 
       {/* Polytopia-style selection card + circular action tray */}
       <View
@@ -580,7 +603,8 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
                     </Text>
                     <Text style={{ color: UI.muted, fontSize: 13 }}>
                       {citySel
-                        ? `Lv ${citySel.level}${citySel.capital ? " Capital" : ""} · ${citySel.pop}/${citySel.level + 1} pop`
+                        ? `Lv ${citySel.level}${citySel.capital ? " Capital" : ""} · ${citySel.pop}/${citySel.level + 1} pop` +
+                          (cityUnits ? ` · ${cityUnits.homed}/${cityUnits.cap} units` : "")
                         : tileWords.join(", ")}
                     </Text>
                   </View>
@@ -593,6 +617,11 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
                       <Text style={{ color: UI.muted, fontSize: 11, marginLeft: 8 }}>
                         {UNITS[unitAtSel.type].attack} ATK · {UNITS[unitAtSel.type].defence} DEF · {UNITS[unitAtSel.type].movement} MOV · {UNITS[unitAtSel.type].range} RNG
                       </Text>
+                      {unitHome && (
+                        <Text style={{ color: UI.muted, fontSize: 11, marginLeft: 8 }}>
+                          from <Text style={{ color: UI.mist, fontWeight: "700" }}>{unitHome}</Text>
+                        </Text>
+                      )}
                     </View>
                   )}
                 </View>
@@ -695,6 +724,11 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
                 <View style={{ flexDirection: "row" }}>
                   <Button grow testID={`reward-${i}`} label={actionLabel(state, a)} onPress={() => act(a)} />
                 </View>
+                {a.type === "reward" && (
+                  <Text style={{ color: UI.muted, fontSize: 13, lineHeight: 18, marginTop: -2, marginBottom: 6, paddingHorizontal: 6 }}>
+                    {rewardDescription(a.reward, state.players[state.current]?.clan)}
+                  </Text>
+                )}
               </Pop>
             ))}
           </View>
