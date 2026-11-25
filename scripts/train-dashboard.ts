@@ -99,7 +99,7 @@ function processes(): { pid: number; cmd: string }[] {
 function trainerProcess(procs: { pid: number; cmd: string }[], id: string) {
   // the node process running the trainer script: not npm's wrapper, and not a shell
   // whose command line merely mentions it (a watcher loop calling pgrep, say)
-  return procs.find((p) => /^(\S*\/)?node\s.*scripts\/(train-(es|hill|full)|sweep)\.ts\s/.test(p.cmd) && new RegExp(`--id ${id}(\\s|$)`).test(p.cmd)) ?? null;
+  return procs.find((p) => /^(\S*\/)?node\s.*scripts\/(train-(es|hill|full|probe)|sweep)\.ts\s/.test(p.cmd) && new RegExp(`--id ${id}(\\s|$)`).test(p.cmd)) ?? null;
 }
 const flag = (args: string, name: string) => args.match(new RegExp(`--${name}\\s+(\\S+)`))?.[1];
 
@@ -339,7 +339,7 @@ function pdfOf(dir: string, runIds: string[], anyRunning: boolean) {
     path.join(EXPERIMENTS, dir, "report.tex"),
     path.join(EXPERIMENTS, "polyexp.cls"),
     path.join(__dirname, "experiment-report.ts"),
-    ...runIds.flatMap((id) => ["sweep.jsonl", "curve.jsonl", "model.json"].map((f) => path.join(ROOT, "models", id, f))),
+    ...runIds.flatMap((id) => ["sweep.jsonl", "curve.jsonl", "probe.jsonl", "model.json", "record.json"].map((f) => path.join(ROOT, "models", id, f))),
   ];
   const stale = mtime(pdf) < Math.max(...sources.map(mtime));
   const b = builds.get(dir);
@@ -360,13 +360,20 @@ function experimentList() {
   const nb = path.join(EXPERIMENTS, "notebook.pdf");
   return { experiments: dirs.map(experimentSummary), notebook: { exists: mtime(nb) > 0, building: !!builds.get("notebook")?.running, error: builds.get("notebook")?.error ?? null } };
 }
+/** the perturbation probe's evidence (train-probe.ts): every knob's z-score after the latest round, and all moves */
+function probeOf(m: string) {
+  const rows = readJsonl(path.join(m, "probe.jsonl")) ?? [];
+  if (!rows.length) return null;
+  const last = rows[rows.length - 1];
+  return { z: last.z, sigma: last.sigma, round: last.round, trainingGames: last.trainingGames, sdOutcome: last.sdOutcome, knobs: last.knobs, moved: rows.flatMap((r: Json) => r.moved ?? []) };
+}
 function experimentDetail(dir: string) {
   if (!experimentDirs().includes(dir)) return null;
   const sum = experimentSummary(dir);
   const procs = processes();
   const runs = ((sum.meta?.runs ?? []) as { id: string; label?: string }[]).map((r) => {
     const m = path.join(ROOT, "models", r.id);
-    const model = readJson(path.join(m, "model.json"));
+    const model = readJson(path.join(m, "model.json")) ?? readJson(path.join(m, "record.json"));
     const log = path.join(ROOT, "logs", `${r.id}.log`);
     const tail = fs.existsSync(log) ? fs.readFileSync(log, "utf8").trimEnd().split("\n").slice(-1)[0] ?? "" : "";
     return {
@@ -377,6 +384,7 @@ function experimentDetail(dir: string) {
       sweep: readJsonl(path.join(m, "sweep.jsonl")) ?? null,
       curve: (readJsonl(path.join(m, "curve.jsonl")) ?? []).filter((c: Json) => !c.averaged),
       final: model?.training?.final ?? null,
+      probe: probeOf(m),
     };
   });
   const dirsAll = experimentDirs();

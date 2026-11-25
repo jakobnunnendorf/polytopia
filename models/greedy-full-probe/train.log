@@ -1,0 +1,91 @@
+perturbation probe from greedy-full-combo: 205 knobs probed at once (6 are 0 and stay off: defend, techUse, techUseless, roads, reserve, spread)
+10 rounds of 1667 samples (6 games each: w+ against w-, and both against one of greedy-hill-v4, greedy-full-v1, greedy-full-combo); nudge 0.25 in log units, a knob moves at |z| >= 3; metric finish
+10 workers; panel: greedy-v1, greedy-hill-v1, greedy-hill-v2, greedy-hill-v3, greedy-hill-v4, greedy-full-v1, greedy-full-combo; 200 games each every 2 rounds
+curve       0 games  round 0  0 moved  champ | greedy 98% won, 80.7% pts (+676)  v1 98% won, 79.5% pts (+676)  v2 97% won, 76.7% pts (+576)  v3 98% won, 75.5% pts (+636)  v4 96% won, 75.0% pts (+531)  full-v1 76% won, 64.7% pts (+196)  full-combo 50% won, 50.0% pts (+0)  | mean 87% won, 71.7% pts, finish 79.6%, conquest 77%, 58 turns  BEST
+  [01:13] round 1 of 10: 1602/10002 games, done in ~4 min | 3002 games in the last 60s, 3001/min overall | run: 
+  [01:14] round 1 of 10: 4131/10002 games, done in ~3 min | 2529 games in the last 60s, 2765/min overall | run: 
+  [01:15] round 1 of 10: 6726/10002 games, done in ~2 min | 2595 games in the last 60s, 2709/min overall | run: 
+  [01:16] round 1 of 10: 9357/10002 games, done in ~1 min | 2631 games in the last 60s, 2689/min overall | run: 
+round  1     10k games  outcome spread 48.5 pts | strongest: greedy.research z=+7.6  reward.superUnit z=+7.6  reward.park z=-7.3  unit.rider z=-6.8  tech.meditation z=+6.6  tech.climbing z=+5.9
+  MOVED greedy.research 27.6→31.275 (z +7.6), type.attack 1→1.133 (z +3.2), tech.riding 0.948→0.837 (z -5.0), tech.strategy 0.942→0.831 (z -3.1), tech.climbing 1→1.133 (z +5.9), tech.meditation 1.27→1.439 (z +6.6), tech.philosophy 2.045→2.317 (z +5.8), unit.warrior 1→1.133 (z +4.7), unit.rider 1→0.882 (z -6.8), reward.park 1→0.882 (z -7.3), reward.superUnit 1→1.133 (z +7.6), centre 1→0.882 (z -3.0)
+  [01:17] round 2 of 10: 1786/10002 games, done in ~4 min | 2431 games in the last 60s, 2637/min overall | run: 
+  [01:18] round 2 of 10: 4212/10002 games, done in ~3 min | 2426 games in the last 60s, 2602/min overall | run: 
+  [01:19] round 2 of 10: 5861/10002 games, done in ~2 min | 1649 games in the last 60s, 2466/min overall | run: 
+  [01:20] round 2 of 10: 7838/10002 games, done in ~2 min | 1977 games in the last 60s, 2405/min overall | run: 
+  [01:21] round 2 of 10: 9877/10002 games, done in ~1 min | 2039 games in the last 60s, 2364/min overall | run: 
+round  2     20k games  outcome spread 47.9 pts | strongest: tech.riding z=-8.1  tech.philosophy z=+7.1  tech.meditation z=+6.7  unit.warrior z=+4.9  tech.freeSpirit z=-4.9  unit.rider z=-4.9
+  MOVED type.research 1→0.882 (z -4.1), tech.riding 0.837→0.739 (z -8.1), tech.freeSpirit 1→0.882 (z -4.9), tech.organization 1→1.133 (z +3.5), tech.climbing 1.133→1.284 (z +3.2), tech.meditation 1.439→1.631 (z +6.7), tech.philosophy 2.317→2.626 (z +7.1), tech.fishing 1→0.882 (z -4.0), tech.sailing 0.923→0.815 (z -3.2), tech.ramming 1→0.882 (z -3.8), unit.warrior 1.133→1.284 (z +4.9), unit.rider 0.882→0.778 (z -4.9)
+curve     20k games  round 2  24 moved  champ | greedy 99% won, 81.1% pts (+727)  v1 98% won, 78.8% pts (+636)  v2 99% won, 78.3% pts (+727)  v3 98% won, 76.2% pts (+636)  v4 97% won, 76.0% pts (+576)  full-v1 84% won, 69.6% pts (+282)  full-combo 60% won, 56.1% pts (+67)  | mean 90% won, 73.7% pts, finish 82.5%, conquest 81%, 55 turns  BEST
+  [01:22] round 3 of 10: 760/10002 games, done in ~5 min | 2285 games in the last 60s, 2356/min overall | run: 
+  [01:23] round 3 of 10: 2926/10002 games, done in ~4 min | 2166 games in the last 60s, 2339/min overall | run: 
+  [01:24] round 3 of 10: 4774/10002 games, done in ~3 min | 1848 games in the last 60s, 2298/min overall | run: 
+  [01:25] round 3 of 10: 6925/10002 games, done in ~2 min | 2151 games in the last 60s, 2287/min overall | run: 
+  [01:26] round 3 of 10: 9073/10002 games, done in ~1 min | 2148 games in the last 60s, 2277/min overall | run: 
+round  3     30k games  outcome spread 58.0 pts | strongest: unit.warrior z=-22.3  unit.mindBender z=+14.0  type.attack z=+3.1  tech.roads z=-2.8  unit.siren z=+2.7  tech.philosophy z=+2.6
+  MOVED type.attack 1.133→1.284 (z +3.1), unit.warrior 1.284→1.133 (z -22.3), unit.mindBender 1.995→2.261 (z +14.0)
+  [01:27] round 4 of 10: 1391/10002 games, done in ~4 min | 2320 games in the last 60s, 2280/min overall | run: 
+  [01:28] round 4 of 10: 3607/10002 games, done in ~3 min | 2216 games in the last 60s, 2276/min overall | run: 
+  [01:29] round 4 of 10: 5733/10002 games, done in ~2 min | 2126 games in the last 60s, 2267/min overall | run: 
+  [01:30] round 4 of 10: 7849/10002 games, done in ~1 min | 2116 games in the last 60s, 2259/min overall | run: 
+  [01:31] round 4 of 10: 9976/10002 games, done in ~1 min | 2127 games in the last 60s, 2252/min overall | run: 
+round  4     40k games  outcome spread 44.6 pts | strongest: type.research z=-5.8  tech.meditation z=+4.6  unit.warrior z=+4.4  tech.riding z=-4.1  tech.philosophy z=+4.0  type.attack z=+3.3
+  MOVED type.research 0.882→0.778 (z -5.8), type.attack 1.284→1.455 (z +3.3), tech.riding 0.739→0.652 (z -4.1), tech.meditation 1.631→1.848 (z +4.6), tech.philosophy 2.626→2.976 (z +4.0), tech.fishing 0.882→0.778 (z -3.2), unit.warrior 1.133→1.284 (z +4.4)
+curve     40k games  round 4  34 moved  champ | greedy 99% won, 81.2% pts (+798)  v1 98% won, 79.5% pts (+676)  v2 97% won, 76.8% pts (+576)  v3 97% won, 75.8% pts (+576)  v4 97% won, 75.6% pts (+576)  full-v1 83% won, 68.9% pts (+269)  full-combo 61% won, 56.6% pts (+78)  | mean 90% won, 73.5% pts, finish 82.3%, conquest 81%, 54 turns  
+  [01:32] round 5 of 10: 900/10002 games, done in ~5 min | 2326 games in the last 60s, 2255/min overall | run: 
+  [01:33] round 5 of 10: 3183/10002 games, done in ~4 min | 2283 games in the last 60s, 2257/min overall | run: 
+  [01:34] round 5 of 10: 5335/10002 games, done in ~3 min | 2152 games in the last 60s, 2252/min overall | run: 
+  [01:35] round 5 of 10: 7567/10002 games, done in ~2 min | 2232 games in the last 60s, 2251/min overall | run: 
+  [01:36] round 5 of 10: 9757/10002 games, done in ~1 min | 2190 games in the last 60s, 2248/min overall | run: 
+round  5     50k games  outcome spread 42.7 pts | strongest: type.research z=-5.4  tech.philosophy z=+5.1  tech.fishing z=-4.2  greedy.research z=+3.7  unit.siren z=+3.2  front z=+2.9
+  MOVED greedy.research 31.275→35.439 (z +3.7), type.research 0.778→0.687 (z -5.4), tech.philosophy 2.976→3.372 (z +5.1), tech.fishing 0.778→0.687 (z -4.2), unit.siren 1.164→1.319 (z +3.2)
+  [01:37] round 6 of 10: 1659/10002 games, done in ~5 min | 1904 games in the last 60s, 2235/min overall | run: 
+  [01:38] round 6 of 10: 3653/10002 games, done in ~4 min | 1994 games in the last 60s, 2225/min overall | run: 
+  [01:39] round 6 of 10: 5790/10002 games, done in ~3 min | 2137 games in the last 60s, 2222/min overall | run: 
+  [01:40] round 6 of 10: 7978/10002 games, done in ~1 min | 2188 games in the last 60s, 2221/min overall | run: 
+  [01:41] round 6 of 10: 9897/10002 games, done in ~1 min | 1919 games in the last 60s, 2211/min overall | run: 
+round  6     60k games  outcome spread 42.2 pts | strongest: type.research z=-4.9  greedy.move z=+3.5  tech.strategy z=-3.3  unit.mooni z=-3.1  moveNoise z=+3.1  build.altarOfPeace z=-3.0
+  MOVED greedy.move 24.89→28.204 (z +3.5), type.research 0.687→0.606 (z -4.9), tech.strategy 0.831→0.733 (z -3.3), unit.mooni 1→0.882 (z -3.1), moveNoise 2→2.266 (z +3.1)
+curve     60k games  round 6  44 moved  champ | greedy 99% won, 80.9% pts (+727)  v1 98% won, 79.8% pts (+676)  v2 99% won, 78.5% pts (+727)  v3 97% won, 76.1% pts (+576)  v4 97% won, 76.0% pts (+576)  full-v1 83% won, 69.2% pts (+269)  full-combo 62% won, 55.7% pts (+85)  | mean 90% won, 73.7% pts, finish 82.8%, conquest 81%, 54 turns  BEST
+  [01:42] round 7 of 10: 530/10002 games, done in ~6 min | 2035 games in the last 60s, 2205/min overall | run: 
+  [01:43] round 7 of 10: 2256/10002 games, done in ~5 min | 1726 games in the last 60s, 2189/min overall | run: 
+  [01:44] round 7 of 10: 4097/10002 games, done in ~4 min | 1841 games in the last 60s, 2178/min overall | run: 
+  [01:45] round 7 of 10: 6178/10002 games, done in ~3 min | 2081 games in the last 60s, 2175/min overall | run: 
+  [01:46] round 7 of 10: 8203/10002 games, done in ~1 min | 2025 games in the last 60s, 2171/min overall | run: 
+round  7     70k games  outcome spread 41.1 pts | strongest: type.attack z=+4.8  tech.philosophy z=+4.0  unit.mindBender z=+3.8  centre z=-3.2  type.research z=-3.1  tech.roads z=-3.0
+  MOVED type.research 0.606→0.535 (z -3.1), type.attack 1.455→1.649 (z +4.8), tech.philosophy 3.372→3.821 (z +4.0), unit.mindBender 2.261→2.562 (z +3.8), centre 0.882→0.778 (z -3.2)
+  [01:47] round 8 of 10: 427/10002 games, done in ~5 min | 2226 games in the last 60s, 2173/min overall | run: 
+  [01:48] round 8 of 10: 2534/10002 games, done in ~4 min | 2107 games in the last 60s, 2171/min overall | run: 
+  [01:49] round 8 of 10: 4654/10002 games, done in ~3 min | 2120 games in the last 60s, 2169/min overall | run: 
+  [01:50] round 8 of 10: 6551/10002 games, done in ~2 min | 1897 games in the last 60s, 2162/min overall | run: 
+  [01:51] round 8 of 10: 8601/10002 games, done in ~1 min | 2050 games in the last 60s, 2159/min overall | run: 
+round  8     80k games  outcome spread 39.7 pts | strongest: tech.archery z=-3.5  tech.roads z=-3.3  unit.mooni z=-3.1  moveNoise z=+2.9  front z=+2.9  unit.siren z=+2.8
+  MOVED tech.roads 1→0.882 (z -3.3), tech.archery 1→0.882 (z -3.5), unit.mooni 0.882→0.778 (z -3.1)
+  [01:52] curve point after round 8: 1326/1400 games, done in ~1 min | so far: vs greedy 81.0% of points, won 198/200; vs v1 80.3% of points, won 197/200; vs v2 78.9% of points, won 198/200; vs v3 76.5% of points, won 193/200; vs v4 77.0% of points, won 196/200; vs full-v1 69.8% of points, won 164/200; vs full-combo 56.7% of points, won 79/126 | 2727 games in the last 60s, 2174/min overall | run: 
+curve     80k games  round 8  52 moved  champ | greedy 99% won, 81.1% pts (+798)  v1 99% won, 80.4% pts (+727)  v2 99% won, 78.9% pts (+798)  v3 97% won, 76.4% pts (+576)  v4 98% won, 76.8% pts (+676)  full-v1 82% won, 69.2% pts (+263)  full-combo 62% won, 56.2% pts (+85)  | mean 91% won, 74.1% pts, finish 83.0%, conquest 82%, 54 turns  BEST
+  [01:53] round 9 of 10: 2648/10002 games, done in ~3 min | 2722 games in the last 60s, 2187/min overall | run: 
+  [01:54] round 9 of 10: 5346/10002 games, done in ~2 min | 2698 games in the last 60s, 2199/min overall | run: 
+  [01:55] round 9 of 10: 8235/10002 games, done in ~1 min | 2889 games in the last 60s, 2215/min overall | run: 
+round  9     90k games  outcome spread 39.1 pts | strongest: type.attack z=+3.8  unit.siren z=+3.5  type.research z=-3.4  tech.sailing z=-3.0  front z=+2.9  tech.meditation z=+2.9
+  MOVED type.research 0.535→0.472 (z -3.4), type.attack 1.649→1.869 (z +3.8), tech.sailing 0.815→0.719 (z -3.0), unit.siren 1.319→1.495 (z +3.5)
+  [01:56] round 10 of 10: 1091/10002 games, done in ~3 min | 2858 games in the last 60s, 2230/min overall | run: 
+  [01:57] round 10 of 10: 3815/10002 games, done in ~3 min | 2724 games in the last 60s, 2241/min overall | run: 
+  [01:58] round 10 of 10: 6346/10002 games, done in ~2 min | 2531 games in the last 60s, 2247/min overall | run: 
+  [01:59] round 10 of 10: 9244/10002 games, done in ~1 min | 2898 games in the last 60s, 2261/min overall | run: 
+round 10    100k games  outcome spread 38.7 pts | strongest: centre z=-3.3  front z=+3.2  tech.philosophy z=+3.1  tech.meditation z=+3.0  greedy.research z=+2.9  tech.freeSpirit z=-2.8
+  MOVED tech.meditation 1.848→2.094 (z +3.0), tech.philosophy 3.821→4.33 (z +3.1), centre 0.778→0.687 (z -3.3), front 1.133→1.284 (z +3.2)
+curve    100k games  round 10  60 moved  champ | greedy 99% won, 81.2% pts (+798)  v1 98% won, 80.1% pts (+676)  v2 99% won, 78.9% pts (+727)  v3 97% won, 76.3% pts (+576)  v4 96% won, 75.6% pts (+552)  full-v1 87% won, 72.5% pts (+323)  full-combo 60% won, 54.0% pts (+67)  | mean 91% won, 74.1% pts, finish 82.6%, conquest 81%, 54 turns  
+
+saving the centre of the best curve point (round 8, 80k games)
+  [02:00] final test (vs panel): 1566/2800 games, done in ~1 min | so far: vs greedy 81.0% of points, won 395/400; vs v1 78.6% of points, won 386/400; vs v2 78.5% of points, won 390/400; vs v3 75.7% of points, won 348/366 | 3724 games in the last 60s, 2291/min overall | run: 
+
+final (400 unseen games against each):
+  vs greedy-v1        won  99% ± 1%  (+759 Elo)  points 81.1%  finish 90.3%
+  vs greedy-hill-v1   won  97% ± 2%  (+576 Elo)  points 78.6%  finish 88.4%
+  vs greedy-hill-v2   won  98% ± 2%  (+636 Elo)  points 78.4%  finish 88.8%
+  vs greedy-hill-v3   won  95% ± 2%  (+521 Elo)  points 75.7%  finish 87.5%
+  vs greedy-hill-v4   won  96% ± 2%  (+564 Elo)  points 75.6%  finish 85.8%
+  vs greedy-full-v1   won  79% ± 4%  (+233 Elo)  points 67.1%  finish 74.0%
+  vs greedy-full-combo won  61% ± 5%  (+80 Elo)  points 56.2%  finish 59.0%
+changed: greedy.capture 100→407.904, greedy.examine 60→33.96, greedy.promote 90→52.27, greedy.harvestStarfish 40→45.67, greedy.monument 70→62.496, greedy.kill 80→27.66, greedy.hit 20→0.579, greedy.special 30→42.73, greedy.growBase 25→16.947, greedy.growPerPop 6→29.26, greedy.otherBuild 8→1.174, greedy.richAt 10→16, greedy.research 18→35.439, greedy.train 12→90.44, greedy.unitsPerCity 3→14, greedy.move 10→28.204, greedy.healOthers 15→5.42, greedy.upgrade 6→0.82, type.research 1→0.535, type.attack 1→1.649, type.examine 1→1.211, type.disband 1→0.718, type.upgrade 1→0.776, type.infiltrate 1→1.105, type.freezeArea 1→0.696, type.drain 1→1.065, type.decompose 1→0.469, type.acceptPeace 1→0.953, type.declinePeace 1→0.801, open.attack 0.5→0.691, open.disband 0.5→0.722, open.upgrade 0.5→0.473, open.healOthers 0.5→0.746, open.harvestStarfish 0.5→0.243, open.decompose 0.5→0.403, tech.riding 1→0.652, tech.roads 1→0.882, tech.freeSpirit 1→0.882, tech.organization 1→1.133, tech.construction 1→1.348, tech.strategy 1→0.733, tech.diplomacy 1→1.264, tech.climbing 1→1.284, tech.mining 1→0.998, tech.meditation 1→1.848, tech.philosophy 1→3.821, tech.archery 1→0.882, tech.fishing 1→0.687, tech.sailing 1→0.815, tech.ramming 1→0.882, unit.warrior 1→1.284, unit.rider 1→0.778, unit.archer 1→0.893, unit.mindBender 1→2.562, unit.knight 1→0.698, unit.dagger 1→2.508, unit.giant 1→0.568, unit.shark 1→0.952, unit.crab 1→0.913, unit.siren 1→1.319, unit.fireDragon 1→1.027, unit.mooni 1→0.778, unit.iceArcher 1→0.497, unit.hexapod 1→1.079, unit.moth 1→2.39, unit.boomchi 1→0.636, build.growForest 1→1.224, build.farm 1→1.807, build.windmill 1→1.711, build.sawmill 1→0.902, build.port 1→0.695, build.mountainTemple 1→0.743, build.forestTemple 1→0.911, build.embassy 1→0.962, build.mycelium 1→1.058, build.parkOfFortune 1→0.972, reward.park 1→0.882, reward.superUnit 1→1.133, centre 1→0.778, front 0→1.133, breakPeace 0→0.5, plan 0→2, moveNoise 0→2.266
+saved models/greedy-full-probe/model.json, curve.jsonl and probe.jsonl
+training took 48m24s (2026-11-25T00:12:31.846Z to 2026-11-25T01:00:55.665Z)

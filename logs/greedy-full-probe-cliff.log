@@ -1,0 +1,19 @@
+sweep from greedy-full-combo: 3 points + base, 100 games against each of greedy-v1, greedy-hill-v1, greedy-hill-v2, greedy-hill-v3, greedy-hill-v4, greedy-full-v1, greedy-full-combo
+point  base                         | greedy 97% won, 80.5% pts (+604)  v1 97% won, 79.0% pts (+604)  v2 97% won, 77.0% pts (+604)  v3 98% won, 76.2% pts (+676)  v4 97% won, 76.1% pts (+604)  full-v1 78% won, 66.7% pts (+220)  full-combo 50% won, 50.0% pts (+0)  | mean 88% won, 72.2% pts, finish 79.3%, conquest 76%, 60 turns
+point  unit.warrior=1.649           | greedy 99% won, 81.8% pts (+798)  v1 96% won, 78.7% pts (+552)  v2 98% won, 78.2% pts (+676)  v3 94% won, 74.9% pts (+478)  v4 94% won, 74.3% pts (+478)  full-v1 77% won, 66.0% pts (+210)  full-combo 56% won, 53.9% pts (+42)  | mean 88% won, 72.5% pts, finish 79.5%, conquest 76%, 59 turns
+point  unit.mindBender=1.554        | greedy 97% won, 80.5% pts (+604)  v1 97% won, 79.0% pts (+604)  v2 97% won, 77.0% pts (+604)  v3 98% won, 76.2% pts (+676)  v4 97% won, 76.1% pts (+604)  full-v1 78% won, 66.7% pts (+220)  full-combo 50% won, 50.0% pts (+0)  | mean 88% won, 72.2% pts, finish 79.3%, conquest 76%, 60 turns
+point  unit.warrior=1.649,unit.mindBender=1.554 | greedy 90% won, 76.3% pts (+382)  v1 78% won, 66.2% pts (+220)  v2 83% won, 67.8% pts (+275)  v3 61% won, 56.2% pts (+78)  v4 58% won, 54.1% pts (+56)  full-v1 21% won, 37.5% pts (-230)  full-combo 10% won, 30.4% pts (-382)  | mean 57% won, 55.5% pts, finish 54.2%, conquest 40%, 74 turns
+
+best: unit.warrior=1.649, mean 79.5% finish (base 79.3%)
+
+final (100 unseen games against each):
+  vs greedy-v1        won  95% ± 4%  (+512 Elo)  points 79.2%  finish 87.7%  conquest 88%  51 turns
+  vs greedy-hill-v1   won  98% ± 3%  (+676 Elo)  points 79.5%  finish 90.3%  conquest 95%  47 turns
+  vs greedy-hill-v2   won  97% ± 3%  (+604 Elo)  points 76.7%  finish 85.8%  conquest 80%  63 turns
+  vs greedy-hill-v3   won  96% ± 4%  (+552 Elo)  points 74.5%  finish 88.2%  conquest 91%  52 turns
+  vs greedy-hill-v4   won  93% ± 5%  (+449 Elo)  points 72.4%  finish 81.4%  conquest 76%  63 turns
+  vs greedy-full-v1   won  62% ± 10%  (+85 Elo)  points 58.4%  finish 61.7%  conquest 55%  63 turns
+  vs greedy-full-combo won  53% ± 10%  (+21 Elo)  points 53.1%  finish 51.5%  conquest 44%  61 turns
+changed against greedy-full-combo: unit.warrior=1.649
+saved models/greedy-full-probe-cliff/model.json and sweep.jsonl
+sweep took 59s
