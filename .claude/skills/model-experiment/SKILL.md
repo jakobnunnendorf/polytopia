@@ -111,8 +111,12 @@ not run `npm run arena` for it: arena writes `data/games/` and changes the share
    `rm models/<id>/checkpoint.json`),
    commit code, model and notebook folder on `model/<id>` (the model folder is committed either
    way: it is the experiment's record), PR to main with the result table, `Closes #<issue>`.
-   Kept: a model PR (standing go to merge). Not kept: ask before merging. Then remove the
-   worktree.
+   Kept: a model PR (standing go to merge). Not kept: ask before merging, and keep the spec
+   as `record.json` instead of `model.json` (a folder with `model.json` is listed as a model in
+   the game, the arena and the tournament). Then remove the worktree.
+   Kept only: add the new champion to the Elo tournament, or the game's Rankings table will not
+   show it: `npm run elo-tournament -- --out elo/<latest date>` (finished pairs are skipped,
+   about 15 minutes), and put the changed files under `elo/` in the same PR.
 
 ## Common mistakes
 
