@@ -236,7 +236,7 @@ function curveCard(r, m) {
     <text class="lbl" x="${W - R + 8}" y="${Y(ys[ys.length - 1]) + 4}">${ys[ys.length - 1].toFixed(1)}%</text>
     <text x="${L}" y="${H - 6}">0</text><text x="${W - R}" y="${H - 6}" text-anchor="end">${(xm / 1000).toFixed(0)}k training games</text></svg>
     <div class="note">${fin ? "Finish score" : "Points share"}, mean over the panel. Dashed: the start. ${c[c.length - 1].kept ?? 0} kept changes in ${c[c.length - 1].round ?? "?"} rounds.</div>
-    ${r.final ? finalTable(r.final, "Final test of the saved model", m?.base) : ""}${probeCard(r)}`;
+    ${r.final ? finalTable(r.final, "Final test of the saved model", ["greedy-v1", "greedy-hill-v1", "greedy-hill-v2", "greedy-hill-v3", "greedy-hill-v4", "greedy-full-v1"].includes(m?.base) ? null : m?.base) : ""}${probeCard(r)}`;
 }
 function renderDetail(d) {
   const m = d.meta, h = (m.headline ?? [])[0];

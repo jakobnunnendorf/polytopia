@@ -139,13 +139,14 @@ ${pts.map((r) => `${tex(r.point)} & ${pct(r.meanFinish, 2)} & ${pct(r.meanShare,
 \\bottomrule\\end{tabular}\\\\[3pt]{\\footnotesize\\color{expgrey}Panel means; ${head?.games ?? "?"} games against each of ${Object.keys(pts[0].vs!).length} panel models per point.}\\end{center}`;
   const plot = pts.length > 1
     ? `\\begin{center}\\begin{tikzpicture}\\begin{axis}[expplot,height=4.6cm,xtick={${pts.map((_, i) => i).join(",")}},xticklabels={${pts.map((r) => `{${tex(lab(r))}}`).join(",")}},
-  xlabel={${names.length === 1 ? `\\texttt{${tex(names[0])}}` : "point"}},ylabel={${useFinish ? "Finish score" : "Points share"}, panel mean (\\%)},enlarge x limits=0.12,enlarge y limits=0.25]
+  xlabel={${names.length === 1 ? `\\texttt{${tex(names[0])}}` : "point"}},${names.length > 1 ? "x tick label style={rotate=18,anchor=north east,font=\\scriptsize}," : ""}ylabel={${useFinish ? "Finish score" : "Points share"}, panel mean (\\%)},enlarge x limits=0.12,enlarge y limits=0.25]
 ${base ? `\\addplot[dashed,expgrey,line width=0.7pt,forget plot] coordinates {(0,${val(base).toFixed(3)}) (${pts.length - 1},${val(base).toFixed(3)})};` : ""}
 \\addplot[only marks,mark=*,mark size=2.6pt,expblue] coordinates {${pts.map((r, i) => (r.point === "base" ? "" : `(${i},${val(r).toFixed(3)})`)).join(" ")}};
 ${base ? `\\addplot[only marks,mark=*,mark size=2.6pt,expgrey] coordinates {(${pts.indexOf(base)},${val(base).toFixed(3)})};` : ""}
 \\end{axis}\\end{tikzpicture}\\\\[-2pt]{\\footnotesize\\color{expgrey}Dashed: the base. Grey: base; blue: sweep points.}\\end{center}`
     : "";
-  const final = fin?.vs ? finalTable(fin.vs, `Final test of ${fin.point}: ${Object.values(fin.vs)[0]?.games ?? "?"} unseen games against each.`, baseId) : "";
+  // the mean leaves out the model the run started from, or else the experiment's base when it is in the panel
+  const final = fin?.vs ? finalTable(fin.vs, `Final test of ${fin.point === "base" ? baseId : fin.point}: ${Object.values(fin.vs)[0]?.games ?? "?"} unseen games against each.`, fin.vs[baseId] ? baseId : m.base) : "";
   // a measurement of the base alone: only its final test counts (the point row is a 2-game stub)
   if (pts.length === 1 && final) return final;
   return `${table}\n${plot}\n${final}`;
@@ -181,6 +182,8 @@ ${strong.map((k) => `\\texttt{${tex(k.knob)}} & ${k.value} & ${k.n} & ${sg(k.eff
   return `${hist}\n${moves}\n${top}`;
 }
 
+// the fixed panel: a base outside it is the 7th panel entry and is left out of a tuning run's mean
+const SIX = ["greedy-v1", "greedy-hill-v1", "greedy-hill-v2", "greedy-hill-v3", "greedy-hill-v4", "greedy-full-v1"];
 function curvePart(curve: any[], final: Vs | null, m: Meta, probe: any[] = []): string {
   const main = curve.filter((c) => !c.averaged);
   if (!main.length) return "";
@@ -190,7 +193,7 @@ function curvePart(curve: any[], final: Vs | null, m: Meta, probe: any[] = []): 
 \\addplot[dashed,expgrey,line width=0.7pt,forget plot] coordinates {(${(main[0].trainingGames / 1000).toFixed(1)},${(main[0].meanPointShare * 100).toFixed(2)}) (${(main[main.length - 1].trainingGames / 1000).toFixed(1)},${(main[0].meanPointShare * 100).toFixed(2)})};
 \\addplot[expblue,mark=*,mark size=1.8pt] coordinates {${main.map((c) => `(${(c.trainingGames / 1000).toFixed(1)},${(c.meanPointShare * 100).toFixed(2)})`).join(" ")}};
 \\end{axis}\\end{tikzpicture}\\\\[-2pt]{\\footnotesize\\color{expgrey}Learning curve of the tuning run (${main[main.length - 1].kept ?? 0} kept changes in ${main[main.length - 1].round ?? "?"} rounds). Dashed: the start.}\\end{center}`;
-  return `${plot}\n${final ? finalTable(final, "Final test of the saved model: 400 unseen games against each panel model.", m.base) : ""}${probe.length ? "\n" + probePart(probe) : ""}`;
+  return `${plot}\n${final ? finalTable(final, "Final test of the saved model: 400 unseen games against each panel model.", SIX.includes(m.base) ? undefined : m.base) : ""}${probe.length ? "\n" + probePart(probe) : ""}`;
 }
 
 function results(m: Meta): string {
@@ -198,7 +201,9 @@ function results(m: Meta): string {
     const dir = path.join(ROOT, "models", r.id);
     const sweep = readJsonl(path.join(dir, "sweep.jsonl"));
     const curve = readJsonl(path.join(dir, "curve.jsonl")) as any[];
-    const model = fs.existsSync(path.join(dir, "model.json")) ? JSON.parse(fs.readFileSync(path.join(dir, "model.json"), "utf8")) : null;
+    // a tuning run that was not kept stores its spec as record.json (no model.json: not an agent)
+    const spec = ["model.json", "record.json"].map((f) => path.join(dir, f)).find((f) => fs.existsSync(f));
+    const model = spec ? JSON.parse(fs.readFileSync(spec, "utf8")) : null;
     const body = sweep.length ? sweepPart(m, sweep) : curve.length ? curvePart(curve, model?.training?.final ?? null, m, readJsonl(path.join(dir, "probe.jsonl")) as any[]) : "{\\small\\color{expgrey}No data recorded for this run yet.}";
     return `\\subsection{${tex(r.label ?? r.id)} {\\normalfont\\small(\\model{${tex(r.id)}})}}\n${body}`;
   });

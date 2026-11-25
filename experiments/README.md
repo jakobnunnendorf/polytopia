@@ -65,4 +65,5 @@ best value found when not kept.
 Folders under `models/` that hold only `sweep.jsonl` and `train.log` are measurements: a model
 re-measured (no knob changed) or a sweep whose best point was not kept. Their model.json is left
 out so the app and arena do not list duplicate models. The experiment that owns them lists them
-under `runs`.
+under `runs`. A tuning run that was not kept (a control, say) keeps its spec and final test as
+`record.json` beside its `curve.jsonl`.

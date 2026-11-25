@@ -5,26 +5,83 @@
   "kind": "tuning",
   "issue": 89,
   "date": "2026-11-25",
-  "status": "running",
-  "verdict": "pending",
+  "status": "done",
+  "verdict": "kept",
   "base": "greedy-full-combo",
-  "result": null,
+  "result": "greedy-full-probe",
   "question": "Can nudging every knob at random in every game, and moving only the knobs whose up and down games differ significantly, find gains that hill climbing cannot see?",
-  "change": "A new trainer. Each sample nudges all knobs up or down by 25% at random and plays the two opposite variations against each other and against a league; a knob moves half a nudge when its up-versus-down difference reaches z = 3.",
-  "method": "Tuning run of 100,000 games (10 rounds), against a hill-climbing control of the same budget; final test 400 games",
+  "change": "A new trainer. Each sample nudges all 205 non-zero knobs up or down by 25% at random and plays the two opposite variations against each other and against a league; a knob moves half a nudge when its up-versus-down difference reaches z = 3.",
+  "method": "Tuning run of 100,000 games (10 rounds) against a hill-climbing control of the same budget; final test 400 games, repeated with 8 players",
   "measured": "100,000-game run vs a hill-climbing control",
   "metric": "finish score",
   "setups": [
-    "4 players, 16×16, drylands, turn cap 150"
+    "4 players, 16×16, drylands, turn cap 150",
+    "8 players, 20×20, drylands, turn cap 300 (final test only)"
   ],
   "knobs": [
     {
-      "name": "all non-zero knobs (about 200)",
+      "name": "26 of 205 knobs moved, 60 steps",
       "tested": [],
       "chosen": null
     }
   ],
-  "headline": [],
+  "headline": [
+    {
+      "label": "Head to head against the base: games won",
+      "base": 50.0,
+      "new": 61.3,
+      "unit": "%"
+    },
+    {
+      "label": "Head to head: finish score",
+      "base": 50.0,
+      "new": 59.0,
+      "unit": "%"
+    },
+    {
+      "label": "Head to head: points share",
+      "base": 50.0,
+      "new": 56.2,
+      "unit": "%"
+    },
+    {
+      "label": "Finish score against the six fixed panel models",
+      "base": 83.82,
+      "new": 85.8,
+      "unit": "%"
+    },
+    {
+      "label": "Games won by conquest against the panel",
+      "base": 81.1,
+      "new": 85.5,
+      "unit": "%"
+    },
+    {
+      "label": "Game length against the panel",
+      "base": 59.1,
+      "new": 52.9,
+      "unit": "turns",
+      "better": "lower"
+    },
+    {
+      "label": "8 players: head to head, games won",
+      "base": 50.0,
+      "new": 72.8,
+      "unit": "%"
+    },
+    {
+      "label": "8 players: finish score against the panel",
+      "base": 83.08,
+      "new": 87.13,
+      "unit": "%"
+    },
+    {
+      "label": "Control (hill climbing, same budget): finish score against the panel",
+      "base": 83.82,
+      "new": 83.82,
+      "unit": "%"
+    }
+  ],
   "runs": [
     {
       "id": "greedy-full-probe",
@@ -33,6 +90,18 @@
     {
       "id": "greedy-full-probe-ctrl",
       "label": "Control: hill climbing, 100,000 games"
+    },
+    {
+      "id": "greedy-full-probe-big",
+      "label": "Tuned model with 8 players (final test only)"
+    },
+    {
+      "id": "greedy-full-combo-big",
+      "label": "Base with 8 players (final test only)"
+    },
+    {
+      "id": "greedy-full-probe-cliff",
+      "label": "Check of the round-3 cliff: warrior and mind bender weights"
     }
   ]
 }

@@ -339,7 +339,7 @@ function pdfOf(dir: string, runIds: string[], anyRunning: boolean) {
     path.join(EXPERIMENTS, dir, "report.tex"),
     path.join(EXPERIMENTS, "polyexp.cls"),
     path.join(__dirname, "experiment-report.ts"),
-    ...runIds.flatMap((id) => ["sweep.jsonl", "curve.jsonl", "probe.jsonl", "model.json"].map((f) => path.join(ROOT, "models", id, f))),
+    ...runIds.flatMap((id) => ["sweep.jsonl", "curve.jsonl", "probe.jsonl", "model.json", "record.json"].map((f) => path.join(ROOT, "models", id, f))),
   ];
   const stale = mtime(pdf) < Math.max(...sources.map(mtime));
   const b = builds.get(dir);
@@ -373,7 +373,7 @@ function experimentDetail(dir: string) {
   const procs = processes();
   const runs = ((sum.meta?.runs ?? []) as { id: string; label?: string }[]).map((r) => {
     const m = path.join(ROOT, "models", r.id);
-    const model = readJson(path.join(m, "model.json"));
+    const model = readJson(path.join(m, "model.json")) ?? readJson(path.join(m, "record.json"));
     const log = path.join(ROOT, "logs", `${r.id}.log`);
     const tail = fs.existsSync(log) ? fs.readFileSync(log, "utf8").trimEnd().split("\n").slice(-1)[0] ?? "" : "";
     return {
