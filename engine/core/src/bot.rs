@@ -261,6 +261,8 @@ pub(crate) struct GoalCache {
     targets: Vec<(i32, Vec<(Coord, i32)>)>,
     /// the economy plan's context for this decision (bot_full, plan != 0), built on first use
     pub(crate) plan: Option<crate::econ_plan::PlanCtx>,
+    /// the value field of this decision's player (bot_full, field != 0), built on first use
+    pub(crate) field: Option<crate::value_field::FieldMap>,
 }
 
 /// goal()'s candidates for units of `owner`, in the order goal() considers them

@@ -212,6 +212,7 @@ fn full_weights_to_json(w: &polycore::bot_full::FullWeights) -> Value {
         "reserve": w.reserve,
         "moveNoise": w.move_noise,
         "spread": w.spread,
+        "field": w.field,
     })
 }
 
@@ -553,5 +554,14 @@ mod tests {
         assert_eq!(v["plan"], json!(0.5));
         assert_eq!(full_w(&v).unwrap(), w);
         assert_eq!(full_weights_to_json(&polycore::bot_full::default_full_weights())["plan"], json!(0.0));
+    }
+
+    #[test]
+    fn full_weights_json_has_field() {
+        let w = full_w(&json!({"field": 0.5})).unwrap();
+        let v = full_weights_to_json(&w);
+        assert_eq!(v["field"], json!(0.5));
+        assert_eq!(full_w(&v).unwrap(), w);
+        assert_eq!(full_weights_to_json(&polycore::bot_full::default_full_weights())["field"], json!(0.0));
     }
 }

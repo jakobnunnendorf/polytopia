@@ -26,3 +26,4 @@ pub mod opinion;
 pub mod rng;
 pub mod state;
 pub mod types;
+pub mod value_field;
