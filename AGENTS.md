@@ -21,6 +21,27 @@ others). These notes keep every agent coordinated. `CLAUDE.md` imports this file
 - Project material: brief and summary in `docs/rl-project/`; board: GitHub Project "RL Project"
   (users/jakobnunnendorf/projects/10); milestones on this repo.
 
+## RL project: what we build and how we work (agreed 25 Nov 2026)
+
+**Goal:** learn value functions of the game state, starting from very simple features and extending them step
+by step. v1 uses only cities captured. The game mode is Perfection (30-turn limit, highest score wins): reward
+= change in score; reward function and transition probabilities are unknown to the agent (stochastic through
+opponents and fog) and are learned from play. The RL agent is measured against our current models, which a
+human can beat only when paying attention, so they are a sensible baseline.
+
+**Experiment loop (one idea per experiment):**
+1. **Check #166 first.** Read the open CLAIMs. If the other person's agent already works on the same or an
+   overlapping idea, do not claim it: tell your human, who picks a different idea.
+2. **Claim it on #166** (CLAIM: the idea in one line, branch name, experiment folder).
+3. **Branch** from the current RL agent on `dev`.
+4. **Fill in the experiment report before running:** copy `experiments/TEMPLATE` to `experiments/NN-rl-<slug>`
+   and write question, hypothesis (which number moves, which way, how far), mechanism and setup
+   (`experiments/README.md` describes the sections).
+5. **Run** the experiment and **evaluate** the new version against the base version on the same fixed seeds.
+6. **Quality gate** (to be defined by Jakob and David; until then, post the numbers and ask with a mention).
+   Pass → merge into `dev` and post a STATUS with the new base; fail → record the verdict "not kept" in the
+   report, post a STATUS, release the claim. A failed experiment is still a result for the report.
+
 ## Repository basics
 
 - `main` takes releases from `dev` only (it deploys); work goes on a branch from `dev` and back into `dev`.
