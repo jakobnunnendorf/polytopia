@@ -134,19 +134,51 @@ fn map_options(v: &Value) -> R<MapOptions> {
     })
 }
 
-/// a bot for play_games: the greedy bot or the full-action-space bot
+/// a bot for play_games: the greedy bot, the full-action-space bot or random legal moves
 enum Policy {
     Greedy(GreedyWeights),
     Full(polycore::bot_full::FullWeights),
+    Random,
 }
 
 fn policy(v: &Value) -> R<Policy> {
     match v["kind"].as_str() {
         Some("full") => Ok(Policy::Full(polycore::bot_full::full_weights(&v["weights"])?)),
+        Some("random") => Ok(Policy::Random),
         Some("greedy") | None => Ok(Policy::Greedy(weights(&v["weights"])?)),
         Some(k) => Err(format!("unknown policy kind {k}")),
     }
 }
+
+/// the first draw of the random agent's generator (logic/agents/registry.ts rngFor): xorshift32
+/// seeded by the game seed, the turn and the log length, so a game replays exactly
+fn random_draw(s: &GameState, turn: i32) -> f64 {
+    let mut x = (s.seed as u32) ^ (turn as u32).wrapping_mul(2654435761) ^ (s.log.len() as u32).wrapping_mul(40503);
+    if x == 0 {
+        x = 1;
+    }
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    x as f64 / 4294967296.0
+}
+
+/// models/random-v1, the same choice as randomAgent in logic/agents/registry.ts: a uniformly
+/// random legal action that ends the turn only about one time in ten
+fn random_step(s: &GameState) -> Action {
+    let legal = legal_actions(s);
+    let r = random_draw(s, s.turn);
+    if legal.len() > 1 && r < 0.9 {
+        let rest: Vec<&Action> = legal.iter().filter(|a| !matches!(a, Action::EndTurn)).collect();
+        if !rest.is_empty() {
+            return rest[(random_draw(s, s.turn + 7) * rest.len() as f64) as usize].clone();
+        }
+    }
+    legal.get((r * legal.len() as f64) as usize).cloned().unwrap_or(Action::EndTurn)
+}
+
+/// what scripts/arena.ts allows the random agent per turn before it ends the turn for it
+const RANDOM_ACTIONS_PER_TURN: i32 = 300;
 
 /// one bot-vs-bot game for the training scripts (scripts/train-hill.ts and
 /// train-full.ts `play`): the player to move is played by
@@ -166,14 +198,21 @@ fn play_game(spec: &Value) -> R<Value> {
     let max_turn = spec.get("maxTurn").and_then(|x| x.as_i64());
     let mut s = st::create_game(&opts)?;
     let mut moves = 0;
+    // (turn, player) of the last action and how many actions that player has taken in that turn
+    let mut last = (-1, -1);
+    let mut in_turn = 0;
     while !s.over
         && moves < max_moves
         && max_turns.map_or(true, |t| (s.turn as i64) < t)
         && max_turn.map_or(true, |t| (s.turn as i64) <= t)
     {
+        in_turn = if last == (s.turn, s.current) { in_turn + 1 } else { 0 };
+        last = (s.turn, s.current);
         let a = match &ps[(s.current as usize) % ps.len()] {
             Policy::Greedy(w) => bot_step(&s, w),
             Policy::Full(w) => polycore::bot_full::full_bot_step(&s, w),
+            Policy::Random if in_turn > RANDOM_ACTIONS_PER_TURN => Action::EndTurn,
+            Policy::Random => random_step(&s),
         };
         apply_action(&mut s, &a)?;
         moves += 1;
