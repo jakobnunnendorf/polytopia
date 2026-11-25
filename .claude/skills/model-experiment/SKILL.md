@@ -78,7 +78,7 @@ not run `npm run arena` for it: arena writes `data/games/` and changes the share
    It saves the best point as `models/<id>/model.json`, with one row per point in `sweep.jsonl`.
    Without `--knob`/`--points` it measures the base alone (a re-measure, e.g. in another setup:
    `--players 8 --size 20 --max-turns 300`; players must be even).
-   (A tuning run instead: `nohup npm run train-full -- --id <id> --from <base> <settings>
+   (A tuning run instead: `nohup npm run train-probe -- --id <id> --from <base> --metric finish <settings>
    --workers 10 --panel <panel> > logs/<id>.log 2>&1 &`.)
    Wait with a background `until grep -q "took" logs/<id>.log` loop, not polling.
 7. **Verdict**: **kept** when either holds (Jakob, 24 Nov, step 6 of #31):
