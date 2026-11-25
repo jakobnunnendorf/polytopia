@@ -42,7 +42,7 @@ human can beat only when paying attention, so they are a sensible baseline.
    and write question, hypothesis (which number moves, which way, how far), mechanism and setup
    (`experiments/README.md` describes the sections).
 5. **Run** the experiment and **evaluate** the new version against the base version on the same fixed seeds.
-6. **Quality gate:** `npm run rl:gate -- --candidate <new> --base <base> --difficulty <d>` (99% one-sided paired test on 10,000 evaluation seeds; difficulty not decided yet, pass it explicitly; see `docs/rl-project/README.md`).
+6. **Quality gate:** `npm run rl:gate -- --candidate <new> --base <base>` (99% one-sided paired test on 10,000 evaluation seeds; decided 25 Nov 2026: Crazy, 3 opponents `greedy-full-probe`, learner seat human, final stage 15 Crazy opponents; see `docs/rl-project/README.md`).
    Pass → merge into `dev` and post a STATUS with the new base; fail → record the verdict "not kept" in the
    report, post a STATUS, release the claim. A failed experiment is still a result for the report.
 

@@ -2,7 +2,9 @@
 //!
 //! The candidate and the base each play seat 0 of the same N evaluation seeds (Perfection, 16x16 Continents,
 //! learner tribe fixed, opponents' tribes fixed per seed, the same opponent bot in every other seat). For each
-//! seed d = score(candidate) - score(base) of seat 0's final raw Perfection score (`score_of`). The gate PASSES
+//! seed d = score(candidate) - score(base) of seat 0's final raw Perfection score (`score_of`). Seat 0 is created as
+//! the game's only human seat (`humans: [0]`): it gets the human capital income (+1 star) instead of the
+//! difficulty's bot bonus, as in the real app, and the game ends when it is eliminated. The gate PASSES
 //! iff the one-sided lower confidence bound mean(d) - z_{1-alpha} * sd(d) / sqrt(N) is above 0. N is fixed in
 //! advance: there is no early stopping.
 //!
@@ -127,19 +129,27 @@ struct Game {
     won: bool,
 }
 
+/// The seat the learner plays. It is the game's only human seat.
+const LEARNER_SEAT: i64 = 0;
+
+/// createGame options for one seed, the same for candidate and base. The learner seat is human (human capital
+/// income; the game ends when it is eliminated); every other seat is a bot with the difficulty's capital bonus.
+fn game_opts(seed: i64, tribes: &[String], s: &Setup) -> Value {
+    json!({"mapSize": MAP_SIZE, "players": s.players, "mode": MODE, "seed": seed, "humans": [LEARNER_SEAT],
+           "mapType": MAP_TYPE, "difficulty": s.difficulty, "clans": tribes})
+}
+
 fn play_seed(l: &Learner, seed: i64, tribes: &[String], s: &Setup) -> R<Game> {
     match l {
         Learner::Bot { policy, .. } => {
+            // playGames drives every seat by its policy, whether the seat is human or bot
             let mut ps = vec![policy.clone()];
             ps.extend((1..s.players).map(|_| s.opp.clone()));
-            let spec = json!([{
-                "opts": {"mapSize": MAP_SIZE, "players": s.players, "mode": MODE, "seed": seed, "humans": [],
-                         "mapType": MAP_TYPE, "difficulty": s.difficulty, "clans": tribes},
-                "policies": ps, "maxTurn": MAX_TURN, "maxMoves": MAX_MOVES }]);
+            let spec = json!([{ "opts": game_opts(seed, tribes, s), "policies": ps, "maxTurn": MAX_TURN, "maxMoves": MAX_MOVES }]);
             let r = polyapi::call("playGames", &[spec])?;
             let r = &r[0];
-            let score = r["scores"][0].as_i64().ok_or("playGames: no score for seat 0")?;
-            Ok(Game { score, won: r["winner"].as_i64() == Some(0) })
+            let score = r["scores"][LEARNER_SEAT as usize].as_i64().ok_or("playGames: no score for seat 0")?;
+            Ok(Game { score, won: r["winner"].as_i64() == Some(LEARNER_SEAT) })
         }
     }
 }
@@ -218,8 +228,9 @@ fn verdict(d: &[f64], alpha: f64) -> Verdict {
 // ---------------------------------------------------------------- command line
 
 const USAGE: &str = "usage: rl-gate --candidate <model id|path> --base <model id|path> [--opp greedy-full-probe] [--n 10000]
-               [--alpha 0.01] [--seed-start 1000000000] [--threads 0] [--tribe xinxi] [--players 3]
-               [--difficulty normal] [--out <dir>]
+               [--alpha 0.01] [--seed-start 1000000000] [--threads 0] [--tribe xinxi] [--players 4]
+               [--difficulty crazy] [--out <dir>]
+Seat 0 (the learner) is the human seat; every other seat is a bot playing --opp.
 Exit code 0 = PASS, 1 = FAIL, 2 = error.";
 
 struct Args {
@@ -269,8 +280,8 @@ fn parse_args() -> R<Args> {
         seed_start: num("--seed-start", get("--seed-start"), EVAL_SEED_START)?,
         threads: num("--threads", get("--threads"), 0)?,
         tribe: get("--tribe").unwrap_or("xinxi".into()),
-        players: num("--players", get("--players"), 3)?,
-        difficulty: get("--difficulty").unwrap_or("normal".into()),
+        players: num("--players", get("--players"), 4)?,
+        difficulty: get("--difficulty").unwrap_or("crazy".into()),
         out: get("--out").map(PathBuf::from).unwrap_or_else(|| repo_root().join("engine/target/rl-gate")),
     };
     if args.n < 2 {
@@ -344,7 +355,7 @@ fn run() -> R<bool> {
         "rule": "PASS iff mean(d) - z_{1-alpha} * sd(d) / sqrt(N) > 0, d = seat-0 Perfection score (candidate - base) per seed",
         "candidate": cand.label(), "base": base.label(), "opp": a.opp,
         "setup": {"mode": MODE, "mapSize": MAP_SIZE, "mapType": MAP_TYPE, "difficulty": a.difficulty, "players": a.players,
-                  "learnerSeat": 0, "learnerTribe": a.tribe, "maxTurn": MAX_TURN},
+                  "learnerSeat": LEARNER_SEAT, "humans": [LEARNER_SEAT], "learnerTribe": a.tribe, "maxTurn": MAX_TURN},
         "n": a.n, "alpha": a.alpha, "seedStart": a.seed_start, "seedEnd": a.seed_start + a.n - 1,
         "meanCandidate": mean(&cs), "meanBase": mean(&bs), "sdCandidate": sd(&cs), "sdBase": sd(&bs),
         "meanD": v.mean_d, "sdD": v.sd_d, "seD": v.sd_d / (a.n as f64).sqrt(), "correlation": r,
@@ -356,7 +367,7 @@ fn run() -> R<bool> {
 
     println!("rl-gate  {} (candidate) vs {} (base), opponents {}", cand.label(), base.label(), a.opp);
     println!(
-        "setup    {MODE}, {MAP_SIZE}x{MAP_SIZE} {MAP_TYPE}, difficulty {}, {} players, seat 0 = {}",
+        "setup    {MODE}, {MAP_SIZE}x{MAP_SIZE} {MAP_TYPE}, difficulty {}, {} players, seat 0 = {} (human seat)",
         a.difficulty, a.players, a.tribe
     );
     println!("seeds    N = {} ({}..{}), alpha = {} one-sided", a.n, a.seed_start, a.seed_start + a.n - 1, a.alpha);
@@ -440,6 +451,30 @@ mod tests {
             u.sort();
             u.dedup();
             assert_eq!(u.len(), 3);
+        }
+    }
+
+    /// The learner seat earns the human capital income (level-1 capital: 1 + 1 = 2 stars); a Crazy bot's capital
+    /// earns 1 + 4 = 5 (engine/core/src/data.rs HUMAN_CAPITAL_BONUS, bot_capital_bonus).
+    #[test]
+    fn learner_seat_gets_human_income_on_crazy() {
+        let setup = Setup { players: 4, tribe: "xinxi".into(), difficulty: "crazy".into(), opp: json!({"kind": "random"}) };
+        for seed in EVAL_SEED_START..EVAL_SEED_START + 5 {
+            let tribes = tribes_for(seed, &setup.tribe, setup.players);
+            let s = polyapi::call("createGame", &[game_opts(seed, &tribes, &setup)]).unwrap();
+            let players = s["players"].as_array().unwrap();
+            assert_eq!(players.len(), 4);
+            for p in players {
+                assert_eq!(p["bot"].as_bool(), Some(p["id"].as_i64() != Some(LEARNER_SEAT)), "seat {}", p["id"]);
+            }
+            let caps: Vec<&Value> = s["cities"].as_array().unwrap().iter().filter(|c| c["capital"].as_bool() == Some(true)).collect();
+            assert_eq!(caps.len(), 4, "seed {seed}: one capital per seat");
+            for c in caps {
+                assert_eq!(c["level"].as_i64(), Some(1));
+                let income = polyapi::call("cityIncome", &[s.clone(), (*c).clone()]).unwrap().as_i64().unwrap();
+                let want = if c["owner"].as_i64() == Some(LEARNER_SEAT) { 2 } else { 5 };
+                assert_eq!(income, want, "seed {seed}, capital of seat {}", c["owner"]);
+            }
         }
     }
 }

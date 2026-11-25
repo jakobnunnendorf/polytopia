@@ -28,9 +28,12 @@ experiment; the agent is measured against our current models.
    held-out games when the change is about V.
 6. **Quality gate.** 99% one-sided paired test on 10,000 evaluation seeds (agreed 25 Nov 2026, #166; details in
    `docs/rl-project/README.md`, "The quality gate"). Run:
-   `npm run rl:gate -- --candidate <new> --base <base> --difficulty <d> --out experiments/NN-rl-<slug>/`
-   Difficulty: not decided yet, pass it explicitly and name it in the report. Candidate and base play seat 0
-   (Xin-Xi, Perfection, 16x16 Continents, 3 players, opponents `greedy-full-probe`) on the same seeds
+   `npm run rl:gate -- --candidate <new> --base <base> --out experiments/NN-rl-<slug>/`
+   Decided setup (Jakob, 25 Nov 2026), the tool's defaults: difficulty **Crazy**; **3 opponents** (`--players 4`,
+   the symmetric map layout; may grow once game time per opponent count is measured); opponents the frozen
+   champion `greedy-full-probe` (never swap opponents between experiments); the learner seat counts as **human**
+   (human capital income, as in the app). The final stage fine-tunes and evaluates on 15 Crazy opponents. Train
+   on the same setup. Candidate and base play seat 0 (Xin-Xi, Perfection, 16x16 Continents) on the same seeds
    1,000,000,000.. (never use these for training). **PASS iff mean(d) − 2.326·sd(d)/√N > 0**, d = seat-0
    score(candidate) − score(base) per seed; exit 0 = PASS, 1 = FAIL. Apply the verdict as printed, never rerun
    with other seeds or a smaller N to change it; copy the summary and cite the JSON in the report.
