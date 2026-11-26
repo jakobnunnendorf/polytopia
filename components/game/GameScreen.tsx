@@ -351,8 +351,18 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   // autosave at the start of every round, so an unfinished game can be resumed from the menu
   useEffect(() => {
     if (state.over || recRef.current.steps.length === 0) return;
-    arena.saveGame({ ...recRef.current, endedAt: null, result: null }).catch(() => {});
-  }, [state.turn, state.over]);
+    arena
+      .saveGame({ ...recRef.current, endedAt: null, result: null })
+      .then(() => {
+        // once the game is saved, a reload of the tab continues it instead of starting the seed over:
+        // the address becomes /game?resume=<id> (history only, so the screen is not remounted)
+        if (Platform.OS !== "web" || typeof window === "undefined" || humanSeats.length === 0) return;
+        const url = new URL(window.location.href);
+        if (url.searchParams.get("resume") === recRef.current.id) return;
+        window.history.replaceState(window.history.state, "", `${url.pathname}?resume=${encodeURIComponent(recRef.current.id)}`);
+      })
+      .catch(() => {});
+  }, [state.turn, state.over, humanSeats.length]);
   useEffect(
     () => () => {
       if (!savedRef.current && recRef.current.steps.length > 0 && !stateRef.current.over) {
