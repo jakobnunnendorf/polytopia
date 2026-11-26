@@ -172,10 +172,9 @@ a copy-on-write copy that costs almost nothing).
 │   └── dev/                  smoke.ts, mapstats.ts
 ├── experiments/            lab notebook: one folder per experiment, LaTeX reports
 ├── lecture-notes/          Org notes, build.el, serve.py, pictures.ml, notes.css, explanations/
-├── docs/                   RULES (shardlands/RULES.md), ARENA.md, RL.md, rules parity
+├── docs/                   RULES.md (the game rules), ARENA.md, RL.md, rules parity
 ├── __tests__/              jest suites (engine parity, rules, arena, app)
 ├── .claude/skills/         instructions for Claude Code: lecture-note, model-experiment, refer-to-lecture
-├── POLYTOPIA_RULES.md      the rules as compiled from the Polytopia wiki
 └── public/                 static files, including polyengine.wasm
 ```
 
@@ -1093,8 +1092,7 @@ and SPRT tests; `__tests__/app/` the Analyse and home page tests.
 
 | File | Content |
 |---|---|
-| `docs/shardlands/RULES.md` | the game rules, with section numbers to cite |
-| `POLYTOPIA_RULES.md` | the rules as compiled from the Polytopia wiki |
+| `docs/RULES.md` | the game rules (source of truth), compiled from the wiki, the game data and patch notes, with section numbers to cite |
 | `docs/shardlands/ARENA.md` | models, recordings, Elo, and the hill-climbing history (v1 to v4) |
 | `docs/shardlands/RL.md` | the engine API for RL: actions, observation planes, the Python environment |
 | `engine/PROGRESS.md`, `engine/PORTING.md` | the finished Rust migration (done criteria with evidence) and the contract |

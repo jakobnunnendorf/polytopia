@@ -1,4 +1,4 @@
-//! Port of logic/engine/movement.ts (RULES.md §4): Chebyshev neighbours, a
+//! Port of logic/engine/movement.ts (docs/RULES.md §4): Chebyshev neighbours, a
 //! budget of movement points, road-to-road steps cost 0.5, others 1. A unit may
 //! keep stepping from any tile reached below its budget. Entering forest (unless
 //! road-to-road) or mountain, any tile next to an enemy (zone of control), an own

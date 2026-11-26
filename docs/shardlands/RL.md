@@ -36,7 +36,7 @@ const obs = observe(s, 0);          // what player 0 can know (fog of war applie
 | `applyAction(s, a)` | Next state. `a` must be one of `legalActions(s)`. `{type: "endTurn"}` passes play to the next player (and increments `s.turn` after the last one). |
 | `observe(s, p)` | Observation for player `p` (below). |
 | `botStep(s)` / `playBotTurn(s)` | The built-in greedy bot: one action, or a whole turn. Use as opponent or baseline. |
-| `scoreOf(s, p)` | Score per RULES.md §7.1 (the Perfection objective). |
+| `scoreOf(s, p)` | Score per docs/RULES.md §7.1 (the Perfection objective). |
 
 Episode end: `s.over === true`; `s.winner` is the winning player id
 (Perfection: highest score after turn 30; Domination: last player with a city).
@@ -123,13 +123,13 @@ value-function agent and `rl-gate` use it (`docs/rl-project/README.md`).
 - `__tests__/engine/simulate.test.ts`:
   - 200 bot-vs-bot games with mixed player counts, modes and map types finish with no errors.
   - A 1,500-step check that every bot action is in `legalActions` and that the invariants hold (one unit per tile, HP in range, stars never negative).
-- `__tests__/engine/rules-data.test.ts` checks the numbers in RULES.md: unit stats, the damage formula and rounding, and the tech cost table including Literacy.
+- `__tests__/engine/rules-data.test.ts` checks the numbers in docs/RULES.md: unit stats, the damage formula and rounding, and the tech cost table including Literacy.
 - `__tests__/engine/mapgen.test.ts` checks determinism per seed, settlement spacing, the 48/38/14 land split, resource radius and ruin counts.
 
 ## Deviations from the rules (known simplifications)
 
 - **Explorer** (§5.12): this engine walks toward the most unexplored
-  surroundings, with RNG tie-breaks. RULES.md describes the game's own
+  surroundings, with RNG tie-breaks. docs/RULES.md describes the game's own
   3-pass breadth-first scoring.
 - **Forced pushes** (§5.13): this engine pushes toward the last move direction
   or the map centre and tries the alternatives in the same ±45° order. The

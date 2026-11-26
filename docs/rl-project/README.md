@@ -181,8 +181,8 @@ decides nothing. Run it after every promotion.
 
 The opponents' opinions of other tribes (and so of the learner) follow the real game's model, per a community
 decompile of a pre-February-2024 build (raphael-64/polyterra-env); the current app may behave differently, and that
-build's Perfection bonus already differs from today's. The full list of terms is in `POLYTOPIA_RULES.md`
-(Diplomacy, What bots think of you); `docs/RULES_PARITY.md` says what is and is not ported. What matters for the
+build's Perfection bonus already differs from today's. The full list of terms is in `docs/RULES.md`
+(§10.3 What bots think of you); `docs/RULES_PARITY.md` says what is and is not ported. What matters for the
 learner on the gate's setup (Crazy, learner seat human):
 
 - No Charming bonus on Crazy, so a bot's opinion of the learner comes from calm (Peaceful, at most +1), embassies,

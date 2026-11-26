@@ -1,6 +1,6 @@
 //! What bots think of other tribes: the real game's opinion model, as documented by a community
 //! decompile of a pre-February-2024 build (raphael-64/polyterra-env). Our own code, written from the
-//! facts (formulas, constants, conditions) in that decompile; see POLYTOPIA_RULES.md "Diplomacy" and
+//! facts (formulas, constants, conditions) in that decompile; see docs/RULES.md §10.3 and
 //! docs/RULES_PARITY.md for what is and is not ported.
 //!
 //! A bot's opinion of another tribe is a sum of signed terms (`OpinionFactor`, named like the game's

@@ -98,7 +98,7 @@ let () = assert (terrain_at village = Village);;
 * The rider
 
 A rider has a movement of 2.  The rules of the game that matter here are
-the following ones (=docs/shardlands/RULES.md=, Sections 2.1, 4.1
+the following ones (=docs/RULES.md=, Sections 2.1, 4.1
 and 4.2):
 
 - in one turn, a rider takes up to two steps, each to one of the 8
@@ -600,7 +600,7 @@ above.
 * Exercise 02
 
 Give the rider the Climbing technology: a mountain can be entered, and
-entering it ends the move (=docs/shardlands/RULES.md=, Section 4.2).
+entering it ends the move (=docs/RULES.md=, Section 4.2).
 
 1. Extend the unit-test function for ~rider_moves~.
 2. Adjust ~enterable~ and ~ends_the_move~.
@@ -688,7 +688,7 @@ The pages are PDF pages; the deck prints no slide numbers.
 |  101 | $T^*$ is a contraction with factor $\gamma$ in the largest-difference norm                |
 |  107 | the gridworld example: 8 directions or staying put, moving as intended with probability 0.5 |
 
-The rules of the game are quoted from =docs/shardlands/RULES.md= in this
+The rules of the game are quoted from =docs/RULES.md= in this
 repository (Sections 2.1, 4.1 and 4.2).  The moves computed here were
 not compared with the game engine.
 

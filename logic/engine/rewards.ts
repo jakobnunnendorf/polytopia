@@ -1,6 +1,6 @@
 /**
  * What each level-up reward does, for the "city leveled up" dialog.
- * Numbers follow docs/shardlands/RULES.md §5.3 and the engine (do_reward in
+ * Numbers follow docs/RULES.md §5.3 and the engine (do_reward in
  * engine/core/src/actions.rs; REWARD_RESOURCES_STARS and REWARD_POP_GROWTH in
  * engine/core/src/data.rs).
  */
