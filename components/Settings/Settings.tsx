@@ -25,7 +25,7 @@ const MAP_SIZES = [
 ];
 
 const MODES = [
-  { id: "perfection", title: "Perfection", hint: "Highest score after 30 turns wins. Always a Normal (16×16) map, as in the game." },
+  { id: "perfection", title: "Perfection", hint: "Highest score after 30 turns wins. Always a Normal (16×16) map of Continents, as in the game." },
   { id: "domination", title: "Domination", hint: "The last tribe holding a city wins. The size is preset from the opponent count; pick another if you like." },
   { id: "creative", title: "Creative", hint: "Any size and opponents, no turn limit; the last tribe holding a city wins." },
   { id: "glory", title: "Glory", hint: "First to 10,000 points wins; if several reach it in one turn, the highest score." },
@@ -334,6 +334,8 @@ export default function Settings() {
     }
   };
 
+  const sizes = MAP_SIZES.filter((m) => mapSizeAllowed(mode.id, m.size) && seats.length <= maxPlayersFor(m.size));
+
   return (
     <View testID="settings-component">
       <Heading>Victory</Heading>
@@ -344,27 +346,29 @@ export default function Settings() {
       </View>
       <Text style={{ color: UI.muted, fontSize: 13 }}>{mode.hint}</Text>
 
-      <Heading>World</Heading>
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-        {WORLDS.filter((w) => !forcedWorld || w.id === forcedWorld).map((w) => (
-          <Chip key={w.id} testID={`world-${w.id}`} label={w.title} on={settings.mapType === w.id} onPress={() => settings.setMapType(w.id)} />
-        ))}
-      </View>
-      <Text style={{ color: UI.muted, fontSize: 13 }}>
-        {WORLDS.find((w) => w.id === settings.mapType)?.hint}
-        {forcedWorld ? ` ${mode.title} is always played on ${WORLDS.find((w) => w.id === forcedWorld)?.title ?? forcedWorld}, as in the game.` : ""}
-      </Text>
+      {/* a choice the mode fixes (Perfection: Continents, Normal size) is not shown; the mode's hint names it */}
+      {!forcedWorld && (
+        <>
+          <Heading>World</Heading>
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            {WORLDS.map((w) => (
+              <Chip key={w.id} testID={`world-${w.id}`} label={w.title} on={settings.mapType === w.id} onPress={() => settings.setMapType(w.id)} />
+            ))}
+          </View>
+          <Text style={{ color: UI.muted, fontSize: 13 }}>{WORLDS.find((w) => w.id === settings.mapType)?.hint}</Text>
+        </>
+      )}
 
-      <Heading>Map size</Heading>
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-        {MAP_SIZES.filter(
-          (m) =>
-            mapSizeAllowed(mode.id, m.size) &&
-            seats.length <= maxPlayersFor(m.size),
-        ).map((m) => (
-          <Chip key={m.size} label={m.title} on={settings.mapSize === m.size} onPress={() => settings.setMapSize(m.size)} />
-        ))}
-      </View>
+      {sizes.length > 1 && (
+        <>
+          <Heading>Map size</Heading>
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            {sizes.map((m) => (
+              <Chip key={m.size} label={m.title} on={settings.mapSize === m.size} onPress={() => settings.setMapSize(m.size)} />
+            ))}
+          </View>
+        </>
+      )}
 
       <Heading>Difficulty</Heading>
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
