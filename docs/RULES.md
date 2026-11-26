@@ -534,7 +534,7 @@ A player meets another tribe the first time it sees one of that tribe's units, o
 
 | Item | Effect |
 |---|---|
-| Lighthouse (one per map corner) | The first discovery by **each player** gives +1 population to its capital (else its oldest city) (`engine/core/src/state.rs`, `explore`). Lighthouses can't be built on or destroyed, and always start under clouds. Finding all 4 completes the Explorer task (§7.3). ([Lighthouse](https://wiki.polytopia.com/wiki/Lighthouse)) |
+| Lighthouse (one per map corner) | Every tribe that uncovers a lighthouse gets +1 population in its capital (its oldest city without one) (`engine/core/src/state.rs`, `explore`) and adds its colour as a tier. Lighthouses can't be built on or destroyed, and always start under clouds. Finding all 4 completes the Explorer task (§7.3). ([Lighthouse](https://wiki.polytopia.com/wiki/Lighthouse)) |
 | Ruin: Resources | +10 stars (§5.10) |
 | Starfish | +8 stars (§5.4) |
 | City level 3 reward: Resources | +5 stars (§5.3) |

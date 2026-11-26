@@ -66,15 +66,47 @@ async function tint(uri: string, color: string): Promise<string | null> {
   return c.toDataURL("image/png");
 }
 
-/** the sprite recoloured to `color` (web), else the stock sprite */
-export function useTeamSprite(source: ImageSourcePropType, color?: string): ImageSourcePropType {
+/** multiplies a grayscale mask sprite (e.g. lighthouse tier crystal) by `color`, keeping its 3D facets */
+async function multiplyTint(uri: string, color: string): Promise<string | null> {
+  const img = new (globalThis as unknown as { Image: typeof HTMLImageElement }).Image();
+  img.crossOrigin = "anonymous";
+  img.src = uri;
+  await img.decode();
+  const c = document.createElement("canvas");
+  c.width = img.naturalWidth;
+  c.height = img.naturalHeight;
+  const ctx = c.getContext("2d");
+  if (!ctx) return null;
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, c.width, c.height);
+  const px = data.data;
+  const n = parseInt(color.slice(1, 7), 16);
+  const tr = ((n >> 16) & 255) / 255;
+  const tg = ((n >> 8) & 255) / 255;
+  const tb = (n & 255) / 255;
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i + 3] < 8) continue;
+    px[i] = Math.round(px[i] * tr);
+    px[i + 1] = Math.round(px[i + 1] * tg);
+    px[i + 2] = Math.round(px[i + 2] * tb);
+  }
+  ctx.putImageData(data, 0, 0);
+  return c.toDataURL("image/png");
+}
+
+function useCachedTint(
+  source: ImageSourcePropType,
+  color: string | undefined,
+  prefix: string,
+  fn: (uri: string, color: string) => Promise<string | null>,
+): ImageSourcePropType {
   const uri = Platform.OS === "web" && color ? uriOf(source) : null;
-  const key = uri ? `${uri}|${color}` : "";
+  const key = uri ? `${prefix}|${uri}|${color}` : "";
   const hit = key ? cache.get(key) : undefined;
   const [, bump] = useState(0);
   useEffect(() => {
     if (!uri || !color || cache.has(key)) return;
-    const p = tint(uri, color)
+    const p = fn(uri, color)
       .catch(() => null)
       .then((r) => {
         if (r) cache.set(key, r);
@@ -88,4 +120,14 @@ export function useTeamSprite(source: ImageSourcePropType, color?: string): Imag
     if (hit && typeof hit !== "string") void hit.then(() => bump((x) => x + 1));
   }, [hit]);
   return typeof hit === "string" ? { uri: hit } : source;
+}
+
+/** the sprite recoloured to `color` (web), else the stock sprite */
+export function useTeamSprite(source: ImageSourcePropType, color?: string): ImageSourcePropType {
+  return useCachedTint(source, color, "team", tint);
+}
+
+/** a grayscale overlay sprite multiplied by `color` (web), else the stock sprite */
+export function useMultiplySprite(source: ImageSourcePropType, color?: string): ImageSourcePropType {
+  return useCachedTint(source, color, "mul", multiplyTint);
 }
