@@ -1,0 +1,203 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 13-rl-full-state-value
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+% WHEN: before the first run.
+\textbf{The idea (David, 25 Nov 2026, issue \#166).} Model the game state directly with all features at once,
+as exact integers and without bins: number of cities, income (stars per turn), number of units, sum of city
+levels, number of techs, and the turn (Perfection ends after 30 turns, so time is part of the state). Learn the
+value of these states from play; later, use value iteration on them to play the game. This runs in parallel
+with Jakob's track, which starts from cities alone and adds one feature at a time.
+
+\textbf{This experiment} is the first step: the value function of the current bot's own play (policy
+evaluation, no decisions yet). The value of a state is the expected remaining score,
+$V(s_t) = \mathbb{E}[\,\text{final score} - \text{score}_t \mid s_t\,]$, which is the sum of the rewards
+(score changes) still to come.
+
+\textbf{Prediction} (written before the main run; a 200-game pilot was run only to check the tool and time it):
+\begin{enumerate}
+  \item \emph{The state space is sparse.} Distinct states grow almost in proportion to the games played. With
+        300{,}000 training games, more than half of the distinct states are seen only once, and the held-out
+        coverage (share of held-out visits whose exact state was seen in training) is about 85\%: close to
+        100\% in the first turns, below 60\% in the last ten.
+  \item \emph{The learned model beats Monte Carlo.} On held-out visits to states seen in training, the
+        model-based $V$ (backward induction) has a lower RMSE than the Monte Carlo table at every training size,
+        by at least 5\% at 300{,}000 games, because it pools the successors of rarely seen states.
+  \item \emph{The full state beats the turn alone, given enough data.} At small sizes (the pilot: 200 games) the
+        tables are worse than the turn-only baseline; from about 30{,}000 games on, model-based $V$ beats it,
+        and at 300{,}000 games its RMSE over all held-out visits is at least 25\% below the baseline's.
+\end{enumerate}
+\textbf{Against the idea:} if model-based $V$ is not at least 10\% below the turn baseline at 300{,}000 games,
+the exact-integer state is too sparse to learn as a table at this data size.
+
+\section{Mechanism}
+\textbf{State.} At the start of each turn of seat 0 (the learner), \texttt{rl-value} (\texttt{engine/rlvalue})
+reads $s = (\text{turn}, \text{cities}, \text{income}, \text{units}, \text{levels}, \text{techs})$:
+cities and units owned by seat 0, \texttt{state::income} (stars at the start of its next turn), the sum of
+\texttt{level} over its cities, and the number of techs owned. It also records \texttt{score\_of}, the raw
+Perfection score. A terminal row holds the final score.
+
+\textbf{Reward.} $r_t = \text{score}_{t+1} - \text{score}_t$; the last step runs to the final score.
+
+\textbf{Three estimators, all fitted on the same training games.}
+\begin{itemize}
+  \item \emph{Model-based (certainty equivalence).} For each visited state the list of observed transitions
+        $(r, s')$ is the maximum-likelihood model $\hat P(s'\mid s)$, $\hat r(s,s')$. Backward induction from the
+        last turn: $V(s) = \frac{1}{n(s)} \sum_{(r,s')} \bigl(r + V(s')\bigr)$, $V(\text{terminal}) = 0$. A
+        successor is always one turn later, so this is exact finite-horizon dynamic programming, no
+        discounting. It is also the fixed point that batch TD(0) converges to.
+  \item \emph{Monte Carlo.} $V(s)$ = mean return-to-go of the training visits to $s$.
+  \item \emph{Turn baseline.} $V(t)$ = mean return-to-go at turn $t$.
+\end{itemize}
+A held-out state never seen in training has no table entry; it gets the turn baseline (reported separately as
+coverage).
+
+\section{Setup}
+Perfection, 16$\times$16 Continents, 3 players, difficulty Crazy (DECISION on \#166, 25 Nov), seat 0 Xin-Xi as
+the game's human seat (\texttt{humans: [0]}, as on Jakob's branch \texttt{rl/learner-human}; on \texttt{dev}
+the gate still has no human seat), opponents' tribes from the gate's rule, \texttt{greedy-full-probe} in every
+seat. Training seeds $1, 2, \dots$; held-out seeds $500{,}000{,}000, \dots$ (10{,}000 games); both below the
+gate's evaluation seeds ($\geq 10^9$). Training sizes 1k, 3k, 10k, 30k, 100k, 300k games (each a prefix of the
+same seed list).
+
+Commands:
+\begin{verbatim}
+cargo run --release -p rl-value -- collect --games 300000 --seed-start 1 \
+  --out target/rl-value/train.tsv
+cargo run --release -p rl-value -- collect --games 10000 --seed-start 500000000 \
+  --out target/rl-value/test.tsv
+cargo run --release -p rl-value -- fit --train target/rl-value/train.tsv \
+  --test target/rl-value/test.tsv --sizes 1000,3000,10000,30000,100000,300000 \
+  --out ../experiments/13-rl-full-state-value
+\end{verbatim}
+Sanity checks: unit tests (backward induction on two hand-made games; one row per learner turn from turn 0;
+the same seed gives the same game). Pilot, 200 games: 0.9\,s on 10 threads, 30 learner turns per game, final
+scores around 9{,}000.
+
+\section{Results}
+\ExpResults
+
+All numbers below are copied from \texttt{value-summary.json} (\texttt{rl-value fit}, 25 Nov 2026). Held-out set:
+10{,}000 games, 301{,}946 rows, 291{,}946 learner turns; 1{,}294 of these games (12.9\%) end before turn 30
+because the learner is eliminated. The remaining score at turn 0 (final score minus the 515 points every
+learner has at the start) averages 7{,}495 with a standard deviation of 2{,}915.
+
+\paragraph{Learning curve.} RMSE of the predicted remaining score over all held-out turns (a state not seen in
+training gets the turn baseline):
+
+\begin{center}\small
+\begin{tabular}{rrrrrrr}
+\toprule
+training games & distinct states & coverage & turn only & model-based & Monte Carlo & best gain \\
+\midrule
+1{,}000   & 15{,}662  & 57.6\% & 2418.5 & 2402.1 & 2477.9 & $-0.7\%$ \\
+3{,}000   & 36{,}129  & 70.7\% & 2414.4 & 2357.3 & 2427.1 & $-2.4\%$ \\
+10{,}000  & 80{,}764  & 82.1\% & 2414.5 & 2306.3 & 2341.2 & $-4.5\%$ \\
+30{,}000  & 159{,}470 & 89.0\% & 2414.4 & 2263.3 & 2268.8 & $-6.3\%$ \\
+100{,}000 & 319{,}399 & 93.9\% & 2414.3 & 2230.5 & 2214.1 & $-8.3\%$ \\
+300{,}000 & 569{,}492 & 96.7\% & 2414.3 & 2210.4 & 2180.6 & $-9.7\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{By turn} (300{,}000 training games; RMSE over all held-out visits at that turn):
+
+\begin{center}\small
+\begin{tabular}{rrrrrrr}
+\toprule
+turn & sd of return & coverage & turn only & model-based & Monte Carlo & $R^2$ model \\
+\midrule
+0  & 2915 & 100.0\% & 2914.8 & 2914.8 & 2914.8 & 0.00 \\
+5  & 2901 & 100.0\% & 2901.2 & 2897.9 & 2798.2 & 0.00 \\
+10 & 2807 & 99.6\%  & 2806.8 & 2689.6 & 2602.5 & 0.08 \\
+15 & 2544 & 98.2\%  & 2543.8 & 2116.3 & 2130.9 & 0.31 \\
+20 & 2124 & 95.6\%  & 2124.3 & 1595.0 & 1642.0 & 0.44 \\
+25 & 1385 & 90.7\%  & 1385.3 & 1020.8 & 1049.1 & 0.46 \\
+29 & 523  & 88.6\%  & 523.1  & 438.8  & 438.8  & 0.30 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Monte Carlo has the lower error at turns 1--14, the model-based $V$ from turn 15 on (full per-turn rows
+in the JSON).
+
+\paragraph{State counts} (300{,}000 games, 8{,}750{,}194 learner turns): 569{,}492 distinct states, 286{,}479
+of them (50.3\%) seen once, 492{,}426 seen fewer than 10 times; but those seen once hold only 3.3\% of the
+visits (15.4 visits per state on average). The bot's states lie in cities 1--14, income 0--89, units 0--82,
+levels 1--75, techs 1--25. Transitions are very stochastic: among states seen at least twice, the number of
+distinct successors is 0.82 per visit.
+
+Reading: the full integer state predicts the remaining score better than the turn alone, and more so with more
+data, but only by 9.7\% overall at 300{,}000 games. The gain sits in the second half of the game (17\% at turn
+15, 25--26\% at turns 20--25, about half the variance explained); in the first ten turns the state is almost
+the same in every game (all 300{,}000 games share the same turn-0 state), so it cannot say which games will go
+well.
+
+\section{Behaviour}
+Not a policy change; the behaviour is that of \texttt{greedy-full-probe} in this setup. Its visits concentrate:
+96.7\% of held-out turns land in a state seen in training, 87.5\% in one seen at least 10 times, although half
+the distinct states are seen once.
+
+\section{Interpretation}
+\textbf{Prediction 1 (sparse state space): half right.} Half the distinct states are seen once (50.3\%, predicted
+``more than half''), but coverage is far higher than predicted (96.7\% against about 85\%; 88.6\% at turn 29
+against ``below 60\%''). The bot plays similar games, so a few states take most of the visits. Exact integers
+without bins are therefore workable as a table for this policy.
+
+\textbf{Prediction 2 (model beats Monte Carlo at every size): wrong.} The model wins at small sizes (up to 30{,}000
+games), Monte Carlo wins overall from 100{,}000 games on. By turn the split is clean: Monte Carlo is better
+early, the model late. This is the bias--variance trade-off between the two: the model's backward induction
+assumes that the six integers are a Markov state, so that the future depends on the state alone. They are not:
+the map, the opponents and the unit positions are hidden. A state reached in a good game and the same state
+reached in a bad game get the same successors in the model; Monte Carlo keeps each visit's real return and so
+keeps that hidden information on average. Early states are seen thousands of times, so Monte Carlo's variance is
+small and its lack of bias wins. Late states are rarer, and the model's pooling over successors wins.
+
+\textbf{Prediction 3 (at least 25\% below the turn baseline overall): wrong.} 8.4\% for the model, 9.7\% for Monte
+Carlo. By the criterion written before the run (model-based at least 10\% below the baseline), this counts
+against the idea. The per-turn table shows why the overall number is small: the first ten turns, a third of all
+visits, have almost no information in any of the six integers, and their large errors dominate the overall
+RMSE. From turn 15 on the state explains a third to a half of the variance.
+
+\textbf{Consequence for value iteration.} Value iteration needs the model-based form ($\hat P$, $\hat r$), and
+that form is biased because the state is not Markov. In the late game it is the better estimator; in the early
+game the choice of strategic action will rest on values that barely differ between states.
+
+\todo{david}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\begin{itemize}
+  \item \emph{One policy.} All values are those of \texttt{greedy-full-probe} against itself; a learner that
+        plays differently visits other states, and coverage will drop.
+  \item \emph{Overall RMSE as the headline.} It weights early turns, where no state feature can help, as much
+        as late ones; the per-turn table is the fairer measure. This was chosen before the run and is kept
+        as the headline.
+  \item \emph{Elimination.} 12.9\% of the held-out games end early because the learner seat (the human seat) is
+        eliminated; these games have large errors. With \texttt{humans: []} (the gate on \texttt{dev}) the
+        game would continue and the numbers would differ.
+  \item \emph{Unseen states} fall back to the turn baseline; with 3.3\% of held-out turns unseen this changes
+        the overall RMSE little.
+\end{itemize}
+
+\section{Verdict and next step}
+No gate run: there is no new player. The prediction failed on its headline (8.4\% instead of at least 25\%);
+the result is a measurement, not a model to keep. The tool \texttt{rl-value} is the base for the next step.
+
+Next: strategic actions (expand / economy / army / research as weight boosts of the greedy bot), games where
+the learner picks one at random each turn, then value iteration over $\hat P(s' \mid s, a)$ to get $Q$ and a
+policy, tested with the gate against \texttt{greedy-full-probe}. Two follow-ups this result suggests: the
+early game needs either information the six integers do not hold (e.g. the land the learner can reach) or
+must be left to the bot; and Monte Carlo values can serve as the check on the model's values.
+
+\section{Notes for the paper}
+Claim: exact integer game features, without bins, are learnable as a table for a fixed policy (96.7\% of
+held-out turns covered), but they explain little of the outcome before turn 10 and up to half from turn 20
+on; and with a non-Markov state Monte Carlo beats the certainty-equivalence model in the well-visited early
+game, while the model wins in the sparse late game. Carried by the per-turn table.
+
+\todo{david}{Is this worth a place in the talk or report? Where?}
+
+\end{document}
