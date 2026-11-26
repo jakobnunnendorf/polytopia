@@ -8,6 +8,7 @@
 
 \RequirePackage[a4paper,margin=22mm,top=24mm,bottom=24mm]{geometry}
 \RequirePackage{amsmath}
+\RequirePackage{amssymb}
 \RequirePackage{booktabs}
 \RequirePackage{array}
 \RequirePackage{xcolor}
