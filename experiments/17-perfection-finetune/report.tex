@@ -1,0 +1,76 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- TEMPLATE
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+% WHEN: before the first run. WHO: Jakob states the idea in his words; Claude turns it into a prediction.
+% Keep the prediction falsifiable: which number should move, in which direction, by about how much.
+Jakob, 26 Nov 2026: ``I think we should use the current bots as they are as base version and then
+just fine tune on top for perfection. They are already good at domination and there is some carry
+over to perfection but perfection will need some adjustments due to the turn limit and objective
+difference so finetuning is the way to go. However, we should only fine tune the ones in our gate
+for now.'' The proposal came from David (\#166, 26 Nov): every greedy model was tuned only in
+Domination on Drylands, and probe tuning even cut \texttt{type.research} to 0.535, while in
+Perfection every tech adds score.
+
+Prediction (written before the runs): each tuned model beats its base head to head in Perfection
+with a share of points of at least 52\% in the 400-game final test, and \texttt{type.research}
+rises above its base value (probe: 0.535). A share below 50.5\% for both runs, or a research
+weight that falls, counts against the idea that Domination tuning is what holds the bots back in
+Perfection.
+
+\section{Mechanism}
+No new mechanism and no code change. Only the training setup changes: \texttt{--mode perfection
+--map-type continents --difficulty crazy --metric share} instead of Domination, Drylands, Normal
+and the finish score. All knobs are free to move under the perturbation probe (experiment 12).
+The trainer had no difficulty option: no greedy model had ever played Crazy (+4 capital income
+for bots). The new \texttt{--difficulty} flag (\texttt{scripts/lib/train-greedy.ts}) passes it to
+\texttt{createGame}; every trainer seat is a bot, so all seats get the bonus, as the gate's
+opponent seats do. Check: 20 seeds, probe against itself, mean total score 32,979 on Normal and
+41,684 on Crazy.
+
+\section{Setup}
+Two runs from the gate's greedy models (\texttt{docs/rl-project/champions.json}): the champion
+\texttt{greedy-full-probe} (also the frozen anchor, which itself stays unchanged) and the previous
+champion \texttt{greedy-full-combo}. Each: 100k games, rounds of 10k, $\sigma = 0.25$, $z = 3$,
+step 0.5, 5 workers. The league is the gate's opponent set (probe, combo) instead of the
+Domination league, so the bot is tuned against the opponents it meets in the gate. Panel: the
+fixed six plus probe and combo, all in Perfection; means are compared on the fixed six. The
+trainer plays two bot sides on alternating seats with no human seat, so a tuned model is checked
+afterwards on the rl-gate setup (Crazy, learner in the human seat). The base row at round 0 of each
+curve is the control: the change is the training mode, so a run without it would only repeat
+experiment 12.
+
+\section{Results}
+% WHEN: after the runs. The tables and plots below are generated from the measured data; add two to four sentences that read them.
+\ExpResults
+
+\todo{claude}{Read the tables: the best point, the size of the effect against the noise (about $\pm$1.2 points on a 6-model mean), the head-to-head.}
+
+\section{Behaviour}
+% WHEN: after the runs. WHO: both. One count the mechanism should change, plus what was seen in watched games.
+\todo{claude}{The behaviour metric: one count the mechanism should change, with base and new value.}
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\section{Interpretation}
+% WHEN: after the runs. WHO: both. Why it worked or did not; was the prediction right?
+\todo{claude}{Why the result came out this way, and whether the prediction held.}
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+% WHO: Claude. What could make this result wrong or narrow: panel, map sizes, sample size, interactions with other knobs.
+\todo{claude}{Two or three concrete threats.}
+
+\section{Verdict and next step}
+% WHO: Claude proposes by the keep rules (.claude/skills/model-experiment/SKILL.md); Jakob decides anything outside them.
+\todo{claude}{Kept or not, under which keep rule, the champion afterwards, and the next experiment this suggests.}
+
+\section{Notes for the paper}
+% WHO: Jakob, with Claude's draft. What this experiment contributes: a claim, a figure, a negative result worth a line.
+\todo{claude}{Draft: the one-sentence claim and which figure or table would carry it.}
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}
