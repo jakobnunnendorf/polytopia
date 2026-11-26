@@ -41,8 +41,8 @@ Do these in order, at the end of the task, before your final report:
    restored first (`git restore public/polyengine.wasm`).
 4. **The branch.** Local: `git branch -D <branch>` (after the check in step 3; `-d` gives a false "not fully
    merged", see below). On GitHub: `git push origin --delete <branch>` if it still exists
-   (`git ls-remote --heads origin <branch>`; GitHub often deletes it on merge) — **except `model/<id>`
-   branches, which stay on GitHub** (one branch per model); for those, delete the local branch only.
+   (`git ls-remote --heads origin <branch>`; GitHub often deletes it on merge). This holds for `model/<id>`
+   branches too: one branch per model is for iterating, not for keeping (Jakob, 26 Nov 2026).
 5. **Stashes you made:** look first (`git stash show --stat --include-untracked <ref>`); one that holds work
    not in `dev` is reported, not dropped. Otherwise drop it by its tag (see below), never by position: the
    stash list is shared by every worktree and session.

@@ -511,7 +511,7 @@ gains below about one point, and 100k-game runs found nothing three times. Sweep
 Not in the main checkout: the live game runs from there. Make a worktree:
 
 ```bash
-git worktree add .claude/worktrees/<id> -b model/<id> main
+git worktree add .claude/worktrees/<id> -b model/<id> origin/dev
 ln -s ../../../node_modules .claude/worktrees/<id>/node_modules
 cd .claude/worktrees/<id> && npm run engine:build
 ```
@@ -787,7 +787,7 @@ naming contract, the verdict rules and the common mistakes, is in
 
 In short:
 
-1. Worktree from `main` (section 8), branch `model/<id>`, log `logs/<id>.log`.
+1. Worktree from `dev` (section 8), branch `model/<id>`, log `logs/<id>.log`.
 2. Open `experiments/NN-<slug>` from `experiments/TEMPLATE` **before the first run**: fill
    `experiment.json` and the first three report sections (question and hypothesis, mechanism,
    setup). The prediction is written before the result is known.
@@ -1031,8 +1031,10 @@ The same holds for the course PDFs: cite page numbers and paraphrase. The app is
 
 ## 13. Git workflow
 
-- **One branch per model**: a new trained model or experiment lives on `model/<id>`, cut from
-  `main` in its own worktree (`.claude/worktrees/<id>`), and merges into `main` by pull request.
+- **One branch per model**: a new trained model or experiment is developed on `model/<id>`, cut from
+  `dev` in its own worktree (`.claude/worktrees/<id>`), and merges into `dev` by pull request; then
+  the branch and worktree are deleted (`.claude/skills/clean-up-after-yourself/SKILL.md`). `main`
+  takes releases from `dev` only.
   The model folder is committed either way, kept or not: it is the experiment's record.
 - Commit the code, `models/<id>/` (with `train.log`, without `checkpoint.json`) and the notebook
   folder; the PR carries the result table and `Closes #<issue>`.
