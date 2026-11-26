@@ -1,6 +1,6 @@
 /**
  * File storage for the arena (Node only). Everything lives in the repo:
- *   data/games/<YYYY-MM-DD>/<id>.json.gz   one gzipped GameRecord per game
+ *   data/games/<YYYY-MM-DD>/<id>.json.gz   one gzipped GameRecord per game (.json.br: an old full record, see gamePath)
  *   data/profiles.json                      human player profiles
  *   data/ratings.json                       Elo per "model:<id>" / "human:<profileId>" (fitted, see logic/arena/elo.ts)
  *   data/results.jsonl                      one line per rated game: who played and how they placed
@@ -10,8 +10,9 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import { START_RATING, facets, matchesFilter, rate, resultRow, type RatingFilter, type Ratings, type ResultRow } from "../../logic/arena/elo";
-import type { GameRecord } from "../../logic/arena/record";
+import { slimRecord, type GameRecord } from "../../logic/arena/record";
 import type { ModelSpec } from "../../logic/agents/types";
+import { fit, modeWeights, parseResults, type Fit, type Meta, type PairRow } from "./elo-fit";
 
 export const ROOT = path.resolve(__dirname, "..", "..");
 export const DATA = path.join(ROOT, "data");
@@ -67,8 +68,29 @@ export function readRatings(): Ratings {
   return readJson<Ratings>(RATINGS, {});
 }
 
+/**
+ * Game files are gzipped JSON (`.json.gz`). Records saved before 58729ca hold a board snapshot per
+ * player-turn and no longer replay under today's rules, so their snapshots are the true record: they
+ * are kept whole and brotli-compressed (`.json.br`, about 8x smaller than gzip on such files).
+ */
+const GAME_EXTS = [".json.gz", ".json.br"] as const;
+const isGameFile = (f: string) => GAME_EXTS.some((e) => f.endsWith(e));
+
+/** the record's file: its existing `.json.br` when there is one, else `.json.gz` */
 export function gamePath(rec: GameRecord): string {
-  return path.join(GAMES, rec.startedAt.slice(0, 10), `${rec.id}.json.gz`);
+  const base = path.join(GAMES, rec.startedAt.slice(0, 10), rec.id);
+  return fs.existsSync(base + ".json.br") ? base + ".json.br" : base + ".json.gz";
+}
+
+export function encodeGame(file: string, json: string): Buffer {
+  return file.endsWith(".json.br")
+    ? zlib.brotliCompressSync(json, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: Buffer.byteLength(json) } })
+    : zlib.gzipSync(json);
+}
+
+export function decodeGame(file: string): string {
+  const raw = fs.readFileSync(file);
+  return (file.endsWith(".json.br") ? zlib.brotliDecompressSync(raw) : zlib.gunzipSync(raw)).toString("utf8");
 }
 
 /** the rated games, oldest first; built from data/games/ the first time */
@@ -84,9 +106,70 @@ export function readResults(): ResultRow[] {
   return rows.some((r) => r.mode === undefined) ? fromGames() : rows;
 }
 
-/** ratings fitted on the games that match the filter; no filter = the stored overall table */
+// ---------- the bot tournament ----------
+// scripts/elo-tournament.ts plays every bot against every other in every mode and writes
+// elo/<date>/results.jsonl and ratings.json. Those games are not arena games (no recordings, no
+// rows in data/results.jsonl), so the leaderboard takes the bots' ratings from the newest
+// tournament directly: the same numbers as its README and dashboard. Both fits put greedy-v1 at
+// about 1200, so tournament bots and arena players (people, LLM agents) share one scale.
+const ELO = path.join(ROOT, "elo");
+type Tournament = { dir: string; mtime: number; at: string; meta: Meta; rows: PairRow[]; stored: { overall?: Fit; modes?: Record<string, Fit> } };
+let tournamentCache: Tournament | null = null;
+const tournamentFits = new Map<string, Ratings>();
+function tournament(): Tournament | null {
+  const dir = (fs.existsSync(ELO) ? fs.readdirSync(ELO) : [])
+    .filter((d) => fs.existsSync(path.join(ELO, d, "results.jsonl")))
+    .sort()
+    .pop();
+  if (!dir) return null;
+  const file = path.join(ELO, dir, "results.jsonl");
+  const mtime = fs.statSync(file).mtimeMs;
+  if (tournamentCache && tournamentCache.dir === dir && tournamentCache.mtime === mtime) return tournamentCache;
+  const { meta, rows } = parseResults(fs.readFileSync(file, "utf8"));
+  if (!meta || !rows.length) return null;
+  const stored = readJson<{ at?: string; overall?: Fit; modes?: Record<string, Fit> }>(path.join(ELO, dir, "ratings.json"), {});
+  tournamentFits.clear();
+  tournamentCache = { dir, mtime, at: stored.at ?? new Date(mtime).toISOString(), meta, rows, stored };
+  return tournamentCache;
+}
+/** the tournament modes whose setup matches the filter (creative is the 8-player format) */
+function tournamentModes(t: Tournament, f: RatingFilter): string[] {
+  return Object.entries(t.meta.modes)
+    .filter(([m, s]) => (f.mode === undefined || f.mode === m) && (f.players === undefined || f.players === s.players) && (f.size === undefined || f.size === s.size) && (f.mapType === undefined || f.mapType === s.mapType))
+    .map(([m]) => m);
+}
+/** the bots' ratings from the newest tournament, fitted on the modes that match the filter; {} when none does */
+export function tournamentRatings(f: RatingFilter): Ratings {
+  const t = tournament();
+  if (!t) return {};
+  const modes = tournamentModes(t, f);
+  if (!modes.length) return {};
+  const key = modes.join(",");
+  const hit = tournamentFits.get(key);
+  if (hit) return hit;
+  const all = modes.length === Object.keys(t.meta.modes).length;
+  // all modes, or one mode: the tournament's own stored fit; a subset: the same pooled fit over those modes
+  const table: Fit =
+    (all ? t.stored.overall : modes.length === 1 ? t.stored.modes?.[modes[0]] : undefined) ??
+    fit(
+      t.rows.filter((r) => modes.includes(r.mode)),
+      t.meta.agents,
+      t.meta.modes,
+      200,
+      modeWeights(Object.fromEntries(modes.map((m) => [m, t.meta.modes[m]]))),
+    );
+  const ratings: Ratings = Object.fromEntries(table.ranking.map((r) => [`model:${r.id}`, { rating: r.rating, games: r.games, wins: r.wins, updated: t.at, lo: Math.round(r.lo), hi: Math.round(r.hi), source: "tournament" as const }]));
+  tournamentFits.set(key, ratings);
+  return ratings;
+}
+
+/**
+ * The leaderboard for a filter. People, LLM agents and any bot the tournament has not played:
+ * fitted on the arena games that match (no filter = the stored overall table). Bots of the newest
+ * tournament: its ratings (marked source "tournament"), which replace their arena ratings.
+ */
 const filtered = new Map<string, { n: number; ratings: Ratings }>();
-export function ratingsFor(f: RatingFilter): Ratings {
+function arenaRatingsFor(f: RatingFilter): Ratings {
   const keys = Object.entries(f).filter(([, v]) => v !== undefined);
   if (keys.length === 0) return readRatings();
   const rows = readResults();
@@ -97,10 +180,25 @@ export function ratingsFor(f: RatingFilter): Ratings {
   filtered.set(cacheKey, { n: rows.length, ratings });
   return ratings;
 }
+export function ratingsFor(f: RatingFilter): Ratings {
+  return { ...arenaRatingsFor(f), ...tournamentRatings(f) };
+}
 
-/** rated games per mode, player count, map size and map type */
+/** rated games per mode, player count, map size and map type: arena games plus the newest tournament's */
 export function ratingFacets() {
-  return facets(readResults());
+  const out = facets(readResults());
+  const t = tournament();
+  if (t)
+    for (const r of t.rows) {
+      const s = t.meta.modes[r.mode];
+      if (!s) continue;
+      const n = r.games.length;
+      out.mode[r.mode] = (out.mode[r.mode] ?? 0) + n;
+      out.players[s.players] = (out.players[s.players] ?? 0) + n;
+      out.size[s.size] = (out.size[s.size] ?? 0) + n;
+      out.mapType[s.mapType] = (out.mapType[s.mapType] ?? 0) + n;
+    }
+  return out;
 }
 
 function writeResults(rows: ResultRow[]): ResultRow[] {
@@ -112,6 +210,8 @@ function writeResults(rows: ResultRow[]): ResultRow[] {
 
 /** save a record; if it just finished, add it to the results and refit the ratings. Returns the rating change per seat. */
 export function saveGame(rec: GameRecord): { file: string; deltas: number[]; ratings: Ratings } {
+  // a record from an older client may still carry a snapshot per turn
+  rec = slimRecord(rec);
   const file = gamePath(rec);
   // a game is rated once: autosaves and re-saves of an already finished game do not touch Elo
   let ratedBefore = false;
@@ -123,7 +223,7 @@ export function saveGame(rec: GameRecord): { file: string; deltas: number[]; rat
     }
   }
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, zlib.gzipSync(JSON.stringify(rec)));
+  fs.writeFileSync(file, encodeGame(file, JSON.stringify(rec)));
   const ratings = readRatings();
   if (ratedBefore || !rec.result?.over) return { file: path.relative(ROOT, file), deltas: rec.seats.map(() => 0), ratings };
   const row = resultRow(rec)!;
@@ -136,8 +236,9 @@ export function saveGame(rec: GameRecord): { file: string; deltas: number[]; rat
   return { file: path.relative(ROOT, file), deltas, ratings: next };
 }
 
+/** read a record; one saved with a snapshot per turn (up to 150 MB) is slimmed, so nothing downstream carries them */
 export function readGame(file: string): GameRecord {
-  return JSON.parse(zlib.gunzipSync(fs.readFileSync(file)).toString("utf8")) as GameRecord;
+  return slimRecord(JSON.parse(decodeGame(file)) as GameRecord);
 }
 
 export function listGameFiles(): string[] {
@@ -146,7 +247,7 @@ export function listGameFiles(): string[] {
   for (const day of fs.readdirSync(GAMES).sort()) {
     const dir = path.join(GAMES, day);
     if (!fs.statSync(dir).isDirectory()) continue;
-    for (const f of fs.readdirSync(dir).sort()) if (f.endsWith(".json.gz")) out.push(path.join(dir, f));
+    for (const f of fs.readdirSync(dir).sort()) if (isGameFile(f)) out.push(path.join(dir, f));
   }
   return out;
 }
@@ -176,7 +277,7 @@ export type GameSummary = {
 };
 
 export function summarize(file: string, rec: GameRecord): GameSummary {
-  const last = rec.turnStates[rec.turnStates.length - 1];
+  const last = rec.checkpoint?.state ?? rec.turnStates[rec.turnStates.length - 1];
   return {
     id: rec.id,
     file: path.relative(ROOT, file),
@@ -208,6 +309,6 @@ export function listGames(): GameSummary[] {
 }
 
 export function findGame(id: string): GameRecord | null {
-  const f = listGameFiles().find((x) => path.basename(x) === `${id}.json.gz`);
+  const f = listGameFiles().find((x) => GAME_EXTS.some((e) => path.basename(x) === id + e));
   return f ? readGame(f) : null;
 }

@@ -134,19 +134,51 @@ fn map_options(v: &Value) -> R<MapOptions> {
     })
 }
 
-/// a bot for play_games: the greedy bot or the full-action-space bot
+/// a bot for play_games: the greedy bot, the full-action-space bot or random legal moves
 enum Policy {
     Greedy(GreedyWeights),
     Full(polycore::bot_full::FullWeights),
+    Random,
 }
 
 fn policy(v: &Value) -> R<Policy> {
     match v["kind"].as_str() {
         Some("full") => Ok(Policy::Full(polycore::bot_full::full_weights(&v["weights"])?)),
+        Some("random") => Ok(Policy::Random),
         Some("greedy") | None => Ok(Policy::Greedy(weights(&v["weights"])?)),
         Some(k) => Err(format!("unknown policy kind {k}")),
     }
 }
+
+/// the first draw of the random agent's generator (logic/agents/registry.ts rngFor): xorshift32
+/// seeded by the game seed, the turn and the log length, so a game replays exactly
+fn random_draw(s: &GameState, turn: i32) -> f64 {
+    let mut x = (s.seed as u32) ^ (turn as u32).wrapping_mul(2654435761) ^ (s.log.len() as u32).wrapping_mul(40503);
+    if x == 0 {
+        x = 1;
+    }
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    x as f64 / 4294967296.0
+}
+
+/// models/random-v1, the same choice as randomAgent in logic/agents/registry.ts: a uniformly
+/// random legal action that ends the turn only about one time in ten
+fn random_step(s: &GameState) -> Action {
+    let legal = legal_actions(s);
+    let r = random_draw(s, s.turn);
+    if legal.len() > 1 && r < 0.9 {
+        let rest: Vec<&Action> = legal.iter().filter(|a| !matches!(a, Action::EndTurn)).collect();
+        if !rest.is_empty() {
+            return rest[(random_draw(s, s.turn + 7) * rest.len() as f64) as usize].clone();
+        }
+    }
+    legal.get((r * legal.len() as f64) as usize).cloned().unwrap_or(Action::EndTurn)
+}
+
+/// what scripts/arena.ts allows the random agent per turn before it ends the turn for it
+const RANDOM_ACTIONS_PER_TURN: i32 = 300;
 
 /// one bot-vs-bot game for the training scripts (scripts/train-hill.ts and
 /// train-full.ts `play`): the player to move is played by
@@ -166,14 +198,21 @@ fn play_game(spec: &Value) -> R<Value> {
     let max_turn = spec.get("maxTurn").and_then(|x| x.as_i64());
     let mut s = st::create_game(&opts)?;
     let mut moves = 0;
+    // (turn, player) of the last action and how many actions that player has taken in that turn
+    let mut last = (-1, -1);
+    let mut in_turn = 0;
     while !s.over
         && moves < max_moves
         && max_turns.map_or(true, |t| (s.turn as i64) < t)
         && max_turn.map_or(true, |t| (s.turn as i64) <= t)
     {
+        in_turn = if last == (s.turn, s.current) { in_turn + 1 } else { 0 };
+        last = (s.turn, s.current);
         let a = match &ps[(s.current as usize) % ps.len()] {
             Policy::Greedy(w) => bot_step(&s, w),
             Policy::Full(w) => polycore::bot_full::full_bot_step(&s, w),
+            Policy::Random if in_turn > RANDOM_ACTIONS_PER_TURN => Action::EndTurn,
+            Policy::Random => random_step(&s),
         };
         apply_action(&mut s, &a)?;
         moves += 1;
@@ -201,6 +240,18 @@ fn full_weights_to_json(w: &polycore::bot_full::FullWeights) -> Value {
         "build": table(&w.build, &|i| Build::from_idx(i).id()),
         "reward": table(&w.reward, &|i| Reward::from_idx(i).id()),
         "centre": w.centre,
+        "defend": w.defend,
+        "defendRadius": w.defend_radius,
+        "techUse": w.tech_use,
+        "techUseless": w.tech_useless,
+        "front": w.front,
+        "roads": w.roads,
+        "breakPeace": w.break_peace,
+        "plan": w.plan,
+        "reserve": w.reserve,
+        "moveNoise": w.move_noise,
+        "spread": w.spread,
+        "field": w.field,
     })
 }
 
@@ -328,6 +379,7 @@ pub fn call(name: &str, args: &[Value]) -> R<Value> {
         // ---- state.ts (pure)
         "createGame" => state_to_json(&st::create_game(&NewGameOptions::from_json(arg(args, 0))?)?),
         "mapSizeFor" => json!(st::map_size_for(GameMode::from_id(arg(args, 0).as_str().unwrap_or("")).ok_or("unknown mode")?, int(arg(args, 1), "opponents")?)),
+        "mapTypeFor" => json!(st::map_type_for(GameMode::from_id(arg(args, 0).as_str().unwrap_or("")).ok_or("unknown mode")?).map(|t| t.id())),
         "mapSizeAllowed" => json!(st::map_size_allowed(GameMode::from_id(arg(args, 0).as_str().unwrap_or("")).ok_or("unknown mode")?, int(arg(args, 1), "size")?)),
         "scoreOf" => json!(st::score_of(&state(args, 0)?, int(arg(args, 1), "player")?)),
         "income" => json!(st::income(&state(args, 0)?, int(arg(args, 1), "player")?)),
@@ -344,6 +396,10 @@ pub fn call(name: &str, args: &[Value]) -> R<Value> {
             json!(st::resource_visible(&state(args, 0)?, int(arg(args, 1), "player")?, r))
         }
         "perfectionRating" => json!(st::perfection_rating(&state(args, 0)?, int(arg(args, 1), "player")?)),
+        "perfectionBonusPercent" => {
+            let d = arg(args, 0).as_str().and_then(Difficulty::from_id).ok_or("unknown difficulty")?;
+            json!(polycore::data::perfection_bonus_percent(d, int(arg(args, 1), "opponents")?))
+        }
         "dominationRating" => json!(st::domination_rating(&state(args, 0)?, int(arg(args, 1), "player")?)),
         "dominationStars" => json!(st::domination_stars(num(arg(args, 0), "rating")?)),
         "perfectionStars" => json!(st::perfection_stars(num(arg(args, 0), "rating")?)),
@@ -482,12 +538,15 @@ pub fn call(name: &str, args: &[Value]) -> R<Value> {
             let f = opinion::opinion_factors(&state(args, 0)?, int(arg(args, 1), "bot")?, int(arg(args, 2), "other")?);
             json!(f.iter().map(|x| x.id()).collect::<Vec<_>>())
         }
-        "opinionLevel" => json!(opinion_level(opinion::opinion_level(int(arg(args, 0), "score")?))),
+        "opinionReasons" => {
+            let r = opinion::opinion_reasons(&state(args, 0)?, int(arg(args, 1), "bot")?, int(arg(args, 2), "other")?);
+            json!(r.iter().map(|(f, v)| json!({"factor": f.id(), "value": v})).collect::<Vec<_>>())
+        }
+        "opinionLevel" => json!(opinion_level(opinion::opinion_level(num(arg(args, 0), "score")?))),
+        "LOVE_LIMIT" => json!(opinion::LOVE_LIMIT),
         "PEACEFUL_TURNS" => json!(opinion::PEACEFUL_TURNS),
         "POSITIVE_FACTORS" => {
-            use opinion::OpinionFactor::*;
-            let all = [Wise, Charming, Peaceful, Diplomatic, Powerful, Brave, Violent, Threatening, Weak, Annoying, Foolish, Intrusive, Dominating];
-            json!(all.iter().filter(|f| f.positive()).map(|f| f.id()).collect::<Vec<_>>())
+            json!(opinion::OpinionFactor::ALL.iter().filter(|f| f.positive()).map(|f| f.id()).collect::<Vec<_>>())
         }
         "friendly" => json!(dip::friendly(&state(args, 0)?, int(arg(args, 1), "a")?, opt_player(arg(args, 2), "b")?)),
         "brokeTreatyWith" => json!(dip::broke_treaty_with(&state(args, 0)?, int(arg(args, 1), "breaker")?, int(arg(args, 2), "victim")?)),
@@ -528,5 +587,47 @@ pub fn call_json(name: &str, args_json: &str) -> String {
     match call(name, &list) {
         Ok(v) => json!({"ok": v}).to_string(),
         Err(e) => json!({"error": e}).to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn perfection_bonus_percent_call_reads_the_table() {
+        let call_pct = |d: &str, o: i64| call("perfectionBonusPercent", &[json!(d), json!(o)]).unwrap();
+        // Crazy, 1..15 opponents: the app's setup screen
+        let shown = [180, 200, 210, 217, 222, 226, 229, 232, 234, 237, 239, 240, 242, 244, 245];
+        for (i, pct) in shown.iter().enumerate() {
+            assert_eq!(call_pct("crazy", i as i64 + 1), json!(pct), "Crazy, {} opponents", i + 1);
+        }
+        // 15 opponents by difficulty
+        for (d, pct) in [("easy", 165), ("normal", 185), ("hard", 205), ("crazy", 245)] {
+            assert_eq!(call_pct(d, 15), json!(pct), "{d}, 15 opponents");
+        }
+        // outside the setup screen's range the count is clamped
+        assert_eq!(call_pct("normal", 0), call_pct("normal", 1));
+        assert_eq!(call_pct("normal", 40), call_pct("normal", 15));
+        assert!(call("perfectionBonusPercent", &[json!("brutal"), json!(3)]).is_err());
+        assert!(call("perfectionBonusPercent", &[json!("easy"), json!("three")]).is_err());
+    }
+
+    #[test]
+    fn full_weights_json_has_plan() {
+        let w = full_w(&json!({"plan": 0.5})).unwrap();
+        let v = full_weights_to_json(&w);
+        assert_eq!(v["plan"], json!(0.5));
+        assert_eq!(full_w(&v).unwrap(), w);
+        assert_eq!(full_weights_to_json(&polycore::bot_full::default_full_weights())["plan"], json!(0.0));
+    }
+
+    #[test]
+    fn full_weights_json_has_field() {
+        let w = full_w(&json!({"field": 0.5})).unwrap();
+        let v = full_weights_to_json(&w);
+        assert_eq!(v["field"], json!(0.5));
+        assert_eq!(full_w(&v).unwrap(), w);
+        assert_eq!(full_weights_to_json(&polycore::bot_full::default_full_weights())["field"], json!(0.0));
     }
 }

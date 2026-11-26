@@ -10,6 +10,7 @@ import { Image, type ImageSourcePropType } from "react-native";
 import Svg, { Circle, Ellipse, G, Line, Path, Polygon, Rect } from "react-native-svg";
 import type { Terrain } from "@/logic/engine/types";
 import { SpecialBuildingArt, SpecialUnitArt, TribeEmblem } from "./TribeArt";
+import { useTeamSprite } from "./teamTint";
 
 export { TribeEmblem };
 
@@ -30,7 +31,7 @@ const UNIT_SPRITES: Record<string, ImageSourcePropType> = {
   dinghy: require("@/assets/sprites/dinghy.png"),
   scout: require("@/assets/sprites/scout.png"),
   rammer: require("@/assets/sprites/rammer.png"),
-  pirate: require("@/assets/sprites/rammer.png"),
+  pirate: require("@/assets/sprites/pirate.png"),
   bomber: require("@/assets/sprites/bomber.png"),
   juggernaut: require("@/assets/sprites/juggernaut.png"),
 };
@@ -42,9 +43,8 @@ const RESOURCE_SPRITES: Record<string, ImageSourcePropType> = {
   fish: require("@/assets/sprites/fish.png"),
   metal: require("@/assets/sprites/metal.png"),
   starfish: require("@/assets/sprites/starfish.png"),
-  // no own art yet: Aquarion Aqua Crops and Cymanti spores reuse the crop sprite
-  aquaCrop: require("@/assets/sprites/crop.png"),
-  spores: require("@/assets/sprites/crop.png"),
+  aquaCrop: require("@/assets/sprites/aquaCrop.png"),
+  spores: require("@/assets/sprites/spores.png"),
 };
 
 const BUILDING_SPRITES: Record<string, ImageSourcePropType> = {
@@ -60,14 +60,23 @@ const BUILDING_SPRITES: Record<string, ImageSourcePropType> = {
   temple: require("@/assets/sprites/temple.png"),
   forestTemple: require("@/assets/sprites/forestTemple.png"),
   waterTemple: require("@/assets/sprites/waterTemple.png"),
+  mountainTemple: require("@/assets/sprites/mountainTemple.png"),
+  altarOfPeace: require("@/assets/sprites/altarOfPeace.png"),
+  towerOfWisdom: require("@/assets/sprites/towerOfWisdom.png"),
+  emperorsTomb: require("@/assets/sprites/emperorsTomb.png"),
+  gateOfPower: require("@/assets/sprites/gateOfPower.png"),
+  parkOfFortune: require("@/assets/sprites/parkOfFortune.png"),
+  grandBazaar: require("@/assets/sprites/grandBazaar.png"),
+  eyeOfGod: require("@/assets/sprites/eyeOfGod.png"),
 };
 
 const STAR_SPRITE: ImageSourcePropType = require("@/assets/sprites/star.png");
 
-function Sprite({ source, size, pad = 0 }: { source: ImageSourcePropType; size: number; pad?: number }) {
+function Sprite({ source, size, pad = 0, team }: { source: ImageSourcePropType; size: number; pad?: number; team?: string }) {
+  const shown = useTeamSprite(source, team);
   return (
     <Image
-      source={source}
+      source={shown}
       resizeMode="contain"
       style={{
         position: "absolute",
@@ -540,11 +549,13 @@ function IsoBastion({ cx, cy, s = 1 }: { cx: number; cy: number; s?: number }) {
 export function VillageArt({ size }: { size: number }) {
   return (
     <Box size={size}>
-      {/* humble neutral dirt clearing (smaller than a city's stone plaza) */}
-      <Polygon points={pts([24, 78, 50, 65, 76, 78, 50, 91])} fill="#c9b894" opacity={0.85} />
-      {/* 2 small low-profile neutral huts */}
-      <IsoBuilding cx={42} cy={76} rx={8.5} ry={4.6} h={8.5} roof="#8e95a0" roofH={7} wall="#ede5d4" door />
-      <IsoBuilding cx={61} cy={81} rx={7.5} ry={4.1} h={7.5} roof="#7d8590" roofH={6.5} wall="#e5dcc9" />
+      {/* dirt clearing with a dark rim so it reads against grass (still smaller than a city's plaza) */}
+      <Polygon points={pts([14, 76, 50, 57, 86, 76, 50, 95])} fill="#7a6238" opacity={0.55} />
+      <Polygon points={pts([18, 75, 50, 59, 82, 75, 50, 91])} fill="#c4a46a" />
+      {/* 3 neutral huts with warm brown roofs: high contrast on green, no tribe colour (unclaimed) */}
+      <IsoBuilding cx={36} cy={72} rx={10} ry={5.4} h={10} roof="#8a4b25" roofH={9} wall="#f3e8cf" door />
+      <IsoBuilding cx={60} cy={70} rx={9} ry={4.9} h={9} roof="#9c5a2e" roofH={8} wall="#efe2c6" />
+      <IsoBuilding cx={50} cy={86} rx={9.5} ry={5.1} h={9.5} roof="#7c4220" roofH={8.5} wall="#f3e8cf" door />
     </Box>
   );
 }
@@ -710,10 +721,11 @@ export function CityArt({
 // ---------- units (3D Polytopia PNG sprites + special tribe low-poly units) ----------
 export function UnitArt({ type, color, size }: { type: string; color: string; size: number }) {
   const sprite = UNIT_SPRITES[type];
-  if (sprite) return <Sprite source={sprite} size={size} pad={size * 0.02} />;
+  // the stock sprites are all one blue tribe: recolour their team parts to the owner's colour
+  if (sprite) return <Sprite source={sprite} size={size} pad={size * 0.02} team={color} />;
   const special = SpecialUnitArt({ type, color, size });
   if (special) return special;
-  return <Sprite source={UNIT_SPRITES.warrior} size={size} pad={size * 0.02} />;
+  return <Sprite source={UNIT_SPRITES.warrior} size={size} pad={size * 0.02} team={color} />;
 }
 
 /** Battle of Polytopia 3D faceted golden Star currency icon */

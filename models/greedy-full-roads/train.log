@@ -1,0 +1,26 @@
+sweep from greedy-full-front: 4 points + base, 200 games against each of greedy-v1, greedy-hill-v1, greedy-hill-v2, greedy-hill-v3, greedy-hill-v4, greedy-full-v1, greedy-full-front
+point  base                         | greedy 96% won, 78.0% pts (+552)  v1 92% won, 74.1% pts (+424)  v2 93% won, 73.2% pts (+436)  v3 88% won, 69.9% pts (+346)  v4 91% won, 72.0% pts (+402)  full-v1 56% won, 54.3% pts (+38)  full-front 50% won, 50.0% pts (+0)  | mean 81% won, 67.4% pts
+  [22:10] point roads=0.25: 1067/1400 games, done in ~1 min | so far: vs greedy 77.6% of points, won 193/200; vs v1 74.1% of points, won 184/200; vs v2 73.0% of points, won 186/200; vs v3 70.0% of points, won 176/200; vs v4 72.3% of points, won 183/200; vs full-v1 55.0% of points, won 39/67 | 2467 games in the last 60s, 2465/min overall | run: 
+point  roads=0.25                   | greedy 97% won, 78.2% pts (+576)  v1 92% won, 74.1% pts (+424)  v2 93% won, 73.2% pts (+449)  v3 88% won, 70.0% pts (+346)  v4 92% won, 72.3% pts (+413)  full-v1 56% won, 53.9% pts (+38)  full-front 50% won, 49.9% pts (-3)  | mean 81% won, 67.4% pts
+  [22:11] point roads=0.5: 1163/1400 games, done in ~1 min | so far: vs greedy 77.6% of points, won 192/200; vs v1 74.0% of points, won 183/200; vs v2 73.0% of points, won 186/200; vs v3 69.9% of points, won 176/200; vs v4 72.1% of points, won 183/200; vs full-v1 51.7% of points, won 87/163 | 1496 games in the last 60s, 1981/min overall | run: 
+point  roads=0.5                    | greedy 96% won, 78.2% pts (+552)  v1 92% won, 74.0% pts (+413)  v2 93% won, 73.2% pts (+449)  v3 88% won, 69.9% pts (+346)  v4 92% won, 72.2% pts (+413)  full-v1 56% won, 53.9% pts (+38)  full-front 50% won, 50.4% pts (-3)  | mean 81% won, 67.4% pts
+  [22:12] point roads=1: 1275/1400 games, done in ~1 min | so far: vs greedy 77.4% of points, won 192/200; vs v1 73.9% of points, won 183/200; vs v2 73.1% of points, won 185/200; vs v3 69.7% of points, won 175/200; vs v4 71.9% of points, won 182/200; vs full-v1 52.1% of points, won 106/200; vs full-front 49.0% of points, won 35/75 | 1512 games in the last 60s, 1825/min overall | run: 
+point  roads=1                      | greedy 96% won, 78.0% pts (+552)  v1 92% won, 74.0% pts (+413)  v2 93% won, 73.3% pts (+436)  v3 88% won, 69.7% pts (+338)  v4 91% won, 72.0% pts (+402)  full-v1 53% won, 52.7% pts (+21)  full-front 50% won, 50.2% pts (-3)  | mean 80% won, 67.1% pts
+  [22:13] point roads=2: 1025/1400 games, done in ~1 min | so far: vs greedy 77.4% of points, won 192/200; vs v1 73.1% of points, won 180/200; vs v2 73.0% of points, won 185/200; vs v3 68.9% of points, won 171/200; vs v4 71.7% of points, won 182/199; vs full-v1 49.7% of points, won 13/26 | 1150 games in the last 60s, 1656/min overall | run: 
+point  roads=2                      | greedy 96% won, 78.0% pts (+552)  v1 90% won, 73.2% pts (+382)  v2 93% won, 73.1% pts (+436)  v3 86% won, 68.8% pts (+308)  v4 92% won, 71.9% pts (+413)  full-v1 53% won, 52.2% pts (+21)  full-front 51% won, 50.0% pts (+3)  | mean 80% won, 66.7% pts
+
+best: roads=0.5, mean 67.4% pts (base 67.4%)
+  [22:14] final test (vs panel): 1023/2800 games, done in ~2 min | so far: vs greedy 75.6% of points, won 373/400; vs v1 72.3% of points, won 363/400; vs v2 72.8% of points, won 209/223 | 1398 games in the last 60s, 1604/min overall | run: 
+  [22:15] final test (vs panel): 2382/2800 games, done in ~1 min | so far: vs greedy 75.6% of points, won 373/400; vs v1 72.3% of points, won 363/400; vs v2 73.2% of points, won 374/400; vs v3 69.9% of points, won 359/400; vs v4 68.6% of points, won 344/400; vs full-v1 53.7% of points, won 218/382 | 1359 games in the last 60s, 1563/min overall | run: 
+
+final (400 unseen games against each):
+  vs greedy-v1        won  93% ± 2%  (+456 Elo)  points 75.5%
+  vs greedy-hill-v1   won  91% ± 3%  (+397 Elo)  points 72.3%
+  vs greedy-hill-v2   won  94% ± 2%  (+463 Elo)  points 73.1%
+  vs greedy-hill-v3   won  90% ± 3%  (+377 Elo)  points 69.7%
+  vs greedy-hill-v4   won  86% ± 3%  (+315 Elo)  points 68.6%
+  vs greedy-full-v1   won  57% ± 5%  (+51 Elo)  points 54.4%
+  vs greedy-full-front won  51% ± 5%  (+5 Elo)  points 50.2%
+changed against greedy-full-front: roads=0.5
+saved models/greedy-full-roads/model.json and sweep.jsonl
+sweep took 6m18s

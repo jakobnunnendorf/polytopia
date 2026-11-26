@@ -9,7 +9,7 @@ import { createGame } from "../../logic/engine/state";
 import type { Difficulty, GameMode } from "../../logic/engine/types";
 import type { MapType } from "../../logic/engine/mapgen";
 import { createAgent, directChat } from "../../logic/agents/registry";
-import { finishRecord, recordStep, replayStates, startRecord, type GameRecord, type Seat } from "../../logic/arena/record";
+import { finishRecord, latestState, recordStep, startRecord, type GameRecord, type Seat } from "../../logic/arena/record";
 import { findGame, listModels, saveGame } from "./store";
 
 const running = new Set<string>();
@@ -17,7 +17,16 @@ const running = new Set<string>();
 const stopRequests = new Set<string>();
 
 /** every move takes at least this long, so fast bots and a thinking LLM look the same to a watcher */
-export const PACE_MS = Number(process.env.SHARDLANDS_PACE_MS ?? 550);
+// one move per second: the live view (app/analyse.tsx FOLLOW_MS) plays them back at the same pace
+export const PACE_MS = Number(process.env.SHARDLANDS_PACE_MS ?? 1000);
+/** per-match pace set from the live view's speed control (ms per move), else PACE_MS */
+const paces = new Map<string, number>();
+export function setPace(id: string, ms: number): { ok: boolean; ms: number } {
+  const v = Math.round(Math.min(10000, Math.max(50, Number(ms) || PACE_MS)));
+  paces.set(id, v);
+  return { ok: true, ms: v };
+}
+export const paceOf = (id: string): number => paces.get(id) ?? PACE_MS;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function isRunning(id: string): boolean {
@@ -35,12 +44,14 @@ async function run(rec: GameRecord): Promise<void> {
       if (!spec || spec.kind === "external") throw new Error(`Model ${seat.modelId} cannot play on the server`);
       return createAgent(spec, directChat, all);
     });
-    let s = replayStates(rec).pop()!;
+    // from the checkpoint: a long game continues at once, and under the position it really reached
+    let s = latestState(rec);
+    if (!rec.checkpoint) rec.checkpoint = { step: rec.steps.length, state: s };
     let perTurn = 0;
     while (!s.over && !stopRequests.has(rec.id)) {
       const t0 = Date.now();
       const a = perTurn++ > 300 ? { type: "endTurn" as const } : await agents[s.current].act(s);
-      await sleep(Math.max(0, PACE_MS - (Date.now() - t0)));
+      await sleep(Math.max(0, paceOf(rec.id) - (Date.now() - t0)));
       const next = applyAction(s, a);
       recordStep(rec, s, a, next);
       const turnEnded = next.current !== s.current || next.turn !== s.turn;
@@ -95,7 +106,7 @@ export function stopMatch(id: string): { ok: boolean; reason?: string } {
   if (rec.result?.over) return { ok: false, reason: "finished" };
   if (rec.stoppedAt) return { ok: true, reason: "already stopped" };
   rec.stoppedAt = new Date().toISOString();
-  saveGame(finishRecord(rec, replayStates(rec).pop()!));
+  saveGame(finishRecord(rec, latestState(rec)));
   return { ok: true };
 }
 

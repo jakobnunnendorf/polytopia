@@ -16,6 +16,7 @@ pub mod combat;
 pub mod data;
 pub mod data_gen;
 pub mod diplomacy;
+pub mod econ_plan;
 pub mod grid;
 pub mod json;
 pub mod mapgen;
@@ -25,3 +26,6 @@ pub mod opinion;
 pub mod rng;
 pub mod state;
 pub mod types;
+pub mod value_field;
+#[cfg(test)]
+mod boat_land_tests;

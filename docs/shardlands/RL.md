@@ -148,7 +148,11 @@ The engine is TypeScript. Three ways to drive it from a Python RL stack
 - **Map generation** (§6) is an approximation, like every community generator.
   - Lakes/Archipelago suburbs and pre-terrain villages are not modelled.
   - Continents/Pangea capitals are placed in quadrants, not converted from villages.
-- **Bot difficulty:** every capital gets the +1 bonus of Normal difficulty and
-  human players. Easy, Hard and Crazy bonuses are not modelled.
+- **Bot difficulty** (Rust engine, `engine/core/src/data.rs`): a human seat's
+  capital gets +1 star; a bot seat's capital gets the difficulty's bonus
+  (Easy 0, Normal 1, Hard 2, Crazy 4), as in the real game. Which seats are
+  human comes from `humans`; `humans: []` makes every seat a bot, so an RL
+  learner should be listed there. The Python `VecEnv` and `rl-gate` always make
+  the learner seat the only human seat.
 - **Perfection result:** the raw score decides the winner; the difficulty
   multiplier is not applied.

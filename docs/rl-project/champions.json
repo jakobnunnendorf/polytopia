@@ -1,0 +1,36 @@
+{
+  "about": "Champions registry of the RL project (decided by Jakob, 25 Nov 2026, #166). Promoted versions, best first: the newest promotion is on top. rl-gate's default opponents are entry 0 (the current champion, the base being challenged), entry 1 (the previous champion) and the fixed anchor greedy-full-probe (the frozen greedy champion, never changes, whatever this list says), shuffled over the opponent seats per seed. Until an RL version is promoted, entry 0 is greedy-full-probe, so two opponent seats are greedy-full-probe. Add an entry only with `rl-gate promote <id> --gate <PASS gate JSON>`, after a PASS and its merge; older entries stay listed for history. kind: greedy-model (a bot model under models/) or, later, rl-policy (an RL policy; not playable as an opponent yet, see `Opponent` in engine/gate/src/main.rs).",
+  "seeded": "25 Nov 2026 with the three strongest greedy models by the Elo tournament of 25 Nov 2026 (elo/2026-11-25/README.md: Bradley-Terry over 145,350 games), which are also the last three greedy champions in order of promotion: economy (experiment 10) -> combo (11) -> probe (12). Perfection ratings with 95% intervals: greedy-full-probe 1742 (1711 to 1772), greedy-full-combo 1635 (1612 to 1659), greedy-full-economy 1617 (1596 to 1637); the same three places overall (1902, 1791, 1767). Entry 1 (the previous champion, an opponent seat) is therefore greedy-full-combo: the champion probe was tuned from, and #2 in every mode. greedy-full-economy is listed for history only (not an opponent).",
+  "champions": [
+    {
+      "id": "greedy-full-probe",
+      "path": "models/greedy-full-probe",
+      "kind": "greedy-model",
+      "date": "2026-11-25",
+      "experiment": "12-perturbation-probe",
+      "pr": null,
+      "gate": null,
+      "evidence": "Elo 2026-11-25: Perfection 1742 (#1), overall 1902 (#1); greedy-full-combo tuned by a perturbation probe"
+    },
+    {
+      "id": "greedy-full-combo",
+      "path": "models/greedy-full-combo",
+      "kind": "greedy-model",
+      "date": "2026-11-25",
+      "experiment": "11-economy-plus-noise",
+      "pr": null,
+      "gate": null,
+      "evidence": "Elo 2026-11-25: Perfection 1635 (#2), overall 1791 (#2); greedy-full-economy + moveNoise=2"
+    },
+    {
+      "id": "greedy-full-economy",
+      "path": "models/greedy-full-economy",
+      "kind": "greedy-model",
+      "date": "2026-11-24",
+      "experiment": "10-economy-plan",
+      "pr": null,
+      "gate": null,
+      "evidence": "Elo 2026-11-25: Perfection 1617 (#3), overall 1767 (#3); greedy-full-peacebreak + plan=2"
+    }
+  ]
+}

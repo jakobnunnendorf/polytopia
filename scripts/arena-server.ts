@@ -7,22 +7,55 @@
  *   GET  /api/ratings           Elo table; ?mode=&players=&size=&mapType= fits it on only those games
  *   GET  /api/ratings/facets    rated games per mode, player count, map size and map type
  *   GET  /api/games             summaries of every recorded game (newest first)
- *   GET  /api/games/<id>        one full GameRecord
+ *   GET  /api/games/<id>        one full GameRecord (start position + every move)
+ *        ?live=1                the same game from its newest checkpoint on (for watching a long game live)
+ *        ?from=N                only the moves after the first N, plus result and stop state
  *   POST /api/games             save a GameRecord (gzipped into data/games/), update Elo
  *   POST /api/matches           start a model-only game that runs here (not in a browser tab)
  *   POST /api/matches/<id>/resume   continue an unfinished model-only game
+ *   GET|POST /api/matches/<id>/pace  read or set ms per move of a running game ({ms})
  *   POST /api/matches/<id>/stop     stop a model-only game (kept, not rated, never resumed)
  *   POST /api/chat              proxy an OpenAI-style chat call to the model's endpoint
  *
  *   node -r sucrase/register scripts/arena-server.ts      (started by relaunch-preview.sh)
  */
+import { spawn } from "node:child_process";
 import http from "node:http";
+import path from "node:path";
 import { directChat } from "../logic/agents/registry";
-import type { GameRecord } from "../logic/arena/record";
+import { liveWindow, type GameRecord } from "../logic/arena/record";
 import { createProfile, findGame, listGames, listModels, listProfiles, ratingFacets, ratingsFor, saveGame } from "./lib/store";
-import { isRunning, resumeMatch, startMatch, stopMatch } from "./lib/matches";
+import { isRunning, paceOf, resumeMatch, setPace, startMatch, stopMatch } from "./lib/matches";
 
 const PORT = Number(process.env.ARENA_PORT ?? 8091);
+
+// ---------- copy to Supabase for the hosted web game (scripts/supabase-sync.ts) ----------
+// in a child process, so a slow sync never blocks a request; every 5 minutes (also bot matches,
+// which save without a request) and a few seconds after a saved game or a new profile.
+let syncing = false;
+let syncAgain = false;
+let syncTimer: NodeJS.Timeout | null = null;
+function runSync() {
+  if (syncing) {
+    syncAgain = true;
+    return;
+  }
+  syncing = true;
+  const child = spawn(process.execPath, ["-r", "sucrase/register", path.join(__dirname, "supabase-sync.ts")], { stdio: ["ignore", "inherit", "inherit"] });
+  child.on("exit", () => {
+    syncing = false;
+    if (syncAgain) {
+      syncAgain = false;
+      scheduleSync(1000);
+    }
+  });
+}
+function scheduleSync(ms: number) {
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(runSync, ms);
+}
+setInterval(runSync, 5 * 60 * 1000);
+scheduleSync(10 * 1000);
 
 function send(res: http.ServerResponse, code: number, body: unknown) {
   res.writeHead(code, {
@@ -71,15 +104,30 @@ const server = http.createServer(async (req, res) => {
     }
     const resume = url.match(/^\/api\/matches\/([^/]+)\/resume$/);
     if (req.method === "POST" && resume) return send(res, 200, resumeMatch(decodeURIComponent(resume[1])));
+    const pace = url.match(/^\/api\/matches\/([^/]+)\/pace$/);
+    if (req.method === "GET" && pace) return send(res, 200, { ms: paceOf(decodeURIComponent(pace[1])) });
+    if (req.method === "POST" && pace) {
+      const { ms } = ((await body(req)) ?? {}) as { ms?: number };
+      return send(res, 200, setPace(decodeURIComponent(pace[1]), Number(ms)));
+    }
     const stop = url.match(/^\/api\/matches\/([^/]+)\/stop$/);
     if (req.method === "POST" && stop) return send(res, 200, stopMatch(decodeURIComponent(stop[1])));
     if (req.method === "GET" && url.startsWith("/api/games/")) {
       const rec = findGame(decodeURIComponent(url.slice("/api/games/".length)));
-      return rec ? send(res, 200, rec) : send(res, 404, { error: "No such game" });
+      if (!rec) return send(res, 404, { error: "No such game" });
+      const q = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+      // ?from=N: only the moves after the first N, for a live view that already has the rest
+      if (q.has("from")) {
+        const from = Math.max(0, Math.floor(Number(q.get("from")) || 0));
+        return send(res, 200, { total: rec.steps.length, steps: rec.steps.slice(from), endedAt: rec.endedAt, result: rec.result, stoppedAt: rec.stoppedAt ?? null });
+      }
+      // ?live=1: the game from its newest checkpoint on, not from move 1
+      return send(res, 200, q.get("live") === "1" ? liveWindow(rec) : rec);
     }
     if (req.method === "POST" && url === "/api/profiles") {
       const { name } = (await body(req)) as { name?: string };
       if (!name || !name.trim()) return send(res, 400, { error: "Profile needs a name" });
+      scheduleSync(3000);
       return send(res, 200, createProfile(name));
     }
     if (req.method === "POST" && url === "/api/games") {
@@ -87,6 +135,7 @@ const server = http.createServer(async (req, res) => {
       if (rec?.version !== 1 || !Array.isArray(rec.steps)) return send(res, 400, { error: "Not a game record" });
       const out = saveGame(rec);
       console.log(`saved ${out.file} (${rec.steps.length} steps${rec.result?.over ? ", rated" : ""})`);
+      scheduleSync(3000);
       return send(res, 200, out);
     }
     if (req.method === "POST" && url === "/api/chat") {

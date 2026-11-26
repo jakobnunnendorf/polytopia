@@ -52,7 +52,24 @@ export function normal(): number {
   return Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
 }
 
-export type Result = { winner: number; scores: [number, number] };
+/** winner: the winning side; conquest: the game ended with one player left (not at a cap); turn: its last turn */
+export type Result = { winner: number; scores: [number, number]; conquest: boolean; turn: number };
+
+/**
+ * --metric: what training, curve points and sweeps rank by. share (default): the share of all
+ * points. finish (#124): a conquest win scores 0.75 to 1 (the earlier, the more), a conquest loss
+ * the mirror image (0 to 0.25), and a game stopped at the turn or move cap 0.25 + 0.5 x points
+ * share. Any real win beats any capped game, and a fast win beats a slow one; 0.5 = even.
+ */
+export const METRIC: "share" | "finish" = arg("metric", "share") === "finish" ? "finish" : "share";
+export function finishScore(r: Result, me: number): number {
+  if (r.conquest) {
+    const win = 0.75 + 0.25 * Math.max(0, MAX_TURNS - r.turn) / MAX_TURNS;
+    return r.winner === me ? win : 1 - win;
+  }
+  const total = r.scores[0] + r.scores[1];
+  return 0.25 + 0.5 * (total ? r.scores[me] / total : 0.5);
+}
 
 /** a side's weights: the greedy bot's, or the full-action-space bot's (logic/engine/botFull.ts) */
 export type AnyWeights = GreedyWeights | FullWeights;
@@ -64,7 +81,7 @@ export const isFull = (w: AnyWeights): w is FullWeights => "centre" in w && "gre
  */
 export function play(w0: AnyWeights, w1: AnyWeights, gameSeed: number, size = SIZE): Result {
   const sides = [w0, w1].map((w) => ({ kind: isFull(w) ? "full" : "greedy", weights: w }));
-  const [s] = call<{ winner: number | null; scores: number[] }[]>("playGames", [
+  const [s] = call<{ winner: number | null; over: boolean; turn: number; scores: number[] }[]>("playGames", [
     {
       opts: { mapSize: size, players: PLAYERS, mode: MODE, seed: gameSeed, humans: [], mapType: MAP_TYPE },
       policies: Array.from({ length: PLAYERS }, (_, i) => sides[i % 2]),
@@ -77,7 +94,8 @@ export function play(w0: AnyWeights, w1: AnyWeights, gameSeed: number, size = SI
   // unfinished (turn or move cap): the highest-scoring seat wins; a tie goes to the later seat
   let top = 0;
   s.scores.forEach((v, i) => v >= s.scores[top] && (top = i));
-  return { winner: (s.winner ?? top) % 2, scores };
+  const conquest = s.over && s.winner !== null;
+  return { winner: ((conquest ? s.winner : null) ?? top) % 2, scores, conquest, turn: s.turn };
 }
 
 // ---------- worker pool ----------
@@ -198,19 +216,23 @@ export function runJob(job: Job, me?: number, label = ""): Promise<Result> {
  * One map played from both seats: b against a. Returns b's margin (its share of all points over
  * the two games minus 0.5) and its wins (0, 1 or 2).
  */
-export async function mapPair(a: AnyWeights, b: AnyWeights, mapSeed: number, label = ""): Promise<{ margin: number; wins: number; share: number }> {
+export async function mapPair(a: AnyWeights, b: AnyWeights, mapSeed: number, label = ""): Promise<{ margin: number; wins: number; share: number; finish: number; conquests: number; turns: number }> {
   const [x, y] = await Promise.all([runJob({ w0: b, w1: a, seed: mapSeed, size: SIZE }, 0, label), runJob({ w0: a, w1: b, seed: mapSeed, size: SIZE }, 1, label)]);
   const mine = x.scores[0] + y.scores[1];
   const total = x.scores[0] + x.scores[1] + y.scores[0] + y.scores[1];
   const share = total ? mine / total : 0.5;
-  return { margin: share - 0.5, share, wins: (x.winner === 0 ? 1 : 0) + (y.winner === 1 ? 1 : 0) };
+  const finish = (finishScore(x, 0) + finishScore(y, 1)) / 2;
+  const conquests = (x.conquest && x.winner === 0 ? 1 : 0) + (y.conquest && y.winner === 1 ? 1 : 0);
+  // margin: what the training test decides on, in the chosen metric
+  return { margin: (METRIC === "finish" ? finish : share) - 0.5, share, finish, conquests, turns: x.turn + y.turn, wins: (x.winner === 0 ? 1 : 0) + (y.winner === 1 ? 1 : 0) };
 }
 
 /** b against a on games/2 map pairs from firstSeed on: b's win rate and share of all points */
-export async function match(a: AnyWeights, b: AnyWeights, games: number, firstSeed: number, label = ""): Promise<{ wins: number; share: number }> {
+export async function match(a: AnyWeights, b: AnyWeights, games: number, firstSeed: number, label = ""): Promise<{ wins: number; share: number; finish: number; conquest: number; turns: number }> {
   const pairs = await Promise.all(Array.from({ length: Math.ceil(games / 2) }, (_, i) => mapPair(a, b, firstSeed + i, label)));
   const n = pairs.length * 2;
-  return { wins: pairs.reduce((s, p) => s + p.wins, 0) / n, share: pairs.reduce((s, p) => s + p.share, 0) / pairs.length };
+  const sum = (k: "wins" | "share" | "finish" | "conquests" | "turns") => pairs.reduce((s, p) => s + p[k], 0);
+  return { wins: sum("wins") / n, share: sum("share") / pairs.length, finish: sum("finish") / pairs.length, conquest: sum("conquests") / n, turns: sum("turns") / n };
 }
 
 // ---------- models and the panel ----------
@@ -234,7 +256,8 @@ export function anyWeightsOf(id: string): AnyWeights | null {
 }
 
 export type Panel = { id: string; w: AnyWeights }[];
-export type PanelResult = Record<string, { winRate: number; pointShare: number; games: number }>;
+/** per panel model: b's win rate, share of points, finish score (#124), rate of wins by conquest, mean last turn */
+export type PanelResult = Record<string, { winRate: number; pointShare: number; games: number; finish?: number; conquest?: number; turns?: number }>;
 
 export function loadPanel(ids: string[]): Panel {
   return ids
@@ -250,7 +273,7 @@ export const short = (id: string) => (id === "greedy-v1" ? "greedy" : id.replace
 /** the champion against every panel opponent on the same held-out maps */
 export async function panelTest(panel: Panel, champ: AnyWeights, games: number, firstSeed: number): Promise<PanelResult> {
   const res = await Promise.all(panel.map(async (p) => [p.id, await match(p.w, champ, games, firstSeed, `vs ${short(p.id)}`)] as const));
-  return Object.fromEntries(res.map(([id, m]) => [id, { winRate: m.wins, pointShare: Math.round(m.share * 1000) / 1000, games }]));
+  return Object.fromEntries(res.map(([id, m]) => [id, { winRate: m.wins, pointShare: Math.round(m.share * 1000) / 1000, games, finish: Math.round(m.finish * 1000) / 1000, conquest: m.conquest, turns: Math.round(m.turns * 10) / 10 }]));
 }
 
 // ---------- formatting ----------
@@ -258,10 +281,15 @@ export const pct = (x: number) => `${(x * 100).toFixed(0)}%`;
 export const signed = (x: number) => `${x >= 0 ? "+" : ""}${Math.round(x)}`;
 export const meanWin = (r: PanelResult) => Object.values(r).reduce((a, v) => a + v.winRate, 0) / Math.max(1, Object.keys(r).length);
 export const meanShare = (r: PanelResult) => Object.values(r).reduce((a, v) => a + v.pointShare, 0) / Math.max(1, Object.keys(r).length);
+export const meanFinish = (r: PanelResult) => Object.values(r).reduce((a, v) => a + (v.finish ?? 0.5), 0) / Math.max(1, Object.keys(r).length);
+export const meanConquest = (r: PanelResult) => Object.values(r).reduce((a, v) => a + (v.conquest ?? 0), 0) / Math.max(1, Object.keys(r).length);
+export const meanTurns = (r: PanelResult) => Object.values(r).reduce((a, v) => a + (v.turns ?? 0), 0) / Math.max(1, Object.keys(r).length);
+/** the panel mean of the chosen --metric */
+export const meanMetric = (r: PanelResult) => (METRIC === "finish" ? meanFinish(r) : meanShare(r));
 export const panelLine = (r: PanelResult) =>
   Object.entries(r)
     .map(([id, v]) => `${short(id)} ${pct(v.winRate)} won, ${(v.pointShare * 100).toFixed(1)}% pts (${signed(eloFromScore(v.winRate, v.games))})`)
-    .join("  ") + `  | mean ${pct(meanWin(r))} won, ${(meanShare(r) * 100).toFixed(1)}% pts`;
+    .join("  ") + `  | mean ${pct(meanWin(r))} won, ${(meanShare(r) * 100).toFixed(1)}% pts, finish ${(meanFinish(r) * 100).toFixed(1)}%, conquest ${pct(meanConquest(r))}, ${meanTurns(r).toFixed(0)} turns`;
 export const count = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e4 ? `${(n / 1e3).toFixed(0)}k` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
 export const dur = (sec: number) => {
   const s = Math.round(sec);
@@ -331,6 +359,18 @@ const cloneFull = (w: FullWeights): FullWeights => ({
   build: { ...w.build },
   reward: { ...w.reward },
   centre: w.centre,
+  defend: w.defend,
+  defendRadius: w.defendRadius,
+  techUse: w.techUse,
+  techUseless: w.techUseless,
+  front: w.front,
+  roads: w.roads,
+  breakPeace: w.breakPeace,
+  plan: w.plan,
+  reserve: w.reserve,
+  moveNoise: w.moveNoise,
+  spread: w.spread,
+  field: w.field,
 });
 let fullSpace: Space | null = null;
 function fullSpaceOf(): Space {
@@ -344,17 +384,30 @@ function fullSpaceOf(): Space {
         .map((k) => `${g}.${k}`),
     ),
     "centre",
+    "defend",
+    "defendRadius",
+    "techUse",
+    "techUseless",
+    "front",
+    "roads",
+    "breakPeace",
+    "plan",
+    "reserve",
+    "moveNoise",
+    "spread",
+    "field",
   ];
-  const whole = new Set(["greedy.richAt", "greedy.unitsPerCity"]);
+  const whole = new Set(["greedy.richAt", "greedy.unitsPerCity", "defendRadius"]);
+  const SCALARS = new Set(["centre", "defend", "defendRadius", "techUse", "techUseless", "front", "roads", "breakPeace", "plan", "reserve", "moveNoise", "spread", "field"]);
   const get = (w: AnyWeights, k: string) => {
     const f = w as FullWeights;
-    if (k === "centre") return f.centre;
+    if (SCALARS.has(k)) return (f as unknown as Record<string, number>)[k];
     const [g, key] = k.split(".") as [FullGroup, string];
     return (f[g] as unknown as Record<string, number>)[key];
   };
   const set = (w: AnyWeights, k: string, v: number) => {
     const f = w as FullWeights;
-    if (k === "centre") f.centre = v;
+    if (SCALARS.has(k)) (f as unknown as Record<string, number>)[k] = v;
     else {
       const [g, key] = k.split(".") as [FullGroup, string];
       (f[g] as unknown as Record<string, number>)[key] = v;

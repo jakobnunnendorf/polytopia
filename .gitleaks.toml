@@ -1,0 +1,23 @@
+# gitleaks config for the "Secret scan" CI job (.github/workflows/ci.yml).
+# Starts from gitleaks' built-in rules and adds the Supabase secret key format.
+title = "polytopia-ai-research"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "supabase-secret-key"
+description = "Supabase secret key (service role, bypasses RLS); it lives only in ~/.config/polytopia/supabase.env"
+regex = '''sb_secret_[A-Za-z0-9_-]{20,}'''
+keywords = ["sb_secret_"]
+
+[[rules]]
+id = "supabase-legacy-service-role-jwt"
+description = "Legacy Supabase service_role JWT"
+regex = '''eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]*c2VydmljZV9yb2xl[A-Za-z0-9_-]*\.[A-Za-z0-9_-]{10,}'''
+keywords = ["eyj"]
+
+# The publishable key in /.env is public by design (the web app ships it; RLS allows only reads).
+[allowlist]
+description = "public by design"
+regexes = ['''sb_publishable_[A-Za-z0-9_-]+''']

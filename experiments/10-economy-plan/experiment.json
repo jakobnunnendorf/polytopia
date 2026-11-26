@@ -1,0 +1,76 @@
+{
+  "n": 10,
+  "slug": "economy-plan",
+  "title": "Economy plan by dynamic programming",
+  "kind": "mechanism",
+  "issue": 68,
+  "pr": 135,
+  "date": "2026-11-24",
+  "status": "done",
+  "verdict": "kept",
+  "base": "greedy-full-peacebreak",
+  "result": "greedy-full-economy",
+  "question": "Does scoring research and economy builds by a finite-horizon DP over one city's economy beat the greedy bot's fixed build and research scores?",
+  "change": "Research, pop builds, leveling buildings and markets add plan times the DP advantage of buying now rather than next round, in stars, clamped to ±10.",
+  "method": "Strength sweep, 200 games per point against each panel model, final test 400 games",
+  "measured": "Sweep, 200 games per point",
+  "metric": "finish score",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150"
+  ],
+  "knobs": [
+    {
+      "name": "plan",
+      "tested": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "chosen": 2
+    }
+  ],
+  "headline": [
+    {
+      "label": "Finish score, 6-model panel, final-test maps",
+      "base": 78.8,
+      "new": 82.5,
+      "unit": "%"
+    },
+    {
+      "label": "Finish vs base, final test",
+      "base": 50.0,
+      "new": 57.0,
+      "unit": "%"
+    },
+    {
+      "label": "Points vs base, final test",
+      "base": 50.0,
+      "new": 54.7,
+      "unit": "%"
+    },
+    {
+      "label": "Conquest wins, 6-model panel",
+      "base": 76.5,
+      "new": 81.0,
+      "unit": "%"
+    },
+    {
+      "label": "Game length in turns",
+      "base": 62.9,
+      "new": 59.7,
+      "unit": "",
+      "better": "lower"
+    }
+  ],
+  "runs": [
+    {
+      "id": "greedy-full-economy",
+      "label": "Sweep, 4 players"
+    },
+    {
+      "id": "greedy-full-peacebreak-final",
+      "label": "The base on the final-test maps, 4 players"
+    }
+  ]
+}

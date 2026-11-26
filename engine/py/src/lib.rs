@@ -198,7 +198,7 @@ fn err(e: String) -> PyErr {
     PyValueError::new_err(e)
 }
 
-/// n games stepped in parallel; the learner plays player `learner`, the greedy bot all others
+/// n games stepped in parallel; the learner plays player `learner` (the game's human seat), the greedy bot all others
 #[pyclass]
 struct VecEnv {
     cfg: Cfg,
@@ -230,7 +230,11 @@ impl VecEnv {
         if let Some(o) = ov.as_object_mut() {
             o.insert("seed".into(), serde_json::json!(seed));
         }
-        let opts = NewGameOptions::from_json(&ov).map_err(err)?;
+        let mut opts = NewGameOptions::from_json(&ov).map_err(err)?;
+        // The learner seat is always the game's only human seat, whatever options_json says about `humans`: it
+        // gets the human capital income (not the difficulty's bot bonus), as in the real app, and the game ends
+        // when it is eliminated. Every other seat is a bot.
+        opts.humans = Some(vec![learner]);
         let opponent = match opponent_weights_json {
             None => GreedyWeights::default_weights(),
             Some(w) => GreedyWeights::from_json(&serde_json::from_str(w).map_err(|e| err(format!("opponent_weights_json: {e}")))?).map_err(err)?,

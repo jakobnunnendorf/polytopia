@@ -32,11 +32,16 @@ VecEnv(n, options_json, seed, learner=0, opponent_weights_json=None, max_turns=N
 ```
 
 - `options_json`: state.ts NewGameOptions as JSON, without `seed`, e.g.
-  `{"mode":"perfection","mapSize":11,"players":2,"mapType":"drylands","humans":[]}`.
+  `{"mode":"perfection","mapSize":11,"players":2,"mapType":"drylands","difficulty":"crazy"}`.
+  Its `humans` field is ignored: VecEnv always sets `humans` to `[learner]` (since 25 Nov 2026), so
+  the learner seat is the game's only human seat, as in the real app. It gets the human capital
+  income (+1 star) instead of the difficulty's bot bonus (Easy 0, Normal 1, Hard 2, Crazy 4), and the
+  engine ends the game when the learner is eliminated. Before, `"humans":[]` gave the learner the
+  bot bonus too.
 - Seeds: env `i`'s `k`-th episode uses `seed + i + n*k` (so env 0's first game is `seed`, all
   episodes differ, and everything is deterministic for a fixed seed and choices). A game that
   ends before the learner's first move is skipped (the next seed is used).
-- The learner plays player `learner`; every other player is the greedy bot (`bot_step` with
+- The learner plays player `learner` (the human seat); every other player is the greedy bot (`bot_step` with
   `opponent_weights_json`, GreedyWeights JSON, default weights if None) until it is the learner's
   turn again or the episode ends.
 - An episode ends when the game is over, the learner is eliminated, or (with `max_turns`) the

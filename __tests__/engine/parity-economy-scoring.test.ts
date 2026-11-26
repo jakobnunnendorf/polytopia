@@ -13,6 +13,7 @@ import {
   income,
   makeUnit,
   mapSizeFor,
+  mapTypeFor,
   newCity,
   perfectionRating,
   perfectionStars,
@@ -274,10 +275,10 @@ describe("scoring", () => {
     expect(cityScore(c)).toBe(200); // + 3 population (15) + 35
   });
 
-  it("Perfection rating = score x (1 + round(handicap/5 + ln(opponents)/ln(11.4), 2)) with the star thresholds", () => {
+  it("Perfection rating = score x the difficulty bonus (Hard, 3 opponents: 170%) with the star thresholds", () => {
     const s = blank(4, { mode: "perfection", difficulty: "hard" });
     city(s, 0, 2, 2, true);
-    expect(perfectionRating(s, 0)).toBe(Math.round(scoreOf(s, 0) * (1 + 0.85)));
+    expect(perfectionRating(s, 0)).toBe(Math.round(scoreOf(s, 0) * 1.7));
     expect([2_999, 3_000, 10_000, 50_000, 100_000].map(perfectionStars)).toEqual([0, 1, 2, 3, 4]);
   });
 });
@@ -316,6 +317,22 @@ describe("game setup, modes and victory", () => {
     expect(mapSizeFor("creative", 3)).toBeNull();
     expect(createGame({ players: 2, mode: "perfection", seed: 1 }).mapSize).toBe(16);
     expect(createGame({ players: 3, mode: "domination", seed: 1 }).mapSize).toBe(14);
+  });
+
+  it("map type is forced by mode: Perfection on Continents (as in the game), Domination unchanged", () => {
+    expect(mapTypeFor("perfection")).toBe("continents");
+    expect(mapTypeFor("domination")).toBeNull();
+    expect(mapTypeFor("creative")).toBeNull();
+    const water = (s: GameState) => s.tiles.filter((t) => t.terrain === "water" || t.terrain === "ocean").length / s.tiles.length;
+    const opts = { players: 2, seed: 1, humans: [] };
+    // without a choice Perfection gets the Continents map, exactly as if Continents were passed
+    const perf = createGame({ ...opts, mode: "perfection" });
+    expect(perf.tiles).toEqual(createGame({ ...opts, mode: "perfection", mapType: "continents" }).tiles);
+    // an explicit choice still wins (Drylands is nearly all land), and Domination stays on Drylands
+    const dry = createGame({ ...opts, mode: "perfection", mapType: "drylands" });
+    expect(water(perf)).toBeGreaterThan(water(dry) + 0.1);
+    const dom = createGame({ ...opts, mode: "domination", mapSize: 16 });
+    expect(dom.tiles).toEqual(createGame({ ...opts, mode: "domination", mapSize: 16, mapType: "drylands" }).tiles);
   });
 
   it("a Tiny map holds at most 9 tribes", () => {

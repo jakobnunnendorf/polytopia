@@ -49,6 +49,8 @@ function CloudFade({ x, y, TILE }: { x: number; y: number; TILE: number }) {
 }
 
 const fill = { position: "absolute" as const, left: 0, top: 0, right: 0, bottom: 0 };
+/** the 8 neighbour directions, in roadDirs bit order */
+export const ROAD_DIRS: [number, number][] = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
 
 function Tile({
   x,
@@ -65,6 +67,8 @@ function Tile({
   animateReveal = false,
   showResource = true,
   ruinThroughClouds = false,
+  territoryFocus = false,
+  roadDirs = 0,
 }: {
   x: number;
   y: number;
@@ -84,6 +88,10 @@ function Tile({
   showResource?: boolean;
   /** Elyrion viewer: an unexplored ruin shows above the clouds */
   ruinThroughClouds?: boolean;
+  /** territory view: a strong owner fill with solid borders, unclaimed land greyed out */
+  territoryFocus?: boolean;
+  /** road links to the 8 neighbours (bit k = ROAD_DIRS[k]); drawn as half-segments that meet the neighbour's */
+  roadDirs?: number;
 }) {
   const TILE = size ?? TILE_BASE;
   // remember when this tile was revealed, so the clearing clouds survive quick re-renders
@@ -113,7 +121,7 @@ function Tile({
   }
   const ownerColor =
     territoryOwner !== null ? PLAYER_COLORS[territoryOwner % PLAYER_COLORS.length] : null;
-  const edge = (on: boolean) => (on && ownerColor ? 3 : 0);
+  const edge = (on: boolean) => (on && ownerColor ? (territoryFocus ? 4 : 3) : 0);
   // a building replaces the resource it was built on; ruins sit on bare terrain
   const overlay = tile.building ? (
     <BuildingArt id={tile.building} size={TILE} />
@@ -191,9 +199,9 @@ function Tile({
             top: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: ownerColor + "1a",
-            borderColor: ownerColor,
-            borderStyle: "dashed",
+            backgroundColor: ownerColor + (territoryFocus ? "a6" : "1a"),
+            borderColor: territoryFocus ? "#0b1220" : ownerColor,
+            borderStyle: territoryFocus ? "solid" : "dashed",
             borderTopWidth: edge(borders.top),
             borderRightWidth: edge(borders.right),
             borderBottomWidth: edge(borders.bottom),
@@ -202,18 +210,46 @@ function Tile({
         />
         </Pop>
       )}
-      {tile.road && (
-        <View
-          style={{
-            position: "absolute",
-            left: TILE / 2 - 3,
-            top: TILE / 2 - 3,
-            width: 6,
-            height: 6,
-            borderRadius: 3,
-            backgroundColor: "#8a6d45",
-          }}
-        />
+      {(tile.road || roadDirs !== 0) && (
+        <View pointerEvents="none" style={fill}>
+          {ROAD_DIRS.map(([dx, dy], k) => {
+            if (!(roadDirs & (1 << k))) return null;
+            const len = (TILE / 2) * Math.hypot(dx, dy) + 1;
+            const h = Math.max(4, TILE * 0.2);
+            return (
+              <View
+                key={k}
+                style={{
+                  position: "absolute",
+                  left: TILE / 2 + (dx * TILE) / 4 - len / 2,
+                  top: TILE / 2 + (dy * TILE) / 4 - h / 2,
+                  width: len,
+                  height: h,
+                  // sandy low-poly dirt path: pale fill, darker packed edges
+                  backgroundColor: "#ead2a0",
+                  borderRadius: h / 2,
+                  borderTopWidth: Math.max(1, h * 0.18),
+                  borderBottomWidth: Math.max(1, h * 0.18),
+                  borderColor: "#c19c64",
+                  transform: [{ rotate: `${Math.atan2(dy, dx)}rad` }],
+                }}
+              />
+            );
+          })}
+          {tile.road && (
+            <View
+              style={{
+                position: "absolute",
+                left: TILE / 2 - Math.max(4, TILE * 0.2) * 0.6,
+                top: TILE / 2 - Math.max(4, TILE * 0.2) * 0.6,
+                width: Math.max(4, TILE * 0.2) * 1.2,
+                height: Math.max(4, TILE * 0.2) * 1.2,
+                borderRadius: TILE,
+                backgroundColor: "#ead2a0",
+              }}
+            />
+          )}
+        </View>
       )}
       {!city && overlay && (
         <Pop key={tile.building ?? (tile.ruin ? "ruin" : showResource ? (tile.resource ?? "") : "")} style={fill}>
@@ -284,6 +320,9 @@ function Tile({
             </View>
           </View>
         </>
+      )}
+      {territoryFocus && !ownerColor && (
+        <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#1b2333b3" }} />
       )}
       {watchers && watchers.length === 0 && (
         <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#e6e1efb0" }} />

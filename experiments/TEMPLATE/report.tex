@@ -1,0 +1,51 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- TEMPLATE
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+% WHEN: before the first run. WHO: Jakob states the idea in his words; Claude turns it into a prediction.
+% Keep the prediction falsifiable: which number should move, in which direction, by about how much.
+\todo{jakob}{The idea in your words: what do you expect to happen, and why?}
+\todo{claude}{The prediction as numbers: which measure should move, which way, how far; and what result would count against the idea.}
+
+\section{Mechanism}
+% WHEN: before the first run. WHO: Claude. The rule or formula, the knob and its default (off), where it sits in the code.
+\todo{claude}{The rule as a formula or two sentences; knob name, default, file and function.}
+
+\section{Setup}
+% WHEN: before the first run. WHO: Claude. Only what differs from the header facts: deviations, sanity checks, how values were sized.
+\todo{claude}{How the tested values were sized, the sanity check on a real position, anything that differs from the standard setup.}
+
+\section{Results}
+% WHEN: after the runs. The tables and plots below are generated from the measured data; add two to four sentences that read them.
+\ExpResults
+
+\todo{claude}{Read the tables: the best point, the size of the effect against the noise (about $\pm$1.2 points on a 6-model mean), the head-to-head.}
+
+\section{Behaviour}
+% WHEN: after the runs. WHO: both. One count the mechanism should change, plus what was seen in watched games.
+\todo{claude}{The behaviour metric: one count the mechanism should change, with base and new value.}
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\section{Interpretation}
+% WHEN: after the runs. WHO: both. Why it worked or did not; was the prediction right?
+\todo{claude}{Why the result came out this way, and whether the prediction held.}
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+% WHO: Claude. What could make this result wrong or narrow: panel, map sizes, sample size, interactions with other knobs.
+\todo{claude}{Two or three concrete threats.}
+
+\section{Verdict and next step}
+% WHO: Claude proposes by the keep rules (.claude/skills/model-experiment/SKILL.md); Jakob decides anything outside them.
+\todo{claude}{Kept or not, under which keep rule, the champion afterwards, and the next experiment this suggests.}
+
+\section{Notes for the paper}
+% WHO: Jakob, with Claude's draft. What this experiment contributes: a claim, a figure, a negative result worth a line.
+\todo{claude}{Draft: the one-sentence claim and which figure or table would carry it.}
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

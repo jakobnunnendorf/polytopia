@@ -117,9 +117,9 @@ def test_matches_call_api():
             break
         assert steps < 100000
     got = json.loads(env.terminal_state_json(0))
-    # the same game through the JSON entry point
-    s = call("createGame", dict(OPTS, seed=seed))
+    # the same game through the JSON entry point (VecEnv makes the learner seat the human seat)
     learner = 0
+    s = call("createGame", dict(OPTS, seed=seed, humans=[learner]))
     moves = 0
     while not (s["over"] or not s["players"][learner]["alive"]):
         a = call("botStep", s, None)
@@ -127,6 +127,29 @@ def test_matches_call_api():
         moves += 1
     assert got == s, "env game differs from the call() game"
     print(f"call() parity ok: seed {seed}, {steps} learner steps, {moves} actions, final turn {s['turn']}, winner {s['winner']}")
+
+
+def test_learner_is_human():
+    """the learner seat is the only human seat, whatever options_json says: human capital income (+1), not the
+    difficulty's bot bonus (crazy +4)."""
+    opts = dict(OPTS, players=3, difficulty="crazy")
+    for learner, humans in ((0, []), (1, []), (0, [2]), (2, None)):
+        o = dict(opts)
+        if humans is None:
+            o.pop("humans")
+        else:
+            o["humans"] = humans
+        env = polyengine.VecEnv(1, json.dumps(o), 5, learner=learner)
+        s = json.loads(env.state_json(0))
+        assert [p["bot"] for p in s["players"]] == [p != learner for p in range(3)], (learner, humans)
+        checked = set()
+        for c in s["cities"]:
+            if c["capital"] and c["level"] == 1 and c["pop"] >= 0 and not c["workshop"] and c["parks"] == 0:
+                want = 2 if c["owner"] == learner else 5
+                assert call("cityIncome", s, c) == want, (learner, humans, c["owner"])
+                checked.add(c["owner"])
+        assert learner in checked and len(checked) >= 2, checked
+    print("learner seat is human ok")
 
 
 def test_speed():
@@ -152,5 +175,6 @@ if __name__ == "__main__":
     test_play_and_determinism()
     test_shaping_and_max_turns()
     test_matches_call_api()
+    test_learner_is_human()
     test_speed()
     print("all tests passed")

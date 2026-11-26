@@ -68,6 +68,8 @@ import {
   mapPair,
   match,
   meanShare,
+  meanFinish,
+  METRIC,
   meanWin,
   normal,
   panelLine,
@@ -112,6 +114,17 @@ const M0 = Number(arg("margin0", "0")); // --test margin: share of points above 
 const M1 = Number(arg("margin1", "0.01"));
 const BATCH = Number(arg("batch", "10")); // map pairs between two looks at the evidence
 const MAX_GAMES = Number(arg("max-games", "400")); // give up (reject) after this many games
+// --init "defend=12,defendRadius=2": set knobs of the start weights (new mechanisms start off at 0,
+// which a multiplicative nudge can never leave); --focus "defend,defendRadius": every round nudges
+// one of these plus PICK-1 random knobs, so a new mechanism gets tuned, not picked 2% of the time
+const INIT: [string, number][] = arg("init", "")
+  .split(",")
+  .filter(Boolean)
+  .map((kv) => {
+    const [k, v] = kv.split("=");
+    return [k.trim(), Number(v)];
+  });
+const FOCUS = arg("focus", "").split(",").filter(Boolean);
 const LEAGUE = arg("league", "self").split(",").filter(Boolean);
 
 const PANEL_IDS = arg("panel", "greedy-v1,greedy-hill-v1,greedy-hill-v2,greedy-hill-v3,greedy-hill-v4")
@@ -120,9 +133,10 @@ const PANEL_IDS = arg("panel", "greedy-v1,greedy-hill-v1,greedy-hill-v2,greedy-h
 const CURVE_GAMES = Number(arg("curve-games", "200")); // per panel opponent
 const CURVE_EVERY = Number(arg("curve-every", String(BUDGET ? Math.round(BUDGET / 40) : 20000))); // training games
 const FINAL_GAMES = Number(arg("final", "400")); // per panel opponent
-const CURVE_METRIC = arg("curve-metric", "share") === "win" ? "win" : "share";
+// --metric finish (#124) also makes the curve rank by the finish score unless --curve-metric says otherwise
+const CURVE_METRIC = ((m) => (m === "win" || m === "finish" ? m : "share"))(arg("curve-metric", METRIC));
 const PATIENCE = Number(arg("patience", "8")); // curve points; 0 = never stop early
-const MIN_GAIN = Number(arg("min-gain", CURVE_METRIC === "share" ? "0.003" : "0.01"));
+const MIN_GAIN = Number(arg("min-gain", CURVE_METRIC === "win" ? "0.01" : "0.003"));
 const AVERAGE = Number(arg("average", "4")); // also test the mean of the last K kept champions
 // learning from losses (both off by default; see proposeChallenger):
 // --mirror: after a clearly lost round, test the opposite nudge of the same knobs next
@@ -171,7 +185,8 @@ type Checkpoint = {
 /** nudge PICK randomly chosen weights by e^(sigma N(0,1)); the rest stay as they are */
 function mutate(w: AnyWeights, sigma: number): { next: AnyWeights; nudged: string } {
   const next = SPACE.clone(w);
-  const keys = [...SPACE.knobs].sort(() => Math.random() - 0.5).slice(0, PICK);
+  const focus = FOCUS.length ? [FOCUS[Math.floor(Math.random() * FOCUS.length)]] : [];
+  const keys = [...focus, ...[...SPACE.knobs].filter((k) => !focus.includes(k)).sort(() => Math.random() - 0.5).slice(0, PICK - focus.length)];
   for (const k of keys) SPACE.set(next, k, SPACE.round(k, SPACE.get(w, k) * Math.exp(sigma * normal())));
   return { next, nudged: keys.map((k) => `${k} ${SPACE.get(w, k)}→${SPACE.get(next, k)}`).join(", ") };
 }
@@ -274,6 +289,11 @@ async function main() {
       })()
     : undefined;
   let champ: AnyWeights = start ?? SPACE.defaults();
+  for (const [k, v] of INIT) {
+    if (!SPACE.knobs.includes(k) || !Number.isFinite(v)) throw new Error(`--init ${k}=${v}: no such knob or not a number`);
+    SPACE.set(champ, k, v);
+  }
+  for (const k of FOCUS) if (!SPACE.knobs.includes(k)) throw new Error(`--focus ${k}: no such knob`);
   console.log(`mode ${MODE}, ${PLAYERS} players (the two sides on alternate seats), ${MAP_TYPE} ${SIZE}x${SIZE}; ${FROM ? `fine-tuning from ${FROM}` : "starting from the greedy defaults"}`);
 
   let accepted = 0;
@@ -360,7 +380,7 @@ async function main() {
     fs.mkdirSync(path.join(dir, "snapshots"), { recursive: true });
     fs.writeFileSync(path.join(dir, "snapshots", `point-${String(points).padStart(3, "0")}-${trainGames}-games.json`), text);
   };
-  const score = (r: Parameters<typeof meanShare>[0]) => (CURVE_METRIC === "share" ? meanShare(r) : meanWin(r));
+  const score = (r: Parameters<typeof meanShare>[0]) => (CURVE_METRIC === "share" ? meanShare(r) : CURVE_METRIC === "finish" ? meanFinish(r) : meanWin(r));
 
   const curvePoint = async () => {
     const avg = AVERAGE > 1 && past.length > 1 ? averageIn(SPACE, past.slice(-AVERAGE)) : null;
@@ -374,7 +394,7 @@ async function main() {
     if (improved) best = { score: s, point: points, champ: top.w, round: rounds, trainingGames: trainGames, kept: accepted, averaged: top.averaged };
     const since = points - best.point;
     for (const r of results) {
-      const row = { trainingGames: trainGames, round: rounds, kept: accepted, sigma, seconds: secs(), averaged: r.averaged, meanWinRate: Math.round(meanWin(r.vs) * 1000) / 1000, meanPointShare: Math.round(meanShare(r.vs) * 1000) / 1000, best: improved && r === top, vs: r.vs };
+      const row = { trainingGames: trainGames, round: rounds, kept: accepted, sigma, seconds: secs(), averaged: r.averaged, meanWinRate: Math.round(meanWin(r.vs) * 1000) / 1000, meanPointShare: Math.round(meanShare(r.vs) * 1000) / 1000, meanFinish: Math.round(meanFinish(r.vs) * 1000) / 1000, best: improved && r === top, vs: r.vs };
       fs.appendFileSync(curvePath, JSON.stringify(row) + "\n");
       console.log(`curve  ${count(trainGames).padStart(6)} games  round ${rounds}  ${accepted} kept  ${r.averaged ? "avg  " : "champ"} | ${panelLine(r.vs)}  ${improved && r === top ? "BEST" : ""}`);
     }
@@ -505,7 +525,7 @@ async function main() {
   console.log(`\nfinal (${FINAL_GAMES} unseen games against each):`);
   for (const [id, v] of Object.entries(final)) {
     const ci = 1.96 * Math.sqrt((v.winRate * (1 - v.winRate)) / v.games);
-    console.log(`  vs ${id.padEnd(16)} won ${pct(v.winRate).padStart(4)} ± ${(ci * 100).toFixed(0)}%  (${signed(eloFromScore(v.winRate, v.games))} Elo)  points ${(v.pointShare * 100).toFixed(1)}%`);
+    console.log(`  vs ${id.padEnd(16)} won ${pct(v.winRate).padStart(4)} ± ${(ci * 100).toFixed(0)}%  (${signed(eloFromScore(v.winRate, v.games))} Elo)  points ${(v.pointShare * 100).toFixed(1)}%  finish ${((v.finish ?? 0.5) * 100).toFixed(1)}%  conquest ${pct(v.conquest ?? 0)}  ${(v.turns ?? 0).toFixed(0)} turns`);
   }
   console.log(`changed: ${changesIn(SPACE, champ) || "nothing"}`);
 

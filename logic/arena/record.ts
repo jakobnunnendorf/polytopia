@@ -1,10 +1,15 @@
 /**
  * Game records: everything needed to rebuild the exact state sequence of a game.
  *
- * A record stores the creation options (incl. seed and clans), every action in
- * order with the player who took it, the full state at the start of every
- * player-turn, and the result. Because the engine is deterministic,
- * replayStates(record) returns the full state after every single action.
+ * A record is like a chess game file: the start position, then every action in
+ * order with the player who took it, and the result. Because the engine is
+ * deterministic, replayStates(record) returns the full state after every action.
+ *
+ * It also carries one checkpoint, the position at the start of the newest
+ * player-turn (chess: the current position next to the move list). It is derived
+ * data, kept so a long game can be continued or watched live without replaying
+ * every move. Records used to store such a snapshot for every player-turn, which
+ * made a long game 150 MB; slimRecord() turns those into this form.
  */
 import { applyAction } from "../engine/actions";
 import { cloneState } from "../engine/grid";
@@ -41,8 +46,12 @@ export type GameRecord = {
   seats: Seat[];
   /** every action in order; p = the player who took it */
   steps: { p: number; a: Action }[];
-  /** full state at the start of every player-turn (turn, current) */
+  /** the start position, in element 0. Old records hold one state per player-turn; see slimRecord() */
   turnStates: GameState[];
+  /** the state after the first `step` moves, taken at the start of the newest player-turn */
+  checkpoint?: { step: number; state: GameState };
+  /** only on a liveWindow(): how many earlier moves of the game come before steps[0] */
+  base?: number;
   result: { over: boolean; winner: number | null; turns: number; scores: number[]; alive: boolean[] } | null;
   /** set when a model-only game was stopped before it ended (never resumed, never rated) */
   stoppedAt?: string | null;
@@ -82,10 +91,59 @@ export function startRecord(s: GameState, seats: Seat[], source: GameRecord["sou
   };
 }
 
-/** append one applied action; snapshots the state whenever a new player-turn begins */
+/** append one applied action; moves the checkpoint whenever a new player-turn begins */
 export function recordStep(rec: GameRecord, before: GameState, a: Action, after: GameState): void {
   rec.steps.push({ p: before.current, a });
-  if (after.current !== before.current || after.turn !== before.turn) rec.turnStates.push(after);
+  if (after.current !== before.current || after.turn !== before.turn) rec.checkpoint = { step: rec.steps.length, state: after };
+}
+
+/**
+ * The same game without the per-turn snapshots old records carry: only the start position stays.
+ * The newest old snapshot becomes the checkpoint when its move number is certain, which it is when
+ * every snapshot matches one endTurn (the only action that started a new player-turn).
+ * Returns `rec` itself when there is nothing to drop.
+ */
+export function slimRecord(rec: GameRecord): GameRecord {
+  if (!rec.turnStates || rec.turnStates.length <= 1) return rec;
+  const slim: GameRecord = { ...rec, turnStates: rec.turnStates.slice(0, 1) };
+  if (!slim.checkpoint) {
+    let ends = 0;
+    let lastEnd = -1;
+    rec.steps.forEach((st, i) => {
+      if (st.a.type === "endTurn") {
+        ends++;
+        lastEnd = i;
+      }
+    });
+    if (ends === rec.turnStates.length - 1) slim.checkpoint = { step: lastEnd + 1, state: rec.turnStates[rec.turnStates.length - 1] };
+  }
+  return slim;
+}
+
+/** the position after the last move: from the checkpoint when there is one, else by a full replay */
+export function latestState(rec: GameRecord): GameState {
+  const c = rec.checkpoint;
+  if (c && c.step >= 0 && c.step <= rec.steps.length) {
+    try {
+      let s = cloneState(c.state);
+      for (let i = c.step; i < rec.steps.length; i++) s = applyAction(s, rec.steps[i].a);
+      return s;
+    } catch {
+      // a checkpoint the current rules cannot continue from: fall back to the full replay
+    }
+  }
+  return replay(rec).states.pop()!;
+}
+
+/**
+ * The end of a record as a record of its own, for watching a game live: it starts at the checkpoint
+ * and holds only the moves since, so opening it costs the same however long the game already is.
+ * `base` says how many moves came before. Without a checkpoint it is the whole record (base 0).
+ */
+export function liveWindow(rec: GameRecord): GameRecord {
+  const c = rec.checkpoint;
+  if (!c || c.step <= 0 || c.step > rec.steps.length) return { ...rec, base: 0 };
+  return { ...rec, turnStates: [c.state], steps: rec.steps.slice(c.step), checkpoint: undefined, base: c.step };
 }
 
 export function finishRecord(rec: GameRecord, s: GameState): GameRecord {
@@ -128,6 +186,26 @@ export function replay(rec: GameRecord): { states: GameState[]; divergedAt: numb
   let s = initialState(rec);
   const states = [s];
   for (let i = 0; i < rec.steps.length; i++) {
+    try {
+      s = applyAction(s, rec.steps[i].a);
+    } catch {
+      return { states, divergedAt: i };
+    }
+    states.push(s);
+  }
+  return { states, divergedAt: null };
+}
+
+/**
+ * Replay only the steps added since `prev` (a replay of an earlier, shorter copy of the same
+ * record), so a live view does not rebuild the whole game every time a move arrives.
+ * Falls back to a full replay when `prev` cannot be extended.
+ */
+export function extendReplay(prev: { states: GameState[]; divergedAt: number | null } | null, rec: GameRecord): { states: GameState[]; divergedAt: number | null } {
+  if (!prev || prev.divergedAt !== null || prev.states.length - 1 > rec.steps.length) return replay(rec);
+  const states = prev.states.slice();
+  let s = states[states.length - 1];
+  for (let i = states.length - 1; i < rec.steps.length; i++) {
     try {
       s = applyAction(s, rec.steps[i].a);
     } catch {

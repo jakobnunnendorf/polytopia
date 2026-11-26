@@ -1,0 +1,55 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 05-finish-score
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+Jakob, watching a live 9-bot game at turn 159: ``i feel like this is a policy stale mate''; then: ``maybe we should punish game length to win'' and ``then it might find more time efficient strategies''. The leader had 18 cities, 132 units and 2,515 stars banked, and no attack finished the game. Every training game ends at turn 150 at the latest and is judged by points share, so a conquest at turn 60 and a points lead held to turn 150 count about the same. \textbf{Hypothesis:} points share cannot see stalling; a metric that rewards early conquest will rank some settings differently.
+
+\section{Mechanism}
+With turn cap $T$ and a game ending at turn $t$:
+\[
+\text{finish} =
+\begin{cases}
+0.75 + 0.25\,\dfrac{T-t}{T} & \text{conquest win}\\[6pt]
+0.25 - 0.25\,\dfrac{T-t}{T} & \text{conquest loss}\\[6pt]
+0.25 + 0.5\cdot\text{points share} & \text{stopped at the cap}
+\end{cases}
+\]
+Any real win beats any capped game, a fast win beats a slow one, and 50\,\% is even. Selected with \texttt{-{}-metric finish} in the trainer and the sweep; every panel result also reports conquest rate and game length.
+
+\section{Setup}
+The engine now returns the final turn and whether the game ended by conquest. The champion was measured in self-play in the training setup and in a setup like the live game (8 players, 20$\times$20, cap 300). Then the front pull of experiment 3 was swept again under the new metric, over a wider range.
+
+\section{Results}
+In self-play the champion ends 81\,\% of training-setup games by conquest (about 69 turns) and leaves 19\,\% unfinished; in the 8-player setup 64\,\% end by conquest (about 98 turns) and 36\,\% stall. Against the weaker panel models it wins 59 to 76\,\% of games by conquest.
+
+\ExpResults
+
+Under the finish score the front pull has an optimum near 8 (73.3\,\% against 72.4\,\% for the champion's 1.13), where points share is flat. At 32 the bot wins most often by conquest and in the fewest turns, but with the fewest points. In the final test \knob{front} $=8$ ties with the champion (finish 51.0\,\%, points 49.5\,\%, won 50\,\% $\pm$5).
+
+\section{Behaviour}
+Conquest rate and mean game length are now reported for every panel result; they are the behaviour metrics of this experiment. Stalling is real but partial, and worst in large games, which training never sees.
+
+\section{Interpretation}
+The new metric sees a trade-off that points share hides: a stronger pull converts points into faster conquests. It did not by itself produce a better bot, because the stalls have structural causes (experiments 6 and 7) that no re-weighting of existing knobs removes.
+
+\todo{jakob}{Your reading: does this match what you saw? Anything to add or correct?}
+
+\section{Threats to validity}
+\begin{itemize}
+\item The band limits (25\,\%, 75\,\%) are a design choice; other splits would weight speed against certainty differently.
+\item A capped game scores 25 to 75\,\%, so a bot can still prefer a safe points lead to a risky attack.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Adopted} as the metric of all later experiments. The champion is unchanged. Next: why do games stall? (experiment 6).
+
+\section{Notes for the paper}
+Draft: evaluation-metric section. Points share at a turn cap is blind to stalling; the finish score separates settings that points share ranks as equal. Candidate figure: finish, points, conquest rate and turns against \knob{front} from 0.5 to 32.
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

@@ -288,6 +288,53 @@ describe("naval units", () => {
     expect(unit(s, j.id).type).toBe("giant");
     expect(unit(s, e.id).hp).toBeLessThan(10);
   });
+
+  // "A melee attacker moves into the tile if it can stand there": a ship can land, so a kill
+  // on the shore moves it in and it turns back into the unit it carries, ending its turn
+  it("a Rammer that kills a unit in a coastal enemy city lands in the city as its passenger", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing");
+    tile(s, 5, 5).terrain = "water";
+    const city = s.cities[1];
+    tile(s, city.x, city.y).cityId = null;
+    city.x = 5;
+    city.y = 6;
+    tile(s, 5, 6).cityId = city.id;
+    const r = put(s, "rammer", 0, 5, 5);
+    r.carried = "warrior";
+    const e = put(s, "warrior", 1, 5, 6);
+    e.hp = 1;
+    s = applyAction(s, { type: "attack", unitId: r.id, targetId: e.id });
+    expect(s.units.find((u) => u.id === e.id)).toBeUndefined();
+    expect(unit(s, r.id)).toMatchObject({ x: 5, y: 6, type: "warrior", carried: null, done: true });
+  });
+
+  it("a Scout (ranged, it shoots) that kills a unit next to it stays on the water", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing", "sailing");
+    tile(s, 5, 5).terrain = "water";
+    const sc = put(s, "scout", 0, 5, 5);
+    sc.carried = "warrior";
+    const e = put(s, "warrior", 1, 5, 6);
+    e.hp = 1;
+    s = applyAction(s, { type: "attack", unitId: sc.id, targetId: e.id });
+    expect(s.units.find((u) => u.id === e.id)).toBeUndefined();
+    expect(unit(s, sc.id)).toMatchObject({ x: 5, y: 5, type: "scout", carried: "warrior" });
+  });
+
+  it("a Rammer that kills a unit on a mountain without Climbing stays on the water", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing");
+    tile(s, 5, 5).terrain = "water";
+    tile(s, 5, 6).terrain = "mountain";
+    const r = put(s, "rammer", 0, 5, 5);
+    r.carried = "warrior";
+    const e = put(s, "warrior", 1, 5, 6);
+    e.hp = 1;
+    s = applyAction(s, { type: "attack", unitId: r.id, targetId: e.id });
+    expect(s.units.find((u) => u.id === e.id)).toBeUndefined();
+    expect(unit(s, r.id)).toMatchObject({ x: 5, y: 5, type: "rammer", carried: "warrior" });
+  });
 });
 
 describe("Explorer", () => {

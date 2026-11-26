@@ -8,7 +8,7 @@
  * Seats rotate every game so each model plays from every seat (first-move advantage evens out).
  */
 import { applyAction } from "../logic/engine/actions";
-import { createGame } from "../logic/engine/state";
+import { createGame, mapTypeFor } from "../logic/engine/state";
 import type { GameMode } from "../logic/engine/types";
 import type { MapType } from "../logic/engine/mapgen";
 import { createAgent, directChat } from "../logic/agents/registry";
@@ -31,7 +31,7 @@ async function main() {
   const games = Number(arg("games", "10"));
   const size = Number(arg("size", "11"));
   const mode = arg("mode", "perfection") as GameMode;
-  const mapType = arg("map", "drylands") as MapType;
+  const mapType = arg("map", mapTypeFor(mode) ?? "drylands") as MapType;
   const seed0 = Number(arg("seed", String(Date.now() % 1_000_000)));
   const maxTurns = Number(arg("max-turns", "60"));
 
