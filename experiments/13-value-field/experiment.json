@@ -4,7 +4,7 @@
   "title": "Value-iteration field over tiles",
   "kind": "mechanism",
   "issue": 76,
-  "pr": 0,
+  "pr": 184,
   "date": "2026-11-25",
   "status": "done",
   "verdict": "not kept",
@@ -16,7 +16,7 @@
   "measured": "Sweep, 200 games per point",
   "metric": "finish score",
   "setups": [
-    "4 players, 16×16, drylands, turn cap 150"
+    "4 players, 16\u00d716, drylands, turn cap 150"
   ],
   "knobs": [
     {
