@@ -49,4 +49,8 @@ human can beat only when paying attention, so they are a sensible baseline.
 ## Repository basics
 
 - `main` takes releases from `dev` only (it deploys); work goes on a branch from `dev` and back into `dev`.
+- **Clean up after yourself (every agent, every task):** when your work is merged, closed or dropped, stop the
+  servers and runs you started, commit the records, remove your worktree and delete your branch, local and on
+  GitHub, and drop your own stashes; only what you created, never another session's. Follow
+  `.claude/skills/clean-up-after-yourself/SKILL.md` (agents without skill support read the file).
 - See `README.md` for building the engine, the Python environment (`engine/py`), training and the arena.
