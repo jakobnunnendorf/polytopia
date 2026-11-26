@@ -1,9 +1,10 @@
 {
   "id": "greedy-full-probe-perf",
-  "name": "greedy-full-probe + perturbation probe",
+  "name": "Probe P",
+  "tagline": "Probe re-tuned for Perfection on Crazy: favours score techs like Philosophy, drifts less to the centre.",
   "kind": "greedy-full",
-  "description": "greedy-full-probe tuned by a perturbation probe: all knobs nudged up or down at random in every game, each knob moved only when the difference between its up and down games reached z 3 (34 moves in 10 rounds, 100k training games).",
   "created": "2026-11-26",
+  "description": "greedy-full-probe tuned by a perturbation probe: all knobs nudged up or down at random in every game, each knob moved only when the difference between its up and down games reached z 3 (34 moves in 10 rounds, 100k training games).",
   "full": {
     "greedy": {
       "capture": 407.904,
