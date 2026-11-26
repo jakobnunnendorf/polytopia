@@ -111,7 +111,9 @@ and gate PASS). Jakob, 26 Nov 2026 (\#166): it becomes the champion \emph{and} t
 (\texttt{ANCHOR} in \texttt{engine/gate/src/main.rs}), and \texttt{greedy-full-combo-perf} the previous champion,
 by his decision rather than a gate PASS, so that both opponent seats besides the anchor are tuned for
 Perfection. Iteration 0 of the RL project is: learner RL v1, champion probe-perf, previous champion
-combo-perf, anchor probe-perf. Each later promotion shifts the champion to the previous-champion seat.
+combo-perf, anchor probe-perf. Jakob's pass rule (26 Nov): an RL version only has to beat the previous RL
+version (v1 enters by decision); these greedy opponents stay until an RL version passes the gate against
+probe-perf, and the anchor never changes (\texttt{docs/rl-project/README.md}, ``RL versions and the opponent list'').
 Baseline of iteration 0 (\texttt{gate/gate-greedy-full-probe-vs-greedy-full-probe-perf-n10000.json}, the new
 opponents probe-perf, combo-perf and the anchor probe-perf): the learner's base probe-perf scores mean 6839,
 median 8113, p10 1420, win rate 3.1\%; untuned probe scores $-162$ against it (99\% bounds $-212$,
