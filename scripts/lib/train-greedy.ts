@@ -10,7 +10,9 @@
  *
  * Game options come from the command line (both trainers and their workers read the same argv):
  * --mode (domination), --players (4, even), --size (the game's suggestion), --map-type (drylands),
- * --max-moves (20000), --max-turns (150: a game still running then is decided on score).
+ * --max-moves (20000), --max-turns (150: a game still running then is decided on score),
+ * --difficulty (normal; easy|normal|hard|crazy: every seat is a bot, so all get the same capital bonus,
+ *   as the opponent seats do in rl-gate).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -19,7 +21,7 @@ import { DEFAULT_WEIGHTS, type GreedyWeights } from "../../logic/engine/bot";
 import { DEFAULT_FULL_WEIGHTS, fullWeights, type FullWeights } from "../../logic/engine/botFull";
 import { mapSizeFor } from "../../logic/engine/state";
 import { call } from "../../logic/engine/rust";
-import type { GameMode } from "../../logic/engine/types";
+import type { Difficulty, GameMode } from "../../logic/engine/types";
 import type { MapType } from "../../logic/engine/mapgen";
 import { eloFromScore } from "../../logic/arena/sprt";
 
@@ -35,6 +37,8 @@ export const SIZE = Number(arg("size", String(mapSizeFor(MODE, PLAYERS - 1) ?? 1
 export const MAP_TYPE = arg("map-type", "drylands") as MapType;
 export const MAX_MOVES = Number(arg("max-moves", "20000"));
 export const MAX_TURNS = Number(arg("max-turns", "150"));
+export const DIFFICULTY = arg("difficulty", "normal") as Difficulty;
+if (!["easy", "normal", "hard", "crazy"].includes(DIFFICULTY)) throw new Error(`--difficulty ${DIFFICULTY}: easy, normal, hard or crazy`);
 
 // weights a trainer may change; noise (tie-break randomness) stays fixed
 export const KNOBS = (Object.keys(DEFAULT_WEIGHTS) as (keyof GreedyWeights)[]).filter((k) => k !== "noise" && k !== "rewards");
@@ -83,7 +87,7 @@ export function play(w0: AnyWeights, w1: AnyWeights, gameSeed: number, size = SI
   const sides = [w0, w1].map((w) => ({ kind: isFull(w) ? "full" : "greedy", weights: w }));
   const [s] = call<{ winner: number | null; over: boolean; turn: number; scores: number[] }[]>("playGames", [
     {
-      opts: { mapSize: size, players: PLAYERS, mode: MODE, seed: gameSeed, humans: [], mapType: MAP_TYPE },
+      opts: { mapSize: size, players: PLAYERS, mode: MODE, seed: gameSeed, humans: [], mapType: MAP_TYPE, ...(DIFFICULTY === "normal" ? {} : { difficulty: DIFFICULTY }) },
       policies: Array.from({ length: PLAYERS }, (_, i) => sides[i % 2]),
       maxMoves: MAX_MOVES,
       maxTurns: MAX_TURNS,

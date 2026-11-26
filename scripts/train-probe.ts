@@ -33,6 +33,8 @@ import { eloFromScore } from "../logic/arena/sprt";
 import {
   METRIC,
   MODE,
+  MAP_TYPE,
+  DIFFICULTY,
   PLAYERS,
   SIZE,
   type AnyWeights,
@@ -231,6 +233,8 @@ async function main() {
       from: FROM,
       metric: METRIC,
       mode: MODE,
+      mapType: MAP_TYPE,
+      difficulty: DIFFICULTY,
       players: PLAYERS,
       mapSize: SIZE,
       sigma: SIGMA,
