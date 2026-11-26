@@ -3,7 +3,7 @@
   "name": "Field",
   "tagline": "Combo that also follows a value-iteration field over tiles.",
   "kind": "greedy-full",
-  "description": "greedy-full-combo with field=4, the best of a strength sweep (5 points, 200 games against each panel model; experiment 13, not kept). Not trained further.",
+  "description": "greedy-full-combo with field=4, the best of a strength sweep (5 points, 200 games against each panel model; experiment 18, not kept). Not trained further.",
   "hidden": true,
   "created": "2026-11-25",
   "full": {
