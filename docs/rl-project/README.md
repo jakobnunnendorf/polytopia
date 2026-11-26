@@ -39,12 +39,16 @@ npm run rl:gate -- --candidate <model id or path> --base <model id or path> --ou
   - **Opponents (Jakob, 25 Nov 2026, "generalisation built in by having different models in each game"):** the
     three opponent seats are (1) the **current champion** (entry 0 of the champions registry, i.e. the base being
     challenged), (2) the **previous champion** (entry 1) and (3) the **frozen greedy champion
-    `greedy-full-probe`**, the anchor (app-like, uses the engine's relation model; it never changes, whatever the
-    registry says). Per seed the three are assigned to seats 1..3 by a seed-derived permutation (Fisher-Yates
+    `greedy-full-probe-perf`**, the anchor (app-like, uses the engine's relation model; it never changes, whatever the
+    registry says). It was `greedy-full-probe` until 26 Nov 2026; Jakob switched it to the Perfection-tuned
+    `greedy-full-probe-perf` (experiment 17) before the first RL iteration, so gate and benchmark numbers from
+    before that day used the old anchor. Per seed the three are assigned to seats 1..3 by a seed-derived permutation (Fisher-Yates
     from `splitmix64(seed ^ SEAT_STREAM)`, a stream separate from the tribes), computed once per seed and used for
     both candidate and base, so the pairing stays exact. Each per-seed row records its seating (`opponents`), the
-    JSON records the list (`opp`, `setup.opponents`, `opponentSource`). Until an RL version is promoted, entry 0 is
-    `greedy-full-probe` and entry 1 is `greedy-full-combo`, so two seats are `greedy-full-probe`.
+    JSON records the list (`opp`, `setup.opponents`, `opponentSource`). Iteration 0 (Jakob, 26 Nov 2026): entry 0 is
+    `greedy-full-probe-perf`, entry 1 `greedy-full-combo-perf` (both tuned for Perfection in experiment 17), so two
+    seats are `greedy-full-probe-perf` until RL v1 is promoted. Each promotion then shifts the champion to entry 1:
+    iteration 1 = RL v1, probe-perf, anchor; iteration 2 = RL v2, RL v1, anchor; and so on.
   - `--opp a,b,c` overrides the list (one entry: every seat that opponent, as before; several: repeated to fill
     the seats and shuffled per seed). Use it only for diagnostics; a gate verdict uses the default.
   - The **learner seat counts as human**: the gate creates every game with `humans: [0]`, so seat 0 gets the

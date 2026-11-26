@@ -6,10 +6,10 @@
   "issue": 166,
   "pr": 0,
   "date": "2026-11-26",
-  "status": "running",
-  "verdict": "pending",
+  "status": "done",
+  "verdict": "kept",
   "base": "greedy-full-probe",
-  "result": null,
+  "result": "greedy-full-probe-perf passes rl-gate vs probe (+176 mean, 53.5% of seeds better) and becomes champion and frozen anchor; greedy-full-combo-perf closes combo's -415 gap to +16 and becomes previous champion (Jakob's decision)",
   "question": "Does a perturbation-probe tuning run in Perfection (Continents, 30 turns, share of points) make the gate's two greedy champions stronger in Perfection than the Domination-tuned originals?",
   "change": "No new mechanism: the training mode changes from Domination/Drylands to Perfection/Continents, and the metric from the finish score to the share of points. Two runs, one per greedy model in the gate: probe (champion and frozen anchor) and combo (previous champion).",
   "method": "Perturbation probe, 100k games per run, 10k games per round, sigma 0.25, z 3, step 0.5, league = the gate's opponents (greedy-full-probe, greedy-full-combo); 400-game final test against each panel model",
@@ -23,13 +23,13 @@
     {
       "label": "Share of points vs the base, final test (probe run)",
       "base": 50,
-      "new": null,
+      "new": 53.6,
       "unit": "%"
     },
     {
       "label": "Share of points vs the base, final test (combo run)",
       "base": 50,
-      "new": null,
+      "new": 56.7,
       "unit": "%"
     }
   ],

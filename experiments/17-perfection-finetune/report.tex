@@ -55,29 +55,69 @@ opponents small rather than by scoring more, so the gate decides.
 % WHEN: after the runs. The tables and plots below are generated from the measured data; add two to four sentences that read them.
 \ExpResults
 
-\todo{claude}{Read the tables: the best point, the size of the effect against the noise (about $\pm$1.2 points on a 6-model mean), the head-to-head.}
+Both runs finished their 100k games (probe 1h22m, combo 1h18m; 34 and 65 knob steps). In the
+400-game final test against its own base, \texttt{greedy-full-probe-perf} won 56\% $\pm$ 5 with 53.6\%
+of the points, and \texttt{greedy-full-combo-perf} won 63\% $\pm$ 5 with 56.7\%. Against probe, combo-perf
+went from 36\% won and 42.2\% of the points (round 0 of its curve) to 52\% and 51.3\%. The 8-model panel
+curve rose from 71.5\% to 72.4\% (probe run) and from 68.1\% to 71.8\% (combo run).
+
+The deciding check is \texttt{rl-gate} on the gate setup (Crazy, learner in the human seat, 10{,}000
+seeds, old anchor \texttt{greedy-full-probe}), JSONs in \texttt{gate/}:
+
+\begin{center}
+\begin{tabular}{lrrrrl}
+candidate vs probe & mean & $\bar d$ (99\% bounds) & better share & p10 & verdict \\ \hline
+greedy-full-probe (base) & 6706 & -- & -- & 1425 & -- \\
+greedy-full-probe-perf & 6882 & $+176$ ($+127$, $+225$) & 53.5\% & 1435 & PASS \\
+greedy-full-combo-perf & 6722 & $+16$ ($-24$, $+56$) & 50.4\% & 1420 & FAIL \\
+greedy-full-combo (untuned, gate-ref) & & $-415$ & 40.9\% & & FAIL \\
+\end{tabular}
+\end{center}
+
+Win rates: probe-perf 3.4\%, combo-perf 3.2\%, probe 2.8\%.
 
 \section{Behaviour}
-% WHEN: after the runs. WHO: both. One count the mechanism should change, plus what was seen in watched games.
-\todo{claude}{The behaviour metric: one count the mechanism should change, with base and new value.}
+The behaviour metric is where the research knobs went. Against the prediction, \texttt{type.research}
+fell in both runs, to 0.417 (probe from 0.535, combo from 1.0). What rose is the choice of tech:
+\texttt{tech.philosophy} 3.82 $\to$ 5.56 (probe) and 2.05 $\to$ 4.91 (combo), \texttt{tech.meditation} up in
+both; the combo run also raised the flat research bonus \texttt{greedy.research} from 27.6 to 35.4,
+probe's value. Both runs lowered \texttt{centre} (the pull to the middle of the map) and raised
+\texttt{greedy.special}, \texttt{moveNoise} and \texttt{plan}. Combo moved towards probe's values and then on in the
+same directions: 30 knobs differ from combo's start, 25 from probe's.
 \todo{jakob}{What you saw in the live games, if you watched any.}
 
 \section{Interpretation}
-% WHEN: after the runs. WHO: both. Why it worked or did not; was the prediction right?
-\todo{claude}{Why the result came out this way, and whether the prediction held.}
+Domination tuning held both bots back in Perfection, combo by about 430 points per game on the gate
+and probe by about 180. The prediction held for the head-to-heads (53.6\% and 56.7\% of the points, both
+above 52\%) but not for the research weight: Perfection wants different techs (philosophy, meditation),
+not more research of any kind. ``Research $\times2$ every turn'' (experiment 15) may have worked partly
+because more research also buys these techs. Two tunings from different starts moved the same knobs the
+same way, which makes the direction more credible than one run alone.
 \todo{jakob}{Your reading: agree, disagree, what is missing?}
 
 \section{Threats to validity}
-% WHO: Claude. What could make this result wrong or narrow: panel, map sizes, sample size, interactions with other knobs.
-\todo{claude}{Two or three concrete threats.}
+\begin{itemize}
+\item The trainer has no human seat and ranks by share of points; the gate scores seat 0's raw score
+  in the human seat. The gate check covers this for the two final models but not for the path between.
+\item One run per base: no control run with a different seed, so part of each knob step may be noise
+  (a knob moves at $|z| \ge 3$ among 205 knobs, about one false step per round by chance).
+\item The league was the two gate models only, so the tuned bots may be fitted to those opponents; the
+  15-opponent information run of the gate is the check for that.
+\end{itemize}
 
 \section{Verdict and next step}
-% WHO: Claude proposes by the keep rules (.claude/skills/model-experiment/SKILL.md); Jakob decides anything outside them.
-\todo{claude}{Kept or not, under which keep rule, the champion afterwards, and the next experiment this suggests.}
+\textbf{Kept}: \texttt{greedy-full-probe-perf} passes the gate against the champion (head-to-head rule
+and gate PASS). Jakob, 26 Nov 2026 (\#166): it becomes the champion \emph{and} the frozen anchor
+(\texttt{ANCHOR} in \texttt{engine/gate/src/main.rs}), and \texttt{greedy-full-combo-perf} the previous champion,
+by his decision rather than a gate PASS, so that both opponent seats besides the anchor are tuned for
+Perfection. Iteration 0 of the RL project is: learner RL v1, champion probe-perf, previous champion
+combo-perf, anchor probe-perf. Each later promotion shifts the champion to the previous-champion seat.
+The baseline of iteration 0 (untuned probe against probe-perf on the new opponent set) is in
+\texttt{gate/}. Next: the RL tracks re-run their baselines on probe-perf as the learner's base bot.
 
 \section{Notes for the paper}
-% WHO: Jakob, with Claude's draft. What this experiment contributes: a claim, a figure, a negative result worth a line.
-\todo{claude}{Draft: the one-sentence claim and which figure or table would carry it.}
+Draft claim: ``Tuning the greedy baseline for the evaluation mode was worth 180--430 points per game
+before any learning; we report RL gains against this tuned baseline.'' Carried by the gate table above.
 \todo{jakob}{Is this worth a place in the paper? Where?}
 
 \end{document}
