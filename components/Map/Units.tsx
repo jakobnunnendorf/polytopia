@@ -24,6 +24,7 @@ export type Lunge = { dx: number; dy: number; key: number };
 
 export function UnitSprite({
   unit,
+  clan,
   inCity,
   TILE,
   selected,
@@ -31,6 +32,7 @@ export function UnitSprite({
   spent = !(unit.canMove || unit.canAttack),
 }: {
   unit: Unit;
+  clan?: string;
   inCity: boolean;
   TILE: number;
   selected: boolean;
@@ -150,7 +152,7 @@ export function UnitSprite({
               borderColor: unit.veteran ? "#ffd43b" : color(unit.owner),
             }}
           />
-          <UnitArt type={unit.type} color={color(unit.owner)} size={box.size} />
+          <UnitArt type={unit.type} color={color(unit.owner)} clan={clan} size={box.size} />
           {(unit.frozen || unit.poisoned || unit.swarmed) && (
             <Text
               style={{
@@ -197,7 +199,7 @@ export type Fx =
   | { id: number; kind: "puff"; x: number; y: number }
   | { id: number; kind: "text"; x: number; y: number; text: string; color: string };
 
-function Ghost({ fx, TILE }: { fx: Extract<Fx, { kind: "death" }>; TILE: number }) {
+function Ghost({ fx, clan, TILE }: { fx: Extract<Fx, { kind: "death" }>; clan?: string; TILE: number }) {
   const v = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(v, { toValue: 1, duration: reduceMotion() ? 1 : 650, easing: Easing.in(Easing.quad), useNativeDriver: native }).start();
@@ -220,7 +222,7 @@ function Ghost({ fx, TILE }: { fx: Extract<Fx, { kind: "death" }>; TILE: number 
         ],
       }}
     >
-      <UnitArt type={fx.unit.type} color={color(fx.unit.owner)} size={box.size} />
+      <UnitArt type={fx.unit.type} color={color(fx.unit.owner)} clan={clan} size={box.size} />
     </Animated.View>
   );
 }
@@ -258,13 +260,13 @@ function Puff({ x, y, TILE }: { x: number; y: number; TILE: number }) {
   );
 }
 
-export function FxLayer({ fx, TILE }: { fx: Fx[]; TILE: number }) {
+export function FxLayer({ fx, TILE, clans }: { fx: Fx[]; TILE: number; clans?: Record<number, string> }) {
   return (
     <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 3 }}>
       {fx.map((f) =>
         f.kind === "death" ? (
           <React.Fragment key={f.id}>
-            <Ghost fx={f} TILE={TILE} />
+            <Ghost fx={f} clan={clans?.[f.unit.owner]} TILE={TILE} />
             <Puff x={f.x} y={f.y} TILE={TILE} />
           </React.Fragment>
         ) : f.kind === "burst" ? (
