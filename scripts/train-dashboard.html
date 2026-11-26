@@ -650,7 +650,7 @@ function render() {
         ${stat("games", count(g), r.budget ? `of ${count(r.budget)} (${pct(g / r.budget)})` : "")}
         ${stat("speed", spd ? count(spd) + "/min" : "–", r.running ? "" : "not running")}
         ${stat("finishes", left != null ? clock(Date.now() + left * 1000) : "–", left != null ? `${dur(left)} left` : "")}
-        ${stat("trained", dur(ck?.seconds), ck?.resumes?.length ? `${ck.resumes.length} resume${ck.resumes.length > 1 ? "s" : ""}` : "")}
+        ${stat("trained", dur(r.trainedSeconds ?? ck?.seconds), ck?.resumes?.length ? `${ck.resumes.length} resume${ck.resumes.length > 1 ? "s" : ""}` : "")}
         ${kindStats}
         ${stat("best panel", best ? pct(metricOf(best)) : "–", best ? `at ${count(best.trainingGames)}${best.averaged ? " (avg)" : ""}` : "")}
       </div>

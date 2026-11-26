@@ -304,6 +304,8 @@ function runState(id: string, procs: { pid: number; cmd: string }[]) {
     sweep: sweep ?? null,
     weights: { start, current, best, averaged },
     probe: kind === "probe" ? probe : null,
+    // training time: the checkpoint while running, else what the finished model recorded
+    trainedSeconds: ck?.seconds ?? model?.training?.seconds ?? null,
     log: log.data ? { file: log.file, ...log.data } : null,
     samples: samples.get(id) ?? [],
   };
