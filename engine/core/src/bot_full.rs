@@ -660,8 +660,9 @@ mod tests {
 
     /// play_hash of the champion over seeds 11, 22, 33 for 60 rounds, recorded at the base
     /// commit ab56662 before the economy plan existed (0xf413bd635d505e7d, 7009), and again
-    /// when the bots' opinions became the game's decompiled model (opinion.rs)
-    const GOLDEN: (u64, usize) = (0x3faeb44c4e72ffc5, 9130);
+    /// when the bots' opinions became the game's decompiled model (opinion.rs), and again when a
+    /// melee ship that kills a unit on the shore lands there (the advance after a kill)
+    const GOLDEN: (u64, usize) = (0x08c73b4fe33151d5, 8092);
 
     #[test]
     fn plan_off_is_identity() {
@@ -1512,8 +1513,9 @@ mod tests {
     }
 
     /// play_hash of greedy-full-combo over seeds 11, 22, 33 for 60 rounds, recorded on dev
-    /// (before the merge of #143) without the value field; re-record it when the engine's rules change
-    const COMBO_GOLDEN: (u64, usize) = (0x6c258ea04ede5d00, 8446);
+    /// (before the merge of #143) without the value field, re-recorded when a melee ship that kills on the shore lands there;
+    /// re-record it when the engine's rules change
+    const COMBO_GOLDEN: (u64, usize) = (0x41193633dcbbcd5e, 8721);
 
     /// the states full_bot_step visits on `seed` below `rounds` with `w`
     fn visited(seed: i64, rounds: i32, w: &FullWeights) -> Vec<GameState> {

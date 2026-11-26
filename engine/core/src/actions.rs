@@ -1786,18 +1786,19 @@ fn do_attack(s: &mut GameState, uid: Id, tid: Id) {
         s.units[ui].second_attack = true;
         s.units[ui].can_attack = true;
     }
-    // melee advance into the killed unit's tile
+    // melee advance into the killed unit's tile, wherever the attacker can stand: a land unit
+    // entering its own port becomes a Raft, a ship landing on the shore (a coastal city too)
+    // turns back into the unit it carries and ends its turn
     let cur = s.units[ui].clone();
     if killed && unit_def(cur.ty).range < 2 && occupant(s, from.x, from.y).is_none() {
-        let kind = enter_kind(s, &cur, tile_at(s, from.x, from.y));
-        if kind == Some(StepKind::Normal) || kind == Some(StepKind::Embark) {
+        if let Some(kind) = enter_kind(s, &cur, tile_at(s, from.x, from.y)) {
             let origin = pos(&cur);
             s.units[ui].x = from.x;
             s.units[ui].y = from.y;
             let moved = s.units[ui].clone();
             let rr = sight_radius(s, &moved);
             explore(s, p, from, rr);
-            after_move(s, uid, kind.unwrap(), origin);
+            after_move(s, uid, kind, origin);
         }
     }
     let Some(ui) = uidx(s, uid) else { return };
