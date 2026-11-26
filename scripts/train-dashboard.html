@@ -350,7 +350,7 @@ function lineChart(host, { series, height = 260, xFmt = count, yFmt = (v) => v, 
 }
 
 // ---------- diverging bar chart (log2 ratio) ----------
-function divergingBars(host, rows, { note = "" } = {}) {
+function divergingBars(host, rows, { note = "", tick = (t) => "×" + Math.pow(2, t).toFixed(t < 0 ? 2 : 1), zero = "×1" } = {}) {
   host.innerHTML = "";
   if (!rows.length) { host.innerHTML = `<div class="empty">No knob has moved from its start value yet.</div>`; return; }
   const W = Math.max(320, host.clientWidth || 600), rowH = 22, m = { l: 140, r: 118, t: 18, b: 6 };
@@ -359,8 +359,8 @@ function divergingBars(host, rows, { note = "" } = {}) {
   const lim = Math.max(0.25, ...rows.map((r) => Math.abs(r.v)), ...rows.map((r) => Math.abs(r.best ?? 0)));
   const X = (v) => m.l + ((v + lim) / (2 * lim)) * (W - m.l - m.r);
   el("line", { x1: X(0), x2: X(0), y1: m.t - 6, y2: H - m.b, stroke: css("--axis") }, svg);
-  for (const t of [-lim, -lim / 2, lim / 2, lim]) el("text", { x: X(t), y: 10, "text-anchor": "middle" }, svg).textContent = "×" + Math.pow(2, t).toFixed(t < 0 ? 2 : 1);
-  el("text", { x: X(0), y: 10, "text-anchor": "middle" }, svg).textContent = "×1";
+  for (const t of [-lim, -lim / 2, lim / 2, lim]) el("text", { x: X(t), y: 10, "text-anchor": "middle" }, svg).textContent = tick(t);
+  el("text", { x: X(0), y: 10, "text-anchor": "middle" }, svg).textContent = zero;
   rows.forEach((r, i) => {
     const y = m.t + i * rowH;
     el("text", { class: "lbl", x: m.l - 8, y: y + 15, "text-anchor": "end" }, svg).textContent = r.name;
@@ -731,7 +731,7 @@ function render() {
   for (const r of probeRuns) {
     const q = (k) => document.querySelector(`[data-${k}="${r.id}"]`);
     const zs = (r.probe?.knobs || []).filter((k) => Number.isFinite(k.z)).sort((a, b) => Math.abs(b.z) - Math.abs(a.z)).slice(0, 30);
-    divergingBars(q("pz"), zs.map((k) => ({ name: k.knob, v: k.z, label: `z ${k.z >= 0 ? "+" : ""}${k.z.toFixed(1)}`, inactive: Math.abs(k.z) < (r.probe?.z ?? 3) / 2, tip: `<b>${esc(k.knob)}</b><br>value ${k.value} · z ${k.z.toFixed(2)} over ${k.n} samples${k.zSelf != null ? `<br>self ${k.zSelf.toFixed(2)} · league ${k.zLeague.toFixed(2)}` : ""}` })), { note: r.probe ? `Faded: |z| below ${(r.probe.z ?? 3) / 2}, little evidence yet.` : "" });
+    divergingBars(q("pz"), zs.map((k) => ({ name: k.knob, v: k.z, label: `z ${k.z >= 0 ? "+" : ""}${k.z.toFixed(1)}`, inactive: Math.abs(k.z) < (r.probe?.z ?? 3) / 2, tip: `<b>${esc(k.knob)}</b><br>value ${k.value} · z ${k.z.toFixed(2)} over ${k.n} samples${k.zSelf != null ? `<br>self ${k.zSelf.toFixed(2)} · league ${k.zLeague.toFixed(2)}` : ""}` })), { note: r.probe ? `Faded: |z| below ${(r.probe.z ?? 3) / 2}, little evidence yet.` : "", tick: (t) => `z ${t > 0 ? "+" : ""}${t.toFixed(1)}`, zero: "0" });
     const { start, current } = r.weights;
     const rows = Object.keys(current).filter((k) => start[k] != null && Math.abs(current[k] - start[k]) > 1e-9).map((k) => {
       const s0 = start[k], c = current[k];

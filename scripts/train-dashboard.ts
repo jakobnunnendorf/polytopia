@@ -256,6 +256,8 @@ function runState(id: string, procs: { pid: number; cmd: string }[]) {
       const fromModel = from ? readJson(path.join(ROOT, "models", from, "model.json")) : null;
       current = flatten(model?.full ?? fromModel?.full ?? {});
     }
+    // the latest row's table holds the values before that round's moves: apply every move in order
+    for (const m of (probe?.moved ?? []) as Json[]) current[m.knob] = m.to;
     start = { ...current };
     for (const m of [...((probe?.moved ?? []) as Json[])].reverse()) start[m.knob] = m.from;
     best = flatten(model?.full ?? {});
