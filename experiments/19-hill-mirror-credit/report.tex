@@ -1,0 +1,54 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 19-hill-mirror-credit
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+Run on 24 November, before experiment 1, and written up on 26 November as a record: no hypothesis was written down before the runs, so this section states the question only, not a prediction made in advance. The number is 19 because it took a number when it was recorded, not when it ran.
+
+Hill climbing throws away what a lost round teaches: a challenger that loses clearly is dropped, and the next round draws new random knob moves. The question was whether a climber that learns from those rounds keeps more improvements in the same budget: by testing the opposite direction after a clear loss (\emph{mirror}), and by steering which knobs to move, and which way, from a model of all past rounds (\emph{credit}).
+\todo{jakob}{The idea in your words, if you remember what you expected.}
+
+\section{Mechanism}
+Both are options of \texttt{scripts/train-hill.ts}, off by default (runs without them behave as before).
+\texttt{--mirror}: after a round whose mean margin is at most \texttt{--mirror-below} (default $-1$ point), the next round tests the same knob moves with the sign flipped.
+\texttt{--credit}: a per-knob linear model of the round margin, fitted on every round (kept or not) and weighted by its games, draws knobs and directions by Thompson sampling (prior sd 0.1); a share \texttt{--credit-explore} of rounds (25\,\%) stays random, and the evidence is halved after each keep.
+Every round is also written to \texttt{models/<id>/rounds.jsonl}: its source (random, mirror, credit), the knobs moved, games, margin, log-likelihood ratio and whether it was kept.
+
+\section{Setup}
+Two tuning runs from \model{greedy-full-v1} with identical settings (100,000 games, seed 4242, league \texttt{self,past}, batch 30, curve every 12,500 games, panel of six), one with \texttt{--mirror --credit} (\model{greedy-full-v2}) and one without (\model{greedy-full-v2-ctrl}, the control that experiment 1 also uses). Both started at the same time on the same machine.
+
+\section{Results}
+\ExpResults
+
+Both learning curves stay at or below the start: the panel points share was 67.7\,\% at 0 games and 66.6\,\% (mirror + credit) and 66.1\,\% (control) at 100,000 games; with the champion's weights averaged over the run, 67.4\,\% and 67.8\,\%. These differences are inside the noise of a 6-model mean (about $\pm$1.2 points). Neither run beat its start at any curve point, so both saved the round-0 champion, which is \model{greedy-full-v1} itself: the two final tests above are the same model's and therefore identical (66.7\,\% points).
+
+\section{Behaviour}
+How the climber spent its rounds (from \texttt{rounds.jsonl}):
+
+\begin{center}\sffamily\small\begin{tabular}{@{}lrrrr@{}}\toprule
+Run & Random rounds & Mirror rounds & Credit rounds & Kept\\\midrule
+Mirror + credit & 58 & 47 & 210 & 2 (1 random, 1 credit)\\
+Control & 318 & -- & -- & 3 (all random)\\
+\bottomrule\end{tabular}\end{center}
+
+Credit chose two thirds of the rounds and produced one keep; the 47 mirrored rounds produced none.
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\section{Interpretation}
+The bottleneck was not which knobs were tried but whether a round can see a gain at all: a round of 300--400 games cannot detect changes under about 1 point, so almost every challenger, steered or not, fails the test, and the credit model learns from margins that are mostly noise. Mirroring a clear loss assumes the knob effect is roughly linear and the loss was real; with these sample sizes most ``clear'' losses are noise as well. The same budget limit later led to sweeps per mechanism and to the perturbation probe (experiment 12), which tests every knob's z-score over many rounds instead of single challengers.
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+One run per arm with one seed: a difference of one keep (2 vs 3) is not evidence either way. The credit prior and exploration share were not swept, so a better-tuned credit might do better. The start, \model{greedy-full-v1}, was already a 100,000-game hill-climbing result, which may leave little for any climber to find.
+
+\section{Verdict and next step}
+Not adopted: by the rule for tuning runs (the mean at 100,000 games at least the base's and the control's), mirror + credit's 66.6\,\% is below the start's 67.7\,\%, and it kept no more changes than the control. The options stay in \texttt{train-hill.ts}, off by default. The champion is unchanged. The next step taken was a different one: one mechanism per run, measured by a strength sweep (experiments 1--11), and the perturbation probe for tuning (experiment 12).
+
+\section{Notes for the paper}
+A negative result worth one line: steering a hill climber from its own past rounds does not help when single rounds cannot resolve the effect sizes involved; the limit is statistical power per round, not the proposal distribution. The table in Behaviour carries it.
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}
