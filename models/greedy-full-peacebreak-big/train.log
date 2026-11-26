@@ -1,0 +1,27 @@
+sweep from greedy-full-front: 4 points + base, 200 games against each of greedy-v1, greedy-hill-v1, greedy-hill-v2, greedy-hill-v3, greedy-hill-v4, greedy-full-v1, greedy-full-front
+  [22:44] point base: 1291/1400 games, done in ~1 min | so far: vs greedy 82.6% of points, won 194/200; vs v1 78.4% of points, won 186/200; vs v2 80.2% of points, won 193/200; vs v3 74.5% of points, won 182/200; vs v4 75.4% of points, won 189/200; vs full-v1 57.5% of points, won 122/200; vs full-front 49.6% of points, won 45/91 | 1291 games in the last 60s, 1291/min overall | run: 
+point  base                         | greedy 97% won, 82.7% pts (+604)  v1 93% won, 78.7% pts (+449)  v2 97% won, 80.3% pts (+576)  v3 91% won, 74.8% pts (+402)  v4 95% won, 75.2% pts (+494)  full-v1 61% won, 57.5% pts (+78)  full-front 50% won, 50.0% pts (+0)  | mean 83% won, 71.3% pts, finish 74.0%, conquest 58%, 88 turns
+  [22:45] point breakPeace=0.5: 1243/1400 games, done in ~1 min | so far: vs greedy 84.4% of points, won 196/200; vs v1 80.9% of points, won 188/200; vs v2 81.8% of points, won 193/200; vs v3 76.9% of points, won 185/200; vs v4 78.8% of points, won 192/200; vs full-v1 58.0% of points, won 123/200; vs full-front 50.8% of points, won 22/43 | 1352 games in the last 60s, 1321/min overall | run: 
+point  breakPeace=0.5               | greedy 98% won, 84.7% pts (+676)  v1 94% won, 81.5% pts (+478)  v2 97% won, 82.0% pts (+576)  v3 93% won, 77.2% pts (+436)  v4 96% won, 78.7% pts (+552)  full-v1 62% won, 58.0% pts (+81)  full-front 50% won, 50.4% pts (+0)  | mean 84% won, 73.2% pts, finish 78.0%, conquest 70%, 78 turns
+  [22:46] point breakPeace=1: 1275/1400 games, done in ~1 min | so far: vs greedy 83.8% of points, won 195/200; vs v1 80.0% of points, won 185/200; vs v2 81.7% of points, won 193/200; vs v3 76.3% of points, won 183/200; vs v4 78.1% of points, won 190/200; vs full-v1 58.0% of points, won 122/200; vs full-front 51.2% of points, won 38/75 | 1432 games in the last 60s, 1358/min overall | run: 
+point  breakPeace=1                 | greedy 98% won, 84.1% pts (+636)  v1 93% won, 80.4% pts (+436)  v2 97% won, 81.9% pts (+576)  v3 92% won, 76.6% pts (+413)  v4 95% won, 78.0% pts (+512)  full-v1 61% won, 57.9% pts (+78)  full-front 50% won, 50.4% pts (+0)  | mean 83% won, 72.8% pts, finish 77.5%, conquest 68%, 80 turns
+  [22:47] point breakPeace=2: 1337/1400 games, done in ~1 min | so far: vs greedy 83.2% of points, won 194/200; vs v1 79.2% of points, won 186/200; vs v2 81.5% of points, won 193/200; vs v3 75.0% of points, won 182/200; vs v4 76.5% of points, won 189/200; vs full-v1 57.7% of points, won 122/200; vs full-front 51.1% of points, won 69/137 | 1462 games in the last 60s, 1384/min overall | run: 
+point  breakPeace=2                 | greedy 97% won, 83.3% pts (+604)  v1 93% won, 79.5% pts (+449)  v2 97% won, 81.6% pts (+576)  v3 91% won, 75.3% pts (+402)  v4 95% won, 76.4% pts (+494)  full-v1 61% won, 57.6% pts (+78)  full-front 50% won, 50.4% pts (+0)  | mean 83% won, 72.0% pts, finish 76.3%, conquest 65%, 82 turns
+  [22:48] point breakPeace=4: 1349/1400 games, done in ~1 min | so far: vs greedy 82.7% of points, won 194/200; vs v1 78.6% of points, won 186/200; vs v2 80.5% of points, won 193/200; vs v3 74.7% of points, won 182/200; vs v4 75.7% of points, won 189/200; vs full-v1 57.6% of points, won 122/200; vs full-front 49.9% of points, won 74/149 | 1412 games in the last 60s, 1390/min overall | run: 
+point  breakPeace=4                 | greedy 97% won, 82.8% pts (+604)  v1 93% won, 79.0% pts (+449)  v2 97% won, 80.6% pts (+576)  v3 91% won, 74.9% pts (+402)  v4 95% won, 75.5% pts (+494)  full-v1 61% won, 57.5% pts (+78)  full-front 50% won, 50.0% pts (+0)  | mean 83% won, 71.5% pts, finish 75.0%, conquest 61%, 85 turns
+
+best: breakPeace=0.5, mean 78.0% finish (base 74.0%)
+  [22:49] final test (vs panel): 1285/2800 games, done in ~2 min | so far: vs greedy 83.9% of points, won 388/400; vs v1 81.7% of points, won 384/400; vs v2 81.8% of points, won 386/400; vs v3 73.6% of points, won 75/85 | 1336 games in the last 60s, 1381/min overall | run: 
+  [22:50] final test (vs panel): 2572/2800 games, done in ~1 min | so far: vs greedy 83.9% of points, won 388/400; vs v1 81.7% of points, won 384/400; vs v2 81.8% of points, won 386/400; vs v3 76.4% of points, won 368/400; vs v4 77.7% of points, won 380/400; vs full-v1 56.0% of points, won 238/400; vs full-front 50.4% of points, won 86/172 | 1287 games in the last 60s, 1367/min overall | run: 
+
+final (400 unseen games against each):
+  vs greedy-v1        won  97% ± 2%  (+604 Elo)  points 84.0%  finish 89.5%  conquest 84%  70 turns
+  vs greedy-hill-v1   won  96% ± 2%  (+552 Elo)  points 81.8%  finish 85.9%  conquest 74%  81 turns
+  vs greedy-hill-v2   won  97% ± 2%  (+576 Elo)  points 82.0%  finish 85.8%  conquest 73%  83 turns
+  vs greedy-hill-v3   won  92% ± 3%  (+424 Elo)  points 76.6%  finish 84.2%  conquest 75%  81 turns
+  vs greedy-hill-v4   won  95% ± 2%  (+512 Elo)  points 77.7%  finish 82.1%  conquest 66%  89 turns
+  vs greedy-full-v1   won  60% ± 5%  (+67 Elo)  points 56.1%  finish 58.7%  conquest 47%  85 turns
+  vs greedy-full-front won  50% ± 5%  (-2 Elo)  points 50.1%  finish 50.7%  conquest 37%  88 turns
+changed against greedy-full-front: breakPeace=0.5
+saved models/greedy-full-peacebreak-big/model.json and sweep.jsonl
+sweep took 7m20s

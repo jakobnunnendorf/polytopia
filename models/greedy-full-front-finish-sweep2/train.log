@@ -1,0 +1,20 @@
+sweep from greedy-full-front: 3 points + base, 200 games against each of greedy-v1, greedy-hill-v1, greedy-hill-v2, greedy-hill-v3, greedy-hill-v4, greedy-full-v1, greedy-full-front
+point  base                         | greedy 96% won, 78.0% pts (+552)  v1 92% won, 74.1% pts (+424)  v2 93% won, 73.2% pts (+436)  v3 88% won, 69.9% pts (+346)  v4 91% won, 72.0% pts (+402)  full-v1 56% won, 54.3% pts (+38)  full-front 50% won, 50.0% pts (+0)  | mean 81% won, 67.4% pts, finish 72.4%, conquest 64%, 70 turns
+point  front=8                      | greedy 96% won, 77.9% pts (+552)  v1 92% won, 72.9% pts (+413)  v2 94% won, 73.4% pts (+463)  v3 91% won, 70.8% pts (+392)  v4 93% won, 71.5% pts (+436)  full-v1 58% won, 54.5% pts (+56)  full-front 52% won, 51.6% pts (+14)  | mean 82% won, 67.5% pts, finish 73.3%, conquest 66%, 68 turns
+point  front=16                     | greedy 93% won, 75.7% pts (+449)  v1 92% won, 73.8% pts (+424)  v2 91% won, 72.6% pts (+402)  v3 91% won, 71.0% pts (+402)  v4 91% won, 69.6% pts (+402)  full-v1 57% won, 53.4% pts (+49)  full-front 52% won, 51.6% pts (+10)  | mean 81% won, 66.8% pts, finish 72.7%, conquest 65%, 69 turns
+  [22:30] point front=32: 662/1400 games, done in ~1 min | so far: vs greedy 77.1% of points, won 191/200; vs v1 71.0% of points, won 175/200; vs v2 71.8% of points, won 181/200; vs v3 69.8% of points, won 54/62 | 4862 games in the last 60s, 4861/min overall | run: 
+point  front=32                     | greedy 96% won, 77.1% pts (+531)  v1 88% won, 70.7% pts (+338)  v2 91% won, 71.6% pts (+392)  v3 88% won, 69.3% pts (+346)  v4 88% won, 68.8% pts (+338)  full-v1 57% won, 53.6% pts (+53)  full-front 51% won, 48.8% pts (+3)  | mean 80% won, 65.7% pts, finish 72.4%, conquest 66%, 65 turns
+
+best: front=8, mean 73.3% finish (base 72.4%)
+
+final (400 unseen games against each):
+  vs greedy-v1        won  95% ± 2%  (+521 Elo)  points 76.8%  finish 84.1%  conquest 77%  65 turns
+  vs greedy-hill-v1   won  91% ± 3%  (+407 Elo)  points 73.5%  finish 79.8%  conquest 72%  71 turns
+  vs greedy-hill-v2   won  95% ± 2%  (+494 Elo)  points 73.5%  finish 80.0%  conquest 69%  77 turns
+  vs greedy-hill-v3   won  86% ± 3%  (+319 Elo)  points 68.1%  finish 76.5%  conquest 67%  75 turns
+  vs greedy-hill-v4   won  90% ± 3%  (+372 Elo)  points 68.8%  finish 76.0%  conquest 63%  80 turns
+  vs greedy-full-v1   won  53% ± 5%  (+21 Elo)  points 50.9%  finish 51.7%  conquest 41%  69 turns
+  vs greedy-full-front won  51% ± 5%  (+3 Elo)  points 49.5%  finish 51.0%  conquest 41%  68 turns
+changed against greedy-full-front: front=8
+saved models/greedy-full-front-finish-sweep2/model.json and sweep.jsonl
+sweep took 1m40s

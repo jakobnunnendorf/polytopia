@@ -1,0 +1,33 @@
+sweep from greedy-full-peacebreak: 4 points + base, 200 games against each of greedy-v1, greedy-hill-v1, greedy-hill-v2, greedy-hill-v3, greedy-hill-v4, greedy-full-v1, greedy-full-peacebreak
+  [00:03] point base: 874/1400 games, done in ~1 min | so far: vs greedy 77.8% of points, won 191/200; vs v1 76.1% of points, won 187/200; vs v2 73.6% of points, won 184/200; vs v3 70.7% of points, won 176/200; vs v4 73.7% of points, won 69/74 | 874 games in the last 60s, 873/min overall | run: 
+  [00:04] point base: 1278/1400 games, done in ~1 min | so far: vs greedy 77.8% of points, won 191/200; vs v1 76.1% of points, won 187/200; vs v2 73.6% of points, won 184/200; vs v3 70.7% of points, won 176/200; vs v4 72.5% of points, won 182/200; vs full-v1 52.8% of points, won 108/200; vs full-peacebreak 50.0% of points, won 39/78 | 404 games in the last 60s, 639/min overall | run: 
+point  base                         | greedy 96% won, 78.4% pts (+531)  v1 94% won, 76.4% pts (+463)  v2 92% won, 74.0% pts (+424)  v3 88% won, 70.7% pts (+346)  v4 91% won, 72.6% pts (+402)  full-v1 54% won, 53.4% pts (+28)  full-peacebreak 50% won, 50.0% pts (+0)  | mean 81% won, 67.9% pts, finish 74.5%, conquest 73%, 61 turns
+  [00:05] point spread=0.5: 260/1400 games, done in ~3 min | so far: vs greedy 79.2% of points, won 195/200; vs v1 77.3% of points, won 58/60 | 382 games in the last 60s, 553/min overall | run: 
+  [00:06] point spread=0.5: 840/1400 games, done in ~1 min | so far: vs greedy 79.2% of points, won 195/200; vs v1 76.7% of points, won 190/200; vs v2 75.7% of points, won 192/200; vs v3 71.8% of points, won 184/200; vs v4 73.6% of points, won 37/40 | 580 games in the last 60s, 560/min overall | run: 
+point  spread=0.5                   | greedy 98% won, 79.4% pts (+636)  v1 95% won, 76.7% pts (+512)  v2 96% won, 75.4% pts (+552)  v3 92% won, 71.5% pts (+424)  v4 94% won, 72.8% pts (+463)  full-v1 69% won, 60.5% pts (+139)  full-peacebreak 59% won, 54.3% pts (+60)  | mean 86% won, 70.1% pts, finish 79.1%, conquest 77%, 56 turns
+  [00:07] point spread=1: 45/1400 games, done in ~3 min | so far: vs greedy 78.3% of points, won 44/45 | 605 games in the last 60s, 569/min overall | run: 
+  [00:08] point spread=1: 385/1400 games, done in ~3 min | so far: vs greedy 79.5% of points, won 197/200; vs v1 75.7% of points, won 174/185 | 340 games in the last 60s, 531/min overall | run: 
+  [00:09] point spread=1: 622/1400 games, done in ~3 min | so far: vs greedy 79.5% of points, won 197/200; vs v1 75.8% of points, won 188/200; vs v2 76.6% of points, won 191/197; vs v3 62.5% of points, won 18/25 | 237 games in the last 60s, 489/min overall | run: 
+  [00:10] point spread=1: 921/1400 games, done in ~2 min | so far: vs greedy 79.5% of points, won 197/200; vs v1 75.8% of points, won 188/200; vs v2 76.8% of points, won 194/200; vs v3 70.4% of points, won 176/200; vs v4 69.7% of points, won 107/121 | 299 games in the last 60s, 465/min overall | run: 
+  [00:11] point spread=1: 1226/1400 games, done in ~1 min | so far: vs greedy 79.5% of points, won 197/200; vs v1 75.8% of points, won 188/200; vs v2 76.8% of points, won 194/200; vs v3 70.4% of points, won 176/200; vs v4 72.1% of points, won 183/200; vs full-v1 57.2% of points, won 125/199; vs full-peacebreak 58.9% of points, won 18/27 | 305 games in the last 60s, 447/min overall | run: 
+point  spread=1                     | greedy 99% won, 79.7% pts (+727)  v1 94% won, 75.5% pts (+478)  v2 97% won, 76.8% pts (+604)  v3 88% won, 70.1% pts (+346)  v4 92% won, 72.2% pts (+413)  full-v1 63% won, 57.6% pts (+92)  full-peacebreak 59% won, 54.3% pts (+60)  | mean 84% won, 69.5% pts, finish 78.2%, conquest 76%, 56 turns
+  [00:12] point spread=2: 179/1400 games, done in ~4 min | so far: vs greedy 77.9% of points, won 171/179 | 353 games in the last 60s, 438/min overall | run: 
+  [00:13] point spread=2: 372/1400 games, done in ~5 min | so far: vs greedy 78.3% of points, won 191/200; vs v1 76.8% of points, won 162/172 | 193 games in the last 60s, 416/min overall | run: 
+  [00:14] point spread=2: 437/1400 games, done in ~6 min | so far: vs greedy 78.3% of points, won 191/200; vs v1 76.8% of points, won 185/197; vs v2 69.3% of points, won 34/40 | 65 games in the last 60s, 386/min overall | run: 
+point  spread=2                     | greedy 96% won, 78.3% pts (+531)  v1 94% won, 76.8% pts (+478)  v2 94% won, 75.4% pts (+478)  v3 89% won, 70.7% pts (+354)  v4 92% won, 72.1% pts (+413)  full-v1 62% won, 56.7% pts (+81)  full-peacebreak 62% won, 55.4% pts (+81)  | mean 84% won, 69.3% pts, finish 77.6%, conquest 76%, 55 turns
+  [00:15] point spread=4: 1383/1400 games, done in ~1 min | so far: vs greedy 79.1% of points, won 194/200; vs v1 75.4% of points, won 185/200; vs v2 75.3% of points, won 188/200; vs v3 71.0% of points, won 178/200; vs v4 71.4% of points, won 180/200; vs full-v1 55.5% of points, won 118/200; vs full-peacebreak 52.5% of points, won 98/183 | 2346 games in the last 60s, 537/min overall | run: 
+point  spread=4                     | greedy 97% won, 79.5% pts (+604)  v1 93% won, 75.4% pts (+436)  v2 94% won, 75.2% pts (+478)  v3 89% won, 70.9% pts (+363)  v4 90% won, 71.0% pts (+382)  full-v1 59% won, 55.1% pts (+63)  full-peacebreak 54% won, 52.1% pts (+28)  | mean 82% won, 68.5% pts, finish 77.5%, conquest 78%, 54 turns
+
+best: spread=0.5, mean 79.1% finish (base 74.5%)
+
+final (400 unseen games against each):
+  vs greedy-v1        won  95% ± 2%  (+512 Elo)  points 77.1%  finish 87.0%  conquest 88%  50 turns
+  vs greedy-hill-v1   won  91% ± 3%  (+392 Elo)  points 73.3%  finish 83.0%  conquest 81%  56 turns
+  vs greedy-hill-v2   won  93% ± 3%  (+449 Elo)  points 74.0%  finish 84.7%  conquest 83%  58 turns
+  vs greedy-hill-v3   won  91% ± 3%  (+392 Elo)  points 71.3%  finish 83.4%  conquest 81%  61 turns
+  vs greedy-hill-v4   won  91% ± 3%  (+397 Elo)  points 70.7%  finish 80.5%  conquest 74%  66 turns
+  vs greedy-full-v1   won  63% ± 5%  (+91 Elo)  points 56.4%  finish 60.6%  conquest 57%  59 turns
+  vs greedy-full-peacebreak won  55% ± 5%  (+31 Elo)  points 52.2%  finish 54.7%  conquest 52%  56 turns
+changed against greedy-full-peacebreak: spread=0.5
+saved models/greedy-full-spread/model.json and sweep.jsonl
+sweep took 13m47s

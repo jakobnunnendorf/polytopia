@@ -104,16 +104,28 @@ describe("Game setup: model picker", () => {
     expect(windowFor({ x: 15, y: 15 }, 16, 8)).toEqual({ x0: 8, y0: 8 });
   });
 
-  it("every model folder has a spec, and the gate's champions stay in the picker", () => {
+  it("every model folder has a spec or is an experiment's measurement record, and the gate's champions stay in the picker", () => {
     const dir = path.join(__dirname, "../../models");
+    // measurement records (experiments/README.md): a sweep or tuning run without model.json, kept
+    // because an experiment lists it under `runs`; the app, arena and tournament skip them
+    const expDir = path.join(__dirname, "../../experiments");
+    const cited = new Set<string>(
+      fs
+        .readdirSync(expDir)
+        .filter((d) => fs.existsSync(path.join(expDir, d, "experiment.json")))
+        .flatMap((d) => JSON.parse(fs.readFileSync(path.join(expDir, d, "experiment.json"), "utf8")).runs ?? [])
+        .map((r: { id: string }) => r.id),
+    );
     const specs: ModelSpec[] = fs
       .readdirSync(dir)
       .filter((d) => fs.statSync(path.join(dir, d)).isDirectory())
-      .map((id) => {
-        const file = path.join(dir, id, "model.json");
-        expect(fs.existsSync(file)).toBe(true);
-        return JSON.parse(fs.readFileSync(file, "utf8"));
-      });
+      .filter((id) => {
+        if (fs.existsSync(path.join(dir, id, "model.json"))) return true;
+        const isRecord = ["sweep.jsonl", "record.json"].some((f) => fs.existsSync(path.join(dir, id, f)));
+        expect({ id, record: isRecord && cited.has(id) }).toEqual({ id, record: true });
+        return false;
+      })
+      .map((id) => JSON.parse(fs.readFileSync(path.join(dir, id, "model.json"), "utf8")));
     const listed = new Set(specs.filter((s) => !s.hidden).map((s) => s.id));
     for (const id of ["greedy-full-probe", "greedy-full-combo", "greedy-full-economy"]) expect(listed.has(id)).toBe(true);
   });
