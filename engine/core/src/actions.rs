@@ -834,6 +834,17 @@ pub fn apply_action(s: &mut GameState, a: &Action) -> Result<(), String> {
             let ui = uidx(s, unit).unwrap();
             s.players[pu].stars -= unit_def(to).cost;
             s.units[ui].ty = to;
+            // a Raft (attack 0) starts its turn unable to attack; the upgraded ship may attack this
+            // turn (upgrade, move into range, shoot, as in the game) unless it is done or already
+            // attacked, and after a move only with Dash (Scout, Rammer), as a move leaves it (no Bomber)
+            {
+                let u = &mut s.units[ui];
+                u.can_attack = !u.done
+                    && !u.attacked
+                    && !u.frozen
+                    && unit_def(to).attack > 0.0
+                    && (!u.moved || has(u, Skill::Dash));
+            }
             let u = s.units[ui].clone();
             let r = sight_radius(s, &u);
             explore(s, p, pos(&u), r);
@@ -1786,18 +1797,19 @@ fn do_attack(s: &mut GameState, uid: Id, tid: Id) {
         s.units[ui].second_attack = true;
         s.units[ui].can_attack = true;
     }
-    // melee advance into the killed unit's tile
+    // melee advance into the killed unit's tile, wherever the attacker can stand: a land unit
+    // entering its own port becomes a Raft, a ship landing on the shore (a coastal city too)
+    // turns back into the unit it carries and ends its turn
     let cur = s.units[ui].clone();
     if killed && unit_def(cur.ty).range < 2 && occupant(s, from.x, from.y).is_none() {
-        let kind = enter_kind(s, &cur, tile_at(s, from.x, from.y));
-        if kind == Some(StepKind::Normal) || kind == Some(StepKind::Embark) {
+        if let Some(kind) = enter_kind(s, &cur, tile_at(s, from.x, from.y)) {
             let origin = pos(&cur);
             s.units[ui].x = from.x;
             s.units[ui].y = from.y;
             let moved = s.units[ui].clone();
             let rr = sight_radius(s, &moved);
             explore(s, p, from, rr);
-            after_move(s, uid, kind.unwrap(), origin);
+            after_move(s, uid, kind, origin);
         }
     }
     let Some(ui) = uidx(s, uid) else { return };

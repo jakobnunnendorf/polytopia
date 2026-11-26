@@ -1,0 +1,62 @@
+{
+  "n": 15,
+  "slug": "rl-strategic-vi",
+  "title": "Strategic actions and value iteration on the full integer state",
+  "kind": "method",
+  "issue": 166,
+  "pr": 0,
+  "date": "2026-11-25",
+  "status": "done",
+  "verdict": "not kept",
+  "base": "greedy-full-probe",
+  "result": null,
+  "question": "Does a policy from finite-horizon value iteration over the full integer state, choosing one of five strategic actions per turn, score reliably higher than the bot it steers, and higher than the best single action played every turn?",
+  "change": "Five strategic actions (bot, expand, economy, army, research: move-type weights ×2 for one turn); 300,000 games with a random action per turn; model P̂(s'|s,a), r̂; value iteration gives Q, V and a policy; unseen states play the bot.",
+  "method": "Value iteration on 300k random-action games; min-count chosen on 2,000 validation games; final paired test on 10,000 evaluation seeds",
+  "measured": "Paired, 10,000 evaluation seeds",
+  "metric": "final raw score, #171 rule",
+  "setups": [
+    "Perfection, 16×16 continents, 3 players, Crazy, seat 0 Xin-Xi (human seat), greedy-full-probe in every seat (as experiment 13)"
+  ],
+  "knobs": [
+    {
+      "name": "boost",
+      "tested": [
+        2,
+        4
+      ],
+      "chosen": 2
+    },
+    {
+      "name": "minCount",
+      "tested": [
+        1,
+        5,
+        20,
+        50
+      ],
+      "chosen": 5
+    }
+  ],
+  "headline": [
+    {
+      "label": "Mean final score, 10,000 evaluation seeds: bot vs value-iteration policy",
+      "base": 7995,
+      "new": 8112,
+      "unit": "points"
+    },
+    {
+      "label": "Same seeds: research every turn vs value-iteration policy",
+      "base": 8386,
+      "new": 8112,
+      "unit": "points"
+    },
+    {
+      "label": "Seeds better than the bot (of 9,335 decided)",
+      "base": 4368,
+      "new": 4967,
+      "unit": "seeds"
+    }
+  ],
+  "runs": []
+}

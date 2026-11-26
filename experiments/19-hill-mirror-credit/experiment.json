@@ -1,0 +1,52 @@
+{
+  "n": 19,
+  "slug": "hill-mirror-credit",
+  "title": "Hill climbing that learns from lost rounds: mirror and credit",
+  "kind": "method",
+  "issue": 31,
+  "pr": 0,
+  "date": "2026-11-24",
+  "status": "done",
+  "verdict": "not kept",
+  "base": "greedy-full-v1",
+  "result": null,
+  "question": "Does hill climbing find more improvements when it learns from the rounds it loses: trying the opposite direction after a clear loss (mirror), and choosing which knobs to nudge from a per-knob model of all past rounds (credit)?",
+  "change": "--mirror: after a round lost by at least 1 point, the next round tests the same knob moves in the opposite direction. --credit: a per-knob linear model of the margin, fitted on every round and weighted by games, picks knobs and directions by Thompson sampling; 25% of rounds stay random; the evidence is halved after each keep. Both off by default.",
+  "method": "Tuning run (hill climbing), 100,000 games, against a control run of the same budget and seed",
+  "measured": "Tuning run, 100,000 games, vs a control",
+  "metric": "points share",
+  "setups": [
+    "4 players, 16×16, drylands, turn cap 150"
+  ],
+  "knobs": [],
+  "headline": [
+    {
+      "label": "Points share, 6-model panel, at 100,000 games",
+      "base": 66.1,
+      "new": 66.6,
+      "unit": "%"
+    },
+    {
+      "label": "Points share, 6-model panel, start (greedy-full-v1)",
+      "base": 67.7,
+      "new": 67.7,
+      "unit": "%"
+    },
+    {
+      "label": "Changes kept in 100,000 games",
+      "base": 3,
+      "new": 2,
+      "unit": ""
+    }
+  ],
+  "runs": [
+    {
+      "id": "greedy-full-v2",
+      "label": "Mirror + credit, 100,000 games"
+    },
+    {
+      "id": "greedy-full-v2-ctrl",
+      "label": "Control (standard hill climbing), 100,000 games"
+    }
+  ]
+}

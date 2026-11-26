@@ -288,6 +288,172 @@ describe("naval units", () => {
     expect(unit(s, j.id).type).toBe("giant");
     expect(unit(s, e.id).hp).toBeLessThan(10);
   });
+
+  // "A melee attacker moves into the tile if it can stand there": a ship can land, so a kill
+  // on the shore moves it in and it turns back into the unit it carries, ending its turn
+  it("a Rammer that kills a unit in a coastal enemy city lands in the city as its passenger", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing");
+    tile(s, 5, 5).terrain = "water";
+    const city = s.cities[1];
+    tile(s, city.x, city.y).cityId = null;
+    city.x = 5;
+    city.y = 6;
+    tile(s, 5, 6).cityId = city.id;
+    const r = put(s, "rammer", 0, 5, 5);
+    r.carried = "warrior";
+    const e = put(s, "warrior", 1, 5, 6);
+    e.hp = 1;
+    s = applyAction(s, { type: "attack", unitId: r.id, targetId: e.id });
+    expect(s.units.find((u) => u.id === e.id)).toBeUndefined();
+    expect(unit(s, r.id)).toMatchObject({ x: 5, y: 6, type: "warrior", carried: null, done: true });
+  });
+
+  // swimming super units advance like the ships that carry a unit
+  it("a Juggernaut that kills a unit on the shore lands as its Giant and stomps", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing");
+    tile(s, 5, 5).terrain = "water";
+    const j = put(s, "juggernaut", 0, 5, 5);
+    j.carried = "giant";
+    const e = put(s, "warrior", 1, 5, 6);
+    e.hp = 1;
+    const n = put(s, "warrior", 1, 5, 7);
+    s = applyAction(s, { type: "attack", unitId: j.id, targetId: e.id });
+    expect(unit(s, j.id)).toMatchObject({ x: 5, y: 6, type: "giant", carried: null, done: true });
+    expect(s.units.find((u) => u.id === n.id)?.hp ?? 0).toBeLessThan(10);
+  });
+
+  it("a Crab (amphibious super unit) that kills a unit on the shore moves in as a Crab", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing");
+    tile(s, 5, 5).terrain = "water";
+    const c = put(s, "crab", 0, 5, 5);
+    const e = put(s, "warrior", 1, 5, 6);
+    e.hp = 1;
+    s = applyAction(s, { type: "attack", unitId: c.id, targetId: e.id });
+    expect(unit(s, c.id)).toMatchObject({ x: 5, y: 6, type: "crab" });
+  });
+
+  it("a Shark (a ship with no passenger) that kills a unit on the shore stays on the water", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing", "sailing");
+    tile(s, 5, 5).terrain = "water";
+    const sh = put(s, "shark", 0, 5, 5);
+    const e = put(s, "warrior", 1, 5, 6);
+    e.hp = 1;
+    s = applyAction(s, { type: "attack", unitId: sh.id, targetId: e.id });
+    expect(s.units.find((u) => u.id === e.id)).toBeUndefined();
+    expect(unit(s, sh.id)).toMatchObject({ x: 5, y: 5, type: "shark" });
+  });
+
+  // checked in the real game: a Raft that has waited a turn can be upgraded, move into range and shoot
+  it("a Raft upgraded to a Scout can move and shoot in the same turn", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing", "sailing");
+    s.players[0].stars = 20;
+    for (const [x, y] of [[1, 1], [2, 1], [3, 1]]) tile(s, x, y).terrain = "water";
+    const r = put(s, "raft", 0, 1, 1); // own territory (the city at (0,0) claims radius 1)
+    r.carried = "warrior";
+    r.canAttack = false; // as start_turn leaves a Raft: attack 0
+    const e = put(s, "warrior", 1, 5, 1);
+    s = applyAction(s, { type: "upgrade", unitId: r.id, to: "scout" });
+    expect(unit(s, r.id)).toMatchObject({ type: "scout", canAttack: true });
+    s = applyAction(s, { type: "move", unitId: r.id, to: { x: 3, y: 1 } });
+    expect(find(s, (a) => a.type === "attack" && a.unitId === r.id && a.targetId === e.id)).toBeDefined();
+  });
+
+  // a Bomber has no Dash: it shoots from where it stands, never after a move
+  describe("a Raft upgraded to a Bomber (no Dash)", () => {
+    function setup() {
+      const s = blank();
+      s.players[0].techs.push("fishing", "sailing", "navigation");
+      s.players[0].stars = 30;
+      for (const [x, y] of [[1, 1], [1, 0], [2, 1], [3, 1]]) tile(s, x, y).terrain = "water";
+      const r = put(s, "raft", 0, 1, 1);
+      r.carried = "warrior";
+      r.canAttack = false; // as start_turn leaves a Raft: attack 0
+      return { s, r };
+    }
+    const canShoot = (s: GameState, id: number) => !!find(s, (a) => a.type === "attack" && a.unitId === id);
+
+    it("shoots without moving in the turn of the upgrade", () => {
+      let { s, r } = setup();
+      const e = put(s, "warrior", 1, 4, 1); // 3 tiles away, Bomber range 3
+      s = applyAction(s, { type: "upgrade", unitId: r.id, to: "bomber" });
+      expect(find(s, (a) => a.type === "attack" && a.unitId === r.id && a.targetId === e.id)).toBeDefined();
+    });
+
+    it("can't shoot after upgrading and then moving", () => {
+      let { s, r } = setup();
+      put(s, "warrior", 1, 5, 1);
+      s = applyAction(s, { type: "upgrade", unitId: r.id, to: "bomber" });
+      s = applyAction(s, { type: "move", unitId: r.id, to: { x: 2, y: 1 } });
+      expect(canShoot(s, r.id)).toBe(false);
+    });
+
+    it("can't shoot after moving as a Raft and then upgrading", () => {
+      let { s, r } = setup();
+      put(s, "warrior", 1, 4, 0);
+      s = applyAction(s, { type: "move", unitId: r.id, to: { x: 1, y: 0 } }); // still own territory
+      s = applyAction(s, { type: "upgrade", unitId: r.id, to: "bomber" });
+      expect(unit(s, r.id).canAttack).toBe(false);
+      expect(canShoot(s, r.id)).toBe(false);
+    });
+  });
+
+  it("a Raft that moved and is then upgraded to a Scout (Dash) can still shoot", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing", "sailing");
+    s.players[0].stars = 20;
+    for (const [x, y] of [[1, 1], [1, 0]]) tile(s, x, y).terrain = "water";
+    const r = put(s, "raft", 0, 1, 1);
+    r.carried = "warrior";
+    r.canAttack = false;
+    const e = put(s, "warrior", 1, 3, 0);
+    s = applyAction(s, { type: "move", unitId: r.id, to: { x: 1, y: 0 } });
+    s = applyAction(s, { type: "upgrade", unitId: r.id, to: "scout" });
+    expect(find(s, (a) => a.type === "attack" && a.unitId === r.id && a.targetId === e.id)).toBeDefined();
+  });
+
+  it("a Raft that is done for the turn stays done after an upgrade", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing", "sailing");
+    s.players[0].stars = 20;
+    tile(s, 1, 1).terrain = "water";
+    const r = put(s, "raft", 0, 1, 1);
+    r.carried = "warrior";
+    Object.assign(r, { canAttack: false, canMove: false, done: true, moved: true });
+    s = applyAction(s, { type: "upgrade", unitId: r.id, to: "scout" });
+    expect(unit(s, r.id)).toMatchObject({ type: "scout", canAttack: false, done: true });
+  });
+
+  it("a Scout (ranged, it shoots) that kills a unit next to it stays on the water", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing", "sailing");
+    tile(s, 5, 5).terrain = "water";
+    const sc = put(s, "scout", 0, 5, 5);
+    sc.carried = "warrior";
+    const e = put(s, "warrior", 1, 5, 6);
+    e.hp = 1;
+    s = applyAction(s, { type: "attack", unitId: sc.id, targetId: e.id });
+    expect(s.units.find((u) => u.id === e.id)).toBeUndefined();
+    expect(unit(s, sc.id)).toMatchObject({ x: 5, y: 5, type: "scout", carried: "warrior" });
+  });
+
+  it("a Rammer that kills a unit on a mountain without Climbing stays on the water", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing");
+    tile(s, 5, 5).terrain = "water";
+    tile(s, 5, 6).terrain = "mountain";
+    const r = put(s, "rammer", 0, 5, 5);
+    r.carried = "warrior";
+    const e = put(s, "warrior", 1, 5, 6);
+    e.hp = 1;
+    s = applyAction(s, { type: "attack", unitId: r.id, targetId: e.id });
+    expect(s.units.find((u) => u.id === e.id)).toBeUndefined();
+    expect(unit(s, r.id)).toMatchObject({ x: 5, y: 5, type: "rammer", carried: "warrior" });
+  });
 });
 
 describe("Explorer", () => {

@@ -6,7 +6,7 @@
 \begin{document}
 {\sffamily\Huge\bfseries Polytopia AI research}\par\medskip
 {\sffamily\Large Experiment notebook}\par\medskip
-{\sffamily\small\color{expgrey}12 experiments \textperiodcentered\ built 2026-11-25}\par\bigskip
+{\sffamily\small\color{expgrey}17 experiments \textperiodcentered\ built 2026-11-26}\par\bigskip
 \tableofcontents
 \clearpage\phantomsection\addcontentsline{toc}{section}{Experiment 1: Defend threatened cities (tie)}
 
@@ -577,13 +577,692 @@ The cliff shows the method's blind spot and its safety net at once: marginal eff
 \subsection{Verdict and next step}
 \textbf{Kept.} \model{greedy-full-probe} is the new champion: 61.3\,\% $\pm$4.8 won against the base (finish 59.0\,\%, points 56.2\,\%) and a panel finish of 85.80\,\% against 83.82\,\%; with 8 players 72.8\,\% $\pm$4.4. The hill-climbing control with the same budget found nothing.
 
-The trainer stays as \texttt{scripts/train-probe.ts} (\texttt{npm run train-probe}). Next steps, each its own experiment: (1) a second probe run from the new champion with a smaller nudge, to see how much is left; (2) the same trainer on the plain greedy bots (issue \issue{131}); (3) the warrior and mind bender cliff as a bug report on the unit choice; (4) repeat with another seed to learn how stable the set of moved knobs is.
+The trainer stays as \texttt{scripts/train-probe.ts} (\texttt{npm run train-probe}). Next steps, each its own experiment: (1) a second probe run from the new champion with a smaller nudge, to see how much is left; (2) the same trainer on the plain greedy bots (issue \issue{131}); (3) the warrior and mind bender cliff, filed as \issue{145}; (4) repeat with another seed to learn how stable the set of moved knobs is.
 
 \subsection{Notes for the paper}
 \textbf{Claim (draft).} Estimating all 205 weights' effects from the same games by random sign perturbation, and moving only the weights whose effect passes a significance test, improved a hand-built heuristic bot by 2.0 points of finish score and to 61\,\% against its predecessor in 100,000 games, where hill climbing with the same budget found nothing.
 
 \textbf{Figures worth keeping.} The z-score histogram against the chance curve after round 1; the sensitivity map (87\,\% of weights without measurable effect); the cliff as a worked example of an interaction that marginal effects miss and the next round corrects. Course link: least squares on a designed experiment [EMAI ML-13, ML 2.0 p.27]; issue \issue{89}.
 
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+
+\clearpage\phantomsection\addcontentsline{toc}{section}{Experiment 13: Full integer state: value function learned from recorded games (not kept)}
+
+\input{13-rl-full-state-value/generated}
+\ExpHeader
+
+\subsection{Question and hypothesis}
+% WHEN: before the first run.
+\textbf{The idea (David, 25 Nov 2026, issue \#166).} Model the game state directly with all features at once,
+as exact integers and without bins: number of cities, income (stars per turn), number of units, sum of city
+levels, number of techs, and the turn (Perfection ends after 30 turns, so time is part of the state). Learn the
+value of these states from play; later, use value iteration on them to play the game. This runs in parallel
+with Jakob's track, which starts from cities alone and adds one feature at a time.
+
+\textbf{This experiment} is the first step: the value function of the current bot's own play (policy
+evaluation, no decisions yet). The value of a state is the expected remaining score,
+$V(s_t) = \mathbb{E}[\,\text{final score} - \text{score}_t \mid s_t\,]$, which is the sum of the rewards
+(score changes) still to come.
+
+\textbf{Prediction} (written before the main run; a 200-game pilot was run only to check the tool and time it):
+\begin{enumerate}
+  \item \emph{The state space is sparse.} Distinct states grow almost in proportion to the games played. With
+        300{,}000 training games, more than half of the distinct states are seen only once, and the held-out
+        coverage (share of held-out visits whose exact state was seen in training) is about 85\%: close to
+        100\% in the first turns, below 60\% in the last ten.
+  \item \emph{The learned model beats Monte Carlo.} On held-out visits to states seen in training, the
+        model-based $V$ (backward induction) has a lower RMSE than the Monte Carlo table at every training size,
+        by at least 5\% at 300{,}000 games, because it pools the successors of rarely seen states.
+  \item \emph{The full state beats the turn alone, given enough data.} At small sizes (the pilot: 200 games) the
+        tables are worse than the turn-only baseline; from about 30{,}000 games on, model-based $V$ beats it,
+        and at 300{,}000 games its RMSE over all held-out visits is at least 25\% below the baseline's.
+\end{enumerate}
+\textbf{Against the idea:} if model-based $V$ is not at least 10\% below the turn baseline at 300{,}000 games,
+the exact-integer state is too sparse to learn as a table at this data size.
+
+\subsection{Mechanism}
+\textbf{State.} At the start of each turn of seat 0 (the learner), \texttt{rl-value} (\texttt{engine/rlvalue})
+reads $s = (\text{turn}, \text{cities}, \text{income}, \text{units}, \text{levels}, \text{techs})$:
+cities and units owned by seat 0, \texttt{state::income} (stars at the start of its next turn), the sum of
+\texttt{level} over its cities, and the number of techs owned. It also records \texttt{score\_of}, the raw
+Perfection score. A terminal row holds the final score.
+
+\textbf{Reward.} $r_t = \text{score}_{t+1} - \text{score}_t$; the last step runs to the final score.
+
+\textbf{Three estimators, all fitted on the same training games.}
+\begin{itemize}
+  \item \emph{Model-based (certainty equivalence).} For each visited state the list of observed transitions
+        $(r, s')$ is the maximum-likelihood model $\hat P(s'\mid s)$, $\hat r(s,s')$. Backward induction from the
+        last turn: $V(s) = \frac{1}{n(s)} \sum_{(r,s')} \bigl(r + V(s')\bigr)$, $V(\text{terminal}) = 0$. A
+        successor is always one turn later, so this is exact finite-horizon dynamic programming, no
+        discounting. It is also the fixed point that batch TD(0) converges to.
+  \item \emph{Monte Carlo.} $V(s)$ = mean return-to-go of the training visits to $s$.
+  \item \emph{Turn baseline.} $V(t)$ = mean return-to-go at turn $t$.
+\end{itemize}
+A held-out state never seen in training has no table entry; it gets the turn baseline (reported separately as
+coverage).
+
+\subsection{Setup}
+Perfection, 16$\times$16 Continents, 3 players, difficulty Crazy (DECISION on \#166, 25 Nov), seat 0 Xin-Xi as
+the game's human seat (\texttt{humans: [0]}, as on Jakob's branch \texttt{rl/learner-human}; on \texttt{dev}
+the gate still has no human seat), opponents' tribes from the gate's rule, \texttt{greedy-full-probe} in every
+seat. Training seeds $1, 2, \dots$; held-out seeds $500{,}000{,}000, \dots$ (10{,}000 games); both below the
+gate's evaluation seeds ($\geq 10^9$). Training sizes 1k, 3k, 10k, 30k, 100k, 300k games (each a prefix of the
+same seed list).
+
+Commands:
+\begin{verbatim}
+cargo run --release -p rl-value -- collect --games 300000 --seed-start 1 \
+  --out target/rl-value/train.tsv
+cargo run --release -p rl-value -- collect --games 10000 --seed-start 500000000 \
+  --out target/rl-value/test.tsv
+cargo run --release -p rl-value -- fit --train target/rl-value/train.tsv \
+  --test target/rl-value/test.tsv --sizes 1000,3000,10000,30000,100000,300000 \
+  --out ../experiments/13-rl-full-state-value
+\end{verbatim}
+Sanity checks: unit tests (backward induction on two hand-made games; one row per learner turn from turn 0;
+the same seed gives the same game). Pilot, 200 games: 0.9\,s on 10 threads, 30 learner turns per game, final
+scores around 9{,}000.
+
+\subsection{Results}
+\ExpResults
+
+All numbers below are copied from \texttt{value-summary.json} (\texttt{rl-value fit}, 25 Nov 2026). Held-out set:
+10{,}000 games, 301{,}946 rows, 291{,}946 learner turns; 1{,}294 of these games (12.9\%) end before turn 30
+because the learner is eliminated. The remaining score at turn 0 (final score minus the 515 points every
+learner has at the start) averages 7{,}495 with a standard deviation of 2{,}915.
+
+\paragraph{Learning curve.} RMSE of the predicted remaining score over all held-out turns (a state not seen in
+training gets the turn baseline):
+
+\begin{center}\small
+\begin{tabular}{rrrrrrr}
+\toprule
+training games & distinct states & coverage & turn only & model-based & Monte Carlo & best gain \\
+\midrule
+1{,}000   & 15{,}662  & 57.6\% & 2418.5 & 2402.1 & 2477.9 & $-0.7\%$ \\
+3{,}000   & 36{,}129  & 70.7\% & 2414.4 & 2357.3 & 2427.1 & $-2.4\%$ \\
+10{,}000  & 80{,}764  & 82.1\% & 2414.5 & 2306.3 & 2341.2 & $-4.5\%$ \\
+30{,}000  & 159{,}470 & 89.0\% & 2414.4 & 2263.3 & 2268.8 & $-6.3\%$ \\
+100{,}000 & 319{,}399 & 93.9\% & 2414.3 & 2230.5 & 2214.1 & $-8.3\%$ \\
+300{,}000 & 569{,}492 & 96.7\% & 2414.3 & 2210.4 & 2180.6 & $-9.7\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{By turn} (300{,}000 training games; RMSE over all held-out visits at that turn):
+
+\begin{center}\small
+\begin{tabular}{rrrrrrr}
+\toprule
+turn & sd of return & coverage & turn only & model-based & Monte Carlo & $R^2$ model \\
+\midrule
+0  & 2915 & 100.0\% & 2914.8 & 2914.8 & 2914.8 & 0.00 \\
+5  & 2901 & 100.0\% & 2901.2 & 2897.9 & 2798.2 & 0.00 \\
+10 & 2807 & 99.6\%  & 2806.8 & 2689.6 & 2602.5 & 0.08 \\
+15 & 2544 & 98.2\%  & 2543.8 & 2116.3 & 2130.9 & 0.31 \\
+20 & 2124 & 95.6\%  & 2124.3 & 1595.0 & 1642.0 & 0.44 \\
+25 & 1385 & 90.7\%  & 1385.3 & 1020.8 & 1049.1 & 0.46 \\
+29 & 523  & 88.6\%  & 523.1  & 438.8  & 438.8  & 0.30 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Monte Carlo has the lower error at turns 1--14, the model-based $V$ from turn 15 on (full per-turn rows
+in the JSON).
+
+\paragraph{State counts} (300{,}000 games, 8{,}750{,}194 learner turns): 569{,}492 distinct states, 286{,}479
+of them (50.3\%) seen once, 492{,}426 seen fewer than 10 times; but those seen once hold only 3.3\% of the
+visits (15.4 visits per state on average). The bot's states lie in cities 1--14, income 0--89, units 0--82,
+levels 1--75, techs 1--25. Transitions are very stochastic: among states seen at least twice, the number of
+distinct successors is 0.82 per visit.
+
+Reading: the full integer state predicts the remaining score better than the turn alone, and more so with more
+data, but only by 9.7\% overall at 300{,}000 games. The gain sits in the second half of the game (17\% at turn
+15, 25--26\% at turns 20--25, about half the variance explained); in the first ten turns the state is almost
+the same in every game (all 300{,}000 games share the same turn-0 state), so it cannot say which games will go
+well.
+
+\subsection{Behaviour}
+Not a policy change; the behaviour is that of \texttt{greedy-full-probe} in this setup. Its visits concentrate:
+96.7\% of held-out turns land in a state seen in training, 87.5\% in one seen at least 10 times, although half
+the distinct states are seen once.
+
+\subsection{Interpretation}
+\textbf{Prediction 1 (sparse state space): half right.} Half the distinct states are seen once (50.3\%, predicted
+``more than half''), but coverage is far higher than predicted (96.7\% against about 85\%; 88.6\% at turn 29
+against ``below 60\%''). The bot plays similar games, so a few states take most of the visits. Exact integers
+without bins are therefore workable as a table for this policy.
+
+\textbf{Prediction 2 (model beats Monte Carlo at every size): wrong.} The model wins at small sizes (up to 30{,}000
+games), Monte Carlo wins overall from 100{,}000 games on. By turn the split is clean: Monte Carlo is better
+early, the model late. This is the bias--variance trade-off between the two: the model's backward induction
+assumes that the six integers are a Markov state, so that the future depends on the state alone. They are not:
+the map, the opponents and the unit positions are hidden. A state reached in a good game and the same state
+reached in a bad game get the same successors in the model; Monte Carlo keeps each visit's real return and so
+keeps that hidden information on average. Early states are seen thousands of times, so Monte Carlo's variance is
+small and its lack of bias wins. Late states are rarer, and the model's pooling over successors wins.
+
+\textbf{Prediction 3 (at least 25\% below the turn baseline overall): wrong.} 8.4\% for the model, 9.7\% for Monte
+Carlo. By the criterion written before the run (model-based at least 10\% below the baseline), this counts
+against the idea. The per-turn table shows why the overall number is small: the first ten turns, a third of all
+visits, have almost no information in any of the six integers, and their large errors dominate the overall
+RMSE. From turn 15 on the state explains a third to a half of the variance.
+
+\textbf{Consequence for value iteration.} Value iteration needs the model-based form ($\hat P$, $\hat r$), and
+that form is biased because the state is not Markov. In the late game it is the better estimator; in the early
+game the choice of strategic action will rest on values that barely differ between states.
+
+\todo{david}{Your reading: agree, disagree, what is missing?}
+
+\subsection{Threats to validity}
+\begin{itemize}
+  \item \emph{One policy.} All values are those of \texttt{greedy-full-probe} against itself; a learner that
+        plays differently visits other states, and coverage will drop.
+  \item \emph{Overall RMSE as the headline.} It weights early turns, where no state feature can help, as much
+        as late ones; the per-turn table is the fairer measure. This was chosen before the run and is kept
+        as the headline.
+  \item \emph{Elimination.} 12.9\% of the held-out games end early because the learner seat (the human seat) is
+        eliminated; these games have large errors. With \texttt{humans: []} (the gate on \texttt{dev}) the
+        game would continue and the numbers would differ.
+  \item \emph{Unseen states} fall back to the turn baseline; with 3.3\% of held-out turns unseen this changes
+        the overall RMSE little.
+\end{itemize}
+
+\subsection{Verdict and next step}
+No gate run: there is no new player. The prediction failed on its headline (8.4\% instead of at least 25\%);
+the result is a measurement, not a model to keep. The tool \texttt{rl-value} is the base for the next step.
+
+Next: strategic actions (expand / economy / army / research as weight boosts of the greedy bot), games where
+the learner picks one at random each turn, then value iteration over $\hat P(s' \mid s, a)$ to get $Q$ and a
+policy, tested with the gate against \texttt{greedy-full-probe}. Two follow-ups this result suggests: the
+early game needs either information the six integers do not hold (e.g. the land the learner can reach) or
+must be left to the bot; and Monte Carlo values can serve as the check on the model's values.
+
+\subsection{Notes for the paper}
+Claim: exact integer game features, without bins, are learnable as a table for a fixed policy (96.7\% of
+held-out turns covered), but they explain little of the outcome before turn 10 and up to half from turn 20
+on; and with a non-Markov state Monte Carlo beats the certainty-equivalence model in the well-visited early
+game, while the model wins in the sparse late game. Carried by the per-turn table.
+
+\todo{david}{Is this worth a place in the talk or report? Where?}
+
+
+\clearpage\phantomsection\addcontentsline{toc}{section}{Experiment 15: Strategic actions and value iteration on the full integer state (not kept)}
+
+\input{15-rl-strategic-vi/generated}
+\ExpHeader
+
+\subsection{Question and hypothesis}
+\textbf{The idea (David, 25 Nov 2026, issue \#166).} Use the full integer state of experiment 13 (turn, cities,
+income, units, sum of city levels, techs) to play more strategically: learn from play how each strategic choice
+changes the state and the score, then run value iteration backwards from turn 30 to get $V$, $Q$ and a policy.
+
+\textbf{What the action check already showed} (before the main run; Setup): of the five actions played every
+turn, only \emph{research} changes the outcome clearly: mean final score 8{,}377 against the bot's 7{,}927, better
+on 1{,}167 of 2{,}000 seeds and worse on 792. So the bar is not only the bot but also ``research every turn''.
+
+\textbf{Prediction} (written before the main run):
+\begin{enumerate}
+  \item \emph{The policy beats the bot.} On the 10{,}000 evaluation seeds the value-iteration policy passes the
+        \#171 rule against the bot, with a mean gain of 300--600 points (``research every turn'' gains about 450).
+  \item \emph{It mostly researches.} The policy picks research on more than 40\% of learner turns; expand, which
+        hardly changes the game, matters little.
+  \item \emph{Values are optimistic.} The model's $V$(start) at min-count 1 exceeds the policy's real mean final
+        score minus the start score by more than 500 points (the maximum over noisy $Q$ estimates is biased
+        upwards, and the state is not Markov); the gap shrinks with a higher min-count.
+  \item \emph{The state cannot time the actions much better than a fixed rule.} Against ``research every turn''
+        on the same seeds, the policy does not pass the \#171 rule (experiment 13: the six integers carry almost
+        no information in the first ten turns, where most of the choice is).
+\end{enumerate}
+\textbf{Against the idea:} if the policy fails against the bot, value iteration on this state does not even find
+the one action that is known to help.
+
+\subsection{Mechanism}
+\textbf{Strategic actions.} At the start of each learner turn one action $a \in \{0,\dots,4\}$ is chosen and holds
+for the whole turn: it multiplies the bot's move-type weights (\texttt{FullWeights::ty}, the factor on the score of
+every move of that type) by the boost 2. 0 \emph{bot}: no change; 1 \emph{expand}: capture, examine;
+2 \emph{economy}: build; 3 \emph{army}: train, attack; 4 \emph{research}: research
+(\texttt{engine/rlvalue/src/vi.rs}, \texttt{BOOSTED}).
+
+\textbf{Data.} 300{,}000 games in which the learner picks a uniformly random action each turn (fixed by seed and
+turn); each row records the state, the score and the action.
+
+\textbf{Value iteration.} For each state $s$ and action $a$ the observed transitions $(r, s')$ form $\hat P(s'\mid
+s,a)$ and $\hat r$. Backwards from the last turn: $Q(s,a) = \frac{1}{n(s,a)}\sum \bigl(r + V(s')\bigr)$,
+$V(s) = \max_{a:\,n(s,a) \ge m} Q(s,a)$, $V(\text{terminal}) = 0$; the policy is the argmax. A state where no action
+has $m$ visits keeps the mean over all its transitions and has no policy entry. When playing, a state without an
+entry gets action 0 (the bot).
+
+\textbf{Choice of $m$.} $m \in \{1, 5, 20, 50\}$; each policy plays 2{,}000 validation games (seeds
+$700{,}000{,}000\dots$) against the bot on the same seeds; the $m$ with the highest share of better seeds is kept.
+Only that one is evaluated on the evaluation seeds.
+
+\subsection{Setup}
+As experiment 13 (David's choice, \#166, 25 Nov): Perfection, 16$\times$16 Continents, 3 players, Crazy, seat 0
+Xin-Xi as the human seat, \texttt{greedy-full-probe} in every seat. This is not the decided 3-opponent gate setup,
+so \texttt{rl-gate} is not used: \texttt{rl-value eval} plays the policy and the base on the same seeds and applies
+the \#171 rule itself (sign test, exact, one-sided 99\%; mean not significantly worse; 10th percentile not lower).
+Seeds: training $1\dots300{,}000$; action check $600{,}000{,}000\dots$ (2{,}000); validation
+$700{,}000{,}000\dots$ (2{,}000); evaluation $10^9\dots$ (10{,}000).
+
+\textbf{Action check} (each action every turn, 2{,}000 seeds, \texttt{check-boost2.json}, \texttt{check-boost4.json}):
+
+\begin{center}\small
+\begin{tabular}{lrrrrr}
+\toprule
+action (boost 2) & mean score & median & 10th pct & better / worse vs bot \\
+\midrule
+bot      & 7927 & 8765 & 2634 & -- \\
+expand   & 7924 & 8778 & 2634 & 117 / 110 \\
+economy  & 7950 & 8800 & 2585 & 941 / 907 \\
+army     & 7969 & 8830 & 2805 & 597 / 606 \\
+research & 8377 & 9318 & 3214 & 1167 / 792 \\
+\bottomrule
+\end{tabular}
+\end{center}
+With boost 4, research gains more (8{,}497) but costs cities (3.25 against 3.57), economy loses (7{,}686), and
+expand still changes little; boost 2 is kept.
+
+Sanity checks: unit tests (value iteration picks the better action; min-count fallback; exact sign test against
+$P(X\ge 60\mid 100) = 0.02844$; type-7 quantile; random driver reproducible); the bot driver reproduces experiment
+13's games row for row.
+
+Commands (from \texttt{engine/}):
+\begin{verbatim}
+B=./target/release/rl-value
+$B collect --driver random --games 300000 --seed-start 1 --out target/rl-value/train-random.tsv
+$B fit-vi --train target/rl-value/train-random.tsv --min-count 1,5,20,50 --out target/rl-value/vi
+$B eval --policy target/rl-value/vi/policy-mM.tsv --n 2000 --seed-start 700000000 --out ...
+$B eval --policy <chosen> --n 10000 --out ../experiments/15-rl-strategic-vi/eval-vs-bot.json
+$B eval --policy <chosen> --n 10000 --base-driver fixed:4 --out .../eval-vs-research.json
+\end{verbatim}
+
+\subsection{Results}
+\ExpResults
+
+All numbers are copied from \texttt{vi-summary.json}, \texttt{val-m*.json}, \texttt{eval-vs-bot.json} and
+\texttt{eval-vs-research.json} (25 Nov 2026). Data: 300{,}000 random-action games, 9{,}044{,}223 rows, 555{,}338
+distinct states; collection 1{,}364\,s on 10 threads.
+
+\paragraph{Value iteration and validation} (2{,}000 validation seeds, policy against the bot on the same seeds).
+$V$(start) is the model's remaining score at the turn-0 state; the real remaining score is the policy's mean
+final score minus the start score of 515.
+
+\begin{center}\small
+\begin{tabular}{rrrrrrr}
+\toprule
+min-count & policy covers & $V$(start) & real remaining & optimism & better / worse & mean, policy vs bot \\
+\midrule
+1  & 100.0\% & 11{,}745 & 7{,}543 & +4{,}202 & 922 / 923 & 8058 vs 8055 \\
+5  & 86.6\%  & 9{,}399  & 7{,}619 & +1{,}780 & 969 / 882 & 8134 vs 8055 \\
+20 & 70.6\%  & 8{,}569  & 7{,}554 & +1{,}015 & 917 / 894 & 8069 vs 8055 \\
+50 & 56.1\%  & 8{,}156  & 7{,}529 & +627     & 861 / 898 & 8044 vs 8055 \\
+\bottomrule
+\end{tabular}
+\end{center}
+``Policy covers'' is the share of training visits in states with a policy entry. Min-count 5 has the highest share
+of better seeds (52.4\%) and is the one evaluated.
+
+\paragraph{Final evaluation} (10{,}000 evaluation seeds from $10^9$, \#171 rule computed by \texttt{rl-value eval}):
+
+\begin{center}\small
+\begin{tabular}{lrrrrrl}
+\toprule
+ & mean & median & 10th pct & better / worse / ties & mean $d$ (99\% upper) & rule \\
+\midrule
+policy (min-count 5)      & 8112 & 9035 & 2740 & & & \\
+bot                       & 7995 & 8850 & 2660 & 4967 / 4368 / 665 & $+117.6$ ($+169.8$) & PASS ($p = 3.0\cdot10^{-10}$) \\
+research every turn       & 8386 & 9305 & 3230 & 3913 / 5505 / 582 & $-273.5$ ($-233.0$) & FAIL \\
+\bottomrule
+\end{tabular}
+\end{center}
+(The ``better / worse'' columns count the seeds where the policy scored higher / lower than that row's player.)
+
+Reading: the value-iteration policy is reliably better than the bot it steers (better on 53.2\% of the decided
+seeds), but by only 118 points on average, and it is clearly worse than the fixed rule ``research every turn''
+(274 points less, better on only 41.5\%).
+
+\subsection{Behaviour}
+On the evaluation seeds the policy plays bot 29.6\%, expand 16.7\%, economy 12.0\%, army 17.8\% and research 23.9\%
+of the learner's turns; 86.7\% of turns are in a state with a policy entry (the rest play the bot). The choice is
+close to uniform: value iteration did not single out research, the one action known to help.
+
+\subsection{Interpretation}
+\textbf{Prediction 1 (beats the bot, +300 to +600): half right.} It passes the \#171 rule, but the gain is +118.
+
+\textbf{Prediction 2 (research on more than 40\% of turns): wrong.} 23.9\%, about the uniform 20\%.
+
+\textbf{Prediction 3 (optimistic values, shrinking with min-count): right.} $V$(start) is 4{,}202 points too high at
+min-count 1 and 627 at min-count 50.
+
+\textbf{Prediction 4 (not better than research every turn): right}, and more strongly than predicted: the policy is
+significantly worse.
+
+\textbf{Why: the noise of $\hat Q$ swamps the effects of the actions.} The remaining score has a standard deviation
+of about 2{,}900 points (experiment 13). An action's effect on it is a few hundred points over a whole game, so a
+few dozen points per turn. With 300{,}000 games spread over 555{,}338 states and five actions, a typical
+$(s,a)$ is seen a handful of times, so the standard error of $\hat Q(s,a)$ is around a thousand points: the
+argmax picks whichever action had lucky games, not the better action. That is the maximisation bias the optimism
+column shows, and it is why the choice is nearly uniform. The small gain over the bot comes mostly from the turns
+where the policy happens to choose research. Exact integers make the state precise but leave each state with too
+little data to tell actions apart; the earlier the turn, the less the state says anyway (experiment 13).
+
+\todo{david}{Your reading: agree, disagree, what is missing?}
+
+\subsection{Threats to validity}
+\begin{itemize}
+  \item \emph{Not the decided setup}: 2 opponents, all \texttt{greedy-full-probe}, and the opponent model before
+        \#174 (the branch starts from \texttt{dev} at 6f99e0e). The \#171 rule was computed by \texttt{rl-value},
+        not \texttt{rl-gate}.
+  \item \emph{Exploration data}: values are learned from random-action play, which visits other states than the
+        policy does; 13.3\% of the policy's turns fall in states without an entry.
+  \item \emph{Min-count chosen on 2{,}000 validation games}: the differences between the four values are within
+        noise there (52.4\% at best); another choice would change little.
+  \item \emph{Expand} hardly differs from the bot and adds a near-duplicate action to the maximum.
+\end{itemize}
+
+\subsection{Verdict and next step}
+\textbf{Not kept.} The policy passes the \#171 rule against the bot (on David's setup, not the gate's), but it is
+significantly worse than ``research every turn'', a fixed rule with no learning; keeping it would be keeping noise.
+Nothing is promoted (it could not be: the setup is not the gate's).
+
+Next steps this result points to:
+\begin{itemize}
+  \item \emph{Less noise per $(s,a)$}: more games, or fewer and more different actions (drop expand), or share data
+        between neighbouring states (a linear $Q$ in the six integers, i.e.\ function approximation instead of a
+        table).
+  \item \emph{Spending decisions as actions} (asked on \#166): actions that change the state variables directly.
+  \item \emph{Research every turn} is a strong, simple baseline that every later policy should be compared with.
+\end{itemize}
+
+\subsection{Notes for the paper}
+Claim: value iteration over a tabular model of exact integer features finds a policy that is reliably but only
+slightly better than the bot it steers (+118 points, better on 53\% of seeds), and worse than a fixed rule
+(``research every turn'', $-274$); the maximisation bias over sparse $\hat Q$ (the model overestimates the start
+value by 1{,}780 points at min-count 5) explains why. Carried by the validation table (optimism column) and the
+final evaluation table. A good ``what failed and why'' section for the talk.
+
+\todo{david}{Is this worth a place in the talk or report? Where?}
+
+
+\clearpage\phantomsection\addcontentsline{toc}{section}{Experiment 16: Full integer state value function, re-run on the decided gate setup (adopted)}
+
+\input{16-rl-full-state-value-gate-setup/generated}
+\ExpHeader
+
+\subsection{Question and hypothesis}
+\textbf{The idea (David, 25 Nov 2026, issue \#166).} Re-run experiment 13 on the updated environment and the setup
+agreed on \#166, so that David's full-state track and Jakob's feature-by-feature track (experiment 14) are measured
+on the same games. Method unchanged: the state is six exact integers (turn, cities, income, units, sum of city
+levels, techs), no bins; $V(s_t) = \mathbb{E}[\text{final score} - \text{score}_t \mid s_t]$, the remaining score
+of the bot's own play.
+
+\textbf{Prediction} (before the run; from experiment 13, adjusted for more opponents and the new opponent model):
+\begin{enumerate}
+  \item \emph{Coverage stays high:} 93--97\% of held-out learner turns land in a state seen in the 300{,}000
+        training games (13: 96.7\%); more opponents make games more varied, so slightly lower.
+  \item \emph{Same overall picture:} model-based $V$ is 6--12\% below the turn baseline in RMSE over all held-out
+        turns (13: 8.4\%), and 20--30\% below it at turns 20--25 (13: 25--26\%).
+  \item \emph{Same split between the estimators:} Monte Carlo is better in the early turns, the model-based $V$ in
+        the late turns, with the crossover between turns 10 and 18 (13: turn 15).
+  \item \emph{More eliminations:} with three opponents more learners are eliminated before turn 30: 15--25\% of
+        held-out games (13: 12.9\%).
+\end{enumerate}
+\textbf{Against experiment 13's conclusion:} if the model-based $V$ is not below the turn baseline at 300{,}000
+games, or the estimator split reverses, 13's result was specific to its setup.
+
+\subsection{Mechanism}
+As experiment 13 (\texttt{rl-value collect} and \texttt{fit}, \texttt{engine/rlvalue}): the state is read at the start
+of each learner turn; reward = change in raw score; three estimators on the same training games: model-based
+(certainty equivalence: transitions $(r, s')$ per state, backward induction from the last turn), Monte Carlo
+(mean return-to-go per state) and the turn baseline (mean return-to-go per turn). A held-out state not seen in
+training gets the turn baseline. New in the tool: the terminal row records whether the learner won, so the report
+gives the win rate.
+
+\subsection{Setup}
+\textbf{What changed against experiment 13} (everything as agreed on \#166, 25 Nov):
+\begin{itemize}
+  \item Engine of \texttt{dev} at 3fa9d33: bot opinions follow the decompiled model (\#174), the Perfection bonus
+        table (\#172; raw scores unaffected).
+  \item 4 players (3 opponents, the symmetric layout) instead of 3.
+  \item Opponents as \texttt{rl-gate}'s defaults: \texttt{greedy-full-probe} and \texttt{greedy-full-combo} (entries 0
+        and 1 of \texttt{docs/rl-project/champions.json}) and the anchor \texttt{greedy-full-probe}, shuffled over
+        the seats per seed by the gate's \texttt{seat\_assignment}; opponents' tribes by the gate's rule.
+\end{itemize}
+Unchanged: Perfection, 16$\times$16 Continents, Crazy, learner Xin-xi as the human seat, learner
+\texttt{greedy-full-probe}. Training seeds $1\dots300{,}000$; held-out seeds $500{,}000{,}000\dots$ (10{,}000);
+both below the gate's evaluation seeds.
+
+\textbf{Sanity check: the games are the gate's games.} \texttt{rl-gate --candidate greedy-full-probe --base
+greedy-full-probe --n 500 --seed-start 1} and \texttt{rl-value collect --games 500 --seed-start 1} give the same
+seat-0 final score and the same win flag on 500 of 500 seeds. Unit tests pass (5).
+
+Commands (from \texttt{engine/}):
+\begin{verbatim}
+B=./target/release/rl-value
+$B collect --games 10000 --seed-start 500000000 --out target/rl-value/g4-test.tsv
+$B collect --games 300000 --seed-start 1 --out target/rl-value/g4-train.tsv
+$B fit --train target/rl-value/g4-train.tsv --test target/rl-value/g4-test.tsv \
+  --sizes 1000,3000,10000,30000,100000,300000 \
+  --out ../experiments/16-rl-full-state-value-gate-setup
+\end{verbatim}
+No gate verdict: there is no new player, only a value function of the bot's own play.
+
+\subsection{Results}
+\ExpResults
+
+All numbers are copied from \texttt{value-summary.json} (\texttt{rl-value fit}, 25 Nov 2026). Collection: 300{,}000
+training games in 1{,}525\,s and 10{,}000 held-out games in 51\,s on 10 threads; fit 4\,s.
+
+\paragraph{The held-out games} (the bot's own play on this setup; 10{,}000 games): mean final score 6{,}747
+(95\% interval 6{,}680 to 6{,}815, sd 3{,}459), median 7{,}925, 10th percentile 1{,}455, 90th percentile 10{,}370;
+win rate 3.01\% (Wilson 95\% interval 2.69\% to 3.36\%); 2{,}760 games (27.6\%) end before turn 30 because the
+learner is eliminated.
+
+\paragraph{Learning curve} (RMSE of the predicted remaining score over all held-out turns; a state not seen in
+training gets the turn baseline):
+
+\begin{center}\small
+\begin{tabular}{rrrrrrr}
+\toprule
+training games & distinct states & coverage & turn only & model-based & Monte Carlo & model / MC gain \\
+\midrule
+1{,}000   & 14{,}149  & 59.4\% & 2819.9 & 2711.0 & 2774.3 & $-3.9\%$ / $-1.6\%$ \\
+3{,}000   & 32{,}042  & 72.2\% & 2817.9 & 2643.9 & 2684.7 & $-6.2\%$ / $-4.7\%$ \\
+10{,}000  & 72{,}374  & 83.2\% & 2817.1 & 2578.0 & 2586.9 & $-8.5\%$ / $-8.2\%$ \\
+30{,}000  & 141{,}948 & 89.7\% & 2817.2 & 2532.2 & 2516.0 & $-10.1\%$ / $-10.7\%$ \\
+100{,}000 & 282{,}706 & 94.4\% & 2817.2 & 2499.7 & 2465.0 & $-11.3\%$ / $-12.5\%$ \\
+300{,}000 & 502{,}328 & 97.0\% & 2817.2 & 2482.4 & 2435.3 & $-11.9\%$ / $-13.6\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{By turn} (300{,}000 training games):
+
+\begin{center}\small
+\begin{tabular}{rrrrrrrr}
+\toprule
+turn & sd of return & coverage & turn only & model-based & Monte Carlo & model gain & $R^2$ model \\
+\midrule
+0  & 3459 & 100.0\% & 3458.8 & 3458.8 & 3458.8 & 0\%        & 0.00 \\
+5  & 3445 & 100.0\% & 3444.9 & 3394.7 & 3244.4 & $-1.5\%$  & 0.03 \\
+10 & 3302 & 99.5\%  & 3301.9 & 2834.3 & 2745.1 & $-14.2\%$ & 0.26 \\
+15 & 2880 & 98.1\%  & 2879.8 & 2128.4 & 2127.5 & $-26.1\%$ & 0.45 \\
+20 & 2217 & 95.6\%  & 2216.5 & 1604.9 & 1639.9 & $-27.6\%$ & 0.48 \\
+25 & 1372 & 90.8\%  & 1371.6 & 1016.3 & 1042.2 & $-25.9\%$ & 0.45 \\
+29 & 504  & 88.7\%  & 503.9  & 417.9  & 417.9  & $-17.1\%$ & 0.31 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Monte Carlo has the lower error at turns 1--15, the model-based $V$ at turns 16--28 (equal at turns 0 and 29; full
+rows in the JSON).
+
+\paragraph{State counts} (300{,}000 games, 8{,}209{,}752 learner turns): 502{,}328 distinct states, 49.8\% seen once,
+432{,}926 seen fewer than 10 times; the states seen once hold 3.0\% of the visits (16.3 visits per state on
+average); 0.81 distinct successors per visit among states seen at least twice. Ranges: cities 1--13, income
+0--84, units 0--75, levels 1--69, techs 1--25.
+
+\paragraph{Against experiment 13} (2 opponents, all \texttt{greedy-full-probe}, old opponent model): the overall
+gain of the model-based $V$ over the turn baseline grows from 8.4\% to 11.9\% (Monte Carlo 9.7\% to 13.6\%); the
+state explains more earlier ($R^2$ 0.26 at turn 10 against 0.08); coverage is about the same (97.0\% against
+96.7\%); the held-out games are harder (mean 6{,}747 against 8{,}010, 27.6\% eliminated against 12.9\%).
+
+\subsection{Behaviour}
+Not a policy change; the bot's games on this setup are harder than in experiment 13: more than a quarter of the
+learners are eliminated before turn 30, and the learner wins 3\% of games against three Crazy champions. Visits
+concentrate as before: 97.0\% of held-out turns land in a state seen in training, 88.4\% in one seen at least 10
+times.
+
+\subsection{Interpretation}
+\textbf{Prediction 1 (coverage 93--97\%): right} (97.0\%, at the upper edge).
+
+\textbf{Prediction 2 (overall gain 6--12\%, 20--30\% at turns 20--25): right} (11.9\%; 27.6\% at turn 20, 25.9\%
+at turn 25).
+
+\textbf{Prediction 3 (Monte Carlo early, model late, crossover between turns 10 and 18): right} (crossover at turn
+16). The explanation of experiment 13 holds: the six integers are not a Markov state (map, opponents and positions
+are hidden), so backward induction through the learned model is biased; Monte Carlo is not, and early states have
+enough visits for its variance to be small.
+
+\textbf{Prediction 4 (15--25\% eliminated): wrong}, 27.6\%. Three Crazy opponents under the new opinion model are
+harsher than expected.
+
+\textbf{What the new setup changes:} eliminations make the outcome partly bimodal (a lower 10th percentile and a
+larger spread), and the six integers see a coming elimination (cities and income fall), so they explain more of the
+remaining score from turn 8 to turn 15 than in experiment 13. Experiment 13's conclusions carry over to the decided
+setup.
+
+\todo{david}{Your reading: agree, disagree, what is missing?}
+
+\subsection{Threats to validity}
+\begin{itemize}
+  \item \emph{One policy}: the values are those of \texttt{greedy-full-probe} on this setup; a learner that plays
+        differently visits other states.
+  \item \emph{Overall RMSE} weights the uninformative early turns as much as the late ones; the per-turn table is the
+        fairer measure.
+  \item \emph{Opponent list}: the registry's entries today (probe, combo, anchor probe); a promotion changes the
+        opponents and so the values.
+\end{itemize}
+
+\subsection{Verdict and next step}
+A measurement, no gate (no new player): experiment 13's result holds on the decided setup, slightly stronger. Done.
+This is the setup for the re-run of experiment 15 (strategic actions and value iteration), which waits for Jakob's
+answer on adding a policy learner to \texttt{rl-gate}; and the reference to compare with Jakob's cities-only value
+function (experiment 14) on the same games.
+
+\subsection{Notes for the paper}
+Claim: on the decided setup the exact six-integer state predicts the bot's remaining score 12\% better than the turn
+alone overall and 26--28\% better from turn 15 to 25 (explaining about 45\% of the variance there); Monte Carlo is
+the better estimator up to turn 15 and the learned model after, because the state is not Markov. Carried by the
+per-turn table; the side-by-side with experiment 14 (cities only) on the same held-out games would make the
+two-track slide.
+
+\todo{david}{Is this worth a place in the talk or report? Where?}
+
+
+\clearpage\phantomsection\addcontentsline{toc}{section}{Experiment 18: Value-iteration field over tiles (not kept)}
+
+\input{18-value-field/generated}
+\ExpHeader
+
+\subsection{Question and hypothesis}
+\texttt{goal()} sends each unit to its single nearest target (Chebyshev distance plus a small bias), so a far enemy city and a near village are never weighed against each other. The Reinforcement Learning course solves exactly this navigation problem by value iteration on a gridworld: the state is the tile, the actions are the 8 directions, rewards sit on goal tiles, and repeated Bellman backups spread their value over the grid (RL 2.0 Dynamic Programming, PDF page 107, ``Value iteration in action''; issue \#76). \textbf{Hypothesis:} a field that weighs every reachable target by reward and path cost raises the finish score on the 6-model panel by more than 1.5 points and wins the head-to-head against the base.
+
+\subsection{Mechanism}
+For the moving unit's player, \texttt{value\_field.rs} builds the graph of explored passable land tiles. Its step costs mirror the engine's movement rules: road steps 0.5 tile, other steps 1, plus 0.5 for stopping on forest, mountain or algae. Fog is never passable. Rewards, in tiles: claimable village 3, ruin 2, visible hostile unit 1, enemy city $2+\text{level}$ (capped at 6), threatened own city within radius 2 $3+\text{level}$ (capped at 6). The field is value iteration with an absorbing collect action,
+\[
+\varphi(i) = \max\Bigl(R(i),\ \max_{j \in N(i)} \varphi(j) - c(i,j)\Bigr),
+\]
+synchronous backups until nothing changes (at most 20; median 7). This is the log form of $V(i)=\max(R(i), \max_j \gamma^{c(i,j)} V(j))$, which a test checks against the literal discounted backup to within $10^{-9}$. A move of a walking unit then scores $s + \knob{field}\cdot\bigl(\varphi(\text{to}) - \max(\varphi(\text{from}), R(\text{from}))\bigr)$. The term is added after the existing move gate, as \knob{front} is, so the score is linear in the knob. Default 0 (off; bit-identical, checked against two golden game hashes). Code: \texttt{engine/core/src/value\_field.rs}, called from \texttt{score\_full\_with} in \texttt{bot\_full.rs}.
+
+\subsection{Setup}
+A first version added the term before the move gate; a review found that every value above 0 then opened the gate at once (18 changed picks per 60 turn starts already at 0.01), so the knob had no weak setting. Moved after the gate, the changed picks grow with the knob: 1, 1, 2, 5, 9 per 60 at field 0.01, 0.1, 0.5, 1, 2. The field outweighs \texttt{goal()}'s pull only from about 11.5, so the sweep covers 1 to 16. The base is the champion \model{greedy-full-combo} (experiment 11); the panel is the fixed six plus the base.
+
+\subsection{Results}
+\ExpResults
+
+No value beats the base head to head. Over 200 games each, finish against the base is 44.3, 47.3, 44.8, 42.7 and 42.3\,\% at field 1, 2, 4, 8 and 16. On the panel, field 4 matches the base row (84.3 against 84.5\,\%) and the strongest values lose 1 to 3 points. Final test of field 4, 400 games: against the base 48.2\,\% finish, 49.0\,\% points, 48\,\% won ($\pm$5). Its panel finish on the final-test maps is 84.2\,\%, against 83.8\,\% for the base on the same maps (+0.4, inside the noise of about $\pm$1.2).
+
+\subsection{Behaviour}
+At field 2 the field changes the bot's choice at 9 of 60 turn starts in a replayed game, rising to 30 at field 32. It acts, and more as the knob grows, but what it changes does not win games.
+
+\subsection{Interpretation}
+The prediction failed. Three readings, not yet separated:
+\begin{itemize}
+\item \texttt{goal()} plus the champion's other move terms (\knob{front}, \knob{moveNoise}) already send units to good targets; the extra multi-target pull mostly pulls them away from the one target they were about to take.
+\item The rewards are hand-set and the field is the same for every unit: a unit next to a village and a unit beside an enemy city get the same map, so units drift towards the same high-value tiles instead of splitting up.
+\item The field counts only reaching a tile, not what it costs to take it (defenders, the time a capture needs), so far enemy cities look better than they are.
+\end{itemize}
+The course method works as taught: the solver equals Dijkstra and the literal backup exactly. What fails is the model it is given: the rewards and the absorbing collect action, not the algorithm.
+
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\subsection{Threats to validity}
+\begin{itemize}
+\item Only the 4-player 16×16 setup; on 20×20 maps with 8 players the targets are farther apart and a field might matter more.
+\item The rewards were set by hand from \texttt{goal()}'s biases and were not swept; one sweep of the knob cannot tell a bad weight from bad rewards.
+\item The other session's tuning run loaded the machine during this sweep; that slows games but does not change their results, which are deterministic per seed.
+\end{itemize}
+
+\subsection{Verdict and next step}
+\textbf{Not kept}: the head-to-head is below 50\,\% at every value, and the panel gain (+0.4) is far below 1.5. The code stays, off by default, as the record. Champion stays \model{greedy-full-combo}. Next: if the field is tried again, give each unit its own reward set (claimed targets removed, as in a task assignment) rather than one shared map; otherwise move on in lecture order.
+
+\subsection{Notes for the paper}
+Draft: a negative result with a clean method check. Value iteration on the tile graph is exact and cheap, yet a shared value field does not beat a nearest-target rule plus noise. The bottleneck is the reward model and the coordination between units, not the planner.
+
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+
+\clearpage\phantomsection\addcontentsline{toc}{section}{Experiment 19: Hill climbing that learns from lost rounds: mirror and credit (not kept)}
+
+\input{19-hill-mirror-credit/generated}
+\ExpHeader
+
+\subsection{Question and hypothesis}
+Run on 24 November, before experiment 1, and written up on 26 November as a record: no hypothesis was written down before the runs, so this section states the question only, not a prediction made in advance. The number is 19 because it took a number when it was recorded, not when it ran.
+
+Hill climbing throws away what a lost round teaches: a challenger that loses clearly is dropped, and the next round draws new random knob moves. The question was whether a climber that learns from those rounds keeps more improvements in the same budget: by testing the opposite direction after a clear loss (\emph{mirror}), and by steering which knobs to move, and which way, from a model of all past rounds (\emph{credit}).
+\todo{jakob}{The idea in your words, if you remember what you expected.}
+
+\subsection{Mechanism}
+Both are options of \texttt{scripts/train-hill.ts}, off by default (runs without them behave as before).
+\texttt{--mirror}: after a round whose mean margin is at most \texttt{--mirror-below} (default $-1$ point), the next round tests the same knob moves with the sign flipped.
+\texttt{--credit}: a per-knob linear model of the round margin, fitted on every round (kept or not) and weighted by its games, draws knobs and directions by Thompson sampling (prior sd 0.1); a share \texttt{--credit-explore} of rounds (25\,\%) stays random, and the evidence is halved after each keep.
+Every round is also written to \texttt{models/<id>/rounds.jsonl}: its source (random, mirror, credit), the knobs moved, games, margin, log-likelihood ratio and whether it was kept.
+
+\subsection{Setup}
+Two tuning runs from \model{greedy-full-v1} with identical settings (100,000 games, seed 4242, league \texttt{self,past}, batch 30, curve every 12,500 games, panel of six), one with \texttt{--mirror --credit} (\model{greedy-full-v2}) and one without (\model{greedy-full-v2-ctrl}, the control that experiment 1 also uses). Both started at the same time on the same machine.
+
+\subsection{Results}
+\ExpResults
+
+Both learning curves stay at or below the start: the panel points share was 67.7\,\% at 0 games and 66.6\,\% (mirror + credit) and 66.1\,\% (control) at 100,000 games; with the champion's weights averaged over the run, 67.4\,\% and 67.8\,\%. These differences are inside the noise of a 6-model mean (about $\pm$1.2 points). Neither run beat its start at any curve point, so both saved the round-0 champion, which is \model{greedy-full-v1} itself: the two final tests above are the same model's and therefore identical (66.7\,\% points).
+
+\subsection{Behaviour}
+How the climber spent its rounds (from \texttt{rounds.jsonl}):
+
+\begin{center}\sffamily\small\begin{tabular}{@{}lrrrr@{}}\toprule
+Run & Random rounds & Mirror rounds & Credit rounds & Kept\\\midrule
+Mirror + credit & 58 & 47 & 210 & 2 (1 random, 1 credit)\\
+Control & 318 & -- & -- & 3 (all random)\\
+\bottomrule\end{tabular}\end{center}
+
+Credit chose two thirds of the rounds and produced one keep; the 47 mirrored rounds produced none.
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\subsection{Interpretation}
+The bottleneck was not which knobs were tried but whether a round can see a gain at all: a round of 300--400 games cannot detect changes under about 1 point, so almost every challenger, steered or not, fails the test, and the credit model learns from margins that are mostly noise. Mirroring a clear loss assumes the knob effect is roughly linear and the loss was real; with these sample sizes most ``clear'' losses are noise as well. The same budget limit later led to sweeps per mechanism and to the perturbation probe (experiment 12), which tests every knob's z-score over many rounds instead of single challengers.
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\subsection{Threats to validity}
+One run per arm with one seed: a difference of one keep (2 vs 3) is not evidence either way. The credit prior and exploration share were not swept, so a better-tuned credit might do better. The start, \model{greedy-full-v1}, was already a 100,000-game hill-climbing result, which may leave little for any climber to find.
+
+\subsection{Verdict and next step}
+Not adopted: by the rule for tuning runs (the mean at 100,000 games at least the base's and the control's), mirror + credit's 66.6\,\% is below the start's 67.7\,\%, and it kept no more changes than the control. The options stay in \texttt{train-hill.ts}, off by default. The champion is unchanged. The next step taken was a different one: one mechanism per run, measured by a strength sweep (experiments 1--11), and the perturbation probe for tuning (experiment 12).
+
+\subsection{Notes for the paper}
+A negative result worth one line: steering a hill climber from its own past rounds does not help when single rounds cannot resolve the effect sizes involved; the limit is statistical power per round, not the proposal distribution. The table in Behaviour carries it.
 \todo{jakob}{Is this worth a place in the paper? Where?}
 
 
