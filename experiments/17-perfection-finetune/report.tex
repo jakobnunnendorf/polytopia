@@ -44,6 +44,13 @@ afterwards on the rl-gate setup (Crazy, learner in the human seat). The base row
 curve is the control: the change is the training mode, so a run without it would only repeat
 experiment 12.
 
+The check afterwards: \texttt{npm run rl:gate -- --candidate <id> --base greedy-full-probe
+--no-info15} (10k seeds from $10^9$). The reference gates of the untuned models against probe are
+in \texttt{gate-ref/} (session ``rl project plan'', 26 Nov): base probe mean 6,706, p10 1,425,
+win 2.8\%; combo $-415$ (40.9\% of seeds better), economy $-752$, all FAIL. The trainer ranks by the
+share of points, while the gate scores seat 0's raw score; a model could raise its share by keeping
+opponents small rather than by scoring more, so the gate decides.
+
 \section{Results}
 % WHEN: after the runs. The tables and plots below are generated from the measured data; add two to four sentences that read them.
 \ExpResults
