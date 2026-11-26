@@ -48,6 +48,12 @@ export type FullWeights = {
   moveNoise: number;
   /** bonus per own neighbouring unit fewer at a move's target than now: crowds thin out (0 = off) */
   spread: number;
+  /**
+   * score per tile of the value-iteration field's progress on land moves, added after the move
+   * gate like `front` (issue #76, engine/core/src/value_field.rs; 0 = off). Only the Rust bot implements it; the TypeScript
+   * reference bot predates it and the parity tests run at field 0.
+   */
+  field: number;
 };
 
 export type PartialFullWeights = { [K in keyof FullWeights]?: FullWeights[K] extends number ? number : Partial<FullWeights[K]> };
