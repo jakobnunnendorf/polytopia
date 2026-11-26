@@ -12,7 +12,10 @@ experiment 21, more random-action data helped less and less: the validation gain
 explanation tested here: a research-heavy player reaches states (many techs for the turn) that uniformly random
 play almost never visits (five research turns in a row happen in 1 of 3{,}125 stretches), so value iteration has no
 data where a better policy goes. ``Running longer'' then means rounds of play and refit: play with the current
-policy plus some random actions, refit on all data, repeat (approximate policy iteration).
+policy plus some random actions, refit the model on all data, run value iteration again, repeat. This is model-based
+RL with iterated $\varepsilon$-greedy data collection (a Dyna-style loop of acting, learning the model and planning);
+it resembles policy iteration in spirit, but the inner step is full value iteration on the learned model, not an
+evaluation of the current policy.
 
 \textbf{Prediction} (before the run):
 \begin{enumerate}
@@ -69,21 +72,109 @@ greedy-full-probe-perf}, and \texttt{rl-value eval --base-driver fixed:4} agains
 \section{Results}
 \ExpResults
 
-\todo{claude}{After the run.}
+All numbers are copied from \texttt{vi-summary-round*.json}, \texttt{val-round*.json}, \texttt{eval-vs-research.json}
+and the \texttt{rl-gate} JSON in this folder (26 Nov 2026). Each round: 100{,}000 games in 500--514\,s on 10 threads
+(about 2.83 million learner turns). The final policy is \texttt{policy-round4.tsv}.
+
+\paragraph{Rounds} (2{,}000 validation seeds, policy against the bot, which scores 6{,}840 there; optimism =
+$V$(start) minus the policy's real mean remaining score, start score 515; round 0 = experiment 21):
+
+\begin{center}\small
+\begin{tabular}{rrrrrrrrr}
+\toprule
+round & games & states & $V$(start) & optimism & policy mean & gain & better share & research \\
+\midrule
+0 & 300k & 506{,}245 & 8{,}272 & $+1{,}793$ & 6{,}994 & $+154$ & 54.9\% & 29.5\% \\
+1 & 400k & 582{,}400 & 7{,}752 & $+1{,}261$ & 7{,}006 & $+166$ & 54.7\% & 25.4\% \\
+2 & 500k & 647{,}403 & 7{,}541 & $+1{,}066$ & 6{,}990 & $+150$ & 54.3\% & 26.1\% \\
+3 & 600k & 705{,}583 & 7{,}415 & $+908$    & 7{,}023 & $+183$ & 55.3\% & 26.8\% \\
+4 & 700k & 757{,}621 & 7{,}331 & $+825$    & 7{,}021 & $+181$ & 54.4\% & 26.9\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+``research'' is the share of learner turns on which the policy played research in the validation games. The
+standard error of the gain on 2{,}000 seeds is about 46 points.
+
+\paragraph{Final test} (round 4, 10{,}000 evaluation seeds $10^9\dots$; \texttt{rl-gate} with the
+\texttt{rl-policy:} learner of PR \#198, not yet on \texttt{dev}):
+
+\begin{center}\small
+\begin{tabular}{lrrrrl}
+\toprule
+against & policy mean / median / p10 & other mean / median / p10 & better / worse / ties & mean $d$ (99\%) & rule \\
+\midrule
+bot (probe-perf) & 6957 / 8355 / 1425 & 6839 / 8112 / 1419.5 & 4450 / 3582 / 1968 & $+118$ ($+70$, $+166$) & PASS \\
+research every turn & 6957 / 8355 / 1425 & 7295 / 8885 / 1485 & 3381 / 5335 / 1284 & $-338$ (upper $-298$) & FAIL \\
+round 0 (exp.\ 21) & 6957 / 8355 / 1425 & 6943 / 8350 / 1415 & 3293 / 3201 / 3506 & $+14$ ($-18$, $+46$) & -- \\
+\bottomrule
+\end{tabular}
+\end{center}
+Against the bot: 55.40\% of 8{,}032 differing seeds better (99\% lower bound 54.10\%, $p = 1.8\cdot10^{-22}$), mean
+guard ok, 10th percentile 1{,}425 against 1{,}419.5: PASS. Win rate 3.2\% against 3.1\%. The 15-opponent information
+run shows no gain (mean 2{,}571 against 2{,}679; 1{,}356 better, 1{,}377 worse). Round 4 against round 0 (both
+against the same bot on the same seeds, compared seed by seed): +13.6 points, exact one-sided sign test
+$p = 0.13$, not significant.
 
 \section{Behaviour}
-\todo{claude}{After the run.}
+The policy hardly changes over the rounds. On the evaluation seeds round 4 plays bot 27.0\%, expand 15.0\%,
+economy 14.3\%, army 17.0\%, research 26.7\% of learner turns (round 0: 28.1, 15.1, 12.2, 15.2, 29.5\%); 92.9\% of its
+turns are in a state with a policy entry (round 0: 86.7\%). The new games add states rather than visits: the state
+count grows from 506{,}245 to 757{,}621, and the visits per state stay about the same (17 to 25).
 
 \section{Interpretation}
-\todo{claude}{After the run.}
+\textbf{Prediction 1 (validation gain rises to at least +250): wrong.} +154, +166, +150, +183, +181: at most a
+small rise, within about one standard error. Round 4 is not significantly better than round 0 on the evaluation
+seeds either (+14, $p = 0.13$).
+
+\textbf{Prediction 2 (research on more than half the turns): wrong.} The research share stays at 25--27\%.
+
+\textbf{Prediction 3 (optimism falls, below +800 in round 4): direction right, threshold just missed} (+1{,}793
+down to +825). The data from the policy's own play makes $V$ more honest about the policy's states.
+
+\textbf{Prediction 4 (passes against probe-perf with +200 to +400; gap to research every turn below 150): half
+right.} It passes, but with +118, and only because the 10th percentile is now 5.5 points above the base's instead of
+4.5 below (experiment 21): the guard sits on the edge, and the two policies are not significantly different. The gap
+to research every turn stays at 338.
+
+\textbf{The explanation tested is not what holds value iteration back, at least not in this form.} The rounds were
+meant to bring data into the states a research-heavy player visits. They could not: the policy researches on a
+quarter of turns, so its own games (with 20\% uniform exploration) do not go there either; consistent research
+streaks stay as rare as in random play. The loop has no reason to drift towards research, so it stays where it
+started. What the rounds do show: more data in the policy's own states makes $V$ less optimistic but does not
+change the actions, so noise in $Q$ alone does not explain why research is not chosen more. Two readings remain:
+(i) value iteration needs data from research-heavy play to see its value (a test: add games played by ``research
+every turn'' with exploration to the data), or (ii) on this state the value of researching is not visible turn by
+turn, because what research buys (techs that pay off later) shows up in the six integers only weakly.
+
+\todo{david}{Your reading: agree, disagree, what is missing?}
 
 \section{Threats to validity}
-\todo{claude}{After the run.}
+\begin{itemize}
+  \item \emph{The PASS is on the edge.} The 10th-percentile guard decides by 5.5 points in this run and by 4.5 the
+        other way in experiment 21, for two policies that are not significantly different; a different seed set
+        could flip either verdict.
+  \item \emph{One $\varepsilon$, four rounds.} $\varepsilon = 0.2$ with uniform exploration; exploration aimed at
+        research streaks (or a larger $\varepsilon$) was not tried.
+  \item \emph{Gate code not on \texttt{dev} yet} (PR \#198); \texttt{rl-value eval} agrees with it seed for seed.
+\end{itemize}
 
 \section{Verdict and next step}
-\todo{claude}{After the run.}
+\textbf{Not kept as a method}: rounds of play and refit do not improve the policy significantly over experiment 21
+(+14 points, $p = 0.13$). The round-4 policy passes \texttt{rl-gate} against \texttt{greedy-full-probe-perf}
+(information under the pass rule of 26 Nov), where 21's policy failed on the 10th-percentile guard by 4.5 points;
+the two are equivalent within noise. Either can be David's RL v2 candidate, to be gated against RL v1 (experiment
+14); round 4 is the one that passes the baseline gate.
+
+Next step (one idea): test reading (i) directly: add 100{,}000 games played by research every turn with 20\%
+random actions to the data and run value iteration once; if the policy then researches much more and gains, the
+data's coverage was the limit.
 
 \section{Notes for the paper}
-\todo{claude}{After the run.}
+Claim: refitting on the policy's own $\varepsilon$-greedy play makes the values more honest ($V$(start) optimism
++1{,}793 to +825 over four rounds) but leaves the policy and its score unchanged (+14 points, not significant): the
+loop cannot explore towards a behaviour (research streaks) its own policy rarely shows. An example of why
+exploration must be aimed, not just added.
+
+\todo{david}{Is this worth a place in the talk or report? Where?}
 
 \end{document}
