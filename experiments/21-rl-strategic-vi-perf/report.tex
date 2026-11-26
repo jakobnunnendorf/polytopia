@@ -1,0 +1,101 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 21-rl-strategic-vi-perf
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+\textbf{The idea (David, 26 Nov 2026, issue \#166).} Repeat experiment 15 on the Perfection-tuned bot of experiment
+17. In 15 the base bot was tuned for Domination, and most of the policy's gain came from ``research more'', which
+looks like fixing a mode mismatch rather than strategy. With \texttt{greedy-full-probe-perf} as the base bot, the
+question is whether value iteration over the six integers (turn, cities, income, units, sum of city levels, techs)
+still finds something the tuned bot misses, for example playing differently early and late.
+
+\textbf{Prediction} (written before any run of this experiment, including the action check):
+\begin{enumerate}
+  \item \emph{Less to gain from a fixed action.} In the action check (2{,}000 seeds) the best action played every
+        turn gains less than half of 15's research gain against the bot: under 225 points in the mean
+        (15: +450).
+  \item \emph{The policy still beats the bot, by less.} On the 10{,}000 evaluation seeds the policy passes the
+        \#171 rule against \texttt{greedy-full-probe-perf}, with a mean gain of 30--200 points (15: +118 against the
+        untuned bot).
+  \item \emph{Values are optimistic.} $V$(start) at min-count 1 exceeds the policy's real mean final score minus
+        the start score by more than 500 points; the gap shrinks with a higher min-count (15: +4{,}202 at $m=1$).
+  \item \emph{No better than the best fixed action.} Against the best action of the check played every turn, the
+        policy does not pass the \#171 rule (as in 15).
+\end{enumerate}
+\textbf{Against the idea:} if the policy fails against the tuned bot, strategic boosts over this state add nothing
+once the bot is tuned for the mode; experiment 15's gain was the mode mismatch.
+
+\section{Mechanism}
+\textbf{Strategic actions.} At the start of each learner turn one action $a \in \{0,\dots,4\}$ is chosen and holds
+for the whole turn: it multiplies the bot's move-type weights (\texttt{FullWeights::ty}, the factor on the score of
+every move of that type) by the boost 2. 0 \emph{bot}: no change; 1 \emph{expand}: capture, examine;
+2 \emph{economy}: build; 3 \emph{army}: train, attack; 4 \emph{research}: research
+(\texttt{engine/rlvalue/src/vi.rs}, \texttt{BOOSTED}).
+
+\textbf{Data.} 300{,}000 games in which the learner picks a uniformly random action each turn (fixed by seed and
+turn); each row records the state, the score and the action.
+
+\textbf{Value iteration.} For each state $s$ and action $a$ the observed transitions $(r, s')$ form $\hat P(s'\mid
+s,a)$ and $\hat r$. Backwards from the last turn: $Q(s,a) = \frac{1}{n(s,a)}\sum \bigl(r + V(s')\bigr)$,
+$V(s) = \max_{a:\,n(s,a) \ge m} Q(s,a)$, $V(\text{terminal}) = 0$; the policy is the argmax. A state where no action
+has $m$ visits keeps the mean over all its transitions and has no policy entry. When playing, a state without an
+entry gets action 0 (the bot).
+
+\textbf{Choice of $m$.} $m \in \{1, 5, 20, 50\}$; each policy plays 2{,}000 validation games (seeds
+$700{,}000{,}000\dots$) against the bot on the same seeds; the $m$ with the highest share of better seeds is kept.
+Only that one is evaluated on the evaluation seeds.
+
+\section{Setup}
+As experiment 15 except the setup, which is now the decided gate setup on \texttt{dev} at da04376: Perfection,
+16$\times$16 Continents, 4 players, Crazy, seat 0 Xin-Xi as the human seat; the learner's base bot
+\texttt{greedy-full-probe-perf}; opponents \texttt{greedy-full-probe-perf}, \texttt{greedy-full-combo-perf} and the
+anchor \texttt{greedy-full-probe-perf}, shuffled over the seats per seed by the gate's \texttt{seat\_assignment}.
+Seeds: training $1\dots300{,}000$; action check $600{,}000{,}000\dots$ (2{,}000); validation
+$700{,}000{,}000\dots$ (2{,}000); evaluation $10^9\dots$ (10{,}000).
+
+\textbf{Verdict tool.} \texttt{rl-gate} cannot play a policy yet; the learner seam is being added (DECISION of 26 Nov
+on \#166, own PR). Until it is merged, \texttt{rl-value eval} plays the policy and the base on the same seeds and
+applies the \#171 rule itself (labelled as such); \texttt{rl-value}'s games are identical to \texttt{rl-gate}'s
+(500 of 500 seeds, experiment 20). By the pass rule of 26 Nov an RL version is judged against the previous RL
+version, so the comparison with \texttt{greedy-full-probe-perf} here is the baseline comparison, and this is the
+candidate for RL v1 of David's track.
+
+\textbf{Action check} (each action every turn, 2{,}000 seeds, boost 2 and 4, \texttt{check-boost2.json},
+\texttt{check-boost4.json}): \todo{claude}{After the check.}
+
+Commands (from \texttt{engine/}):
+\begin{verbatim}
+B=./target/release/rl-value
+$B check --games 2000 --seed-start 600000000 --boost 2 --out ../experiments/21-rl-strategic-vi-perf/check-boost2.json
+$B check --games 2000 --seed-start 600000000 --boost 4 --out ../experiments/21-rl-strategic-vi-perf/check-boost4.json
+$B collect --driver random --games 300000 --seed-start 1 --out target/rl-value/p4-train-random.tsv
+$B fit-vi --train target/rl-value/p4-train-random.tsv --min-count 1,5,20,50 --out target/rl-value/vi-perf
+$B eval --policy target/rl-value/vi-perf/policy-mM.tsv --n 2000 --seed-start 700000000 --out .../val-mM.json
+$B eval --policy <chosen> --n 10000 --out .../eval-vs-bot.json
+$B eval --policy <chosen> --n 10000 --base-driver fixed:K --out .../eval-vs-fixed.json
+\end{verbatim}
+
+\section{Results}
+\ExpResults
+
+\todo{claude}{After the run.}
+
+\section{Behaviour}
+\todo{claude}{After the run.}
+
+\section{Interpretation}
+\todo{claude}{After the run.}
+
+\section{Threats to validity}
+\todo{claude}{After the run.}
+
+\section{Verdict and next step}
+\todo{claude}{After the run.}
+
+\section{Notes for the paper}
+\todo{claude}{After the run.}
+
+\end{document}

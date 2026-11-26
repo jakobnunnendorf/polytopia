@@ -1,0 +1,43 @@
+{
+  "n": 21,
+  "slug": "rl-strategic-vi-perf",
+  "title": "Strategic actions and value iteration on the Perfection-tuned base bot",
+  "kind": "method",
+  "issue": 166,
+  "pr": 0,
+  "date": "2026-11-26",
+  "status": "running",
+  "verdict": "pending",
+  "base": "greedy-full-probe-perf",
+  "result": null,
+  "question": "Does a policy from finite-horizon value iteration over the full integer state, choosing one of five strategic actions per turn, score reliably higher than the Perfection-tuned bot it steers, and higher than the best single action played every turn?",
+  "change": "Experiment 15 unchanged except the setup: learner base bot greedy-full-probe-perf, 4 players, opponents greedy-full-probe-perf, greedy-full-combo-perf and the anchor greedy-full-probe-perf (rl-gate defaults on dev da04376).",
+  "method": "Value iteration on 300k random-action games; min-count chosen on 2,000 validation games; final paired test on 10,000 evaluation seeds",
+  "measured": "Paired, 10,000 evaluation seeds",
+  "metric": "final raw score, #171 rule",
+  "setups": [
+    "Perfection, 16×16 continents, 4 players, Crazy, seat 0 Xin-Xi (human seat), learner base greedy-full-probe-perf; opponents greedy-full-probe-perf, greedy-full-combo-perf, greedy-full-probe-perf (anchor), seats shuffled per seed (rl-gate defaults)"
+  ],
+  "knobs": [
+    {
+      "name": "boost",
+      "tested": [
+        2,
+        4
+      ],
+      "chosen": null
+    },
+    {
+      "name": "minCount",
+      "tested": [
+        1,
+        5,
+        20,
+        50
+      ],
+      "chosen": null
+    }
+  ],
+  "headline": [],
+  "runs": []
+}

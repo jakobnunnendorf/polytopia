@@ -592,8 +592,8 @@ fn fit_cmd(m: &HashMap<String, String>) -> R<()> {
 }
 
 const USAGE: &str = "usage:
-  rl-value collect --out <file.tsv> [--games 1000] [--seed-start 1] [--driver bot] [--model greedy-full-probe] [--opp a,b,c]
-                   [--players 3] [--difficulty crazy] [--tribe xinxi] [--human 1] [--threads 0]
+  rl-value collect --out <file.tsv> [--games 1000] [--seed-start 1] [--driver bot] [--model greedy-full-probe-perf] [--opp a,b,c]
+                   [--players 4] [--difficulty crazy] [--tribe xinxi] [--human 1] [--threads 0]
   rl-value fit --train <file.tsv> --test <file.tsv> --out <dir> [--sizes 1000,10000,...]
   rl-value check --games 2000 --seed-start 600000000 --out <file.json>     (each action played every turn)
   rl-value fit-vi --train <file.tsv> --out <dir> [--min-count 1,5,20]     (value iteration -> policy-mN.tsv)
