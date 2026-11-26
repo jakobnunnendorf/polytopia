@@ -1,8 +1,10 @@
 {
   "id": "greedy-full-peacebreak",
-  "name": "Full greedy + front pull + endgame peace break",
+  "name": "Peace break",
+  "tagline": "Front with an endgame twist: breaks peace when it pays.",
   "kind": "greedy-full",
   "description": "greedy-full-front with breakPeace 0.5 (#124): breaks peace when every remaining rival is a peace partner. Chosen by a strength sweep under the finish metric; against the 6-model panel on the final-test maps: finish 78.8% (champion 75.0%), conquest wins 76.5% (64.0%), 63 turns (75); in 8-player 20x20 games finish 81.0% (77.4%).",
+  "hidden": true,
   "created": "2026-11-24",
   "full": {
     "greedy": {

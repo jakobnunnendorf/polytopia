@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SettingsContext } from "@/context/SettingsContext";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
@@ -12,6 +12,8 @@ import { mapSizeAllowed, mapTypeFor, perfectionBonusPercent } from "@/logic/engi
 import { name as displayName } from "@/logic/engine/names";
 import { tribeDescription } from "@/logic/engine/tribes";
 import { TribeEmblem } from "@/components/art/Art";
+import { ModelCard } from "./ModelCard";
+import { WorldBoard, compass, sampleWorld } from "./WorldBoard";
 
 const MAP_SIZES = [
   { title: "Tiny", size: 11 },
@@ -101,7 +103,10 @@ function SeatRow({
   onChange,
   onRemove,
   onNewProfile,
+  where,
 }: {
+  /** where this seat starts in the sample world, in words */
+  where?: string;
   i: number;
   seat: Seat;
   profiles: Profile[];
@@ -119,12 +124,13 @@ function SeatRow({
   const elo = (key: string) =>
     ratings[key] ? String(Math.round(ratings[key].rating)) : overall[key] ? `${Math.round(overall[key].rating)} overall` : undefined;
   return (
-    <View style={{ paddingVertical: 10, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: UI.line }} testID={`seat-${i}`}>
+    <View style={{ paddingTop: 12, paddingBottom: 6, borderTopWidth: 1, borderTopColor: UI.line }} testID="seat-editor">
       <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
         <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: PLAYER_COLORS[i % PLAYER_COLORS.length], marginRight: 8 }} />
-        <Text style={{ color: UI.mist, fontWeight: "800", fontSize: 15, flex: 1 }}>
-          {i === 0 ? "First to move" : `Seat ${i + 1}`}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: UI.mist, fontWeight: "800", fontSize: 15 }}>{i === 0 ? "First to move" : `Seat ${i + 1}`}</Text>
+          {where ? <Text style={{ color: UI.muted, fontSize: 12 }}>{`Starts in ${where} of this sample`}</Text> : null}
+        </View>
         <Chip label="Person" on={seat.kind === "human"} onPress={() => onChange({ kind: "human", profileId: GUEST.id, name: GUEST.name })} />
         <Chip label="Model" on={seat.kind === "model"} onPress={() => onChange({ kind: "model", modelId: models[0]?.id ?? "greedy-v1" })} />
         {onRemove && (
@@ -133,17 +139,29 @@ function SeatRow({
           </Pressable>
         )}
       </View>
+      {seat.kind === "model" && (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
+          {models.map((m, rank) => {
+            const own = ratings[`model:${m.id}`];
+            const r = own ?? overall[`model:${m.id}`];
+            return (
+              <ModelCard
+                key={m.id}
+                model={m}
+                all={models}
+                rank={rank + 1}
+                elo={r ? Math.round(r.rating) : undefined}
+                overall={!own}
+                on={seat.modelId === m.id}
+                onPress={() => onChange({ ...seat, kind: "model", modelId: m.id })}
+              />
+            );
+          })}
+        </View>
+      )}
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
         {seat.kind === "model"
-          ? models.map((m) => (
-              <Chip
-                key={m.id}
-                label={m.name}
-                sub={elo(`model:${m.id}`)}
-                on={seat.modelId === m.id}
-                onPress={() => onChange({ kind: "model", modelId: m.id })}
-              />
-            ))
+          ? null
           : [GUEST, ...profiles].map((p) => (
               <Chip
                 key={p.id}
@@ -192,11 +210,6 @@ function SeatRow({
             }}
           />
         </View>
-      )}
-      {seat.kind === "model" && (
-        <Text style={{ color: UI.muted, fontSize: 12, lineHeight: 17 }} numberOfLines={2}>
-          {models.find((m) => m.id === seat.modelId)?.description}
-        </Text>
       )}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
         <Chip
@@ -253,12 +266,21 @@ function TribeNote({ clan }: { clan?: string }) {
   );
 }
 
+/**
+ * the models the picker offers: no external players, no superseded (hidden) models, strongest first by
+ * overall Elo, so a new model seat starts with the champion
+ */
+export function pickerModels(models: ModelSpec[], overall: Ratings): ModelSpec[] {
+  const elo = (m: ModelSpec) => overall[`model:${m.id}`]?.rating ?? -Infinity;
+  return models.filter((m) => m.kind !== "external" && !m.hidden).sort((a, b) => elo(b) - elo(a));
+}
+
 export default function Settings() {
   const settings = useContext(SettingsContext);
   const mode = MODES.find((m) => m.id === settings.gameMode) ?? MODES[0];
   // the world the mode forces (Perfection: Continents), shown as the only choice
   const forcedWorld = mapTypeFor(mode.id);
-  const [models, setModels] = useState<ModelSpec[]>(BUILTIN_MODELS);
+  const [models, setModels] = useState<ModelSpec[]>(() => pickerModels(BUILTIN_MODELS, {}));
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [ratings, setRatings] = useState<Ratings>({});
   const [overall, setOverall] = useState<Ratings>({});
@@ -269,7 +291,7 @@ export default function Settings() {
     Promise.all([arena.models(), arena.profiles(), arena.ratings()])
       .then(([m, p, r]) => {
         if (!live) return;
-        if (m.length) setModels(m.filter((x) => x.kind !== "external"));
+        if (m.length) setModels(pickerModels(m, r));
         setProfiles(p);
         setOverall(r);
         setOnline(true);
@@ -292,6 +314,14 @@ export default function Settings() {
       live = false;
     };
   }, [mode.id, seats.length, settings.mapSize]);
+  // the Players board: one world the engine could deal for these settings; "Deal again" draws another
+  const [deal, setDeal] = useState(1);
+  const [selected, setSelected] = useState(0);
+  const sel = Math.min(selected, seats.length - 1);
+  const world = useMemo(
+    () => sampleWorld({ mapSize: settings.mapSize, players: seats.length, mode: mode.id, mapType: settings.mapType, seed: deal * 7919 + 13 }),
+    [settings.mapSize, seats.length, mode.id, settings.mapType, deal],
+  );
   const setSeat = (i: number, s: Seat) => settings.setSeats(seats.map((x, j) => (j === i ? s : x)));
   const newProfile = async (name: string) => {
     if (!name.trim()) return null;
@@ -355,26 +385,46 @@ export default function Settings() {
       )}
 
       <Heading>Players</Heading>
-      {seats.map((seat, i) => (
-        <SeatRow
-          key={i}
-          i={i}
-          seat={seat}
-          profiles={profiles}
-          models={models}
-          ratings={ratings}
-          overall={overall}
-          onChange={(s) => setSeat(i, s)}
-          onRemove={seats.length > 2 ? () => settings.setSeats(seats.filter((_, j) => j !== i)) : undefined}
-          onNewProfile={newProfile}
-        />
-      ))}
+      <WorldBoard
+        seats={seats}
+        models={models}
+        ratings={ratings}
+        overall={overall}
+        world={world}
+        dealKey={`${deal}-${seats.length}-${settings.mapSize}-${settings.mapType}-${mode.id}`}
+        selected={sel}
+        onSelect={setSelected}
+        onDeal={() => setDeal((d) => d + 1)}
+      />
+      <SeatRow
+        key={sel}
+        i={sel}
+        seat={seats[sel]}
+        where={world ? compass(world.capitals[sel], world.n) : undefined}
+        profiles={profiles}
+        models={models}
+        ratings={ratings}
+        overall={overall}
+        onChange={(s) => setSeat(sel, s)}
+        onRemove={
+          seats.length > 2
+            ? () => {
+                settings.setSeats(seats.filter((_, j) => j !== sel));
+                setSelected(Math.max(0, sel - 1));
+              }
+            : undefined
+        }
+        onNewProfile={newProfile}
+      />
       {seats.length < 16 && (
         <Chip
           testID="add-seat"
           label="+ Add a seat"
           on={false}
-          onPress={() => settings.setSeats([...seats, { kind: "model", modelId: models[0]?.id ?? "greedy-v1" }])}
+          onPress={() => {
+            settings.setSeats([...seats, { kind: "model", modelId: models[0]?.id ?? "greedy-v1" }]);
+            setSelected(seats.length);
+          }}
         />
       )}
       {online === false && (

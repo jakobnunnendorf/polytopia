@@ -10,6 +10,7 @@ import { Image, type ImageSourcePropType } from "react-native";
 import Svg, { Circle, Ellipse, G, Line, Path, Polygon, Rect } from "react-native-svg";
 import type { Terrain } from "@/logic/engine/types";
 import { SpecialBuildingArt, SpecialUnitArt, TribeEmblem } from "./TribeArt";
+import { TRIBE_UNIT_SPRITES } from "./tribeUnits";
 import { useTeamSprite } from "./teamTint";
 
 export { TribeEmblem };
@@ -200,6 +201,37 @@ function Peak({ x, y }: { x: number; y: number }) {
       <Polygon points={pts([tip - 2, 42, tip, 10, tip + 6, 36, tip + 3, 44])} fill={shade(PAL.snow, -0.06)} />
       <Polygon points={pts([tip + 6, 36, tip, 10, tip + 15, 38, tip + 9, 34])} fill={shade(PAL.snow, -0.2)} />
     </G>
+  );
+}
+
+/**
+ * Frozen water: an opaque faceted ice sheet that hides the water below, so ice never
+ * reads as shallow water. Icy cyan (not white, which is the clouds), white glints,
+ * dark-blue cracks and a crisp rim; the facets and cracks vary per tile.
+ */
+export function IceArt({ x, y, size }: { x: number; y: number; size: number }) {
+  const base = "#bfeaf8";
+  const a = 30 + hash(x, y, 81) * 40;
+  const b = 30 + hash(x, y, 82) * 40;
+  const c = hash(x, y, 83) * 20;
+  return (
+    <Box size={size}>
+      <Rect x={0} y={0} width={100} height={100} fill={base} />
+      <Polygon points={pts([0, 0, a + 20, 0, 42, 46, 0, b])} fill={shade(base, 0.45)} />
+      <Polygon points={pts([a + 20, 0, 100, 0, 100, 58 - c, 42, 46])} fill={shade(base, 0.2)} />
+      <Polygon points={pts([0, b, 42, 46, 52 + c, 100, 0, 100])} fill={shade(base, -0.06)} />
+      <Polygon points={pts([42, 46, 100, 58 - c, 100, 100, 52 + c, 100])} fill={shade(base, -0.16)} />
+      {/* glints */}
+      <Polygon points={pts([12, 14, 30, 10, 18, 22])} fill="#ffffff" opacity={0.9} />
+      <Polygon points={pts([64 + c, 62, 76 + c, 58, 70 + c, 68])} fill="#ffffff" opacity={0.75} />
+      {/* cracks from the facet joint */}
+      <Path d={`M42 46 L${24 + c} ${66 + c * 0.5} L${14 + c} 84`} stroke="#3d86b8" strokeWidth={1.6} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <Path d={`M42 46 L${66 - c * 0.5} 30 L${84 - c} ${18 + c * 0.4}`} stroke="#3d86b8" strokeWidth={1.3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <Path d={`M${66 - c * 0.5} 30 L${70 - c * 0.3} 42`} stroke="#3d86b8" strokeWidth={1} fill="none" strokeLinecap="round" />
+      {/* rim: white inner bevel, cyan outer edge */}
+      <Rect x={1.5} y={1.5} width={97} height={97} fill="none" stroke="#5fb4dc" strokeWidth={3} />
+      <Rect x={4.5} y={4.5} width={91} height={91} fill="none" stroke="#ffffff" strokeWidth={1.5} opacity={0.8} />
+    </Box>
   );
 }
 
@@ -718,10 +750,12 @@ export function CityArt({
   );
 }
 
-// ---------- units (3D Polytopia PNG sprites + special tribe low-poly units) ----------
-export function UnitArt({ type, color, size }: { type: string; color: string; size: number }) {
+// ---------- units (official per-tribe Polytopia PNG sprites + special tribe units) ----------
+export function UnitArt({ type, color, clan, size }: { type: string; color: string; clan?: string; size: number }) {
+  const tribeSprite = clan ? TRIBE_UNIT_SPRITES[clan]?.[type] : undefined;
+  if (tribeSprite) return <Sprite source={tribeSprite} size={size} pad={size * 0.02} />;
   const sprite = UNIT_SPRITES[type];
-  // the stock sprites are all one blue tribe: recolour their team parts to the owner's colour
+  // fallback when no clan is provided: Imperius stock sprite recoloured to the owner's colour
   if (sprite) return <Sprite source={sprite} size={size} pad={size * 0.02} team={color} />;
   const special = SpecialUnitArt({ type, color, size });
   if (special) return special;

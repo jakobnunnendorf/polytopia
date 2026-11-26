@@ -1,8 +1,10 @@
 {
   "id": "greedy-es-v1",
-  "name": "ES climber v1",
+  "name": "ES climber",
+  "tagline": "Greedy v1 with weights tuned by evolution strategies.",
   "kind": "greedy",
   "description": "The greedy bot with weights tuned by evolution strategies (scripts/train-es.ts): 15604 iterations, 1.26M training games in 4-player domination on drylands 16x16 maps. Saved the averaged weights of the best learning-curve point (iteration 1969, 95k games). Won 87% against greedy-v1 on unseen maps at save time. Method change mid-run: population 12 directions per iteration until 238k training games, 24 from then on (bigger batches, about 27% faster); the trainer keeps no resume record, so the 'es.pop' field shows only the final value. The best point came early: the remaining 1.17M games did not beat it.",
+  "hidden": true,
   "created": "2026-11-24",
   "weights": {
     "capture": 668.49,

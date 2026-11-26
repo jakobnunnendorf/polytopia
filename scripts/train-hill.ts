@@ -138,6 +138,16 @@ const CURVE_METRIC = ((m) => (m === "win" || m === "finish" ? m : "share"))(arg(
 const PATIENCE = Number(arg("patience", "8")); // curve points; 0 = never stop early
 const MIN_GAIN = Number(arg("min-gain", CURVE_METRIC === "win" ? "0.01" : "0.003"));
 const AVERAGE = Number(arg("average", "4")); // also test the mean of the last K kept champions
+// learning from losses (both off by default; see proposeChallenger):
+// --mirror: after a clearly lost round, test the opposite nudge of the same knobs next
+// --credit: learn each knob's effect on the margin from every round, and pick knobs and
+//           directions by Thompson sampling from that estimate
+const MIRROR = process.argv.includes("--mirror");
+const MIRROR_BELOW = Number(arg("mirror-below", "-0.01")); // mean margin (share of points) that counts as a clear loss
+const CREDIT = process.argv.includes("--credit");
+const CREDIT_PRIOR = Number(arg("credit-prior", "0.1")); // prior sd of a knob's effect (margin per unit of log change)
+const CREDIT_EXPLORE = Number(arg("credit-explore", "0.25")); // share of credit rounds that nudge random knobs anyway
+const CREDIT_FORGET = Number(arg("credit-forget", "0.5")); // evidence kept after a keep (the champion moved)
 const CURVE_SEED = 1_000_000_000;
 const FINAL_SEED = 1_500_000_000;
 
@@ -164,6 +174,12 @@ type Checkpoint = {
   resumes?: { at: string; round: number; trainingGames: number; args: string; sigma: number }[];
   best: Best;
   weights: AnyWeights;
+  /** --credit: per knob, the weighted sums of x*margin and x*x (x = log change of the knob) */
+  credit?: Record<string, { xy: number; xx: number; n: number }>;
+  /** --credit: running weighted sums for the margin noise (per 90 games) */
+  noise?: { w: number; y2: number };
+  /** --mirror: the nudge to undo next round (knob -> factor applied) */
+  pendingMirror?: Record<string, number> | null;
 };
 
 /** nudge PICK randomly chosen weights by e^(sigma N(0,1)); the rest stay as they are */
@@ -176,6 +192,59 @@ function mutate(w: AnyWeights, sigma: number): { next: AnyWeights; nudged: strin
 }
 
 type Test = { keep: boolean; games: number; wins: number; share: number; llr?: number; capped?: boolean };
+
+type Credit = Record<string, { xy: number; xx: number; n: number }>;
+type Proposal = { next: AnyWeights; nudged: string; source: "random" | "mirror" | "credit"; x: Record<string, number> };
+
+/** the factors actually applied (after rounding), as log changes per knob */
+function logChanges(from: AnyWeights, to: AnyWeights, keys: string[]): Record<string, number> {
+  const x: Record<string, number> = {};
+  for (const k of keys) {
+    const a = SPACE.get(from, k), b = SPACE.get(to, k);
+    if (a > 0 && b > 0 && a !== b) x[k] = Math.log(b / a);
+  }
+  return x;
+}
+function describe(from: AnyWeights, to: AnyWeights, keys: string[]) {
+  return keys.map((k) => `${k} ${SPACE.get(from, k)}→${SPACE.get(to, k)}`).join(", ");
+}
+
+/**
+ * The next challenger. Default: PICK random knobs, each times e^(sigma N(0,1)) (mutate).
+ * --mirror: right after a clear loss, the same knobs moved the other way (each by the inverse factor).
+ * --credit: Thompson sampling on a per-knob linear model of the margin. Each knob's effect has a
+ *   normal posterior (prior sd CREDIT_PRIOR, evidence sum x*margin / sum x*x weighted by games);
+ *   draw one effect per knob, nudge the PICK knobs with the largest |draw| in the draw's direction
+ *   by e^(sigma |N(0,1)|). Knobs never tried keep the wide prior and so still get picked; knobs
+ *   that never matter collect evidence of "no effect" and fade out. A share CREDIT_EXPLORE of
+ *   rounds stays purely random so the model keeps getting unbiased data.
+ */
+function proposeChallenger(w: AnyWeights, sigma: number, credit: Credit, noiseSd: number, mirror: Record<string, number> | null): Proposal {
+  if (MIRROR && mirror) {
+    const next = SPACE.clone(w);
+    const keys = Object.keys(mirror);
+    for (const k of keys) SPACE.set(next, k, SPACE.round(k, SPACE.get(w, k) / mirror[k]));
+    return { next, nudged: describe(w, next, keys), source: "mirror", x: logChanges(w, next, keys) };
+  }
+  if (CREDIT && Math.random() >= CREDIT_EXPLORE) {
+    const s2 = noiseSd * noiseSd, p0 = 1 / (CREDIT_PRIOR * CREDIT_PRIOR);
+    const draws = SPACE.knobs.map((k) => {
+      const c = credit[k] ?? { xy: 0, xx: 0, n: 0 };
+      const prec = p0 + c.xx / s2;
+      const mean = c.xy / s2 / prec;
+      return { k, d: mean + normal() / Math.sqrt(prec) };
+    });
+    draws.sort((a, b) => Math.abs(b.d) - Math.abs(a.d));
+    const pick = draws.slice(0, PICK);
+    const next = SPACE.clone(w);
+    for (const { k, d } of pick) SPACE.set(next, k, SPACE.round(k, SPACE.get(w, k) * Math.exp(Math.sign(d) * sigma * Math.abs(normal()))));
+    const keys = pick.map((p) => p.k);
+    return { next, nudged: describe(w, next, keys), source: "credit", x: logChanges(w, next, keys) };
+  }
+  const { next, nudged } = mutate(w, sigma);
+  const keys = SPACE.knobs.filter((k) => SPACE.get(next, k) !== SPACE.get(w, k));
+  return { next, nudged, source: "random", x: logChanges(w, next, keys) };
+}
 
 async function main() {
   startPool(WORKERS);
@@ -199,11 +268,14 @@ async function main() {
   if (MILESTONES.length) console.log(`milestones: ${MILESTONES.map(count).join(", ")} training games`);
 
   const curvePath = path.join(dir, "curve.jsonl");
+  const roundsPath = path.join(dir, "rounds.jsonl"); // every challenger: source, knobs moved, result
   const ckPath = path.join(dir, "checkpoint.json");
   const resumed: Checkpoint | null = RESUME ? (fs.existsSync(ckPath) ? JSON.parse(fs.readFileSync(ckPath, "utf8")) : null) : null;
   if (RESUME && !resumed) throw new Error(`--resume: no checkpoint at ${ckPath}`);
   if (resumed && resumed.args !== ARGS) console.log(`note: resuming with other options than the run was started with:\n  then: ${resumed.args}\n  now:  ${ARGS}`);
   if (!resumed) fs.writeFileSync(curvePath, "");
+  if (!resumed) fs.writeFileSync(roundsPath, "");
+  if (MIRROR || CREDIT) console.log(`learning from losses: ${[MIRROR ? `mirror after margins ≤ ${(MIRROR_BELOW * 100).toFixed(1)} pts` : "", CREDIT ? `credit (prior sd ${CREDIT_PRIOR}, ${pct(CREDIT_EXPLORE)} random rounds, keep ${CREDIT_FORGET} of the evidence after a keep)` : ""].filter(Boolean).join("; ")}`);
   const start = FROM ? SPACE.load(FROM) : null;
   if (FROM && !start) throw new Error(`--from ${FROM}: no greedy model.json in models/${FROM}`);
   const fromSeconds: number | undefined = FROM
@@ -232,6 +304,9 @@ async function main() {
   let curveAt = -1; // training games at the last curve point
   let sigma = SIGMA;
   let sinceKeep = 0;
+  let credit: Credit = {};
+  let noise = { w: 0, y2: 0 };
+  let pendingMirror: Record<string, number> | null = null;
   let resumes: NonNullable<Checkpoint["resumes"]> = [];
   let past: AnyWeights[] = [champ]; // kept champions, newest last (for "past" and averaging)
   let milestone = 0; // index of the next milestone
@@ -262,6 +337,9 @@ async function main() {
     champ = resumed.weights;
     best = resumed.best;
     ({ accepted, capped, trainingGames: trainGames, round: rounds, nextCurve, curveAt, points, converged, sigma, sinceKeep, past, milestone } = resumed);
+    credit = resumed.credit ?? {};
+    noise = resumed.noise ?? { w: 0, y2: 0 };
+    pendingMirror = resumed.pendingMirror ?? null;
     seed = resumed.seed;
     console.log(`resumed at round ${rounds}, ${count(trainGames)} games, ${accepted} kept, ${points} curve points, ${dur(secondsBefore)} trained so far`);
     if (RESET_SIGMA > 0) {
@@ -273,7 +351,7 @@ async function main() {
     resumes = [...(resumed.resumes ?? []), { at: new Date().toISOString(), round: rounds, trainingGames: trainGames, args: process.argv.slice(2).join(" "), sigma }];
   }
   const save = () => {
-    const ck: Checkpoint = { args: ARGS, startedAt: runStart, seconds: secs(), savedAt: new Date().toISOString(), round: rounds, trainingGames: trainGames, accepted, capped, seed, nextCurve, curveAt, points, converged, sigma, sinceKeep, past, milestone, resumes, best, weights: champ };
+    const ck: Checkpoint = { args: ARGS, startedAt: runStart, seconds: secs(), savedAt: new Date().toISOString(), round: rounds, trainingGames: trainGames, accepted, capped, seed, nextCurve, curveAt, points, converged, sigma, sinceKeep, past, milestone, resumes, best, weights: champ, credit, noise, pendingMirror };
     fs.writeFileSync(ckPath + ".tmp", JSON.stringify(ck) + "\n");
     fs.renameSync(ckPath + ".tmp", ckPath);
   };
@@ -379,9 +457,38 @@ async function main() {
   if (points === 0) await curvePoint();
   while (!converged && rounds < ROUNDS && (!BUDGET || trainGames < BUDGET)) {
     rounds++;
-    const { next: chall, nudged } = mutate(champ, sigma);
+    // margin noise per 90 games, from the rounds so far (most challengers are no different)
+    const noiseSd = Math.max(0.005, noise.w > 0 ? Math.sqrt(noise.y2 / noise.w) : 0.02);
+    const prop = proposeChallenger(champ, sigma, credit, noiseSd, pendingMirror);
+    const { next: chall, nudged } = prop;
+    pendingMirror = null;
     const m = TEST === "fixed" ? await fixedTest(champ, chall) : await sequentialTest(champ, chall);
     trainGames += m.games;
+    // learn from every round, kept or not: margin = the challenger's share above one half
+    const margin = m.share - 0.5;
+    const wt = m.games / 90;
+    for (const [k, x] of Object.entries(prop.x)) {
+      const c = (credit[k] ??= { xy: 0, xx: 0, n: 0 });
+      c.xy += wt * x * margin;
+      c.xx += wt * x * x;
+      c.n++;
+    }
+    noise.w += 1;
+    noise.y2 += wt * margin * margin;
+    if (MIRROR && !m.keep && prop.source !== "mirror" && margin <= MIRROR_BELOW && Object.keys(prop.x).length) {
+      pendingMirror = Object.fromEntries(Object.entries(prop.x).map(([k, x]) => [k, Math.exp(x)]));
+    }
+    fs.appendFileSync(
+      roundsPath,
+      JSON.stringify({ round: rounds, source: prop.source, x: prop.x, games: m.games, margin: Math.round(margin * 1e5) / 1e5, llr: m.llr, keep: m.keep, capped: !!m.capped, sigma, trainingGames: trainGames }) + "\n",
+    );
+    if (m.keep && CREDIT) {
+      // the champion moved: older evidence describes the old champion, so weaken it
+      for (const c of Object.values(credit)) {
+        c.xy *= CREDIT_FORGET;
+        c.xx *= CREDIT_FORGET;
+      }
+    }
     if (m.keep) {
       champ = chall;
       accepted++;
@@ -397,7 +504,7 @@ async function main() {
     const done = BUDGET ? `${((trainGames / BUDGET) * 100).toFixed(1)}%` : `${count(trainGames)} games`;
     console.log(
       `round ${String(rounds).padStart(5)}  ${String(m.games).padStart(4)} games  won ${pct(m.wins).padStart(4)}  points ${(m.share * 100).toFixed(1)}%` +
-        `${m.llr !== undefined ? `  LLR ${m.llr.toFixed(2).padStart(6)}` : ""}  ${m.keep ? "KEPT" : m.capped ? "cap " : "    "}  (${accepted} kept, sigma ${sigma.toFixed(2)}, ${done}, ${dur(secs())}, ${eta()})${m.keep ? `  ${nudged}` : ""}`,
+        `${m.llr !== undefined ? `  LLR ${m.llr.toFixed(2).padStart(6)}` : ""}  ${m.keep ? "KEPT" : m.capped ? "cap " : "    "}  (${accepted} kept, sigma ${sigma.toFixed(2)}, ${done}, ${dur(secs())}, ${eta()})${m.keep ? `  ${nudged}` : ""}${(MIRROR || CREDIT) && m.keep ? `  [${prop.source}]` : ""}`,
     );
     while (milestone < MILESTONES.length && trainGames >= MILESTONES[milestone]) {
       saveMilestone(dir, MILESTONES[milestone], modelSpec(champ, trainGames, `Milestone: the champion of ${ID} after ${count(trainGames)} training games (round ${rounds}, ${accepted} kept).`));
@@ -453,6 +560,7 @@ async function main() {
       sigma: { start: SIGMA, end: sigma, min: SIGMA_MIN, decay: SIGMA_DECAY, patience: SIGMA_PATIENCE },
       resumes: resumes.length ? resumes : undefined,
       weightsPerNudge: PICK,
+      ...(MIRROR || CREDIT ? { learnFromLosses: { mirror: MIRROR ? { below: MIRROR_BELOW } : undefined, credit: CREDIT ? { prior: CREDIT_PRIOR, explore: CREDIT_EXPLORE, forget: CREDIT_FORGET } : undefined } } : {}),
       engine: "rust",
       mode: MODE,
       players: PLAYERS,

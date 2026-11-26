@@ -1,0 +1,35 @@
+
+> polytopia@1.0.0 sweep
+> node -r sucrase/register scripts/sweep.ts --id greedy-full-field --from greedy-full-combo --metric finish --knob field --values 1,2,4,8,16 --workers 6 --panel greedy-v1,greedy-hill-v1,greedy-hill-v2,greedy-hill-v3,greedy-hill-v4,greedy-full-v1,greedy-full-combo
+
+sweep from greedy-full-combo: 5 points + base, 200 games against each of greedy-v1, greedy-hill-v1, greedy-hill-v2, greedy-hill-v3, greedy-hill-v4, greedy-full-v1, greedy-full-combo
+point  base                         | greedy 98% won, 80.7% pts (+676)  v1 98% won, 79.5% pts (+676)  v2 97% won, 76.7% pts (+576)  v3 98% won, 75.5% pts (+636)  v4 96% won, 75.0% pts (+531)  full-v1 76% won, 64.7% pts (+196)  full-combo 50% won, 50.0% pts (+0)  | mean 87% won, 71.7% pts, finish 79.6%, conquest 77%, 58 turns
+  [02:18] point field=1: 154/1400 games, done in ~1 min | so far: vs greedy 80.7% of points, won 152/154 | 1554 games in the last 60s, 1554/min overall | run: 
+point  field=1                      | greedy 99% won, 81.3% pts (+798)  v1 95% won, 77.8% pts (+512)  v2 97% won, 77.4% pts (+604)  v3 98% won, 76.2% pts (+636)  v4 95% won, 74.5% pts (+512)  full-v1 64% won, 58.9% pts (+100)  full-combo 42% won, 46.3% pts (-60)  | mean 84% won, 70.3% pts, finish 77.3%, conquest 74%, 59 turns
+  [02:19] point field=2: 143/1400 games, done in ~1 min | so far: vs greedy 81.5% of points, won 141/143 | 1389 games in the last 60s, 1471/min overall | run: 
+point  field=2                      | greedy 99% won, 81.2% pts (+727)  v1 99% won, 79.3% pts (+727)  v2 96% won, 76.7% pts (+552)  v3 95% won, 74.7% pts (+512)  v4 96% won, 75.0% pts (+531)  full-v1 69% won, 61.6% pts (+139)  full-combo 45% won, 46.8% pts (-35)  | mean 85% won, 70.8% pts, finish 78.3%, conquest 76%, 58 turns
+  [02:20] point field=4: 104/1400 games, done in ~1 min | so far: vs greedy 82.2% of points, won 104/104 | 1361 games in the last 60s, 1435/min overall | run: 
+point  field=4                      | greedy 100% won, 81.6% pts (+920)  v1 98% won, 79.4% pts (+676)  v2 98% won, 77.6% pts (+636)  v3 97% won, 75.6% pts (+576)  v4 97% won, 75.6% pts (+604)  full-v1 70% won, 62.4% pts (+147)  full-combo 42% won, 45.6% pts (-56)  | mean 86% won, 71.1% pts, finish 78.7%, conquest 76%, 59 turns
+  [02:21] point field=8: 199/1400 games, done in ~1 min | so far: vs greedy 80.6% of points, won 194/197; vs v1 78.4% of points, won 2/2 | 1495 games in the last 60s, 1450/min overall | run: 
+point  field=8                      | greedy 99% won, 80.8% pts (+727)  v1 95% won, 77.6% pts (+494)  v2 98% won, 77.9% pts (+676)  v3 96% won, 74.5% pts (+531)  v4 96% won, 74.9% pts (+552)  full-v1 65% won, 59.0% pts (+108)  full-combo 41% won, 44.7% pts (-63)  | mean 84% won, 69.9% pts, finish 77.2%, conquest 75%, 57 turns
+  [02:22] point field=16: 358/1400 games, done in ~1 min | so far: vs greedy 80.3% of points, won 196/200; vs v1 77.8% of points, won 150/158 | 1559 games in the last 60s, 1472/min overall | run: 
+  [02:23] point field=16: 1227/1400 games, done in ~1 min | so far: vs greedy 80.3% of points, won 196/200; vs v1 78.5% of points, won 192/200; vs v2 77.2% of points, won 194/200; vs v3 73.9% of points, won 187/200; vs v4 72.6% of points, won 184/200; vs full-v1 55.9% of points, won 114/200; vs full-combo 44.7% of points, won 11/27 | 869 games in the last 60s, 1371/min overall | run: 
+point  field=16                     | greedy 98% won, 80.0% pts (+676)  v1 96% won, 78.4% pts (+552)  v2 97% won, 76.9% pts (+604)  v3 94% won, 73.5% pts (+463)  v4 92% won, 72.2% pts (+424)  full-v1 57% won, 55.5% pts (+49)  full-combo 42% won, 45.5% pts (-60)  | mean 82% won, 68.9% pts, finish 76.0%, conquest 74%, 57 turns
+
+best: field=4, mean 78.7% finish (base 79.6%)
+  [02:24] final test (vs panel): 469/2800 games, done in ~4 min | so far: vs greedy 80.2% of points, won 393/400; vs v1 76.7% of points, won 65/69 | 642 games in the last 60s, 1267/min overall | run: 
+  [02:25] final test (vs panel): 964/2800 games, done in ~4 min | so far: vs greedy 80.2% of points, won 393/400; vs v1 78.1% of points, won 384/400; vs v2 77.8% of points, won 162/164 | 495 games in the last 60s, 1170/min overall | run: 
+  [02:26] final test (vs panel): 1364/2800 games, done in ~3 min | so far: vs greedy 80.2% of points, won 393/400; vs v1 78.1% of points, won 384/400; vs v2 77.9% of points, won 396/400; vs v3 74.3% of points, won 155/164 | 400 games in the last 60s, 1085/min overall | run: 
+  [02:27] final test (vs panel): 2586/2800 games, done in ~1 min | so far: vs greedy 80.2% of points, won 393/400; vs v1 78.1% of points, won 384/400; vs v2 77.9% of points, won 396/400; vs v3 74.7% of points, won 381/400; vs v4 75.2% of points, won 387/400; vs full-v1 64.8% of points, won 296/400; vs full-combo 47.6% of points, won 84/186 | 1222 games in the last 60s, 1099/min overall | run: 
+
+final (400 unseen games against each):
+  vs greedy-v1        won  98% ± 1%  (+700 Elo)  points 80.2%  finish 89.7%  conquest 90%  50 turns
+  vs greedy-hill-v1   won  96% ± 2%  (+552 Elo)  points 78.1%  finish 86.6%  conquest 85%  58 turns
+  vs greedy-hill-v2   won  99% ± 1%  (+798 Elo)  points 77.9%  finish 88.1%  conquest 86%  58 turns
+  vs greedy-hill-v3   won  95% ± 2%  (+521 Elo)  points 74.6%  finish 85.3%  conquest 82%  62 turns
+  vs greedy-hill-v4   won  97% ± 2%  (+590 Elo)  points 74.9%  finish 84.6%  conquest 79%  65 turns
+  vs greedy-full-v1   won  74% ± 4%  (+182 Elo)  points 64.4%  finish 71.1%  conquest 68%  61 turns
+  vs greedy-full-combo won  48% ± 5%  (-14 Elo)  points 49.0%  finish 48.2%  conquest 40%  63 turns
+changed against greedy-full-combo: field=4
+saved models/greedy-full-field/model.json and sweep.jsonl
+sweep took 10m15s

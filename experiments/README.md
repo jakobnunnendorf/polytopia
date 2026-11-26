@@ -23,6 +23,16 @@ in, and the PDF. The dashboard rebuilds a PDF whenever its sources change.
 **Build by hand:** `npm run experiment:report -- NN-slug` (one), `-- --all` (all, plus
 `notebook.pdf`). Needs `tectonic` (`brew install tectonic`).
 
+## Numbers
+
+Two tracks number experiments in parallel (the greedy-bot track and the RL track of issue #166),
+so a number is taken by claiming it, not by the next free folder on your branch: check `dev`, the
+open `model/*` and `rl/*` branches and the CLAIM comments in #166, then claim the number there.
+A number cited in a report or comment never changes; on a clash the experiment that is not cited
+yet takes the next free number (the value field moved from 13 to 18 this way). Gaps are numbers
+claimed but not yet on `dev`: 14 is `rl-v1-cities` (claimed in #166, not started), 17 is
+`perfection-finetune` (running on `model/perfection-finetune`).
+
 ## Starting an experiment
 
 1. `cp -r experiments/TEMPLATE experiments/NN-slug`, fill `experiment.json` (status `running`,

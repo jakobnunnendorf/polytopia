@@ -11,6 +11,8 @@
  *   npm run experiment:report -- 06-peace-break        one experiment
  *   npm run experiment:report -- --all                 every experiment and the combined notebook
  *   npm run experiment:report -- --all --no-pdf        only regenerate generated.tex
+ *   npm run experiment:report -- --notebook            only the combined notebook, from the committed
+ *                                                      generated.tex (needs no models/ data)
  *
  * The combined notebook (experiments/notebook.tex and .pdf) holds every report as one section: the
  * raw material for a paper.
@@ -24,6 +26,7 @@ const EXP = path.join(ROOT, "experiments");
 const argv = process.argv.slice(2);
 const NO_PDF = argv.includes("--no-pdf");
 const ALL = argv.includes("--all");
+const NOTEBOOK_ONLY = argv.includes("--notebook");
 
 type Vs = Record<string, { winRate: number; pointShare: number; games: number; finish?: number; conquest?: number; turns?: number }>;
 type Row = { start?: boolean; final?: boolean | number; point?: string; meanShare?: number; meanWin?: number; meanFinish?: number; vs?: Vs; games?: number };
@@ -265,14 +268,14 @@ ${parts.join("\n")}
 }
 
 if (require.main === module) {
-  const dirs = ALL ? experimentDirs() : argv.filter((a) => !a.startsWith("--")).map((a) => a.replace(/\/$/, "").replace(/^experiments\//, ""));
+  const dirs = ALL || NOTEBOOK_ONLY ? experimentDirs() : argv.filter((a) => !a.startsWith("--")).map((a) => a.replace(/\/$/, "").replace(/^experiments\//, ""));
   if (!dirs.length) throw new Error("give an experiment folder (experiments/<NN-slug>) or --all");
-  for (const d of dirs) {
+  for (const d of NOTEBOOK_ONLY ? [] : dirs) {
     generate(d);
     if (!NO_PDF) compile(path.join(EXP, d), "report.tex");
     console.log(`${d}: generated.tex${NO_PDF ? "" : " and report.pdf"}`);
   }
-  if (ALL) {
+  if (ALL || NOTEBOOK_ONLY) {
     notebook(dirs);
     console.log(`notebook.tex${NO_PDF ? "" : " and notebook.pdf"} (${dirs.length} experiments)`);
   }

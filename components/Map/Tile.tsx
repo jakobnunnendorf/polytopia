@@ -1,7 +1,7 @@
 import React, { memo, useEffect, useRef } from "react";
 import { Animated, Easing, Platform, Pressable, Text, View } from "react-native";
 import { Pop, Pulse, reduceMotion } from "@/components/anim";
-import { BuildingArt, CityArt, CloudArt, ResourceArt, TerrainArt, VillageArt } from "@/components/art/Art";
+import { BuildingArt, CityArt, CloudArt, IceArt, ResourceArt, TerrainArt, VillageArt } from "@/components/art/Art";
 import type { City, Tile as TileData } from "@/logic/engine/types";
 import { PLAYER_COLORS, TERRAIN_COLOR, TILE as TILE_BASE, UI } from "@/components/game/theme";
 
@@ -146,21 +146,8 @@ function Tile({
       }}
     >
       <TerrainArt terrain={tile.terrain} x={x} y={y} size={TILE} />
-      {tile.ice && (
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "#cceeffaa",
-            borderWidth: 1,
-            borderColor: "#ffffffcc",
-          }}
-        />
-      )}
+      {/* frozen water: solid ice art over the water, so it never reads as shallow water */}
+      {tile.ice && <IceArt x={x} y={y} size={TILE} />}
       {tile.flooded && (
         <View
           pointerEvents="none"

@@ -1,8 +1,10 @@
 {
   "id": "qwen3-coder-lmstudio",
   "name": "Qwen3 Coder 30B (LM Studio)",
+  "tagline": "A local language model picking moves (needs LM Studio).",
   "kind": "llm",
   "description": "Local LLM opponent via LM Studio's OpenAI-compatible server. Each decision it sees a short text summary of the position and up to 24 candidate moves (pre-ranked by Greedy v1) and answers with a move number. Falls back to Greedy v1 if LM Studio is off or the answer is not a valid number.",
+  "hidden": true,
   "created": "2026-11-23",
   "llm": {
     "endpoint": "http://localhost:1234/v1",

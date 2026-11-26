@@ -48,6 +48,17 @@
 //!   its score.
 //! - `spread`: `spread` per own unit fewer next to the target than next to the unit now, so
 //!   crowds thin out.
+//!
+//! Value field (issue #76): value_field.rs runs value iteration on the tile graph of the moving
+//! player [EMAI RL 2.0 p.107: value iteration on a gridworld]: rewards at claimable villages,
+//! ruins, enemy cities (by level), visible enemy units, threatened own cities and the frontier,
+//! steps priced by terrain and roads, once per decision and player. A walking land unit's move
+//! score then adds `field * dphi`, dphi = the field's gain in tiles (phi(to) - phi(here)) / 2,
+//! after the gate that rules out moves without progress toward goal(), like `front`: the score
+//! is continuous in field. A small field re-ranks moves by a few points; once field * dphi
+//! exceeds 1 - open.move a move goal() rules out scores above 0, and once it exceeds the move
+//! base (greedy move, about 25) the field outweighs goal()'s single nearest target. Default 0
+//! (off): no field is built and every score keeps its bits.
 use crate::actions::{apply_action, legal_actions};
 use crate::bot::{cached_goal, find_unit, noise, score_with, GoalCache, GreedyWeights};
 use crate::diplomacy::at_peace;
@@ -157,6 +168,10 @@ pub struct FullWeights {
     pub move_noise: f64,
     /// bonus per own neighbouring unit fewer at the target than now (0 = off)
     pub spread: f64,
+    /// score per tile of the value-iteration field's progress, added after the move gate like
+    /// front (0 = off)
+    /// [EMAI RL 2.0 p.107: value iteration on a gridworld]
+    pub field: f64,
 }
 
 /// botFull.ts DEFAULT_FULL_WEIGHTS
@@ -181,6 +196,7 @@ pub fn default_full_weights() -> FullWeights {
         reserve: 0.0,
         move_noise: 0.0,
         spread: 0.0,
+        field: 0.0,
     }
 }
 
@@ -219,7 +235,7 @@ pub fn full_weights(p: &serde_json::Value) -> Result<FullWeights, String> {
     merge_table(&mut w.unit, o.get("unit"), "unit", |k| UnitType::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.build, o.get("build"), "build", |k| Build::from_id(k).map(|t| t as usize))?;
     merge_table(&mut w.reward, o.get("reward"), "reward", |k| Reward::from_id(k).map(|t| t as usize))?;
-    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius), ("techUse", &mut w.tech_use), ("techUseless", &mut w.tech_useless), ("front", &mut w.front), ("roads", &mut w.roads), ("breakPeace", &mut w.break_peace), ("plan", &mut w.plan), ("reserve", &mut w.reserve), ("moveNoise", &mut w.move_noise), ("spread", &mut w.spread)] {
+    for (key, slot) in [("centre", &mut w.centre), ("defend", &mut w.defend), ("defendRadius", &mut w.defend_radius), ("techUse", &mut w.tech_use), ("techUseless", &mut w.tech_useless), ("front", &mut w.front), ("roads", &mut w.roads), ("breakPeace", &mut w.break_peace), ("plan", &mut w.plan), ("reserve", &mut w.reserve), ("moveNoise", &mut w.move_noise), ("spread", &mut w.spread), ("field", &mut w.field)] {
         match o.get(key) {
             None | Some(serde_json::Value::Null) => {}
             Some(c) => *slot = c.as_f64().ok_or_else(|| format!("full.{key}: expected a number"))?,
@@ -338,7 +354,7 @@ fn endgame_break(s: &GameState, partner: i32, w: &FullWeights) -> bool {
 }
 
 /// our city on (x, y) when an enemy unit we know of is within `radius` tiles of it
-fn threatened_city_at(s: &GameState, owner: i32, x: i32, y: i32, radius: i32) -> bool {
+pub(crate) fn threatened_city_at(s: &GameState, owner: i32, x: i32, y: i32, radius: i32) -> bool {
     let n = s.map_size;
     let t = &s.tiles[idx(n, x, y)];
     let Some(ci) = city_by_id(s, t.city_id) else { return false };
@@ -449,6 +465,12 @@ fn front_term(s: &GameState, unit: Id, to: Coord, w: &FullWeights) -> f64 {
     }
 }
 
+/// the value-field term of a walking unit's move: field per tile of the field's progress
+/// [EMAI RL 2.0 p.107: value iteration on a gridworld]
+fn field_term(s: &GameState, unit: Id, to: Coord, w: &FullWeights, cache: &mut Option<GoalCache>) -> f64 {
+    w.field * crate::value_field::field_dphi(s, find_unit(s, unit), to, cache)
+}
+
 fn id_weight(a: &Action, w: &FullWeights) -> f64 {
     match *a {
         Action::Research { tech } => w.tech[tech as usize],
@@ -473,7 +495,15 @@ fn score_full_with(s: &GameState, a: &Action, w: &FullWeights, cache: &mut Optio
     let id = id_weight(a, w);
     let score = if base > 0.0 { base * w.ty[t] * id } else { w.open[t] * id - 1.0 };
     let out = match *a {
-        Action::Move { unit, to } => score + defend_term(s, unit, to, w) + front_term(s, unit, to, w),
+        Action::Move { unit, to } => {
+            let out = score + defend_term(s, unit, to, w) + front_term(s, unit, to, w);
+            // the value field (issue #76), after the gate like front: field 0 keeps the bits
+            if w.field != 0.0 && crate::value_field::walks(find_unit(s, unit)) {
+                out + field_term(s, unit, to, w, cache)
+            } else {
+                out
+            }
+        }
         Action::Research { tech } => score + research_term(s, tech, w),
         Action::BreakPeace { player } if endgame_break(s, player, w) => 100.0,
         _ => score,
@@ -630,8 +660,9 @@ mod tests {
 
     /// play_hash of the champion over seeds 11, 22, 33 for 60 rounds, recorded at the base
     /// commit ab56662 before the economy plan existed (0xf413bd635d505e7d, 7009), and again
-    /// when the bots' opinions became the game's decompiled model (opinion.rs)
-    const GOLDEN: (u64, usize) = (0x3faeb44c4e72ffc5, 9130);
+    /// when the bots' opinions became the game's decompiled model (opinion.rs), and again when a
+    /// melee ship that kills a unit on the shore lands there (the advance after a kill)
+    const GOLDEN: (u64, usize) = (0x08c73b4fe33151d5, 8092);
 
     #[test]
     fn plan_off_is_identity() {
@@ -1470,6 +1501,610 @@ mod tests {
             states.len(),
             changed.iter().map(|&c| format!("{:.0}", c as f64 * 1000.0 / states.len() as f64)).collect::<Vec<_>>()
         );
+    }
+
+    // ---- value field (issue #76) ----
+
+    /// the current champion's raw weights JSON (models/greedy-full-combo: plan 2, moveNoise 2)
+    fn combo_json() -> serde_json::Value {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../models/greedy-full-combo/model.json");
+        let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        v["full"].clone()
+    }
+
+    /// play_hash of greedy-full-combo over seeds 11, 22, 33 for 60 rounds, recorded on dev
+    /// (before the merge of #143) without the value field, re-recorded when a melee ship that kills on the shore lands there;
+    /// re-record it when the engine's rules change
+    const COMBO_GOLDEN: (u64, usize) = (0x41193633dcbbcd5e, 8721);
+
+    /// the states full_bot_step visits on `seed` below `rounds` with `w`
+    fn visited(seed: i64, rounds: i32, w: &FullWeights) -> Vec<GameState> {
+        let mut s = test_game(seed);
+        let mut out = Vec::new();
+        let mut moves = 0;
+        while !s.over && s.turn < rounds && moves < 20000 {
+            out.push(s.clone());
+            let a = full_bot_step(&s, w);
+            apply_action(&mut s, &a).unwrap();
+            moves += 1;
+        }
+        out
+    }
+
+    fn with_field(w: &FullWeights, x: f64) -> FullWeights {
+        FullWeights { field: x, ..w.clone() }
+    }
+
+    #[test]
+    fn field_off_is_identity() {
+        assert_eq!(default_full_weights().field, 0.0);
+        for (j, golden) in [(champion_json(), GOLDEN), (combo_json(), COMBO_GOLDEN)] {
+            assert!(j.get("field").is_none());
+            let absent = full_weights(&j).unwrap();
+            let mut j0 = j.clone();
+            j0["field"] = serde_json::json!(0);
+            let zero = full_weights(&j0).unwrap();
+            assert_eq!(absent, zero);
+            for w in [&absent, &zero] {
+                assert_eq!(play_hash(w, &[11, 22, 33], 60), golden);
+            }
+        }
+        // score_full bits on visited states
+        let absent = full_weights(&combo_json()).unwrap();
+        let zero = with_field(&absent, 0.0);
+        let mut checked = 0;
+        for s in visited(11, 30, &absent) {
+            for a in legal_actions(&s) {
+                assert_eq!(score_full(&s, &a, &absent).to_bits(), score_full(&s, &a, &zero).to_bits());
+                checked += 1;
+            }
+        }
+        assert!(checked > 1000);
+    }
+
+    /// the lecture's backup, literally, in gamma space: R = gamma^(-B/2) (0 for no reward), the
+    /// step factor gamma^(c/2), V_0 = R, V_{k+1}(i) = max(R(i), max_j f_ij V_k(j)), FIELD_K backups
+    fn lab_value_iteration(b: &crate::value_field::FieldBoard) -> Vec<f64> {
+        use crate::value_field::{FIELD_GAMMA, FIELD_K, UNREACH};
+        let g = FIELD_GAMMA;
+        let r: Vec<f64> = b.b.iter().map(|&x| if x > UNREACH { g.powf(-(x as f64) / 2.0) } else { 0.0 }).collect();
+        let mut v = r.clone();
+        for _ in 0..FIELD_K {
+            let mut nv = vec![0.0; v.len()];
+            for i in 0..v.len() {
+                if !b.pass(i) {
+                    nv[i] = r[i];
+                    continue;
+                }
+                let mut best = r[i];
+                b.neighbours(i, |j| best = best.max(g.powf(b.cost(i, j) as f64 / 2.0) * v[j]));
+                nv[i] = best;
+            }
+            v = nv;
+        }
+        v
+    }
+
+    /// multi-source Dijkstra: max over targets g of B(g) - path cost, paths through passable
+    /// tiles (the target itself may be impassable), the value of an impassable tile is its B
+    fn field_dijkstra(b: &crate::value_field::FieldBoard) -> Vec<i32> {
+        use crate::value_field::UNREACH;
+        let mut val = b.b.clone();
+        let mut heap = std::collections::BinaryHeap::new();
+        for (i, &v) in val.iter().enumerate() {
+            if v > UNREACH {
+                heap.push((v, i));
+            }
+        }
+        while let Some((v, j)) = heap.pop() {
+            if v < val[j] {
+                continue;
+            }
+            b.neighbours(j, |i| {
+                if b.pass(i) {
+                    let c = v - b.cost(i, j);
+                    if c > val[i] {
+                        val[i] = c;
+                        heap.push((c, i));
+                    }
+                }
+            });
+        }
+        val
+    }
+
+    /// test 4's board: seed 11, every tile a bare explored field, no cities; one player-0 warrior
+    /// at (8,8), a village at (5,8) and a level-3 player-1 city at (12,8)
+    fn field_board() -> GameState {
+        let mut s = test_game(11);
+        let n = s.map_size;
+        let city = s.cities.iter().find(|c| c.owner == 1).unwrap().clone();
+        for t in s.tiles.iter_mut() {
+            *t = Tile::new(Terrain::Field);
+        }
+        s.cities.clear();
+        for e in s.players[0].explored.iter_mut() {
+            *e = 1;
+        }
+        s.players[0].techs.clear();
+        s.players[0].stars = 0;
+        let keep = s.units.iter().position(|u| u.owner == 0).unwrap();
+        let mut u = s.units[keep].clone();
+        u.ty = UnitType::Warrior;
+        (u.x, u.y) = (8, 8);
+        (u.moved, u.attacked, u.done, u.frozen, u.hidden, u.can_move, u.can_attack) = (false, false, false, false, false, true, true);
+        u.body_of = None;
+        u.carried = None;
+        s.units = vec![u];
+        s.current = 0;
+        s.tiles[idx(n, 5, 8)].village = true;
+        let mut c = city;
+        (c.x, c.y, c.level) = (12, 8, 3);
+        s.tiles[idx(n, 12, 8)].city_id = Some(c.id);
+        s.cities.push(c);
+        s
+    }
+
+    fn mv(s: &GameState, x: i32, y: i32) -> Action {
+        Action::Move { unit: s.units[0].id, to: Coord::new(x, y) }
+    }
+
+    /// the hand boards of tests 4-6 (positions, for the solver tests)
+    fn field_hand_boards() -> Vec<GameState> {
+        let mut out = vec![field_board()];
+        let n = 16;
+        for terrain in [Terrain::Water, Terrain::Mountain] {
+            let mut s = field_board();
+            let c = s.cities.pop().unwrap();
+            s.tiles[idx(n, 12, 8)].city_id = None;
+            let _ = c;
+            s.tiles[idx(n, 5, 8)].village = false;
+            s.tiles[idx(n, 8, 4)].village = true;
+            for x in 7..=9 {
+                for y in 5..=6 {
+                    s.tiles[idx(n, x, y)].terrain = terrain;
+                }
+            }
+            out.push(s.clone());
+            s.players[0].explored[idx(n, 10, 6)] = 0;
+            out.push(s);
+        }
+        let mut s = field_board();
+        let mut o = s.units[0].clone();
+        o.id = s.next_id;
+        s.next_id += 1;
+        (o.x, o.y) = (5, 8);
+        s.units.push(o);
+        out.push(s);
+        out
+    }
+
+    #[test]
+    fn field_matches_lab_value_iteration() {
+        use crate::value_field::{FieldBoard, FieldMap, FIELD_GAMMA, UNREACH};
+        let w = full_weights(&combo_json()).unwrap();
+        let mut states = visited(11, 30, &w);
+        states.extend(field_hand_boards());
+        let mut tiles = 0;
+        for s in &states {
+            let b = FieldBoard::new(s, s.current);
+            let f = FieldMap::new(s, s.current);
+            let v = lab_value_iteration(&b);
+            for i in 0..v.len() {
+                assert_eq!(f.phi()[i] == UNREACH, v[i] == 0.0, "tile {i}");
+                if v[i] > 0.0 {
+                    let lv = v[i].ln() / (1.0 / FIELD_GAMMA).ln();
+                    assert!((lv - f.phi()[i] as f64 / 2.0).abs() < 1e-9, "tile {i}: lab {lv} log form {}", f.phi()[i] as f64 / 2.0);
+                }
+                tiles += 1;
+            }
+        }
+        eprintln!("field = lab value iteration on {} states, {tiles} tiles", states.len());
+    }
+
+    #[test]
+    fn field_solver_matches_dijkstra() {
+        use crate::value_field::{FieldBoard, FIELD_K};
+        let w = full_weights(&combo_json()).unwrap();
+        let mut states = visited(11, 30, &w);
+        states.extend(visited(22, 60, &w).into_iter().step_by(7));
+        let hand = field_hand_boards();
+        let n_hand = hand.len();
+        states.extend(hand);
+        let (mut converged, mut iters) = (0, Vec::new());
+        for (k, s) in states.iter().enumerate() {
+            let b = FieldBoard::new(s, s.current);
+            let (phi, it) = b.solve();
+            iters.push(it);
+            if it < FIELD_K {
+                converged += 1;
+                assert_eq!(phi, field_dijkstra(&b), "state {k}");
+            } else {
+                assert!(k < states.len() - n_hand, "a hand board did not converge");
+            }
+        }
+        iters.sort();
+        eprintln!(
+            "field solver: {converged} of {} states converged (= Dijkstra); backups median {} max {}",
+            states.len(),
+            iters[iters.len() / 2],
+            iters[iters.len() - 1]
+        );
+        assert!(converged * 10 >= states.len() * 9);
+    }
+
+    /// the required hand position: goal() pulls to the near village (3 tiles, worth 3), the field
+    /// to the far level-3 city (4 tiles, worth 5): phi(8,8) = max(6-6, 10-8) = 2, east phi 4 (+1),
+    /// west phi 2 (0). The score is continuous in field: east gains exactly field * 1, west keeps
+    /// its bits, and the pick turns east once field passes the gap goal()'s pull opens.
+    #[test]
+    fn field_far_rich_beats_near_poor() {
+        use crate::value_field::FieldMap;
+        let s = field_board();
+        let n = s.map_size;
+        let mut w = default_full_weights();
+        (w.greedy.noise, w.centre, w.move_noise, w.front) = (0.0, 0.0, 0.0, 0.0);
+        let f = FieldMap::new(&s, 0);
+        let phi = |x: i32, y: i32| f.phi()[idx(n, x, y)];
+        assert_eq!((phi(8, 8), phi(9, 8), phi(7, 8)), (2, 4, 2));
+        let u = &s.units[0];
+        assert_eq!(f.dphi(&s, u, Coord::new(9, 8)), 1.0);
+        assert_eq!(f.dphi(&s, u, Coord::new(7, 8)), 0.0);
+        let (west, east) = (mv(&s, 7, 8), mv(&s, 9, 8));
+        let legal = legal_actions(&s);
+        assert!(legal.contains(&west) && legal.contains(&east));
+        let sc = |x: f64, a: &Action| score_full(&s, a, &with_field(&w, x));
+        let (we0, ea0) = (sc(0.0, &west), sc(0.0, &east));
+        eprintln!("field 0: west {we0} east {ea0}");
+        assert!(we0 > 0.0 && ea0 <= 0.0);
+        for x in [0.01, 0.1, 1.0, 4.0, 16.0] {
+            assert!((sc(x, &east) - ea0 - x).abs() < 1e-9, "field {x}");
+            assert_eq!(sc(x, &west).to_bits(), we0.to_bits(), "field {x}");
+        }
+        // the bot's pick: west below the crossing field we0 - ea0, east above it (diagonals tie
+        // with the straight step)
+        let to_x = |x: f64| match full_bot_step(&s, &with_field(&w, x)) {
+            Action::Move { to, .. } => to.x,
+            a => panic!("picked {a:?}"),
+        };
+        let cross = we0 - ea0;
+        for (x, want) in [(0.0, 7), (0.01, 7), (cross - 0.5, 7), (cross + 0.5, 9)] {
+            assert_eq!(to_x(x), want, "field {x}");
+        }
+    }
+
+    #[test]
+    fn field_routes_around_water() {
+        use crate::value_field::{FieldBoard, FieldMap, UNREACH};
+        let boards = field_hand_boards();
+        let n = 16;
+        // boards 1 and 3: the lake, the mountain block (no Climbing); 2 and 4 with (10,6) in fog
+        for k in [1, 3] {
+            let s = &boards[k];
+            let f = FieldMap::new(s, 0);
+            let phi = |x: i32, y: i32| f.phi()[idx(n, x, y)];
+            assert_eq!((phi(8, 8), phi(8, 7), phi(9, 7)), (-4, -4, -2), "board {k}");
+            let u = &s.units[0];
+            assert_eq!(f.dphi(s, u, Coord::new(8, 7)), 0.0);
+            assert_eq!(f.dphi(s, u, Coord::new(9, 7)), 1.0);
+            // goal() says +1 for the step north
+            assert_eq!(crate::bot::goal(s, u), Some(Coord::new(8, 4)));
+        }
+        for k in [2, 4] {
+            let s = &boards[k];
+            let b = FieldBoard::new(s, 0);
+            let f = FieldMap::new(s, 0);
+            let fog = idx(n, 10, 6);
+            assert!(!b.pass(fog));
+            assert_eq!(f.phi()[fog], UNREACH);
+            // every value comes over explored tiles only: the Dijkstra on the passable graph
+            assert_eq!(f.phi(), &field_dijkstra(&b)[..]);
+            // the fog's neighbours are frontier now (0 tiles beats the village's -2 there)
+            assert_eq!(f.phi()[idx(n, 9, 7)], 0);
+        }
+    }
+
+    #[test]
+    fn field_own_occupied() {
+        use crate::value_field::{FieldBoard, FieldMap, UNREACH};
+        let s = field_hand_boards().pop().unwrap();
+        let n = s.map_size;
+        let vil = idx(n, 5, 8);
+        assert_eq!(FieldBoard::new(&s, 0).b[vil], UNREACH);
+        // the first unit sees the city-only field: the same as without the village
+        let mut city_only = field_board();
+        city_only.tiles[vil].village = false;
+        let f = FieldMap::new(&s, 0);
+        assert_eq!(f.phi(), FieldMap::new(&city_only, 0).phi());
+        assert_eq!(f.phi()[idx(n, 8, 8)], 2);
+        // the occupant holds 6 and every neighbour is worth less
+        let occ = s.units[1].clone();
+        let mut moves = 0;
+        for a in legal_actions(&s) {
+            if let Action::Move { unit, to } = a {
+                if unit == occ.id {
+                    assert!(f.dphi(&s, &occ, to) < 0.0, "{a:?}");
+                    moves += 1;
+                }
+            }
+        }
+        assert!(moves >= 3, "{moves}");
+    }
+
+    #[test]
+    fn field_non_walkers_unchanged() {
+        let w0 = full_weights(&combo_json()).unwrap();
+        let w2 = with_field(&w0, 2.0);
+        let mut checked = 0;
+        for seed in [11, 22] {
+            for s in visited(seed, 60, &w0) {
+                for a in legal_actions(&s) {
+                    let Action::Move { unit, .. } = a else { continue };
+                    if crate::value_field::walks(find_unit(&s, unit)) {
+                        continue;
+                    }
+                    assert_eq!(score_full(&s, &a, &w0).to_bits(), score_full(&s, &a, &w2).to_bits(), "{a:?}");
+                    checked += 1;
+                }
+            }
+        }
+        eprintln!("field: {checked} moves of non-walking units keep their bits at field 2");
+    }
+
+    #[test]
+    fn field_cache_matches_fresh() {
+        let w2 = with_field(&full_weights(&combo_json()).unwrap(), 2.0);
+        let mut checked = 0;
+        for s in visited(11, 20, &w2) {
+            let mut cache: Option<crate::bot::GoalCache> = Some(Default::default());
+            for a in legal_actions(&s) {
+                assert_eq!(score_full_with(&s, &a, &w2, &mut cache).to_bits(), score_full(&s, &a, &w2).to_bits(), "{a:?}");
+                checked += 1;
+            }
+        }
+        assert!(checked > 1000);
+        // the thread's last-board memo returns what a fresh solve returns
+        for s in visited(22, 20, &w2) {
+            let fresh = crate::value_field::FieldBoard::new(&s, s.current).solve();
+            for _ in 0..2 {
+                let f = crate::value_field::FieldMap::new(&s, s.current);
+                assert_eq!((f.phi().to_vec(), f.iters()), fresh);
+            }
+        }
+        let h = play_hash(&w2, &[11, 22], 40);
+        assert_eq!(h, play_hash(&w2, &[11, 22], 40));
+        let w = w2.clone();
+        assert_eq!(h, std::thread::spawn(move || play_hash(&w, &[11, 22], 40)).join().unwrap());
+        assert_ne!(h, play_hash(&with_field(&w2, 0.0), &[11, 22], 40), "field 2 never changed a choice");
+    }
+
+    #[test]
+    fn field_hidden_algae_creep() {
+        use crate::value_field::{walks, FieldBoard, UNREACH};
+        let n = 16;
+        // a hidden enemy the player cannot see is no reward (and no obstacle); a visible one is
+        let mut s = field_board();
+        let mut e = s.units[0].clone();
+        (e.id, e.owner, e.x, e.y, e.hidden) = (s.next_id, 1, 2, 2, true);
+        s.next_id += 1;
+        s.units.push(e);
+        let at = idx(n, 2, 2);
+        assert!(!crate::movement::can_see(&s, 0, &s.units[1]));
+        let b = FieldBoard::new(&s, 0);
+        assert_eq!(b.b[at], UNREACH);
+        assert!(b.pass(at));
+        s.units[1].hidden = false;
+        let b = FieldBoard::new(&s, 0);
+        assert_eq!(b.b[at], 2);
+        assert!(!b.pass(at));
+        // algae ends a walker's move: a step onto it costs 1.5 tiles, road or not
+        let mut s = field_board();
+        let (a, j) = (idx(n, 8, 8), idx(n, 9, 8));
+        assert_eq!(FieldBoard::new(&s, 0).cost(a, j), 2);
+        s.tiles[j].terrain = Terrain::Water;
+        s.tiles[j].algae = true;
+        let b = FieldBoard::new(&s, 0);
+        assert!(b.pass(j));
+        assert_eq!(b.cost(a, j), 3);
+        // creep units take no road discount and no forest stop: no walkers for the field
+        let mut u = s.units[0].clone();
+        assert!(walks(&u));
+        u.ty = UnitType::Hexapod;
+        assert!(crate::movement::has(&u, Skill::Creep) && !walks(&u));
+    }
+
+    #[test]
+    fn field_json() {
+        assert_eq!(full_weights(&serde_json::json!({"field": 0.5})).unwrap().field, 0.5);
+        assert!(full_weights(&serde_json::json!({"field": "x"})).is_err());
+        assert_eq!(full_weights(&serde_json::json!({})).unwrap().field, 0.0);
+    }
+
+    /// decisions on the same recorded states at field 1 against field 0 (best of 5); prints the
+    /// overhead (budget +30%), fails only beyond 2x
+    #[test]
+    fn field_speed() {
+        let w0 = full_weights(&combo_json()).unwrap();
+        let w1 = with_field(&w0, 1.0);
+        let states = visited(11, 60, &w0);
+        let time = |w: &FullWeights| {
+            let t = std::time::Instant::now();
+            let mut k = 0usize;
+            for s in &states {
+                k += matches!(full_bot_step(s, w), Action::EndTurn) as usize;
+            }
+            std::hint::black_box(k);
+            t.elapsed().as_secs_f64()
+        };
+        let (mut t0, mut t1) = (f64::MAX, f64::MAX);
+        for _ in 0..5 {
+            t0 = t0.min(time(&w0));
+            t1 = t1.min(time(&w1));
+        }
+        eprintln!(
+            "field speed: {} states {:.1} ms at field 0, {:.1} ms at field 1 ({:+.1}%); {:.0} vs {:.0} us per decision",
+            states.len(),
+            t0 * 1e3,
+            t1 * 1e3,
+            (t1 / t0 - 1.0) * 100.0,
+            t0 * 1e6 / states.len() as f64,
+            t1 * 1e6 / states.len() as f64
+        );
+        let mut tf = f64::MAX;
+        for _ in 0..5 {
+            let t = std::time::Instant::now();
+            for s in &states {
+                std::hint::black_box(crate::value_field::FieldMap::new(s, s.current));
+            }
+            tf = tf.min(t.elapsed().as_secs_f64());
+        }
+        let boards: Vec<_> = states.iter().map(|s| crate::value_field::FieldBoard::new(s, s.current)).collect();
+        let (mut tb, mut ts) = (f64::MAX, f64::MAX);
+        for _ in 0..5 {
+            let t = std::time::Instant::now();
+            for s in &states {
+                std::hint::black_box(crate::value_field::FieldBoard::new(s, s.current));
+            }
+            tb = tb.min(t.elapsed().as_secs_f64());
+            let t = std::time::Instant::now();
+            for b in &boards {
+                std::hint::black_box(b.solve());
+            }
+            ts = ts.min(t.elapsed().as_secs_f64());
+        }
+        let per = |x: f64| x * 1e6 / states.len() as f64;
+        eprintln!("field speed: FieldMap::new alone {:.1} us per state (board {:.1}, solve {:.1})", per(tf), per(tb), per(ts));
+        // the issue's budget is +30%; under a loaded machine (the full suite, a sweep's workers)
+        // the ratio swings by 20 points, so the suite only guards against a gross regression
+        if !cfg!(debug_assertions) {
+            assert!(t1 <= 2.0 * t0, "field 1 scoring {:.1}% slower", (t1 / t0 - 1.0) * 100.0);
+        }
+    }
+
+    /// the solver's time per call on 20x20 8-player states (rounds 10, 30, 60 of a combo game)
+    #[test]
+    #[ignore]
+    fn field_solver_time() {
+        use crate::value_field::FieldMap;
+        let w = full_weights(&combo_json()).unwrap();
+        let mut s = crate::state::create_game(&crate::state::NewGameOptions {
+            map_size: Some(20),
+            players: 8,
+            mode: GameMode::Domination,
+            difficulty: None,
+            seed: 7,
+            humans: Some(vec![]),
+            map_type: Some(crate::mapgen::MapType::Drylands),
+            clans: None,
+            turn_limit: None,
+        })
+        .unwrap();
+        for at in [10, 30, 60] {
+            while !s.over && s.turn < at {
+                let a = full_bot_step(&s, &w);
+                apply_action(&mut s, &a).unwrap();
+            }
+            let reps = 2000;
+            let mut best = f64::MAX;
+            let mut iters = 0;
+            for _ in 0..5 {
+                let t = std::time::Instant::now();
+                for _ in 0..reps {
+                    iters = std::hint::black_box(FieldMap::new(&s, s.current)).iters();
+                }
+                best = best.min(t.elapsed().as_secs_f64() / reps as f64);
+            }
+            let (mut tb, mut ts) = (f64::MAX, f64::MAX);
+            for _ in 0..5 {
+                let t = std::time::Instant::now();
+                for _ in 0..reps {
+                    std::hint::black_box(crate::value_field::FieldBoard::new(&s, s.current));
+                }
+                tb = tb.min(t.elapsed().as_secs_f64() / reps as f64);
+                let b = crate::value_field::FieldBoard::new(&s, s.current);
+                let t = std::time::Instant::now();
+                for _ in 0..reps {
+                    std::hint::black_box(b.solve());
+                }
+                ts = ts.min(t.elapsed().as_secs_f64() / reps as f64);
+            }
+            eprintln!("  board {:.1} us, solve {:.1} us", tb * 1e6, ts * 1e6);
+            let t = std::time::Instant::now();
+            let reps2 = 200;
+            for _ in 0..reps2 {
+                std::hint::black_box(full_bot_step(&s, &w));
+            }
+            let dec = t.elapsed().as_secs_f64() / reps2 as f64;
+            eprintln!(
+                "20x20, 8 players, round {}: FieldMap::new {:.1} us ({iters} backups, {} units); full_bot_step at field 0 {:.0} us",
+                s.turn,
+                best * 1e6,
+                s.units.len(),
+                dec * 1e6
+            );
+        }
+    }
+
+    /// skill step 4 on a real game: POLY_FIELD_GAME (a gunzipped data/games record). Over every
+    /// readable turn start, the walking units' moves: dphi range and distribution, scoreFull at
+    /// field 0 and 2 for a few, and the argmax flips at field 2 (and POLY_FIELD_VALUES).
+    #[test]
+    #[ignore]
+    fn field_replay_sanity() {
+        use crate::value_field::{walks, FieldMap};
+        let Ok(path) = std::env::var("POLY_FIELD_GAME") else {
+            eprintln!("POLY_FIELD_GAME not set: skipped");
+            return;
+        };
+        let rec: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let stored = rec["turnStates"].as_array().unwrap();
+        let states: Vec<GameState> = stored.iter().filter_map(|v| crate::json::state_from_json(v).ok()).collect();
+        eprintln!("game {} seats {} ({} turn states, {} unreadable)", rec["id"], rec["seats"], states.len(), stored.len() - states.len());
+        let w0 = full_weights(&combo_json()).unwrap();
+        let values: Vec<f64> = std::env::var("POLY_FIELD_VALUES").unwrap_or_else(|_| "0.5,1,2,4".into()).split(',').map(|x| x.parse().unwrap()).collect();
+        let (mut dmin, mut dmax, mut nz, mut nmoves) = (f64::MAX, f64::MIN, 0usize, 0usize);
+        let mut hist = std::collections::BTreeMap::<i32, usize>::new();
+        let mut flips = vec![0usize; values.len()];
+        let mut decisions = 0;
+        let mut shown = 0;
+        for s in states.iter().filter(|s| !s.over) {
+            let legal = legal_actions(s);
+            let f = FieldMap::new(s, s.current);
+            for a in &legal {
+                let Action::Move { unit, to } = *a else { continue };
+                let u = find_unit(s, unit);
+                if !walks(u) {
+                    continue;
+                }
+                let d = f.dphi(s, u, to);
+                nmoves += 1;
+                nz += (d != 0.0) as usize;
+                dmin = dmin.min(d);
+                dmax = dmax.max(d);
+                *hist.entry((d * 2.0) as i32).or_default() += 1;
+                if shown < 12 && d != 0.0 && s.turn >= 5 && (to.x + to.y + s.turn) % 9 == 0 {
+                    shown += 1;
+                    eprintln!(
+                        "  round {} p{} {a:?} at ({},{}): dphi {d:+.1}, scoreFull field 0 {:.2}, field 2 {:.2}",
+                        s.turn,
+                        s.current,
+                        u.x,
+                        u.y,
+                        score_full(s, a, &w0),
+                        score_full(s, a, &with_field(&w0, 2.0))
+                    );
+                }
+            }
+            let a0 = full_best_of(s, &legal, &w0);
+            for (i, &x) in values.iter().enumerate() {
+                flips[i] += (full_best_of(s, &legal, &with_field(&w0, x)) != a0) as usize;
+            }
+            decisions += 1;
+        }
+        eprintln!(
+            "{nmoves} walking moves, {nz} with dphi != 0; dphi range [{dmin}, {dmax}]; histogram (half tiles: count) {hist:?}"
+        );
+        eprintln!("argmax flips over {decisions} turn starts at field {values:?}: {flips:?}");
     }
 
     #[test]
