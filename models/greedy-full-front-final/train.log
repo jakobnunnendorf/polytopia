@@ -1,0 +1,16 @@
+sweep from greedy-full-front: 0 points + base, 2 games against each of greedy-v1, greedy-hill-v1, greedy-hill-v2, greedy-hill-v3, greedy-hill-v4, greedy-full-v1, greedy-full-front
+point  base                         | greedy 100% won, 76.3% pts (+191)  v1 100% won, 76.8% pts (+191)  v2 100% won, 81.9% pts (+191)  v3 100% won, 74.4% pts (+191)  v4 100% won, 75.2% pts (+191)  full-v1 50% won, 56.2% pts (+0)  full-front 50% won, 50.0% pts (+0)  | mean 86% won, 70.1% pts, finish 74.5%, conquest 64%, 69 turns
+
+best: base, mean 74.5% finish (base 74.5%)
+
+final (400 unseen games against each):
+  vs greedy-v1        won  94% ± 2%  (+478 Elo)  points 75.7%  finish 83.1%  conquest 76%  68 turns
+  vs greedy-hill-v1   won  91% ± 3%  (+407 Elo)  points 72.3%  finish 78.3%  conquest 68%  75 turns
+  vs greedy-hill-v2   won  95% ± 2%  (+494 Elo)  points 73.7%  finish 80.9%  conquest 71%  77 turns
+  vs greedy-hill-v3   won  91% ± 3%  (+402 Elo)  points 70.3%  finish 78.3%  conquest 68%  76 turns
+  vs greedy-hill-v4   won  87% ± 3%  (+326 Elo)  points 68.6%  finish 74.1%  conquest 59%  83 turns
+  vs greedy-full-v1   won  58% ± 5%  (+54 Elo)  points 54.8%  finish 55.1%  conquest 44%  73 turns
+  vs greedy-full-front won  50% ± 5%  (+0 Elo)  points 50.0%  finish 50.0%  conquest 40%  69 turns
+changed against greedy-full-front: base
+saved models/zz-base-final/model.json and sweep.jsonl
+sweep took 29s
