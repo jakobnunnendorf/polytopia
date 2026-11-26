@@ -13,14 +13,13 @@
 //!   * a turn-only baseline: V(t) = mean return-to-go at turn t.
 //! It evaluates them on held-out games (return-to-go = final score - score now) and reports state counts,
 //! coverage and errors. A held-out state never seen in training gets the turn baseline as its prediction.
-use polycore::actions::apply_action;
-use polycore::bot_full::{full_bot_step, full_weights, FullWeights};
-use polycore::state::{self as st, NewGameOptions};
+use rl_value::strategic::{self as sg, model_weights, repo_root, FullWeights, FEATURES};
+pub(crate) use rl_value::strategic::State;
 use rayon::prelude::*;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::{BufRead, BufWriter, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 
 mod vi;
@@ -32,7 +31,6 @@ const EVAL_SEED_START: i64 = 1_000_000_000;
 const MODE: &str = "perfection";
 const MAP_SIZE: i64 = 16;
 const MAP_TYPE: &str = "continents";
-const LEARNER: i32 = 0;
 const MAX_TURN: i32 = 60;
 const MAX_MOVES: i64 = 1_000_000;
 /// The engine's tribe ids, in its order (as in engine/gate).
@@ -40,10 +38,8 @@ const TRIBES: [&str; 16] = [
     "xinxi", "imperius", "bardur", "oumaji", "kickoo", "hoodrick", "luxidoor", "vengir", "zebasi", "aimo", "quetzali",
     "yadakk", "aquarion", "elyrion", "polaris", "cymanti",
 ];
-const FEATURES: [&str; 6] = ["turn", "cities", "income", "units", "levels", "techs"];
 pub(crate) const TERM: u32 = u32::MAX;
 
-pub(crate) type State = [i32; 6];
 
 // ---------------------------------------------------------------- command line
 
@@ -66,29 +62,6 @@ pub(crate) fn get<T: std::str::FromStr>(m: &HashMap<String, String>, k: &str, d:
         None => Ok(d),
         Some(s) => s.parse().map_err(|_| format!("--{k}: cannot parse {s:?}")),
     }
-}
-
-fn repo_root() -> PathBuf {
-    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    p.canonicalize().unwrap_or(p)
-}
-
-/// greedy-full weights of a model id under models/, a model folder or a model.json path
-fn model_weights(id: &str) -> R<FullWeights> {
-    let p = Path::new(id);
-    let f = if p.is_file() {
-        p.to_path_buf()
-    } else if p.join("model.json").is_file() {
-        p.join("model.json")
-    } else {
-        repo_root().join("models").join(id).join("model.json")
-    };
-    let text = std::fs::read_to_string(&f).map_err(|e| format!("{}: {e}", f.display()))?;
-    let v: Value = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", f.display()))?;
-    if v["kind"].as_str() != Some("greedy-full") {
-        return Err(format!("{}: only greedy-full models are supported", f.display()));
-    }
-    full_weights(&v["full"])
 }
 
 pub(crate) fn splitmix64(x: u64) -> u64 {
@@ -127,7 +100,7 @@ pub(crate) struct Setup {
 
 /// rl-gate's champions registry and fixed anchor (engine/gate/src/main.rs, decision of 25 Nov 2026 on #166)
 const REGISTRY: &str = "docs/rl-project/champions.json";
-const ANCHOR: &str = "greedy-full-probe";
+const ANCHOR: &str = "greedy-full-probe-perf";
 /// rl-gate's random stream for the seat shuffle
 const SEAT_STREAM: u64 = 0x5EA7_5EA7_0000_0003;
 
@@ -166,7 +139,7 @@ fn default_opponents() -> R<Vec<String>> {
 
 /// the setup from the command line (shared by collect, check and eval)
 pub(crate) fn setup(m: &HashMap<String, String>) -> R<(Setup, String, String)> {
-    let model = m.get("model").cloned().unwrap_or("greedy-full-probe".into());
+    let model = m.get("model").cloned().unwrap_or("greedy-full-probe-perf".into());
     let opp_ids: Vec<String> = match m.get("opp") {
         Some(l) => l.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect(),
         None => default_opponents()?,
@@ -178,7 +151,7 @@ pub(crate) fn setup(m: &HashMap<String, String>) -> R<(Setup, String, String)> {
         tribe: m.get("tribe").cloned().unwrap_or("xinxi".into()),
         difficulty: m.get("difficulty").cloned().unwrap_or("crazy".into()),
         human: get::<i32>(m, "human", 1)? != 0,
-        learner: vi::action_weights(&base, get(m, "boost", 2.0)?),
+        learner: sg::action_weights(&base, get(m, "boost", 2.0)?),
         opps: opp_ids.iter().map(|id| model_weights(id)).collect::<R<_>>()?,
     };
     if su.opps.is_empty() || su.opps.len() > su.players - 1 {
@@ -187,49 +160,15 @@ pub(crate) fn setup(m: &HashMap<String, String>) -> R<(Setup, String, String)> {
     Ok((su, model, opp))
 }
 
-/// the learner's state now
-pub(crate) fn features(s: &polycore::types::GameState, p: i32) -> State {
-    let mut cities = 0;
-    let mut levels = 0;
-    for c in s.cities.iter().filter(|c| c.owner == p) {
-        cities += 1;
-        levels += c.level;
-    }
-    let units = s.units.iter().filter(|u| u.owner == p).count() as i32;
-    [s.turn, cities, st::income(s, p), units, levels, s.players[p as usize].techs.len() as i32]
-}
-
 /// one row per learner turn: state, score, terminal flag 0, the strategic action taken; then the terminal row
 /// (final turn and score, flag 1, and 1 in the action column if the learner won). `drive` picks the learner's action at the start of each of its turns.
 pub(crate) fn play(seed: i64, su: &Setup, drive: &vi::Driver) -> R<Vec<[i32; 9]>> {
     let tribes = tribes_for(seed, &su.tribe, su.players);
-    let opts = NewGameOptions::from_json(&json!({
-        "mapSize": MAP_SIZE, "players": su.players, "mode": MODE, "seed": seed,
-        "humans": if su.human { json!([LEARNER]) } else { json!([]) },
-        "mapType": MAP_TYPE, "difficulty": su.difficulty, "clans": tribes}))?;
-    let mut s = st::create_game(&opts)?;
-    let mut rows = Vec::with_capacity(32);
-    let mut last = (-1, -1);
-    let mut moves = 0;
-    let mut act = 0usize;
+    let opts = sg::game_opts(seed, su.players, &su.difficulty, &tribes, su.human, MODE, MAP_SIZE, MAP_TYPE);
     let assign = seat_assignment(seed, su.opps.len(), su.players - 1);
-    while !s.over && moves < MAX_MOVES && s.turn <= MAX_TURN {
-        if s.current == LEARNER && last != (s.turn, s.current) {
-            let f = features(&s, LEARNER);
-            act = drive.pick(seed, &f);
-            rows.push([f[0], f[1], f[2], f[3], f[4], f[5], st::score_of(&s, LEARNER), 0, act as i32]);
-        }
-        last = (s.turn, s.current);
-        let w = if s.current == LEARNER { &su.learner[act] } else { &su.opps[assign[s.current as usize - 1]] };
-        let a = full_bot_step(&s, w);
-        apply_action(&mut s, &a)?;
-        moves += 1;
-    }
-    let f = features(&s, LEARNER);
-    // terminal row: the action column holds 1 if the learner won
-    let won = (s.winner == Some(LEARNER)) as i32;
-    rows.push([f[0], f[1], f[2], f[3], f[4], f[5], st::score_of(&s, LEARNER), 1, won]);
-    Ok(rows)
+    let opps: Vec<&FullWeights> = assign.iter().map(|&i| &su.opps[i]).collect();
+    let mut pick = |f: &State| drive.pick(seed, f);
+    Ok(sg::play_game(&opts, &su.learner, &mut pick, &opps, MAX_TURN, MAX_MOVES)?.rows)
 }
 
 fn collect(m: &HashMap<String, String>) -> R<()> {
@@ -265,7 +204,8 @@ fn collect(m: &HashMap<String, String>) -> R<()> {
     let mut w = BufWriter::new(std::fs::File::create(&out).map_err(|e| format!("{}: {e}", out.display()))?);
     let meta = json!({"model": model, "opp": opp, "players": su.players, "tribe": su.tribe, "difficulty": su.difficulty,
                       "humanLearner": su.human, "mode": MODE, "mapSize": MAP_SIZE, "mapType": MAP_TYPE,
-                      "seedStart": seed_start, "games": games, "driver": drive.label(), "actions": vi::ACTION_NAMES});
+                      "seedStart": seed_start, "games": games, "driver": drive.label(), "actions": sg::ACTION_NAMES,
+                      "boost": get(m, "boost", 2.0)?});
     writeln!(w, "# {meta}").unwrap();
     writeln!(w, "seed\tturn\tcities\tincome\tunits\tlevels\ttechs\tscore\tterminal\taction").unwrap();
     let mut rows = 0;
@@ -592,8 +532,8 @@ fn fit_cmd(m: &HashMap<String, String>) -> R<()> {
 }
 
 const USAGE: &str = "usage:
-  rl-value collect --out <file.tsv> [--games 1000] [--seed-start 1] [--driver bot] [--model greedy-full-probe] [--opp a,b,c]
-                   [--players 3] [--difficulty crazy] [--tribe xinxi] [--human 1] [--threads 0]
+  rl-value collect --out <file.tsv> [--games 1000] [--seed-start 1] [--driver bot] [--model greedy-full-probe-perf] [--opp a,b,c]
+                   [--players 4] [--difficulty crazy] [--tribe xinxi] [--human 1] [--threads 0]
   rl-value fit --train <file.tsv> --test <file.tsv> --out <dir> [--sizes 1000,10000,...]
   rl-value check --games 2000 --seed-start 600000000 --out <file.json>     (each action played every turn)
   rl-value fit-vi --train <file.tsv> --out <dir> [--min-count 1,5,20]     (value iteration -> policy-mN.tsv)

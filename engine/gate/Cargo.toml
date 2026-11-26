@@ -10,5 +10,6 @@ path = "src/main.rs"
 
 [dependencies]
 polyapi = { path = "../api" }
+rl-value = { path = "../rlvalue" }
 serde_json = "1"
 rayon = "1"
