@@ -1,9 +1,10 @@
 {
   "id": "greedy-full-combo-perf",
-  "name": "greedy-full-combo + perturbation probe",
+  "name": "Combo P",
+  "tagline": "Combo re-tuned for Perfection on Crazy: now as strong as Probe in Perfection.",
   "kind": "greedy-full",
-  "description": "greedy-full-combo tuned by a perturbation probe: all knobs nudged up or down at random in every game, each knob moved only when the difference between its up and down games reached z 3 (65 moves in 10 rounds, 100k training games).",
   "created": "2026-11-26",
+  "description": "greedy-full-combo tuned by a perturbation probe: all knobs nudged up or down at random in every game, each knob moved only when the difference between its up and down games reached z 3 (65 moves in 10 rounds, 100k training games).",
   "full": {
     "greedy": {
       "capture": 407.904,
