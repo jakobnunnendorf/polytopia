@@ -1,0 +1,14 @@
+[package]
+name = "rl-gate"
+description = "The RL project's quality gate: a 99% one-sided paired sign test (with mean and lower-tail guards) of a candidate against its base on fixed evaluation seeds"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "rl-gate"
+path = "src/main.rs"
+
+[dependencies]
+polyapi = { path = "../api" }
+serde_json = "1"
+rayon = "1"

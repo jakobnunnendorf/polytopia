@@ -1,0 +1,177 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 16-rl-full-state-value-gate-setup
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+\textbf{The idea (David, 25 Nov 2026, issue \#166).} Re-run experiment 13 on the updated environment and the setup
+agreed on \#166, so that David's full-state track and Jakob's feature-by-feature track (experiment 14) are measured
+on the same games. Method unchanged: the state is six exact integers (turn, cities, income, units, sum of city
+levels, techs), no bins; $V(s_t) = \mathbb{E}[\text{final score} - \text{score}_t \mid s_t]$, the remaining score
+of the bot's own play.
+
+\textbf{Prediction} (before the run; from experiment 13, adjusted for more opponents and the new opponent model):
+\begin{enumerate}
+  \item \emph{Coverage stays high:} 93--97\% of held-out learner turns land in a state seen in the 300{,}000
+        training games (13: 96.7\%); more opponents make games more varied, so slightly lower.
+  \item \emph{Same overall picture:} model-based $V$ is 6--12\% below the turn baseline in RMSE over all held-out
+        turns (13: 8.4\%), and 20--30\% below it at turns 20--25 (13: 25--26\%).
+  \item \emph{Same split between the estimators:} Monte Carlo is better in the early turns, the model-based $V$ in
+        the late turns, with the crossover between turns 10 and 18 (13: turn 15).
+  \item \emph{More eliminations:} with three opponents more learners are eliminated before turn 30: 15--25\% of
+        held-out games (13: 12.9\%).
+\end{enumerate}
+\textbf{Against experiment 13's conclusion:} if the model-based $V$ is not below the turn baseline at 300{,}000
+games, or the estimator split reverses, 13's result was specific to its setup.
+
+\section{Mechanism}
+As experiment 13 (\texttt{rl-value collect} and \texttt{fit}, \texttt{engine/rlvalue}): the state is read at the start
+of each learner turn; reward = change in raw score; three estimators on the same training games: model-based
+(certainty equivalence: transitions $(r, s')$ per state, backward induction from the last turn), Monte Carlo
+(mean return-to-go per state) and the turn baseline (mean return-to-go per turn). A held-out state not seen in
+training gets the turn baseline. New in the tool: the terminal row records whether the learner won, so the report
+gives the win rate.
+
+\section{Setup}
+\textbf{What changed against experiment 13} (everything as agreed on \#166, 25 Nov):
+\begin{itemize}
+  \item Engine of \texttt{dev} at 3fa9d33: bot opinions follow the decompiled model (\#174), the Perfection bonus
+        table (\#172; raw scores unaffected).
+  \item 4 players (3 opponents, the symmetric layout) instead of 3.
+  \item Opponents as \texttt{rl-gate}'s defaults: \texttt{greedy-full-probe} and \texttt{greedy-full-combo} (entries 0
+        and 1 of \texttt{docs/rl-project/champions.json}) and the anchor \texttt{greedy-full-probe}, shuffled over
+        the seats per seed by the gate's \texttt{seat\_assignment}; opponents' tribes by the gate's rule.
+\end{itemize}
+Unchanged: Perfection, 16$\times$16 Continents, Crazy, learner Xin-xi as the human seat, learner
+\texttt{greedy-full-probe}. Training seeds $1\dots300{,}000$; held-out seeds $500{,}000{,}000\dots$ (10{,}000);
+both below the gate's evaluation seeds.
+
+\textbf{Sanity check: the games are the gate's games.} \texttt{rl-gate --candidate greedy-full-probe --base
+greedy-full-probe --n 500 --seed-start 1} and \texttt{rl-value collect --games 500 --seed-start 1} give the same
+seat-0 final score and the same win flag on 500 of 500 seeds. Unit tests pass (5).
+
+Commands (from \texttt{engine/}):
+\begin{verbatim}
+B=./target/release/rl-value
+$B collect --games 10000 --seed-start 500000000 --out target/rl-value/g4-test.tsv
+$B collect --games 300000 --seed-start 1 --out target/rl-value/g4-train.tsv
+$B fit --train target/rl-value/g4-train.tsv --test target/rl-value/g4-test.tsv \
+  --sizes 1000,3000,10000,30000,100000,300000 \
+  --out ../experiments/16-rl-full-state-value-gate-setup
+\end{verbatim}
+No gate verdict: there is no new player, only a value function of the bot's own play.
+
+\section{Results}
+\ExpResults
+
+All numbers are copied from \texttt{value-summary.json} (\texttt{rl-value fit}, 25 Nov 2026). Collection: 300{,}000
+training games in 1{,}525\,s and 10{,}000 held-out games in 51\,s on 10 threads; fit 4\,s.
+
+\paragraph{The held-out games} (the bot's own play on this setup; 10{,}000 games): mean final score 6{,}747
+(95\% interval 6{,}680 to 6{,}815, sd 3{,}459), median 7{,}925, 10th percentile 1{,}455, 90th percentile 10{,}370;
+win rate 3.01\% (Wilson 95\% interval 2.69\% to 3.36\%); 2{,}760 games (27.6\%) end before turn 30 because the
+learner is eliminated.
+
+\paragraph{Learning curve} (RMSE of the predicted remaining score over all held-out turns; a state not seen in
+training gets the turn baseline):
+
+\begin{center}\small
+\begin{tabular}{rrrrrrr}
+\toprule
+training games & distinct states & coverage & turn only & model-based & Monte Carlo & model / MC gain \\
+\midrule
+1{,}000   & 14{,}149  & 59.4\% & 2819.9 & 2711.0 & 2774.3 & $-3.9\%$ / $-1.6\%$ \\
+3{,}000   & 32{,}042  & 72.2\% & 2817.9 & 2643.9 & 2684.7 & $-6.2\%$ / $-4.7\%$ \\
+10{,}000  & 72{,}374  & 83.2\% & 2817.1 & 2578.0 & 2586.9 & $-8.5\%$ / $-8.2\%$ \\
+30{,}000  & 141{,}948 & 89.7\% & 2817.2 & 2532.2 & 2516.0 & $-10.1\%$ / $-10.7\%$ \\
+100{,}000 & 282{,}706 & 94.4\% & 2817.2 & 2499.7 & 2465.0 & $-11.3\%$ / $-12.5\%$ \\
+300{,}000 & 502{,}328 & 97.0\% & 2817.2 & 2482.4 & 2435.3 & $-11.9\%$ / $-13.6\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{By turn} (300{,}000 training games):
+
+\begin{center}\small
+\begin{tabular}{rrrrrrrr}
+\toprule
+turn & sd of return & coverage & turn only & model-based & Monte Carlo & model gain & $R^2$ model \\
+\midrule
+0  & 3459 & 100.0\% & 3458.8 & 3458.8 & 3458.8 & 0\%        & 0.00 \\
+5  & 3445 & 100.0\% & 3444.9 & 3394.7 & 3244.4 & $-1.5\%$  & 0.03 \\
+10 & 3302 & 99.5\%  & 3301.9 & 2834.3 & 2745.1 & $-14.2\%$ & 0.26 \\
+15 & 2880 & 98.1\%  & 2879.8 & 2128.4 & 2127.5 & $-26.1\%$ & 0.45 \\
+20 & 2217 & 95.6\%  & 2216.5 & 1604.9 & 1639.9 & $-27.6\%$ & 0.48 \\
+25 & 1372 & 90.8\%  & 1371.6 & 1016.3 & 1042.2 & $-25.9\%$ & 0.45 \\
+29 & 504  & 88.7\%  & 503.9  & 417.9  & 417.9  & $-17.1\%$ & 0.31 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Monte Carlo has the lower error at turns 1--15, the model-based $V$ at turns 16--28 (equal at turns 0 and 29; full
+rows in the JSON).
+
+\paragraph{State counts} (300{,}000 games, 8{,}209{,}752 learner turns): 502{,}328 distinct states, 49.8\% seen once,
+432{,}926 seen fewer than 10 times; the states seen once hold 3.0\% of the visits (16.3 visits per state on
+average); 0.81 distinct successors per visit among states seen at least twice. Ranges: cities 1--13, income
+0--84, units 0--75, levels 1--69, techs 1--25.
+
+\paragraph{Against experiment 13} (2 opponents, all \texttt{greedy-full-probe}, old opponent model): the overall
+gain of the model-based $V$ over the turn baseline grows from 8.4\% to 11.9\% (Monte Carlo 9.7\% to 13.6\%); the
+state explains more earlier ($R^2$ 0.26 at turn 10 against 0.08); coverage is about the same (97.0\% against
+96.7\%); the held-out games are harder (mean 6{,}747 against 8{,}010, 27.6\% eliminated against 12.9\%).
+
+\section{Behaviour}
+Not a policy change; the bot's games on this setup are harder than in experiment 13: more than a quarter of the
+learners are eliminated before turn 30, and the learner wins 3\% of games against three Crazy champions. Visits
+concentrate as before: 97.0\% of held-out turns land in a state seen in training, 88.4\% in one seen at least 10
+times.
+
+\section{Interpretation}
+\textbf{Prediction 1 (coverage 93--97\%): right} (97.0\%, at the upper edge).
+
+\textbf{Prediction 2 (overall gain 6--12\%, 20--30\% at turns 20--25): right} (11.9\%; 27.6\% at turn 20, 25.9\%
+at turn 25).
+
+\textbf{Prediction 3 (Monte Carlo early, model late, crossover between turns 10 and 18): right} (crossover at turn
+16). The explanation of experiment 13 holds: the six integers are not a Markov state (map, opponents and positions
+are hidden), so backward induction through the learned model is biased; Monte Carlo is not, and early states have
+enough visits for its variance to be small.
+
+\textbf{Prediction 4 (15--25\% eliminated): wrong}, 27.6\%. Three Crazy opponents under the new opinion model are
+harsher than expected.
+
+\textbf{What the new setup changes:} eliminations make the outcome partly bimodal (a lower 10th percentile and a
+larger spread), and the six integers see a coming elimination (cities and income fall), so they explain more of the
+remaining score from turn 8 to turn 15 than in experiment 13. Experiment 13's conclusions carry over to the decided
+setup.
+
+\todo{david}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\begin{itemize}
+  \item \emph{One policy}: the values are those of \texttt{greedy-full-probe} on this setup; a learner that plays
+        differently visits other states.
+  \item \emph{Overall RMSE} weights the uninformative early turns as much as the late ones; the per-turn table is the
+        fairer measure.
+  \item \emph{Opponent list}: the registry's entries today (probe, combo, anchor probe); a promotion changes the
+        opponents and so the values.
+\end{itemize}
+
+\section{Verdict and next step}
+A measurement, no gate (no new player): experiment 13's result holds on the decided setup, slightly stronger. Done.
+This is the setup for the re-run of experiment 15 (strategic actions and value iteration), which waits for Jakob's
+answer on adding a policy learner to \texttt{rl-gate}; and the reference to compare with Jakob's cities-only value
+function (experiment 14) on the same games.
+
+\section{Notes for the paper}
+Claim: on the decided setup the exact six-integer state predicts the bot's remaining score 12\% better than the turn
+alone overall and 26--28\% better from turn 15 to 25 (explaining about 45\% of the variance there); Monte Carlo is
+the better estimator up to turn 15 and the learned model after, because the state is not Markov. Carried by the
+per-turn table; the side-by-side with experiment 14 (cities only) on the same held-out games would make the
+two-track slide.
+
+\todo{david}{Is this worth a place in the talk or report? Where?}
+
+\end{document}

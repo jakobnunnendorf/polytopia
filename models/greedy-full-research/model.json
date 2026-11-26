@@ -1,8 +1,10 @@
 {
   "id": "greedy-full-research",
-  "name": "greedy-full-research",
+  "name": "Research",
+  "tagline": "Full greedy v1 retrained with new research knobs.",
   "kind": "greedy-full",
   "description": "The full-action-space greedy bot (logic/engine/botFull.ts) with 204 knobs tuned by hill climbing (scripts/train-hill.ts --space full, margin test, opponents self+past): 244 challengers, 100k training games in 4-player domination on drylands 16x16 maps, fine-tuned from greedy-full-v1, 1 kept. Saved the champion of the best learning-curve point (round 0, 0 games). Won 84% against greedy-v1 and 28% against greedy-full-v1 on unseen maps at save time.",
+  "hidden": true,
   "created": "2026-11-24",
   "full": {
     "greedy": {

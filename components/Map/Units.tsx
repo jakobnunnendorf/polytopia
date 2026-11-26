@@ -29,6 +29,7 @@ export function UnitSprite({
   TILE,
   selected,
   lunge,
+  spent = !(unit.canMove || unit.canAttack),
 }: {
   unit: Unit;
   clan?: string;
@@ -36,13 +37,15 @@ export function UnitSprite({
   TILE: number;
   selected: boolean;
   lunge?: Lunge;
+  /** nothing left to do this turn: drawn dimmed */
+  spent?: boolean;
 }) {
   const pos = useRef(new Animated.ValueXY({ x: unit.x * TILE, y: unit.y * TILE })).current;
   const hop = useRef(new Animated.Value(0)).current;
   const shake = useRef(new Animated.Value(0)).current;
   const thrust = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const bob = useRef(new Animated.Value(0)).current;
-  const dim = useRef(new Animated.Value(unit.canMove || unit.canAttack ? 1 : 0.6)).current;
+  const dim = useRef(new Animated.Value(spent ? 0.6 : 1)).current;
   const last = useRef({ x: unit.x, y: unit.y, TILE, hp: unit.hp, veteran: unit.veteran });
   const [floats, setFloats] = React.useState<{ key: number; text: string; color: string }[]>([]);
 
@@ -95,8 +98,8 @@ export function UnitSprite({
 
   // used up for the turn: fade to dim instead of snapping
   useEffect(() => {
-    Animated.timing(dim, { toValue: unit.canMove || unit.canAttack ? 1 : 0.6, duration: reduceMotion() ? 0 : 350, useNativeDriver: native }).start();
-  }, [unit.canMove, unit.canAttack, dim]);
+    Animated.timing(dim, { toValue: spent ? 0.6 : 1, duration: reduceMotion() ? 0 : 350, useNativeDriver: native }).start();
+  }, [spent, dim]);
 
   // selected: lift and bob
   useEffect(() => {

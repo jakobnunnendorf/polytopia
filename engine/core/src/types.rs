@@ -132,6 +132,8 @@ pub struct Player {
     pub kills: i32,
     pub losses: i32,
     pub met: Vec<i32>,
+    /// turn number on which each tribe in `met` was met (same order; shorter in states saved before it existed)
+    pub met_turns: Vec<i32>,
     pub tasks: Vec<Task>,
     pub monuments: Vec<Build>,
     pub pacifist_turns: i32,
@@ -216,6 +218,8 @@ pub struct Diplomacy {
     pub ceasefires: Vec<Ceasefire>,
     /// [victim, breaker]
     pub broken: Vec<[i32; 2]>,
+    /// [low id, high id, turn]: the last turn on which a treaty between the two was broken (bot opinion)
+    pub broken_turns: Vec<[i32; 3]>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -1,6 +1,7 @@
 {
   "id": "greedy-full-probe",
-  "name": "Full greedy, champion tuned by perturbation probe",
+  "name": "Probe",
+  "tagline": "Combo with every knob fine-tuned: attacks harder, researches less.",
   "kind": "greedy-full",
   "description": "greedy-full-combo tuned by a perturbation probe: all knobs nudged up or down at random in every game, each knob moved only when the difference between its up and down games reached z 3 (60 moves in 10 rounds, 100k training games). Saved: the centre after round 8, the best of six curve points. [EMAI ML-13, ML 2.0 p.27: least squares as a local linear surrogate]",
   "created": "2026-11-25",

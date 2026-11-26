@@ -96,9 +96,24 @@ pub fn map_size_for(mode: GameMode, opponents: i32) -> Option<i32> {
         _ => None,
     }
 }
-/// Huge (20) and Massive (30) maps exist only in Creative and the multiplayer modes
+/// Map type a mode forces: Perfection is always played on Continents, the game's default map type
+/// (developer, Steam, May 2021). None when the mode lets the player choose. Domination is also
+/// Continents in the game, but stays free here: the trained champions were tuned on Drylands.
+pub fn map_type_for(mode: GameMode) -> Option<MapType> {
+    match mode {
+        GameMode::Perfection => Some(MapType::Continents),
+        _ => None,
+    }
+}
+/// Sizes the setup screen offers: Perfection only Normal (16); Huge (20) and Massive (30) only in Creative
+/// and the multiplayer modes
 pub fn map_size_allowed(mode: GameMode, map_size: i32) -> bool {
-    map_size <= 18 || matches!(mode, GameMode::Creative | GameMode::Glory | GameMode::Might)
+    match mode {
+        // Perfection is always Normal (16x16) in the game; create_game still accepts other sizes for research
+        GameMode::Perfection => map_size == 16,
+        GameMode::Creative | GameMode::Glory | GameMode::Might => true,
+        _ => map_size <= 18,
+    }
 }
 #[inline]
 pub fn difficulty_of(s: &GameState) -> Difficulty {
@@ -414,12 +429,12 @@ pub fn city_score(c: &City) -> i32 {
     }
     score + SCORE.park * c.parks
 }
-/// score × (1 + bonus), bonus = round(handicap/5 + ln(opponents)/ln(11.4), 2)
+/// score × the difficulty bonus, rounded like JS Math.round. The bonus is a whole percent from the app's
+/// table (`perfection_bonus_percent`: 100 + difficulty part + opponent part, e.g. 245% for 15 Crazy
+/// opponents); the multiplier is that percent / 100.
 pub fn perfection_rating(s: &GameState, p: i32) -> f64 {
     let opponents = s.players.len() as i32 - 1;
-    let raw = perfection_difficulty_bonus(difficulty_of(s))
-        + if opponents > 0 { libm::log(opponents as f64) / libm::log(11.4) } else { 0.0 };
-    let bonus = 1.0 + js_round(raw * 100.0) / 100.0;
+    let bonus = perfection_bonus_percent(difficulty_of(s), opponents) as f64 / 100.0;
     js_round(score_of(s, p) as f64 * bonus)
 }
 /// mean of speed, battle, destroyed tribes / opponents and the difficulty part
@@ -704,7 +719,18 @@ pub fn meet(s: &mut GameState, p: i32, other: i32) {
     if p == other || s.players[p as usize].met.contains(&other) {
         return;
     }
-    s.players[p as usize].met.push(other);
+    let turn = s.turn;
+    let pl = &mut s.players[p as usize];
+    // out of step with `met` (a state saved before met_turns existed, or `met` edited by hand):
+    // its earlier meetings count as turn 0
+    if pl.met_turns.len() > pl.met.len() {
+        pl.met_turns.clear();
+    }
+    while pl.met_turns.len() < pl.met.len() {
+        pl.met_turns.push(0);
+    }
+    pl.met.push(other);
+    pl.met_turns.push(turn);
     let sc = score_of(s, other);
     let base = if s.players.len() == 2 && other == 0 { 3 } else { 1 };
     let tiers = 5.min(((sc as f64) / 1000.0).ceil() as i32);
@@ -987,7 +1013,7 @@ pub fn create_game(opts: &NewGameOptions) -> Result<GameState, String> {
         &mut rng,
         n,
         opts.players,
-        opts.map_type.unwrap_or(MapType::Drylands),
+        opts.map_type.or_else(|| map_type_for(opts.mode)).unwrap_or(MapType::Drylands),
         &mods,
         &MapOptions {
             start_resources: Some(clan_ids.iter().map(|&c| tribe_def(c).start_resources.to_vec()).collect()),
@@ -1032,6 +1058,7 @@ pub fn create_game(opts: &NewGameOptions) -> Result<GameState, String> {
             kills: 0,
             losses: 0,
             met: vec![],
+            met_turns: vec![],
             tasks: vec![],
             monuments: vec![],
             pacifist_turns: 0,
@@ -1320,6 +1347,7 @@ mod tests {
                 } else if k == "resetMet" {
                     for o in x.players.iter_mut() {
                         o.met.clear();
+                        o.met_turns.clear();
                     }
                     check_meetings(&mut x);
                 } else if k == "eliminate1" {
@@ -1357,12 +1385,45 @@ mod tests {
         assert!(fails.is_empty(), "{fails:#?}");
     }
 
+    /// perfection_rating reads the opponent count from the players and the table in data.rs
+    #[test]
+    fn perfection_rating_uses_the_bonus_table() {
+        if !mapgen_ready() {
+            return;
+        }
+        let game = |players: i32, d: Difficulty| {
+            let opts = NewGameOptions {
+                map_size: Some(16),
+                players,
+                mode: GameMode::Perfection,
+                difficulty: Some(d),
+                seed: 1,
+                humans: None,
+                map_type: None,
+                clans: None,
+                turn_limit: None,
+            };
+            create_game(&opts).unwrap()
+        };
+        for (d, pct) in [(Difficulty::Easy, 165), (Difficulty::Normal, 185), (Difficulty::Hard, 205), (Difficulty::Crazy, 245)] {
+            let s = game(16, d);
+            assert_eq!(perfection_rating(&s, 0), js_round(score_of(&s, 0) as f64 * (pct as f64 / 100.0)), "{d:?}, 15 opponents");
+        }
+        let s = game(2, Difficulty::Crazy);
+        assert_eq!(perfection_rating(&s, 0), js_round(score_of(&s, 0) as f64 * 1.8), "Crazy, 1 opponent");
+    }
+
     #[test]
     fn small_helpers() {
         assert_eq!(map_size_for(GameMode::Domination, 1), Some(11));
         assert_eq!(map_size_for(GameMode::Domination, 4), Some(18));
         assert_eq!(map_size_for(GameMode::Glory, 4), None);
         assert!(!map_size_allowed(GameMode::Perfection, 20));
+        assert!(!map_size_allowed(GameMode::Perfection, 11));
+        assert!(map_size_allowed(GameMode::Perfection, 16));
+        assert!(map_size_allowed(GameMode::Domination, 11));
+        assert_eq!(map_type_for(GameMode::Perfection), Some(MapType::Continents));
+        assert_eq!(map_type_for(GameMode::Domination), None);
         assert_eq!(domination_stars(0.6999999999), 2);
         assert_eq!(perfection_stars(10_000.0), 2);
         assert_eq!(s1_facing(Coord::new(0, 0), Coord::new(0, 0)), 8);

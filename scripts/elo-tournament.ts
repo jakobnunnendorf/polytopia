@@ -29,7 +29,8 @@ import { anyWeightsOf, arg, dur, isFull } from "./lib/train-greedy";
 import { ANCHOR_ID, ANCHOR_RATING, fitAll, pairKey, parseResults, type Agent, type Fit, type GameRow, type Meta, type PairRow, type Ratings, type Setup } from "./lib/elo-fit";
 
 /**
- * The setup per mode. 4 players on 16x16 drylands is what the models were trained on; a game still
+ * The setup per mode. 4 players on 16x16 drylands is what the models were trained on (Perfection uses
+ * Continents, its map type in the game; ratings from before 2026-11-25 are Drylands Perfection); a game still
  * running at maxTurns is decided on score (the highest-scoring seat wins).
  *   perfection  the engine ends it after 30 turns, highest score wins (16x16 is the mode's own size)
  *   glory       first to 10,000 points
@@ -39,7 +40,7 @@ import { ANCHOR_ID, ANCHOR_RATING, fitAll, pairKey, parseResults, type Agent, ty
  * maxMoves is set far above what a game needs, so only the turn cap stops a game.
  */
 const SETUPS: Record<string, Setup> = {
-  perfection: { players: 4, size: 16, mapType: "drylands", maxTurns: 40, maxMoves: 1_000_000, turnLimit: 30, games: 200 },
+  perfection: { players: 4, size: 16, mapType: "continents", maxTurns: 40, maxMoves: 1_000_000, turnLimit: 30, games: 200 },
   glory: { players: 4, size: 16, mapType: "drylands", maxTurns: 150, maxMoves: 1_000_000, games: 200 },
   might: { players: 4, size: 16, mapType: "drylands", maxTurns: 150, maxMoves: 1_000_000, games: 200 },
   domination: { players: 4, size: 16, mapType: "drylands", maxTurns: 150, maxMoves: 1_000_000, games: 200 },

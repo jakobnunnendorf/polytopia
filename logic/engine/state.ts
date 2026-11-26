@@ -15,6 +15,7 @@ export type NewGameOptions = {
   seed: number;
   /** player ids controlled by humans (others are bots) */
   humans?: number[];
+  /** default: the type the mode forces (see mapTypeFor), Drylands otherwise */
   mapType?: MapType;
   /** clan per player; default: random distinct clans */
   clans?: string[];
@@ -26,6 +27,8 @@ export type NewGameOptions = {
 };
 
 export const mapSizeFor = (mode: GameMode, opponents: number): number | null => call("mapSizeFor", mode, opponents);
+/** the map type a mode forces (Perfection: Continents), null when the player chooses */
+export const mapTypeFor = (mode: GameMode): MapType | null => call("mapTypeFor", mode);
 export const mapSizeAllowed = (mode: GameMode, mapSize: number): boolean => call("mapSizeAllowed", mode, mapSize);
 export const difficultyOf = (s: GameState): Difficulty => call("difficultyOf", s);
 
@@ -60,6 +63,12 @@ export const canResearch = (s: GameState, p: number, tech: string): boolean => c
 export const scoreOf = (s: GameState, p: number): number => call("scoreOf", s, p);
 export const cityScore = (c: City): number => call("cityScore", c);
 export const perfectionRating = (s: GameState, p: number): number => call("perfectionRating", s, p);
+/**
+ * The Perfection difficulty bonus in whole percent, as the setup screen shows it ("Difficulty bonus: 245%"):
+ * 100 + difficulty part + opponent part. `opponents` counts the other tribes (1..15, clamped).
+ */
+export const perfectionBonusPercent = (difficulty: Difficulty, opponents: number): number =>
+  call("perfectionBonusPercent", difficulty, opponents);
 export const dominationRating = (s: GameState, p: number): number => call("dominationRating", s, p);
 export const dominationStars = (rating: number): number => call("dominationStars", rating);
 export const perfectionStars = (rating: number): number => call("perfectionStars", rating);

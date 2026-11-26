@@ -15,7 +15,7 @@ pub enum Relation {
     Neutral,
 }
 
-static EMPTY: Diplomacy = Diplomacy { peace: Vec::new(), offers: Vec::new(), attacks: Vec::new(), ceasefires: Vec::new(), broken: Vec::new() };
+static EMPTY: Diplomacy = Diplomacy { peace: Vec::new(), offers: Vec::new(), attacks: Vec::new(), ceasefires: Vec::new(), broken: Vec::new(), broken_turns: Vec::new() };
 
 /// read-only view (EMPTY when the state has none)
 #[inline]
@@ -86,6 +86,21 @@ pub fn has_offer(s: &GameState, from: i32, to: i32) -> bool {
 /// the victim never forgives a broken treaty (bots' permanent Foolish opinion)
 pub fn broke_treaty_with(s: &GameState, breaker: i32, victim: i32) -> bool {
     dip(s).broken.iter().any(|b| b[0] == victim && b[1] == breaker)
+}
+/// the last turn on which a treaty between a and b was broken (either side), if any
+pub fn last_peace_broken_turn(s: &GameState, a: i32, b: i32) -> Option<i32> {
+    let (lo, hi) = if a < b { (a, b) } else { (b, a) };
+    dip(s).broken_turns.iter().find(|x| x[0] == lo && x[1] == hi).map(|x| x[2])
+}
+/// turn number on which `p` met `other` (None if not met; 0 when the
+/// turns are out of step with `met`, e.g. a state saved before they were kept)
+pub fn first_meet_turn(s: &GameState, p: i32, other: i32) -> Option<i32> {
+    let pl = &s.players[p as usize];
+    let i = pl.met.iter().position(|&m| m == other)?;
+    if pl.met_turns.len() != pl.met.len() {
+        return Some(0);
+    }
+    Some(pl.met_turns[i])
 }
 /// turn number of the last attack by `by` on `on` (the first matching record, like TS find)
 pub fn last_attack_turn(s: &GameState, by: i32, on: i32) -> Option<i32> {
