@@ -156,7 +156,7 @@ opponent list); `promote` gets a target for the RL line and the "v1 by decision"
 
 `docs/rl-project/champions.json` lists the promoted versions best first (id, path, kind, date, experiment, PR,
 gate result). The gate's default opponents are entries 0 and 1 plus the fixed anchor. Seeded 25 Nov 2026 with
-the three best greedy models of the Elo tournament of 25 Nov 2026 (`elo/2026-11-25/README.md`), which are also
+the three best greedy models of the Elo tournament of 25 Nov 2026 (`elo/2026-11-25/README.md`, deleted; in git history at `bb6ed13`), which are also
 the last three greedy champions in promotion order: `greedy-full-probe` (Perfection 1742, #1), `greedy-full-combo`
 (1635, #2; the model probe was tuned from) and `greedy-full-economy` (1617, #3; history only). After a PASS and
 its merge, promote explicitly (never automatic):

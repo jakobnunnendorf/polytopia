@@ -5,7 +5,7 @@
  * games at once (scripts/lib/elo-fit.ts).
  *
  *   npm run elo-tournament                         # everything, into elo/<today>/
- *   npm run elo-tournament -- --out elo/2026-11-25 # resume a run: finished pairs are skipped
+ *   npm run elo-tournament -- --out elo/<date>     # resume a run: finished pairs are skipped
  *   npm run elo-tournament -- --report             # no games: refit ratings.json and README.md
  *   npm run elo-tournament -- --agents a,b,c --modes domination --games 40 --workers 5
  *

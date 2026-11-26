@@ -156,7 +156,7 @@ a copy-on-write copy that costs almost nothing).
 │   ├── wasm/                 WebAssembly  -> public/polyengine.wasm
 │   ├── py/                   PyO3 module polyengine with the vectorised RL environment VecEnv
 │   ├── cli/                  `polyengine` binary: corpus replay (parity gate), state dumps
-│   ├── PORTING.md PROGRESS.md
+│   ├── PROGRESS.md           the finished migration: done criteria with evidence, benchmark
 ├── models/                 one folder per model (model.json, and training records)
 ├── data/                   recorded games and Elo, committed
 │   ├── games/YYYY-MM-DD/<id>.json.gz   one gzipped record per game
@@ -172,7 +172,7 @@ a copy-on-write copy that costs almost nothing).
 │   └── dev/                  smoke.ts, mapstats.ts
 ├── experiments/            lab notebook: one folder per experiment, LaTeX reports
 ├── lecture-notes/          Org notes, build.el, serve.py, pictures.ml, notes.css, explanations/
-├── docs/                   RULES (shardlands/RULES.md), ARENA.md, RL.md, PLAN.md, parity and roadmap
+├── docs/                   RULES (shardlands/RULES.md), ARENA.md, RL.md, rules parity
 ├── __tests__/              jest suites (engine parity, rules, arena, app)
 ├── .claude/skills/         instructions for Claude Code: lecture-note, model-experiment, refer-to-lecture
 ├── POLYTOPIA_RULES.md      the rules as compiled from the Polytopia wiki
@@ -181,11 +181,11 @@ a copy-on-write copy that costs almost nothing).
 
 Ignored by git (generated or local): `node_modules/`, `engine/target/`,
 `engine/node/polyengine.node`, `engine/corpus/`, `engine/py/.venv/` and `engine/py/polyengine.so`,
-`lecture-notes/_build/`, `data/datasets/`, `experiments/**/*.pdf`. Committed on purpose:
+`lecture-notes/_build/`, `data/datasets/`, `experiments/**/*.pdf`, `logs/` (scratch; commit
+`models/<id>/train.log` instead). Committed on purpose:
 `data/` (games, ratings), `models/`, and `public/polyengine.wasm`.
 
-Not ignored, so keep them out of commits by hand: `logs/` (scratch; commit
-`models/<id>/train.log` instead) and `models/<id>/checkpoint.json` (delete it when a run is done).
+Not ignored, so keep it out of commits by hand: `models/<id>/checkpoint.json` (delete it when a run is done).
 
 ---
 
@@ -224,7 +224,6 @@ the Node addon:
 ```bash
 (cd engine && cargo test --release)
 npx tsc --noEmit -p .
-node -r sucrase/register scripts/rust/wasm-check.ts
 ```
 
 A subset of the Rust tests, here the full bot's:
@@ -243,7 +242,8 @@ engine/target/release/polyengine replay engine/corpus/full
 
 `engine/corpus/` is not in git. See `engine/PROGRESS.md` for the done criteria, the benchmark
 (Rust is 61x to 148x faster than the TypeScript engine on one thread; 0.7 to 1.2 million actions
-per second on 12 cores) and `engine/PORTING.md` for the porting contract.
+per second on 12 cores). The porting contract (`engine/PORTING.md`) and the TypeScript reference tools were deleted
+after the migration; they are in git history (commit `bb6ed13`).
 
 The speed of the TypeScript engine against the Rust engine (the number of games and of repeats
 may follow the checkout as two more arguments):
@@ -1095,7 +1095,6 @@ and SPRT tests; `__tests__/app/` the Analyse and home page tests.
 | `POLYTOPIA_RULES.md` | the rules as compiled from the Polytopia wiki |
 | `docs/shardlands/ARENA.md` | models, recordings, Elo, and the hill-climbing history (v1 to v4) |
 | `docs/shardlands/RL.md` | the engine API for RL: actions, observation planes, the Python environment |
-| `docs/shardlands/PLAN.md` | the original build plan and standing rules |
 | `engine/PROGRESS.md`, `engine/PORTING.md` | the finished Rust migration (done criteria with evidence) and the contract |
 | `docs/RULES_PARITY.md` | rule parity with the game |
 | `experiments/README.md` | the notebook format and report sections |
