@@ -127,7 +127,7 @@ pub(crate) struct Setup {
 
 /// rl-gate's champions registry and fixed anchor (engine/gate/src/main.rs, decision of 25 Nov 2026 on #166)
 const REGISTRY: &str = "docs/rl-project/champions.json";
-const ANCHOR: &str = "greedy-full-probe";
+const ANCHOR: &str = "greedy-full-probe-perf";
 /// rl-gate's random stream for the seat shuffle
 const SEAT_STREAM: u64 = 0x5EA7_5EA7_0000_0003;
 
@@ -166,7 +166,7 @@ fn default_opponents() -> R<Vec<String>> {
 
 /// the setup from the command line (shared by collect, check and eval)
 pub(crate) fn setup(m: &HashMap<String, String>) -> R<(Setup, String, String)> {
-    let model = m.get("model").cloned().unwrap_or("greedy-full-probe".into());
+    let model = m.get("model").cloned().unwrap_or("greedy-full-probe-perf".into());
     let opp_ids: Vec<String> = match m.get("opp") {
         Some(l) => l.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect(),
         None => default_opponents()?,
