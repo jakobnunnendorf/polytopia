@@ -131,6 +131,8 @@ export function NowPlaying({
   speedMs,
   onSpeed,
   live,
+  paused,
+  onPause,
 }: {
   current: number;
   label: string;
@@ -142,6 +144,9 @@ export function NowPlaying({
   speedMs: number;
   onSpeed: (ms: number) => void;
   live: boolean;
+  /** a game this page runs itself can be paused: then a Pause / Resume button shows */
+  paused?: boolean;
+  onPause?: (paused: boolean) => void;
 }) {
   return (
     <Panel title="Now playing" style={{ marginTop: 12 }}>
@@ -168,6 +173,18 @@ export function NowPlaying({
         Speed: {speedMs >= 1000 ? `${speedMs / 1000} s` : `${speedMs} ms`} per move{live ? " (the game itself runs at this pace)" : ""}
       </Text>
       <View style={{ flexDirection: "row" }}>
+        {onPause && (
+          <Pressable
+            testID="pause-game"
+            accessibilityRole="button"
+            accessibilityLabel={paused ? "resume the game" : "pause the game"}
+            accessibilityState={{ selected: !!paused }}
+            onPress={() => onPause(!paused)}
+            style={{ paddingHorizontal: 12, alignItems: "center", justifyContent: "center", paddingVertical: 7, marginRight: 8, borderRadius: 8, backgroundColor: paused ? UI.gold : "#ffffff24" }}
+          >
+            <Text style={{ color: paused ? UI.goldInk : UI.mist, fontWeight: "800", fontSize: 13 }}>{paused ? "▶ Resume" : "❚❚ Pause"}</Text>
+          </Pressable>
+        )}
         {SPEEDS.map((sp) => {
           const on = sp.ms === speedMs;
           return (

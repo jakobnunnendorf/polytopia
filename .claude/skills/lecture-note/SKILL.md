@@ -161,10 +161,10 @@ these sections.
 ## Serving
 
 ```bash
-/usr/bin/python3 lecture-notes/serve.py        # http://localhost:8097/<name>.html
+/usr/bin/python3 lecture-notes/serve.py
 ```
 
-Check first whether it already runs (`curl -s -m 2 http://127.0.0.1:8097/explanations.json`);
+The page is then at `http://localhost:8097/<name>.html`. Check first whether it already runs (`curl -s -m 2 http://127.0.0.1:8097/explanations.json`);
 a rebuild needs no restart. Served this way, every OCaml box has an "explain the syntax"
 button: the first click asks Claude Sonnet once in the terminal and saves the answer in
 `lecture-notes/explanations/`, later visits show the saved answer. An explanation belongs to

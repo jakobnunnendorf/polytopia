@@ -20,7 +20,11 @@ export default function Map({
   reveal = false,
   seenBy,
   territoryFocus = false,
+  activeUnits,
 }: {
+  /** on a human's turn: ids of the current player's units that still have a unit action;
+   *  their other units are drawn as spent even if a move or attack flag is still set */
+  activeUnits?: Set<number>;
   state: GameState;
   viewer: number;
   /** show the whole map without clouds (game analysis) */
@@ -193,6 +197,9 @@ export default function Map({
                   TILE={TILE}
                   selected={highlights[`${u.x},${u.y}`] === "selected"}
                   lunge={lunges[u.id]}
+                  spent={
+                    activeUnits && u.owner === state.current ? !activeUnits.has(u.id) : !(u.canMove || u.canAttack)
+                  }
                 />
               ))}
           </View>

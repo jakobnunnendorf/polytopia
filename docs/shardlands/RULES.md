@@ -626,8 +626,8 @@ Wetness percentages are from [W]. The land ratios are from [P] (unverified).
 **Perfection (single player):**
 
 - **30 turns**; the highest score wins.
-- **Final score** = score × difficulty bonus. The bonus is `100% + 41% × ln(number of opponents)`, plus 20% (Normal), 40% (Hard) or 80% (Crazy). Easy table: 1 → 100%, 2 → 128%, 3 → 145%, … 15 → 211%; maximum 291% (15 Crazy opponents).
-- **Caveat:** "Patch of the Ocean" (Feb 2024) "lowered the score bonus for opponent count". The 41% coefficient may be outdated (**unverified for the current version**).
+- **Final score** = score × difficulty bonus. The bonus is `100% + difficulty part + opponent part`: the difficulty part is +0% (Easy), +20% (Normal), +40% (Hard) or +80% (Crazy); the opponent part is a table, +0/20/30/37/42/46/49/52/54/57/59/60/62/64/65% for 1..15 opponents. Shown on the Perfection setup screen as "Difficulty bonus: X%" (iPhone, 25 Nov 2026): Crazy reads 180, 200, 210, 217, 222, 226, 229, 232, 234, 237, 239, 240, 242, 244, 245% for 1..15 opponents; at 15 opponents Easy/Normal/Hard/Crazy read 165/185/205/245%. Maximum 245% (15 Crazy opponents).
+- **Old formula (pre-Feb 2024, outdated):** `100% + 41% × ln(number of opponents)` plus the same difficulty part (maximum 291%). "Patch of the Ocean" (Feb 2024) "lowered the score bonus for opponent count"; the community decompile raphael-64/polyterra-env still shows exactly the old formula.
 - Tribe stars at 3,000 / 10,000 / 50,000 points; a halo at 100,000.
 
 **Weekly Challenge:** Perfection rules with a **20-turn** limit and a fixed seed.
@@ -698,7 +698,7 @@ How differing starts work in the game [G]:
 
 - Market, Sawmill and Forge `maxLevel`. The Market is capped at 8 [W][E]; the Windmill example has 8 [G]; the others are unverified.
 - Embassy cost scaling after 2.14.
-- Perfection difficulty-bonus coefficients after Patch of the Ocean.
+- Why the opponent part of the Perfection bonus is a table, and its values for other difficulties at fewer than 15 opponents (only Crazy was read for every opponent count; Easy, Normal and Hard are assumed to add the same difficulty part).
 - The starvation score penalty (2.15).
 - Exact map-generation algorithm and village spacing.
 - Whether ruins are destructible.

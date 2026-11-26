@@ -1,0 +1,19 @@
+sweep from greedy-full-probe: 0 points + base, 2 games against each of greedy-v1, greedy-hill-v1, greedy-hill-v2, greedy-hill-v3, greedy-hill-v4, greedy-full-v1, greedy-full-combo
+point  base                         | greedy 100% won, 86.3% pts (+191)  v1 100% won, 85.1% pts (+191)  v2 100% won, 84.3% pts (+191)  v3 100% won, 82.3% pts (+191)  v4 100% won, 83.2% pts (+191)  full-v1 50% won, 51.4% pts (+0)  full-combo 50% won, 48.5% pts (+0)  | mean 86% won, 74.4% pts, finish 76.6%, conquest 64%, 75 turns
+
+best: base, mean 76.6% finish (base 76.6%)
+  [03:26] final test (vs panel): 724/2800 games, done in ~3 min | so far: vs greedy 85.7% of points, won 397/400; vs v1 84.9% of points, won 323/324 | 738 games in the last 60s, 738/min overall | run: 
+  [03:27] final test (vs panel): 1481/2800 games, done in ~2 min | so far: vs greedy 85.7% of points, won 397/400; vs v1 85.0% of points, won 399/400; vs v2 83.8% of points, won 396/400; vs v3 81.3% of points, won 275/281 | 757 games in the last 60s, 747/min overall | run: 
+  [03:28] final test (vs panel): 2265/2800 games, done in ~1 min | so far: vs greedy 85.7% of points, won 397/400; vs v1 85.0% of points, won 399/400; vs v2 83.8% of points, won 396/400; vs v3 81.1% of points, won 391/400; vs v4 81.4% of points, won 393/400; vs full-v1 76.5% of points, won 238/265 | 784 games in the last 60s, 760/min overall | run: 
+
+final (400 unseen games against each):
+  vs greedy-v1        won  99% ± 1%  (+849 Elo)  points 85.7%  finish 89.7%  conquest 78%  70 turns
+  vs greedy-hill-v1   won 100% ± 0%  (+1040 Elo)  points 85.0%  finish 88.5%  conquest 74%  74 turns
+  vs greedy-hill-v2   won  99% ± 1%  (+798 Elo)  points 83.8%  finish 87.8%  conquest 74%  75 turns
+  vs greedy-hill-v3   won  98% ± 1%  (+655 Elo)  points 81.0%  finish 88.1%  conquest 78%  72 turns
+  vs greedy-hill-v4   won  98% ± 1%  (+700 Elo)  points 81.3%  finish 86.6%  conquest 72%  78 turns
+  vs greedy-full-v1   won  90% ± 3%  (+387 Elo)  points 76.7%  finish 82.1%  conquest 72%  74 turns
+  vs greedy-full-combo won  73% ± 4%  (+171 Elo)  points 64.6%  finish 67.9%  conquest 55%  80 turns
+changed against greedy-full-probe: base
+saved models/greedy-full-probe-big/model.json and sweep.jsonl
+sweep took 3m48s

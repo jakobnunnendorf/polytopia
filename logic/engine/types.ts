@@ -137,6 +137,8 @@ export type Player = {
   losses: number;
   /** other players this player has met */
   met: number[];
+  /** turn number on which each tribe in `met` was met (same order; bot opinions) */
+  metTurns?: number[];
   /** completed tasks (pacifist, genius, ...) */
   tasks: string[];
   /** monuments built (ids) */
@@ -173,6 +175,8 @@ export type Diplomacy = {
   ceasefires: { breaker: number; victim: number; until: number }[];
   /** [victim, breaker]: treaties broken, remembered forever */
   broken: [number, number][];
+  /** [low id, high id, turn]: the last turn a treaty between the two was broken (bot opinions) */
+  brokenTurns?: [number, number, number][];
 };
 
 export type GameState = {

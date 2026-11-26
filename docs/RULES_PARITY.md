@@ -22,7 +22,7 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 | Splash damage | corrected (second core audit): half the damage rounded down to whole HP, ranged units only; a poisoning splash only poisons |
 | Explosion damage | corrected (second core audit): half the damage rounded down, like splash |
 | Poison and movement | -1 movement only above 1 (game logic), so a 1-move unit still moves 1 |
-| Perfection bonus | score × (1 + round(handicap/5 + ln(opponents)/ln(11.4), 2)) |
+| Perfection bonus | score × (100 + difficulty part 0/20/40/80 + opponent table 0/20/30/37/42/46/49/52/54/57/59/60/62/64/65 for 1..15 opponents) / 100, read off the app's setup screen (25 Nov 2026) |
 | Meeting a tribe | wiki formula: 1 + 2★ per 1,000 score, at most 11; base 3 when meeting the first seat in a 2-player game (second core audit) |
 | Market income | +1★ per adjacent building level, at most 8 |
 | Port reach | range 5; ocean links need Sailing |
@@ -65,14 +65,26 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
   a hidden unit's tile is silent.
 - Daggers: city, then forest or mountain (mountain only with Climbing), then
   other land in the city's borders, then water as Pirates.
-- Bot opinions: each factor of the doc's table counts +1 or -1 (horrible ≤ -3,
-  poor -2..-1, indifferent 0, decent 1..2, great ≥ 3). Peaceful = no attack on
-  the bot for 3 turns, Violent otherwise; Threatening = a unit inside or next
-  to the bot's land; Annoying on Hard and Crazy; Charming by a fixed roll per
-  game (50/30/15/5% for Easy/Normal/Hard/Crazy); Dominating = at least half of
-  all cities (4 or more cities on the map); Brave = at war with the
-  highest-scoring other tribe. Bots accept and send peace offers only at
-  great and never break a treaty.
+- Bot opinions follow the game's own model, per a community decompile of a
+  pre-February-2024 build (raphael-64/polyterra-env); POLYTOPIA_RULES.md, What
+  bots think of you, lists every term. Ported: all thirteen terms with their
+  constants, the level thresholds (great > 2, decent > 0.5, poor < -0.5,
+  horrible < -2), accept peace above 2, offer when opinion x roll > 2 (the roll
+  is a hash of game seed, turn, bot and tribe), break below 0 when
+  -500 x opinion - 200 per own unit inside the partner's borders is positive,
+  and aggression (-1000 x opinion) as a (1 - opinion) factor on the greedy
+  bots' positive attack scores. To support it the state records the turn of
+  each meeting (`metTurns`) and of the last broken treaty per pair
+  (`diplomacy.brokenTurns`); older saves count earlier meetings as turn 0.
+  Not ported: the AI's other uses of aggression (capture and city-target
+  mission scores, embassy scores, the -1000 position penalty for standing in
+  a disliked partner's land; our greedy bots have no matching scores), the
+  difficulty noise (StupidFactor, +-25 x max(0, 2 - handicap); 0 on Hard and
+  Crazy), the Shaman "boosted" effect in the military sum, and the game's
+  caching (it refreshes opinions at set moments and keeps eliminated tribes'
+  old entries, which can absorb the -0.5 Annoying; we compute them fresh from
+  the state, living tribes only). Opinions of a tribe that was never met
+  and never attacked are 0 (indifferent), as in the game.
 
 ## Kept on purpose
 
@@ -137,7 +149,7 @@ this repository. Tests: `__tests__/engine/parity-218-core.test.ts`.
 | Buildings on resources | a building that needs no resource (Forge, Lumber Hut, temples, Port, monuments) only on a tile without one | allowed on an unharvested resource; the resource stays underneath and can't be harvested while the building stands |
 | Embassy | 5★, not while at war | 4★ + 2★ per embassy the builder already has; allowed at war; pays nothing to either side while at war; a wiped tribe's embassies end |
 | City score | 100 + 5·pop + Σ(5·l + max(0, 50 − 5·l)) per level | 50 × (level + 1) + 5 per population point toward the next level (same up to level 10, no drop after); negative population costs 105 per point, city part floored at 0 |
-| Perfection bonus | 1 + 0.41·ln(opponents) + d | 1 + round(handicap/5 + ln(opponents)/ln(11.4), 2), handicap 0/1/2/4 |
+| Perfection bonus | 1 + 0.41·ln(opponents) + d (old wiki formula, maximum 291%) | (100 + difficulty 0/20/40/80 + a 15-entry opponent table) / 100, maximum 245%; the table is the app's setup screen of 25 Nov 2026 (`perfection_bonus_percent`, data.rs); the engine's earlier `round(handicap/5 + ln(opponents)/ln(11.4), 2)` was the pre-2024 build |
 | Domination rating | none | `dominationRating`: mean of speed min(1, 10·opponents/turns), battle (kills+1)/(losses+kills+1), destroyed tribes/opponents, difficulty 25/50/75/100%; stars at 20/70/95%, halo at 100%; shown on the game-over screen |
 | Weekly Challenge | none | `createGame({ turnLimit })` sets the last Perfection turn (default 30); the challenge is Perfection with turnLimit 20 and a fixed seed |
 | Market | sum of adjacent upgrade-building levels | each adjacent Windmill/Sawmill/Forge counts its level, at least 1 (cap 8 unchanged) |
@@ -246,7 +258,8 @@ Aquarion
   player with Waterways, whoever owns the amphibious unit); lost when attacked
   or stepping on dry land that is not flooded.
 - Capture: a city or village captured by Aquarion floods, by anyone else
-  drains (its tile becomes field).
+  drains (its tile becomes field); a boat that captured it from the flooded
+  tile then lands as its carried unit (no boat ever stands on dry land).
 - Unit replacements: Rammer -> Shark, Bomber -> Jelly, Dagger -> Mermaid
   Dagger added (Shark and Jelly were extra units).
 - Lost City: a random ruin reward that left a capturable level-3 walled

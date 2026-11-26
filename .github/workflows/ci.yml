@@ -1,0 +1,248 @@
+# CI for the two long-lived branches:
+#   dev   the integration branch: every feature and model PR targets dev
+#   main  releases only: the one way in is a PR from dev, and every push to main deploys
+# Jobs:
+#   source  PRs into main must come from dev ("Release source is dev")
+#   engine  Rust workspace: compile everything, unit tests (polycore, polyapi), wasm build,
+#           and the Python module test (engine/py/test_env.py)
+#   app     builds the Node addon the Jest suite loads (logic/engine/rust.ts), then tsc, Jest
+#           and the static web export
+#   secrets   "Secret scan": only the public /.env may be tracked (EXPO_PUBLIC_ values only), and
+#             gitleaks (.gitleaks.toml, taken from the target branch on PRs) checks the new commits
+#   supabase  applies supabase/migrations to an empty local database and checks the access rules
+#   deploy  pushes to main only: web export to EAS Hosting (https://polytopia.expo.app),
+#           needs the EXPO_TOKEN repository secret (an expo.dev access token)
+# Branch protection: dev requires "Rust engine", "TypeScript and Jest", "Supabase migrations" and
+# "Secret scan"; main requires those and "Release source is dev", allows no direct pushes and no
+# admin bypass.
+name: CI
+
+on:
+  pull_request:
+  # pushes only on main, where the deploy needs them; a PR run already tests the merge result,
+  # so a push run on dev after merging the PR would repeat the same checks
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  # the release profile is tuned for training speed (fat LTO, 1 codegen unit); CI only needs
+  # optimised code for the tests, not the last few percent, so it builds much faster this way
+  CARGO_PROFILE_RELEASE_LTO: "false"
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+  CARGO_PROFILE_RELEASE_DEBUG: "0"
+
+jobs:
+  source:
+    name: Release source is dev
+    # only a pull request has a source branch to check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: PRs into main must come from dev
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          if [ "$BASE" = "main" ] && [ "$HEAD" != "dev" ]; then
+            echo "::error::main only takes pull requests from dev (this one comes from '$HEAD'); target dev instead"
+            exit 1
+          fi
+          echo "ok: ${HEAD:-push} -> ${BASE:-$GITHUB_REF_NAME}"
+
+  engine:
+    name: Rust engine
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - name: Check the whole workspace
+        working-directory: engine
+        run: cargo check --workspace --all-targets
+      - name: Unit tests
+        working-directory: engine
+        run: cargo test -p polycore -p polyapi
+      - name: WebAssembly build (public/polyengine.wasm)
+        working-directory: engine
+        run: cargo build --release -p polywasm --target wasm32-unknown-unknown
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python module test
+        run: |
+          cd engine && cargo build --release -p polypy && cd ..
+          cp engine/target/release/libpolyengine.so engine/py/polyengine.so
+          pip install numpy
+          python engine/py/test_env.py
+
+  app:
+    name: TypeScript and Jest
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - name: Build the Node addon (engine/node/polyengine.node)
+        run: |
+          cd engine && cargo build --release -p polynode && cd ..
+          cp engine/target/release/libpolynode.so engine/node/polyengine.node
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Jest
+        run: npm run test:ci
+      - name: Web export (what the deploy job ships)
+        run: npx expo export -p web
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Only the public /.env is tracked, and it holds only EXPO_PUBLIC_ values
+        run: |
+          bad=$(git ls-files | grep -E '(^|/)\.env(\.[^/]*)?$' | grep -vx '.env' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::env files must not be committed (only the public /.env is allowed): $bad"
+            exit 1
+          fi
+          if [ -f .env ] && grep -vE '^\s*(#.*)?$|^EXPO_PUBLIC_[A-Z0-9_]+=' .env; then
+            echo "::error::/.env may only hold EXPO_PUBLIC_ values (they ship to every browser); put secrets in a .env*.local file or a repository secret"
+            exit 1
+          fi
+          echo "ok"
+      - name: gitleaks on the new commits
+        env:
+          VERSION: 8.30.1
+          SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          BASE_REF: ${{ github.base_ref }}
+          RANGE: >-
+            ${{ github.event_name == 'pull_request'
+                && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha)
+                || (github.event.before != '0000000000000000000000000000000000000000'
+                    && github.event.before != ''
+                    && format('{0}..{1}', github.event.before, github.sha))
+                || github.sha }}
+        run: |
+          curl -sSfL -o gl.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          echo "${SHA256}  gl.tgz" | sha256sum -c -
+          tar -xzf gl.tgz gitleaks
+          # a PR is scanned with the config of its target branch, so it cannot weaken its own scan
+          cfg=.gitleaks.toml
+          if [ -n "$BASE_REF" ] && git show "origin/${BASE_REF}:.gitleaks.toml" > base.gitleaks.toml 2>/dev/null; then
+            cfg=base.gitleaks.toml
+          fi
+          echo "scanning $RANGE with $cfg"
+          ./gitleaks git --config "$cfg" --log-opts="$RANGE" --redact --no-banner --verbose
+
+  supabase:
+    name: Supabase migrations
+    # the schema changes only through supabase/migrations; the Supabase GitHub integration
+    # applies them to the project when they reach main. This job applies every migration to an
+    # empty local database first, so a broken one fails the pull request instead of the deploy.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.48.3
+      - name: Apply all migrations to an empty database
+        run: supabase db start
+      - name: Visitors can read, not write; RLS is on for every public table
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 54322 -U postgres -d postgres <<'SQL'
+          do $$
+          declare r record;
+          begin
+            for r in select c.relname, c.relrowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                     where n.nspname = 'public' and c.relkind = 'r' loop
+              if not r.relrowsecurity then raise exception 'RLS is off on public.%', r.relname; end if;
+              if has_table_privilege('anon', 'public.' || r.relname, 'INSERT,UPDATE,DELETE') then
+                raise exception 'anon may write public.%', r.relname;
+              end if;
+            end loop;
+          end $$;
+          SQL
+
+  deploy:
+    name: Deploy web to EAS Hosting
+    # only merges to main, and only after both test jobs passed
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [engine, app]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # records each deploy under the repo's Deployments, linked to the live site
+    environment:
+      name: production
+      url: https://polytopia.expo.app
+    concurrency:
+      group: deploy-web
+      cancel-in-progress: false
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Skip when the EXPO_TOKEN secret is not set
+        if: env.EXPO_TOKEN == ''
+        run: echo "::notice::EXPO_TOKEN secret missing, web deploy skipped"
+      - uses: actions/checkout@v4
+        if: env.EXPO_TOKEN != ''
+      - uses: dtolnay/rust-toolchain@stable
+        if: env.EXPO_TOKEN != ''
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        if: env.EXPO_TOKEN != ''
+        with:
+          workspaces: engine
+      - name: Rebuild public/polyengine.wasm from the merged engine
+        if: env.EXPO_TOKEN != ''
+        env:
+          # the same flags as scripts/rust/build-engine.sh
+          CARGO_PROFILE_RELEASE_LTO: "fat"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+          CARGO_PROFILE_RELEASE_STRIP: "true"
+        run: |
+          cd engine && cargo build --release -p polywasm --target wasm32-unknown-unknown && cd ..
+          cp engine/target/wasm32-unknown-unknown/release/polywasm.wasm public/polyengine.wasm
+      - uses: actions/setup-node@v4
+        if: env.EXPO_TOKEN != ''
+        with:
+          node-version: "22"
+          cache: npm
+      - if: env.EXPO_TOKEN != ''
+        run: npm ci
+      - uses: expo/expo-github-action@v8
+        if: env.EXPO_TOKEN != ''
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Export and deploy to https://polytopia.expo.app
+        if: env.EXPO_TOKEN != ''
+        run: |
+          npx expo export -p web
+          eas deploy --prod --non-interactive

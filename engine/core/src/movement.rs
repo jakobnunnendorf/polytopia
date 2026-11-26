@@ -547,14 +547,13 @@ pub fn sight_radius(s: &GameState, u: &Unit) -> i32 {
 }
 
 /// Reference values from TypeScript (scripts/rust/ref-movement.ts) for
-/// diplomacy, combat, movement and opinion. The file is
+/// diplomacy, combat and movement. The file is
 /// `$POLY_REF_MOVEMENT`, else engine/core/testdata/ref-movement.json.
 #[cfg(test)]
 mod ref_tests {
     use super::*;
     use crate::combat::{compute_damage_rounded, defence_bonus};
     use crate::diplomacy::*;
-    use crate::opinion::*;
     use serde_json::Value;
 
     fn kind_id(k: Option<StepKind>) -> Value {
@@ -582,7 +581,6 @@ mod ref_tests {
     struct Counts {
         states: usize,
         checks: usize,
-        opinion_checks: usize,
         fails: Vec<String>,
     }
 
@@ -600,15 +598,8 @@ mod ref_tests {
             panic!("reference file {file} missing: run scripts/rust/ref-movement.ts");
         };
         let cases: Vec<Value> = serde_json::from_str(&text).unwrap();
-        // opinion needs state::score_of; skip those checks while it is a stub
-        let score_ready = {
-            let s0 = crate::json::state_from_json(&cases[0]["state"]).unwrap();
-            let hook = std::panic::take_hook();
-            std::panic::set_hook(Box::new(|_| {}));
-            let ok = std::panic::catch_unwind(|| crate::state::score_of(&s0, 0)).is_ok();
-            std::panic::set_hook(hook);
-            ok
-        };
+        // the file's opinion fields (factors, score, level) are the old TypeScript model's: opinions
+        // now follow the game's decompiled model and are tested in opinion.rs
         let mut c = Counts::default();
         for (ci, case) in cases.iter().enumerate() {
             let s = crate::json::state_from_json(&case["state"]).unwrap();
@@ -658,23 +649,12 @@ mod ref_tests {
                 check(&mut c, Some(at_war(&s, a, b)) == pe["war"].as_bool(), || format!("{tag} atWar"));
                 check(&mut c, Some(can_harm(&s, a, b)) == pe["harm"].as_bool(), || format!("{tag} canHarm"));
                 check(&mut c, Some(has_offer(&s, a, b)) == pe["offer"].as_bool(), || format!("{tag} hasOffer"));
-                if score_ready && a != b {
-                    c.opinion_checks += 1;
-                    let f: Vec<Value> = opinion_factors(&s, a, b).iter().map(|f| Value::from(f.id())).collect();
-                    check(&mut c, Value::Array(f.clone()) == pe["factors"], || format!("{tag} factors {f:?} want {}", pe["factors"]));
-                    check(&mut c, opinion_score(&s, a, b) == i(&pe["score"]), || format!("{tag} score"));
-                    check(&mut c, opinion_of(&s, a, b).id() == pe["level"], || format!("{tag} level"));
-                    let great = crate::opinion::opinion_great_with(&s, a, b, &mut Default::default());
-                    check(&mut c, great == (pe["level"] == "great"), || format!("{tag} opinion_great_with {great}"));
-                }
             }
         }
         eprintln!(
-            "ref-movement: {} states, {} checks ({} opinion pairs{}), {} failures",
+            "ref-movement: {} states, {} checks, {} failures",
             c.states,
             c.checks,
-            c.opinion_checks,
-            if score_ready { "" } else { ", skipped: state::score_of is a stub" },
             c.fails.len()
         );
         assert!(c.fails.is_empty(), "{:#?}", c.fails);

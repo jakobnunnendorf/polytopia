@@ -14,8 +14,10 @@ and record go together.
 the base plus the new knob at 3-5 hand-set values, each against the panel, then a final test
 of the best. About 2-5 minutes. 100k-game hill climbing found nothing in three runs from
 Full v1 (control, #28, #29: 0-1 kept changes each), because a round's 300-400 games cannot
-see gains under ~1 point. Run a long tuning run (`train-full`, settings below) only every
-3-4 kept mechanisms, over all knobs, as its own experiment against a fresh control.
+see gains under ~1 point. Run a long tuning run only every 3-4 kept mechanisms, over all knobs,
+as its own experiment. Use the perturbation probe for it (`npm run train-probe`, settings below):
+in experiment 12 it moved 26 of 205 knobs and gained 2.0 panel points in 100k games, where
+`train-full` with the same budget found nothing (one run so far, so keep a control).
 
 ## The run contract (what every experiment is)
 
@@ -26,7 +28,7 @@ see gains under ~1 point. Run a long tuning run (`train-full`, settings below) o
 | Change | exactly one mechanism or trainer change, **off by default** (old models play unchanged) |
 | Panel | `greedy-v1,greedy-hill-v1,greedy-hill-v2,greedy-hill-v3,greedy-hill-v4,greedy-full-v1` (fixed: curves stay comparable across steps). Add the base only when it is not `greedy-full-v1`, as a 7th entry, and compare means on the fixed six |
 | Metric | `--metric finish` on every sweep and tuning run (from step 5, #124): a conquest win scores 75-100% (the earlier, the more), a conquest loss 0-25%, a game stopped at the turn cap 25-75% by points. Report finish, points, won, conquest rate and turns |
-| Tuning-run settings | `--budget 100000 --patience 0 --league self,past --batch 30 --seed 4242 --curve-every 12500` |
+| Tuning-run settings | probe (`train-probe`): `--budget 100000 --games 10000 --sigma 0.25 --z 3 --step 0.5 --league greedy-hill-v4,greedy-full-v1,<base>`; it writes `probe.jsonl` (every knob's z-score per round) beside `curve.jsonl`. Hill climbing (`train-full`, the older method): `--budget 100000 --patience 0 --league self,past --batch 30 --seed 4242 --curve-every 12500` |
 | Control | sweeps: the base row the sweep measures itself on the same maps. Tuning runs: same base, same settings, no change. Reuse an existing control for the same base (for `greedy-full-v1`: `greedy-full-v2-ctrl`, panel 66.0% at 100k). Run a new one only when the base changes |
 | Knob names | as the trainer prints them in KEPT lines: scalars bare (`defend`, `techUse`), tables `group.key` (`unit.giant`, `greedy.move`). Never a `full.` prefix |
 | Sweep values | about ×2 apart around a hand-sized middle (e.g. 0.5,1,2,4). Size the middle so the term can just tip the choice it is about: compare with the base score it competes with (a move ≈ `greedy.move` ≈ 25 plus tiles gained; research ≈ `greedy.research` ≈ 28 minus cost and tier), and check the size on a real position in step 4. Include a weak value: #29 started 5× too strong and lost (39.8% vs base). If the best point is at an end of the range, extend the range once. Several knobs of one mechanism: `--points "a=1,b=5|a=2,b=10"` |
@@ -39,9 +41,9 @@ not run `npm run arena` for it: arena writes `data/games/` and changes the share
 
 ## Steps
 
-1. **Worktree from main**, so the live arena and web app in the main checkout are untouched:
+1. **Worktree from dev** (the integration branch; main only takes releases from dev), so the live arena and web app in the main checkout are untouched:
    ```bash
-   git worktree add .claude/worktrees/<id> -b model/<id> main
+   git worktree add .claude/worktrees/<id> -b model/<id> origin/dev
    ln -s ../../../node_modules .claude/worktrees/<id>/node_modules
    ```
 2. **Open the notebook entry, before any run**: `cp -r experiments/TEMPLATE experiments/NN-<slug>`,
@@ -76,7 +78,7 @@ not run `npm run arena` for it: arena writes `data/games/` and changes the share
    It saves the best point as `models/<id>/model.json`, with one row per point in `sweep.jsonl`.
    Without `--knob`/`--points` it measures the base alone (a re-measure, e.g. in another setup:
    `--players 8 --size 20 --max-turns 300`; players must be even).
-   (A tuning run instead: `nohup npm run train-full -- --id <id> --from <base> <settings>
+   (A tuning run instead: `nohup npm run train-probe -- --id <id> --from <base> --metric finish <settings>
    --workers 10 --panel <panel> > logs/<id>.log 2>&1 &`.)
    Wait with a background `until grep -q "took" logs/<id>.log` loop, not polling.
 7. **Verdict**: **kept** when either holds (Jakob, 24 Nov, step 6 of #31):
@@ -108,9 +110,13 @@ not run `npm run arena` for it: arena writes `data/games/` and changes the share
 9. **Save and PR**: `cp logs/<id>.log models/<id>/train.log` (tuning runs also
    `rm models/<id>/checkpoint.json`),
    commit code, model and notebook folder on `model/<id>` (the model folder is committed either
-   way: it is the experiment's record), PR to main with the result table, `Closes #<issue>`.
-   Kept: a model PR (standing go to merge). Not kept: ask before merging. Then remove the
-   worktree.
+   way: it is the experiment's record), PR to dev with the result table, `Closes #<issue>`.
+   Kept: a model PR (standing go to merge). Not kept: ask before merging, and keep the spec
+   as `record.json` instead of `model.json` (a folder with `model.json` is listed as a model in
+   the game, the arena and the tournament). Then remove the worktree.
+   Kept only: add the new champion to the Elo tournament, or the game's Rankings table will not
+   show it: `npm run elo-tournament -- --out elo/<latest date>` (finished pairs are skipped,
+   about 15 minutes), and put the changed files under `elo/` in the same PR.
 
 ## Common mistakes
 

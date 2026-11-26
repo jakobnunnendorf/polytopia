@@ -27,3 +27,5 @@ pub mod rng;
 pub mod state;
 pub mod types;
 pub mod value_field;
+#[cfg(test)]
+mod boat_land_tests;

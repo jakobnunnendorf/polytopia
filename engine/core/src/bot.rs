@@ -10,7 +10,7 @@ use crate::combat::compute_damage_rounded;
 use crate::data::{build_def, tech_def, unit_def};
 use crate::diplomacy::at_peace;
 use crate::grid::{dist, idx};
-use crate::opinion::{opinion_of, OpinionLevel};
+use crate::opinion::{accepts_peace, aggression_of, break_peace_score, offers_peace, opinion_value};
 use crate::state::{city_by_id, tech_cost};
 use crate::types::*;
 
@@ -383,11 +383,11 @@ pub(crate) fn find_unit<'a>(s: &'a GameState, id: Id) -> &'a Unit {
     s.units.iter().find(|x| x.id == id).expect("bot: unit of a legal action not found")
 }
 
-/// opinion_of(s, bot, other) == Great, through the per-step cache
-fn opinion_great(s: &GameState, bot: i32, other: i32, cache: &mut Option<GoalCache>) -> bool {
+/// opinion_value(s, bot, other), through the per-step cache
+fn opinion(s: &GameState, bot: i32, other: i32, cache: &mut Option<GoalCache>) -> f64 {
     match cache {
-        None => opinion_of(s, bot, other) == OpinionLevel::Great,
-        Some(c) => crate::opinion::opinion_great_with(s, bot, other, &mut c.opinion),
+        None => opinion_value(s, bot, other),
+        Some(c) => c.opinion.total(s, bot, other),
     }
 }
 
@@ -412,10 +412,13 @@ pub(crate) fn score_with(s: &GameState, a: &Action, w: &GreedyWeights, cache: &m
                 return w.special;
             }
             let r = compute_damage_rounded(s, u, t);
-            if r.damage >= t.hp {
-                w.kill + unit_def(t.ty).cost as f64
+            let base = if r.damage >= t.hp { w.kill + unit_def(t.ty).cost as f64 } else { w.hit + r.damage as f64 - r.retaliation as f64 };
+            // the real AI's aggression: a worthwhile attack counts (1 + aggression / 1000) times,
+            // i.e. (1 - opinion of the target's tribe) times (opinion.rs)
+            if base > 0.0 {
+                base * (1.0 + aggression_of(opinion(s, p, t.owner, cache)) as f64 * 0.001)
             } else {
-                w.hit + r.damage as f64 - r.retaliation as f64
+                base
             }
         }
         Action::Build { at, building } => {
@@ -526,29 +529,38 @@ pub(crate) fn score_with(s: &GameState, a: &Action, w: &GreedyWeights, cache: &m
             }
         }
         Action::Decompose { .. } => -1.0,
-        // diplomacy: accept and offer peace only at a great opinion; answer every offer first
+        // diplomacy, as the real AI decides it (opinion.rs): accept above an opinion of 2, else
+        // decline (every offer is answered first); offer when opinion x a [0, 1) roll is above 2;
+        // break below 0 when -500 x opinion - 200 per own unit inside their borders is above 0
         Action::AcceptPeace { player } => {
-            if opinion_great(s, p, player, cache) {
+            if accepts_peace(opinion(s, p, player, cache)) {
                 1000.0
             } else {
                 -1.0
             }
         }
         Action::DeclinePeace { player } => {
-            if opinion_great(s, p, player, cache) {
+            if accepts_peace(opinion(s, p, player, cache)) {
                 -1.0
             } else {
                 1000.0
             }
         }
         Action::OfferPeace { player } => {
-            if opinion_great(s, p, player, cache) {
-                50.0
+            if offers_peace(s, p, player, opinion(s, p, player, cache)) {
+                1000.0
             } else {
                 -1.0
             }
         }
-        Action::BreakPeace { .. } => -1.0,
+        Action::BreakPeace { player } => {
+            let v = break_peace_score(s, p, player, opinion(s, p, player, cache));
+            if v > 0.0 {
+                v
+            } else {
+                -1.0
+            }
+        }
         // endTurn, disband, infiltrate, breakIce: TS default
         _ => -1.0,
     }
@@ -667,6 +679,13 @@ pub(crate) mod tests {
         Some(text.lines().filter(|l| !l.is_empty()).map(|l| serde_json::from_str(l).unwrap()).collect())
     }
 
+    /// actions whose score depends on the bot's opinions, which follow the game's decompiled model
+    /// since the TypeScript reference rows were recorded (attacks scale with aggression, peace
+    /// decisions by opinion): the reference tests skip them, and the choices of rows that list one
+    pub(crate) fn opinion_dependent(a: &Action) -> bool {
+        matches!(a, Action::Attack { .. } | Action::AcceptPeace { .. } | Action::DeclinePeace { .. } | Action::OfferPeace { .. } | Action::BreakPeace { .. })
+    }
+
     pub(crate) fn from_bits(v: &serde_json::Value) -> f64 {
         f64::from_bits(u64::from_str_radix(v.as_str().unwrap(), 16).unwrap())
     }
@@ -698,12 +717,18 @@ pub(crate) mod tests {
         let (mut ok, mut gated, mut bad) = (0usize, 0usize, 0usize);
         let (mut step_ok, mut step_gated, mut step_bad) = (0usize, 0usize, 0usize);
         let (mut pick_ok, mut pick_bad) = (0usize, 0usize);
+        let mut skipped = 0usize;
         let mut kinds = std::collections::BTreeMap::<String, usize>::new();
         for row in &rows {
             let s = crate::json::state_from_json(&row["state"]).unwrap();
             let legal: Vec<Action> = row["legal"].as_array().unwrap().iter().map(|a| crate::json::action_from_json(a).unwrap()).collect();
+            let opinion_row = legal.iter().any(opinion_dependent);
             for (i, a) in legal.iter().enumerate() {
                 *kinds.entry(row["legal"][i]["type"].as_str().unwrap().to_string()).or_default() += 1;
+                if opinion_dependent(a) {
+                    skipped += 1;
+                    continue;
+                }
                 for (w, key) in [(&wdef, "sDef"), (&wv4, "sV4")] {
                     let want = from_bits(&row[key][i]);
                     match guarded(|| score_action(&s, a, w)) {
@@ -720,6 +745,10 @@ pub(crate) mod tests {
                 }
             }
             for (w, key) in [(&wdef, "botDef"), (&wv4, "botV4")] {
+                if opinion_row {
+                    skipped += 1;
+                    continue;
+                }
                 // the choice among the recorded TS legal actions (needs no Rust legal_actions)
                 let want = crate::json::action_from_json(&row[key]).unwrap();
                 match guarded(|| best_of(&s, &legal, w)) {
@@ -745,7 +774,7 @@ pub(crate) mod tests {
             }
         }
         eprintln!("score_action: {ok} equal, {bad} different, {gated} gated (todo!); bot_step: {step_ok} equal, {step_bad} different, {step_gated} gated");
-        eprintln!("bot choice among the TS legal actions: {pick_ok} equal, {pick_bad} different");
+        eprintln!("bot choice among the TS legal actions: {pick_ok} equal, {pick_bad} different; {skipped} opinion-dependent scores and choices skipped");
         eprintln!("legal action kinds: {kinds:?}");
         assert_eq!(bad, 0);
         assert_eq!(step_bad, 0);

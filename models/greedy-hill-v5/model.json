@@ -1,8 +1,10 @@
 {
   "id": "greedy-hill-v5",
   "name": "Hill climber v5",
+  "tagline": "Greedy v1 with weights tuned by hill climbing.",
   "kind": "greedy",
   "description": "The greedy bot with weights tuned by hill climbing (scripts/train-hill.ts --space greedy, margin test, opponents self+past): 1021 challengers, 305k training games in 4-player domination on drylands 16x16 maps, 7 kept. Saved the averaged champion of the best learning-curve point (round 858, 252k games). Won 80% against greedy-v1 and 49% against greedy-hill-v4 on unseen maps at save time.",
+  "hidden": true,
   "created": "2026-11-24",
   "weights": {
     "capture": 100,

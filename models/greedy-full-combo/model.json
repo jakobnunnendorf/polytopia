@@ -1,6 +1,7 @@
 {
   "id": "greedy-full-combo",
-  "name": "greedy-full-economy + moveNoise=2",
+  "name": "Combo",
+  "tagline": "Economy with a little randomness in its moves, so armies jam less.",
   "kind": "greedy-full",
   "description": "greedy-full-economy with moveNoise=2, the best of a strength sweep (3 points, 200 games against each panel model). Not trained further.",
   "created": "2026-11-25",
