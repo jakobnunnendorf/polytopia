@@ -4,6 +4,10 @@ description = "RL project, David's track: the full integer game state and its va
 version.workspace = true
 edition.workspace = true
 
+[lib]
+name = "rl_value"
+path = "src/lib.rs"
+
 [[bin]]
 name = "rl-value"
 path = "src/main.rs"

@@ -9,37 +9,13 @@
 //! least `min-count` times, V(terminal) = 0. A state with no such action keeps the mean over all its transitions
 //! and has no policy entry; the policy then plays action 0 there, as in any state never seen.
 use crate::{get, play, read, setup, splitmix64, State, Traj, EVAL_SEED_START, R, TERM};
-use polycore::bot_full::FullWeights;
+use rl_value::strategic::{read_table, ACTION_NAMES, NA};
 use rayon::prelude::*;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::io::{BufRead, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::time::Instant;
-
-pub const ACTION_NAMES: [&str; 5] = ["bot", "expand", "economy", "army", "research"];
-pub const NA: usize = ACTION_NAMES.len();
-/// move types boosted by each action (indices into bot_full::FULL_ACTION_TYPES)
-const BOOSTED: [&[usize]; NA] = [
-    &[],      // bot: unchanged
-    &[3, 5],  // expand: capture, examine
-    &[13],    // economy: build
-    &[12, 2], // army: train, attack
-    &[0],     // research: research
-];
-
-pub fn action_weights(base: &FullWeights, boost: f64) -> Vec<FullWeights> {
-    BOOSTED
-        .iter()
-        .map(|types| {
-            let mut w = base.clone();
-            for &t in *types {
-                w.ty[t] *= boost;
-            }
-            w
-        })
-        .collect()
-}
 
 pub enum Driver {
     /// action 0 every turn: the model itself
@@ -63,7 +39,7 @@ impl Driver {
                 }
                 Driver::Fixed(k)
             }
-            _ if s.starts_with("policy:") => Driver::Policy(read_policy(&s[7..])?, s[7..].to_string()),
+            _ if s.starts_with("policy:") => Driver::Policy(read_table(&s[7..])?.1, s[7..].to_string()),
             _ => return Err(format!("--driver {s:?}: bot, random, fixed:K or policy:<file>")),
         })
     }
@@ -83,21 +59,6 @@ impl Driver {
             Driver::Policy(t, _) => t.get(f).copied().unwrap_or(0) as usize,
         }
     }
-}
-
-fn read_policy(path: &str) -> R<HashMap<State, u8>> {
-    let f = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
-    let mut t = HashMap::new();
-    for line in std::io::BufReader::new(f).lines() {
-        let line = line.map_err(|e| e.to_string())?;
-        if line.starts_with("turn") || line.starts_with('#') || line.is_empty() {
-            continue;
-        }
-        let v: Vec<&str> = line.split('\t').collect();
-        let n = |i: usize| v[i].parse::<i32>().map_err(|_| format!("{path}: bad row {line:?}"));
-        t.insert([n(0)?, n(1)?, n(2)?, n(3)?, n(4)?, n(5)?], n(6)? as u8);
-    }
-    Ok(t)
 }
 
 // ---------------------------------------------------------------- statistics
@@ -319,6 +280,11 @@ pub fn fit_vi_cmd(m: &HashMap<String, String>) -> R<()> {
         let total: u64 = visits.iter().map(|&x| x as u64).sum();
         let f = out.join(format!("policy-m{mc}.tsv"));
         let mut w = BufWriter::new(std::fs::File::create(&f).map_err(|e| e.to_string())?);
+        // the header names the base bot and the boost, so the file plays on its own (rl-gate --candidate rl-policy:<file>)
+        let head = json!({"tool": "rl-value fit-vi", "model": meta["model"], "boost": meta["boost"].as_f64().unwrap_or(2.0), "minCount": mc,
+                          "actions": ACTION_NAMES, "train": m.get("train"), "trainGames": train.len(), "opp": meta["opp"], "players": meta["players"],
+                          "difficulty": meta["difficulty"], "humanLearner": meta["humanLearner"]});
+        writeln!(w, "# {head}").unwrap();
         writeln!(w, "turn\tcities\tincome\tunits\tlevels\ttechs\taction\tv\tvisits\t{}", ACTION_NAMES.map(|a| format!("q_{a}")).join("\t")).unwrap();
         let mut order: Vec<usize> = (0..r.keys.len()).filter(|&i| r.pi[i].is_some()).collect();
         order.sort_by_key(|&i| r.keys[i]);
@@ -355,7 +321,7 @@ pub fn eval(m: &HashMap<String, String>) -> R<()> {
     let seed_start: i64 = get(m, "seed-start", EVAL_SEED_START)?;
     let (su, model, opp) = setup(m)?;
     let pol = m.get("policy").ok_or("--policy <policy.tsv> is required")?;
-    let cand = Driver::Policy(read_policy(pol)?, pol.clone());
+    let cand = Driver::Policy(read_table(pol)?.1, pol.clone());
     let based = Driver::parse(m.get("base-driver").map(|x| x.as_str()).unwrap_or("bot"))?;
     let out = PathBuf::from(m.get("out").ok_or("--out <file.json> is required")?);
     let t0 = Instant::now();

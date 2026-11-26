@@ -27,8 +27,15 @@ Whether an experiment's new agent (the candidate) replaces the current one (the 
 command (agreed by Jakob, 25 Nov 2026, #166). The tool lives in `engine/gate` (crate and binary `rl-gate`):
 
 ```bash
-npm run rl:gate -- --candidate <model id or path> --base <model id or path> --out experiments/NN-rl-<slug>/
+npm run rl:gate -- --candidate <learner> --base <learner> --out experiments/NN-rl-<slug>/
 ```
+
+A **learner** is a bot model (id under `models/`, a model folder or `model.json`) or an **RL policy**,
+`rl-policy:<policy.tsv>` (David's track: a table from the six-integer state to a strategic action, written by
+`rl-value fit-vi`; the file's header names the base bot and the boost). An RL policy is played move by move
+(`rl_value::strategic::play_game`, the same stop rule as `playGames`); opponents, seats, seeds and the rule are
+the same as for a bot. A policy with an empty table plays exactly like its base bot (test
+`rl_policy_with_an_empty_table_plays_like_its_base`). Opponents must be greedy-full models for an RL learner.
 
 - **Decided setup (Jakob, 25 Nov 2026, #166), the defaults of the tool:**
   - Difficulty **Crazy** (`--difficulty crazy`), the hardest, and the leaderboard setting.
@@ -148,9 +155,10 @@ not a bar the RL agents must clear (Jakob: "neither have to beat the greedy bots
 
 When the opponent list changes, the environment changes: scores before and after are not directly comparable.
 At each such switch, re-run the greedy baseline (`--candidate greedy-full-probe-perf`) on the new opponents and
-record it, so the progress curve stays readable. Two pieces of `rl-gate` are still to build: playing an RL policy
-as candidate and base (needed for v2 against v1), and as an opponent (needed only once an RL version enters the
-opponent list); `promote` gets a target for the RL line and the "v1 by decision" case with the first of them.
+record it, so the progress curve stays readable. `rl-gate` plays an RL policy as candidate and base
+(`rl-policy:<policy.tsv>`), and `promote --line rl` maintains the RL line (below). Still to build: an RL policy as
+an **opponent** (`Opponent` in `engine/gate/src/main.rs`), needed only once an RL version enters the opponent list;
+until then `promote` refuses an RL policy on the opponent list.
 
 ### Champions registry and promotion
 
@@ -165,8 +173,22 @@ its merge, promote explicitly (never automatic):
 npm run rl:gate -- promote <id> --gate experiments/NN-rl-<slug>/gate-<id>-vs-<base>-n10000.json --experiment NN-rl-<slug> --pr <n>
 ```
 
-It checks that the JSON is a PASS for that candidate, puts it at the top (the old champion becomes entry 1, the
-older ones stay listed for history) and prints the new opponent set. Commit the registry change.
+It checks that the JSON is a PASS for that candidate **against the opponent list's entry 0**, puts it at the top
+(the old champion becomes entry 1, the older ones stay listed for history) and prints the new opponent set.
+Commit the registry change.
+
+The **RL line** (`rlLine`) is promoted with `--line rl`:
+
+```bash
+# RL v1, by decision (no PASS needed; a gate JSON against the greedy champion is recorded as information)
+npm run rl:gate -- promote rl-policy:<policy.tsv> --line rl --first --note "<who decided, when, where>" \
+  [--gate <gate json>] --experiment NN-rl-<slug> --pr <n>
+# every later RL version: a PASS with --base = the head of rlLine
+npm run rl:gate -- promote rl-policy:<policy.tsv> --line rl --gate <gate json> --experiment NN-rl-<slug> --pr <n>
+```
+
+The RL line takes only RL policies; a PASS against a greedy model never promotes on it. The id of an RL entry is
+its `rl-policy:<path>`, so `--base <rlLine[0].id>` gates the next version against it.
 
 ### Progress curve (report only)
 
