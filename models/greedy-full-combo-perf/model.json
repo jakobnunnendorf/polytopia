@@ -1,0 +1,807 @@
+{
+  "id": "greedy-full-combo-perf",
+  "name": "greedy-full-combo + perturbation probe",
+  "kind": "greedy-full",
+  "description": "greedy-full-combo tuned by a perturbation probe: all knobs nudged up or down at random in every game, each knob moved only when the difference between its up and down games reached z 3 (65 moves in 10 rounds, 100k training games).",
+  "created": "2026-11-26",
+  "full": {
+    "greedy": {
+      "capture": 407.904,
+      "examine": 33.96,
+      "promote": 52.27,
+      "harvestStarfish": 45.67,
+      "monument": 62.496,
+      "kill": 27.66,
+      "hit": 0.579,
+      "special": 62.171,
+      "growBase": 16.947,
+      "growPerPop": 29.26,
+      "otherBuild": 1.174,
+      "richAt": 16,
+      "research": 35.439,
+      "train": 90.44,
+      "unitsPerCity": 14,
+      "move": 24.89,
+      "recover": 15,
+      "healOthers": 5.42,
+      "upgrade": 0.82,
+      "noise": 1,
+      "rewards": {
+        "workshop": 5,
+        "explorer": 3,
+        "cityWall": 2,
+        "resources": 5,
+        "populationGrowth": 5,
+        "borderGrowth": 3,
+        "park": 4,
+        "superUnit": 6
+      }
+    },
+    "type": {
+      "research": 0.417,
+      "move": 1,
+      "attack": 1.133,
+      "capture": 1,
+      "recover": 1,
+      "examine": 1.211,
+      "disband": 0.718,
+      "upgrade": 0.776,
+      "promote": 1,
+      "healOthers": 1,
+      "harvestStarfish": 1,
+      "infiltrate": 1.105,
+      "train": 1,
+      "build": 1,
+      "reward": 1,
+      "freezeArea": 0.696,
+      "swarm": 1,
+      "explode": 1,
+      "breakIce": 1,
+      "drain": 1.065,
+      "decompose": 0.469,
+      "offerPeace": 1,
+      "acceptPeace": 0.953,
+      "declinePeace": 0.801,
+      "breakPeace": 1
+    },
+    "open": {
+      "research": 0.5,
+      "move": 0.5,
+      "attack": 0.691,
+      "capture": 0.5,
+      "recover": 0.5,
+      "examine": 0.5,
+      "disband": 0.722,
+      "upgrade": 0.473,
+      "promote": 0.5,
+      "healOthers": 0.746,
+      "harvestStarfish": 0.243,
+      "infiltrate": 0.5,
+      "train": 0.5,
+      "build": 0.5,
+      "reward": 0.5,
+      "freezeArea": 0.5,
+      "swarm": 0.5,
+      "explode": 0.5,
+      "breakIce": 0.5,
+      "drain": 0.5,
+      "decompose": 0.403,
+      "offerPeace": 0.5,
+      "acceptPeace": 0.5,
+      "declinePeace": 0.5,
+      "breakPeace": 0.5
+    },
+    "tech": {
+      "riding": 0.652,
+      "roads": 0.882,
+      "trade": 1,
+      "freeSpirit": 0.778,
+      "chivalry": 1,
+      "organization": 1.455,
+      "farming": 1,
+      "construction": 1.19,
+      "strategy": 0.733,
+      "diplomacy": 1.264,
+      "climbing": 1.284,
+      "mining": 0.998,
+      "smithery": 1,
+      "meditation": 1.848,
+      "philosophy": 4.907,
+      "hunting": 1,
+      "archery": 0.882,
+      "spiritualism": 1,
+      "forestry": 1,
+      "mathematics": 1,
+      "fishing": 0.687,
+      "sailing": 0.815,
+      "navigation": 1,
+      "ramming": 0.882,
+      "aquatism": 1
+    },
+    "unit": {
+      "warrior": 1.284,
+      "rider": 0.778,
+      "archer": 0.893,
+      "defender": 1,
+      "swordsman": 1,
+      "mindBender": 2.562,
+      "catapult": 1,
+      "knight": 0.698,
+      "cloak": 1,
+      "dagger": 2.508,
+      "giant": 0.568,
+      "raft": 1,
+      "scout": 1,
+      "rammer": 1,
+      "bomber": 1,
+      "juggernaut": 1,
+      "dinghy": 1,
+      "pirate": 1,
+      "mermaid": 1,
+      "amphibian": 1,
+      "shark": 0.952,
+      "jelly": 1,
+      "puffer": 1,
+      "tridention": 1,
+      "crab": 1.035,
+      "mermaidArcher": 1,
+      "mermaidDefender": 1,
+      "swordsmaid": 1,
+      "siren": 1.495,
+      "scuba": 1,
+      "mermaidDagger": 1,
+      "polytaur": 1,
+      "dragonEgg": 1,
+      "babyDragon": 1,
+      "fireDragon": 1.027,
+      "mooni": 0.778,
+      "iceArcher": 0.497,
+      "battleSled": 1,
+      "iceFortress": 1,
+      "gaami": 1,
+      "shaman": 1,
+      "hexapod": 1.079,
+      "kiton": 1,
+      "phychi": 1,
+      "mantis": 1,
+      "moth": 2.39,
+      "raychi": 1,
+      "boomchi": 0.636,
+      "exida": 1,
+      "doomux": 1,
+      "livingIsland": 1,
+      "centipede": 1,
+      "segment": 1,
+      "insectEgg": 1,
+      "larva": 1
+    },
+    "build": {
+      "harvestFruit": 1,
+      "hunt": 1,
+      "fish": 1,
+      "clearForest": 1,
+      "burnForest": 1,
+      "growForest": 1.224,
+      "farm": 1.807,
+      "mine": 1,
+      "lumberHut": 1,
+      "windmill": 1.711,
+      "sawmill": 0.902,
+      "forge": 1,
+      "market": 1,
+      "port": 0.613,
+      "temple": 1,
+      "mountainTemple": 0.743,
+      "forestTemple": 0.911,
+      "waterTemple": 1,
+      "iceTemple": 1,
+      "road": 1,
+      "bridge": 1,
+      "destroy": 1,
+      "embassy": 0.962,
+      "enchantAnimal": 1,
+      "sanctuary": 1,
+      "outpost": 1,
+      "iceBank": 1,
+      "fungi": 1,
+      "mycelium": 1.058,
+      "clathrus": 1,
+      "algae": 1,
+      "canal": 1,
+      "atoll": 1,
+      "aquaFarm": 1,
+      "fertilize": 1,
+      "altarOfPeace": 1,
+      "towerOfWisdom": 1,
+      "emperorsTomb": 1,
+      "gateOfPower": 1,
+      "parkOfFortune": 0.972,
+      "grandBazaar": 1,
+      "eyeOfGod": 1
+    },
+    "reward": {
+      "workshop": 1,
+      "explorer": 1,
+      "cityWall": 1,
+      "resources": 1,
+      "populationGrowth": 1,
+      "borderGrowth": 1,
+      "park": 0.882,
+      "superUnit": 1.133
+    },
+    "centre": 0.687,
+    "defend": 0,
+    "defendRadius": 2,
+    "techUse": 0,
+    "techUseless": 0,
+    "front": 1.284,
+    "roads": 0,
+    "breakPeace": 0.5,
+    "plan": 2.266,
+    "reserve": 0,
+    "moveNoise": 2.266,
+    "spread": 0
+  },
+  "training": {
+    "method": "perturbation-probe",
+    "space": "full",
+    "from": "greedy-full-combo",
+    "metric": "share",
+    "mode": "perfection",
+    "mapType": "continents",
+    "difficulty": "crazy",
+    "players": 4,
+    "mapSize": 16,
+    "sigma": 0.25,
+    "z": 3,
+    "step": 0.5,
+    "league": [
+      "greedy-full-probe",
+      "greedy-full-combo"
+    ],
+    "panel": [
+      "greedy-v1",
+      "greedy-hill-v1",
+      "greedy-hill-v2",
+      "greedy-hill-v3",
+      "greedy-hill-v4",
+      "greedy-full-v1",
+      "greedy-full-probe",
+      "greedy-full-combo"
+    ],
+    "rounds": 10,
+    "samplesPerRound": 1667,
+    "trainingGames": 100020,
+    "knobsProbed": 205,
+    "moves": [
+      {
+        "round": 1,
+        "knob": "greedy.research",
+        "from": 27.6,
+        "to": 31.275,
+        "z": 7.566764846530547
+      },
+      {
+        "round": 1,
+        "knob": "type.research",
+        "from": 1,
+        "to": 0.882,
+        "z": -3.1093927514304713
+      },
+      {
+        "round": 1,
+        "knob": "tech.riding",
+        "from": 0.948,
+        "to": 0.837,
+        "z": -6.537405004926136
+      },
+      {
+        "round": 1,
+        "knob": "tech.freeSpirit",
+        "from": 1,
+        "to": 0.882,
+        "z": -3.372247246985105
+      },
+      {
+        "round": 1,
+        "knob": "tech.organization",
+        "from": 1,
+        "to": 1.133,
+        "z": 3.388790722413846
+      },
+      {
+        "round": 1,
+        "knob": "tech.strategy",
+        "from": 0.942,
+        "to": 0.831,
+        "z": -4.027094586921154
+      },
+      {
+        "round": 1,
+        "knob": "tech.climbing",
+        "from": 1,
+        "to": 1.133,
+        "z": 6.021951292826254
+      },
+      {
+        "round": 1,
+        "knob": "tech.meditation",
+        "from": 1.27,
+        "to": 1.439,
+        "z": 5.940025600708839
+      },
+      {
+        "round": 1,
+        "knob": "tech.philosophy",
+        "from": 2.045,
+        "to": 2.317,
+        "z": 7.115227753867722
+      },
+      {
+        "round": 1,
+        "knob": "unit.warrior",
+        "from": 1,
+        "to": 1.133,
+        "z": 5.511746704450592
+      },
+      {
+        "round": 1,
+        "knob": "unit.rider",
+        "from": 1,
+        "to": 0.882,
+        "z": -5.336493487573082
+      },
+      {
+        "round": 1,
+        "knob": "reward.park",
+        "from": 1,
+        "to": 0.882,
+        "z": -4.983706328739704
+      },
+      {
+        "round": 1,
+        "knob": "reward.superUnit",
+        "from": 1,
+        "to": 1.133,
+        "z": 6.963307305963768
+      },
+      {
+        "round": 1,
+        "knob": "centre",
+        "from": 1,
+        "to": 0.882,
+        "z": -3.48247714605021
+      },
+      {
+        "round": 2,
+        "knob": "type.research",
+        "from": 0.882,
+        "to": 0.778,
+        "z": -3.281020717372193
+      },
+      {
+        "round": 2,
+        "knob": "tech.riding",
+        "from": 0.837,
+        "to": 0.739,
+        "z": -6.418643018599535
+      },
+      {
+        "round": 2,
+        "knob": "tech.freeSpirit",
+        "from": 0.882,
+        "to": 0.778,
+        "z": -3.4579411549891734
+      },
+      {
+        "round": 2,
+        "knob": "tech.climbing",
+        "from": 1.133,
+        "to": 1.284,
+        "z": 3.6884513147232285
+      },
+      {
+        "round": 2,
+        "knob": "tech.meditation",
+        "from": 1.439,
+        "to": 1.631,
+        "z": 5.948007786473483
+      },
+      {
+        "round": 2,
+        "knob": "tech.philosophy",
+        "from": 2.317,
+        "to": 2.626,
+        "z": 5.2693423173781255
+      },
+      {
+        "round": 2,
+        "knob": "tech.archery",
+        "from": 1,
+        "to": 0.882,
+        "z": -3.6419147003912866
+      },
+      {
+        "round": 2,
+        "knob": "tech.fishing",
+        "from": 1,
+        "to": 0.882,
+        "z": -4.1404492848985015
+      },
+      {
+        "round": 2,
+        "knob": "tech.sailing",
+        "from": 0.923,
+        "to": 0.815,
+        "z": -3.3915007593994444
+      },
+      {
+        "round": 2,
+        "knob": "unit.warrior",
+        "from": 1.133,
+        "to": 1.284,
+        "z": 6.973737756813497
+      },
+      {
+        "round": 2,
+        "knob": "unit.rider",
+        "from": 0.882,
+        "to": 0.778,
+        "z": -5.066438635481499
+      },
+      {
+        "round": 2,
+        "knob": "centre",
+        "from": 0.882,
+        "to": 0.778,
+        "z": -3.8044435256383515
+      },
+      {
+        "round": 3,
+        "knob": "greedy.special",
+        "from": 42.73,
+        "to": 48.419,
+        "z": 3.104290329385995
+      },
+      {
+        "round": 3,
+        "knob": "type.research",
+        "from": 0.778,
+        "to": 0.687,
+        "z": -4.20692755126625
+      },
+      {
+        "round": 3,
+        "knob": "tech.organization",
+        "from": 1.133,
+        "to": 1.284,
+        "z": 3.748423395321135
+      },
+      {
+        "round": 3,
+        "knob": "tech.philosophy",
+        "from": 2.626,
+        "to": 2.976,
+        "z": 3.1767290155263415
+      },
+      {
+        "round": 3,
+        "knob": "unit.warrior",
+        "from": 1.284,
+        "to": 1.133,
+        "z": -15.832577112851528
+      },
+      {
+        "round": 3,
+        "knob": "unit.mindBender",
+        "from": 1.995,
+        "to": 2.261,
+        "z": 11.874476918763639
+      },
+      {
+        "round": 3,
+        "knob": "unit.crab",
+        "from": 0.913,
+        "to": 1.035,
+        "z": 3.37767884703142
+      },
+      {
+        "round": 4,
+        "knob": "greedy.research",
+        "from": 31.275,
+        "to": 35.439,
+        "z": 5.340451055973504
+      },
+      {
+        "round": 4,
+        "knob": "type.research",
+        "from": 0.687,
+        "to": 0.606,
+        "z": -4.499178767145975
+      },
+      {
+        "round": 4,
+        "knob": "type.attack",
+        "from": 1,
+        "to": 1.133,
+        "z": 3.3497254087458526
+      },
+      {
+        "round": 4,
+        "knob": "tech.riding",
+        "from": 0.739,
+        "to": 0.652,
+        "z": -3.0853125949433458
+      },
+      {
+        "round": 4,
+        "knob": "tech.roads",
+        "from": 1,
+        "to": 0.882,
+        "z": -3.5732038966771893
+      },
+      {
+        "round": 4,
+        "knob": "tech.construction",
+        "from": 1.348,
+        "to": 1.19,
+        "z": -3.0918786786985177
+      },
+      {
+        "round": 4,
+        "knob": "tech.philosophy",
+        "from": 2.976,
+        "to": 3.372,
+        "z": 3.5476287809571465
+      },
+      {
+        "round": 4,
+        "knob": "tech.fishing",
+        "from": 0.882,
+        "to": 0.778,
+        "z": -4.293237969604655
+      },
+      {
+        "round": 4,
+        "knob": "tech.ramming",
+        "from": 1,
+        "to": 0.882,
+        "z": -3.5433371240327407
+      },
+      {
+        "round": 4,
+        "knob": "unit.warrior",
+        "from": 1.133,
+        "to": 1.284,
+        "z": 5.927675432540133
+      },
+      {
+        "round": 5,
+        "knob": "type.research",
+        "from": 0.606,
+        "to": 0.535,
+        "z": -4.331509969706309
+      },
+      {
+        "round": 5,
+        "knob": "tech.meditation",
+        "from": 1.631,
+        "to": 1.848,
+        "z": 3.187231009300607
+      },
+      {
+        "round": 5,
+        "knob": "unit.mooni",
+        "from": 1,
+        "to": 0.882,
+        "z": -3.3477311844337634
+      },
+      {
+        "round": 5,
+        "knob": "plan",
+        "from": 2,
+        "to": 2.266,
+        "z": 4.035547211845126
+      },
+      {
+        "round": 6,
+        "knob": "type.research",
+        "from": 0.535,
+        "to": 0.472,
+        "z": -3.0042318719491377
+      },
+      {
+        "round": 6,
+        "knob": "tech.organization",
+        "from": 1.284,
+        "to": 1.455,
+        "z": 3.1164060883215723
+      },
+      {
+        "round": 6,
+        "knob": "tech.strategy",
+        "from": 0.831,
+        "to": 0.733,
+        "z": -4.181209952898834
+      },
+      {
+        "round": 6,
+        "knob": "tech.philosophy",
+        "from": 3.372,
+        "to": 3.821,
+        "z": 3.6066871738055766
+      },
+      {
+        "round": 6,
+        "knob": "tech.fishing",
+        "from": 0.778,
+        "to": 0.687,
+        "z": -3.85865432234541
+      },
+      {
+        "round": 6,
+        "knob": "front",
+        "from": 1.133,
+        "to": 1.284,
+        "z": 3.1962384014836442
+      },
+      {
+        "round": 7,
+        "knob": "greedy.special",
+        "from": 48.419,
+        "to": 54.866,
+        "z": 3.4817874328490133
+      },
+      {
+        "round": 7,
+        "knob": "unit.mindBender",
+        "from": 2.261,
+        "to": 2.562,
+        "z": 3.333889360068091
+      },
+      {
+        "round": 7,
+        "knob": "unit.mooni",
+        "from": 0.882,
+        "to": 0.778,
+        "z": -3.301159078832434
+      },
+      {
+        "round": 7,
+        "knob": "moveNoise",
+        "from": 2,
+        "to": 2.266,
+        "z": 3.3435026802970484
+      },
+      {
+        "round": 8,
+        "knob": "type.research",
+        "from": 0.472,
+        "to": 0.417,
+        "z": -3.595013821857751
+      },
+      {
+        "round": 8,
+        "knob": "tech.philosophy",
+        "from": 3.821,
+        "to": 4.33,
+        "z": 4.173034063874262
+      },
+      {
+        "round": 8,
+        "knob": "unit.siren",
+        "from": 1.164,
+        "to": 1.319,
+        "z": 3.176982187750222
+      },
+      {
+        "round": 9,
+        "knob": "build.port",
+        "from": 0.695,
+        "to": 0.613,
+        "z": -3.2977638645039247
+      },
+      {
+        "round": 9,
+        "knob": "centre",
+        "from": 0.778,
+        "to": 0.687,
+        "z": -3.1714555608042043
+      },
+      {
+        "round": 10,
+        "knob": "greedy.special",
+        "from": 54.866,
+        "to": 62.171,
+        "z": 3.214264257340894
+      },
+      {
+        "round": 10,
+        "knob": "tech.philosophy",
+        "from": 4.33,
+        "to": 4.907,
+        "z": 3.1302427940648885
+      },
+      {
+        "round": 10,
+        "knob": "unit.siren",
+        "from": 1.319,
+        "to": 1.495,
+        "z": 3.35281543152976
+      }
+    ],
+    "bestRound": 10,
+    "startedAt": "2026-11-26T11:15:42.650Z",
+    "endedAt": "2026-11-26T12:33:57.175Z",
+    "seconds": 4695,
+    "duration": "1h18m",
+    "final": {
+      "greedy-v1": {
+        "winRate": 0.9875,
+        "pointShare": 0.812,
+        "games": 400,
+        "finish": 0.901,
+        "conquest": 0.9,
+        "turns": 49.4
+      },
+      "greedy-hill-v1": {
+        "winRate": 0.9875,
+        "pointShare": 0.802,
+        "games": 400,
+        "finish": 0.903,
+        "conquest": 0.9075,
+        "turns": 49.6
+      },
+      "greedy-hill-v2": {
+        "winRate": 0.9925,
+        "pointShare": 0.793,
+        "games": 400,
+        "finish": 0.904,
+        "conquest": 0.9175,
+        "turns": 50.6
+      },
+      "greedy-hill-v3": {
+        "winRate": 0.9525,
+        "pointShare": 0.755,
+        "games": 400,
+        "finish": 0.876,
+        "conquest": 0.8775,
+        "turns": 52.4
+      },
+      "greedy-hill-v4": {
+        "winRate": 0.9575,
+        "pointShare": 0.759,
+        "games": 400,
+        "finish": 0.88,
+        "conquest": 0.895,
+        "turns": 51.5
+      },
+      "greedy-full-v1": {
+        "winRate": 0.8175,
+        "pointShare": 0.687,
+        "games": 400,
+        "finish": 0.758,
+        "conquest": 0.7475,
+        "turns": 52.6
+      },
+      "greedy-full-probe": {
+        "winRate": 0.52,
+        "pointShare": 0.513,
+        "games": 400,
+        "finish": 0.52,
+        "conquest": 0.455,
+        "turns": 59.1
+      },
+      "greedy-full-combo": {
+        "winRate": 0.625,
+        "pointShare": 0.567,
+        "games": 400,
+        "finish": 0.591,
+        "conquest": 0.5425,
+        "turns": 58.2
+      }
+    },
+    "curve": "curve.jsonl",
+    "probe": "probe.jsonl"
+  }
+}
