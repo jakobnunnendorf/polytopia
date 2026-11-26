@@ -223,7 +223,9 @@ function runState(id: string, procs: { pid: number; cmd: string }[]) {
   const log = readLog(id);
   const proc = trainerProcess(procs, id);
   const args: string = proc?.cmd ?? ck?.args ?? "";
-  const kind: "es" | "hill" | "sweep" | "unknown" = sweep ? "sweep" : ck ? ("theta" in ck ? "es" : "round" in ck ? "hill" : "unknown") : model?.training?.method === "evolution-strategies" ? "es" : model?.training ? "hill" : "unknown";
+  const probe = probeOf(dir);
+  const isProbe = !!probe || /train-probe\.ts/.test(args) || model?.training?.method === "perturbation-probe";
+  const kind: "es" | "hill" | "probe" | "sweep" | "unknown" = sweep ? "sweep" : isProbe ? "probe" : ck ? ("theta" in ck ? "es" : "round" in ck ? "hill" : "unknown") : model?.training?.method === "evolution-strategies" ? "es" : model?.training ? "hill" : "unknown";
   const budget = Number(flag(args, "budget") ?? model?.training?.budget ?? 0) || null;
   const milestones = (flag(args, "milestones") ?? "")
     .split(",")
@@ -245,6 +247,18 @@ function runState(id: string, procs: { pid: number; cmd: string }[]) {
     averaged = ck ? fromTheta(ck.ema) : null;
     best = ck?.best?.theta ? fromTheta(ck.best.theta) : flatten(model?.weights ?? {});
     for (const k of Object.keys(start)) if (!(k in current)) delete start[k];
+  } else if (kind === "probe") {
+    // probe.jsonl holds every knob's value after each round; a knob's start is the "from" of its first move
+    current = Object.fromEntries(((probe?.knobs ?? []) as Json[]).map((k) => [k.knob, k.value]));
+    if (!probe) {
+      // before the first round ends: the --from model's weights (or the finished model's)
+      const from = flag(args, "from");
+      const fromModel = from ? readJson(path.join(ROOT, "models", from, "model.json")) : null;
+      current = flatten(model?.full ?? fromModel?.full ?? {});
+    }
+    start = { ...current };
+    for (const m of [...((probe?.moved ?? []) as Json[])].reverse()) start[m.knob] = m.from;
+    best = flatten(model?.full ?? {});
   } else if (kind === "hill") {
     const isFull = !!(snap?.full ?? model?.full);
     start = flatten(isFull ? snap?.full : snap?.weights);
@@ -287,6 +301,7 @@ function runState(id: string, procs: { pid: number; cmd: string }[]) {
     curve,
     sweep: sweep ?? null,
     weights: { start, current, best, averaged },
+    probe: kind === "probe" ? probe : null,
     log: log.data ? { file: log.file, ...log.data } : null,
     samples: samples.get(id) ?? [],
   };
@@ -365,7 +380,11 @@ function probeOf(m: string) {
   const rows = readJsonl(path.join(m, "probe.jsonl")) ?? [];
   if (!rows.length) return null;
   const last = rows[rows.length - 1];
-  return { z: last.z, sigma: last.sigma, round: last.round, trainingGames: last.trainingGames, sdOutcome: last.sdOutcome, knobs: last.knobs, moved: rows.flatMap((r: Json) => r.moved ?? []) };
+  return {
+    z: last.z, sigma: last.sigma, round: last.round, trainingGames: last.trainingGames, sdOutcome: last.sdOutcome, knobs: last.knobs,
+    moved: rows.flatMap((r: Json) => (r.moved ?? []).map((m: Json) => ({ ...m, trainingGames: r.trainingGames }))),
+    rounds: rows.map((r: Json) => ({ round: r.round, trainingGames: r.trainingGames, moved: (r.moved ?? []).length, at: r.at })),
+  };
 }
 function experimentDetail(dir: string) {
   if (!experimentDirs().includes(dir)) return null;

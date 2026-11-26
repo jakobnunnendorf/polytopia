@@ -124,6 +124,7 @@ pre { font: 11.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; backgroun
   <div class="grid cols-5" id="multiples" style="margin-top:14px"></div>
 
   <div id="hill-sections"></div>
+  <div id="probe-sections"></div>
   <div id="es-sections"></div>
 
   <h2>Speed</h2>
@@ -232,7 +233,7 @@ function dur(s) {
 }
 const clock = (t) => new Date(t).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
 const runLabel = (r) => r.id;
-const kindLabel = (r) => (r.kind === "es" ? "evolution strategies, 19 weights" : r.args.includes("--space full") || /train-full\.ts/.test(r.args) || Object.keys(r.weights.current).length > 40 ? `hill climber, full action space (${Object.keys(r.weights.current).length} knobs)` : "hill climber, 19 weights");
+const kindLabel = (r) => (r.kind === "probe" ? `perturbation probe, full action space (${Object.keys(r.weights.current).length} knobs)` : r.kind === "es" ? "evolution strategies, 19 weights" : r.args.includes("--space full") || /train-full\.ts/.test(r.args) || Object.keys(r.weights.current).length > 40 ? `hill climber, full action space (${Object.keys(r.weights.current).length} knobs)` : "hill climber, 19 weights");
 
 // tooltip
 const tip = $("tip");
@@ -524,7 +525,7 @@ function speedOf(r) {
   if (p.length && r.running) { const q = p[p.length - 1]; return (q.recent / q.window) * 60; }
   return null;
 }
-const games = (r) => r.checkpoint?.trainingGames ?? r.curve.at(-1)?.trainingGames ?? 0;
+const games = (r) => r.checkpoint?.trainingGames ?? r.probe?.trainingGames ?? r.curve.at(-1)?.trainingGames ?? 0;
 function curveSeries(r, averaged) {
   return r.curve.filter((c) => !!c.averaged === averaged).map((c) => ({ x: c.trainingGames, y: metricOf(c), c }));
 }
@@ -635,7 +636,10 @@ function render() {
     const ticks = (r.milestones || []).map((ms) => { const pos = Math.min(100, (ms / (r.budget || ms)) * 100), show = pos - lastPos > 6; if (show) lastPos = pos; return `<div class="tick ${g >= ms ? "done" : ""}" style="left:calc(${pos}% - 1px)" title="milestone ${count(ms)}"><span>${show ? count(ms) : ""}</span></div>`; }).join("");
     const best = bestPoint(r);
     const stat = (k, v, s = "") => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ""}</div>`;
-    const kindStats = r.kind === "es"
+    const rounds = r.budget && r.probe ? Math.round(r.budget / Math.max(1, r.probe.trainingGames / Math.max(1, r.probe.round))) : null;
+    const kindStats = r.kind === "probe"
+      ? stat("round", r.probe ? `${r.probe.round}${rounds ? ` of ${rounds}` : ""}` : "0", "finished rounds") + stat("knob steps", count(r.probe?.moved.length ?? 0), `|z| ≥ ${r.probe?.z ?? 3} moves a knob`)
+      : r.kind === "es"
       ? stat("iteration", count(ck?.iteration), r.pop ? `pop ${r.pop} × ${r.log?.es.at(-1)?.games ?? "?"} games` : "") + stat("sigma", ck?.sigma?.toFixed(3) ?? "–", "search step size")
       : stat("round", count(ck?.round), `${ck?.accepted ?? "–"} kept · ${ck?.capped ?? "–"} capped`) + stat("sigma", ck?.sigma?.toFixed(3) ?? "–", `${ck?.sinceKeep ?? "–"} rounds since a keep`);
     return `<div class="card">
@@ -709,6 +713,39 @@ function render() {
     document.querySelector(`[data-kept="${r.id}"]`).innerHTML = kept.length
       ? `<table><thead><tr><th class="num">round</th><th class="num">test games</th><th class="num">won</th><th class="num">points</th><th class="num">LLR</th><th>changes</th></tr></thead><tbody>${kept.map((k) => `<tr><td class="num">${k.round}</td><td class="num">${k.games}</td><td class="num">${k.won}%</td><td class="num">${k.points}%</td><td class="num">${k.llr ?? "–"}</td><td class="chg">${esc(k.changes)}</td></tr>`).join("")}</tbody></table>`
       : `<div class="empty">None yet.</div>`;
+  }
+
+  // probe sections (train-probe.ts): every knob's z-score, the knobs moved, their history
+  const probeRuns = st.runs.filter((r) => r.kind === "probe");
+  $("probe-sections").innerHTML = probeRuns.map((r) => `
+    <h2>${esc(r.id)} · perturbation probe</h2>
+    <div class="grid cols-2">
+      <div class="card"><h3>Evidence per knob after round ${r.probe?.round ?? 0}: z-score of its effect (the 30 strongest)</h3><div data-pz="${esc(r.id)}"></div>
+        <div class="note">Each knob is nudged up or down at random in every sample; z is its slope on the outcome over its standard error. A knob moves one step when |z| reaches ${r.probe?.z ?? 3}, then its evidence starts again. Positive: raising it helps.</div></div>
+      <div class="card"><h3>Knobs moved from the start (now ÷ start, log scale)</h3><div data-knobs="${esc(r.id)}"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h3>How the knobs evolved: value over training games, one row per knob the probe moved</h3><div data-evo="${esc(r.id)}"></div>
+      <div class="note">Each step is a move at the end of a round (round number above the dashed line). The start values are the run's --from model.</div></div>
+    <div class="card" style="margin-top:14px"><h3>All ${Object.keys(r.weights.current).length} knobs: how far each has moved from the start</h3><div class="legend" data-gridlegend="${esc(r.id)}"></div><div data-grid="${esc(r.id)}"></div></div>
+    <div class="card" style="margin-top:14px"><h3>Moves, round by round</h3><div data-moves="${esc(r.id)}"></div></div>`).join("");
+  for (const r of probeRuns) {
+    const q = (k) => document.querySelector(`[data-${k}="${r.id}"]`);
+    const zs = (r.probe?.knobs || []).filter((k) => Number.isFinite(k.z)).sort((a, b) => Math.abs(b.z) - Math.abs(a.z)).slice(0, 30);
+    divergingBars(q("pz"), zs.map((k) => ({ name: k.knob, v: k.z, label: `z ${k.z >= 0 ? "+" : ""}${k.z.toFixed(1)}`, inactive: Math.abs(k.z) < (r.probe?.z ?? 3) / 2, tip: `<b>${esc(k.knob)}</b><br>value ${k.value} · z ${k.z.toFixed(2)} over ${k.n} samples${k.zSelf != null ? `<br>self ${k.zSelf.toFixed(2)} · league ${k.zLeague.toFixed(2)}` : ""}` })), { note: r.probe ? `Faded: |z| below ${(r.probe.z ?? 3) / 2}, little evidence yet.` : "" });
+    const { start, current } = r.weights;
+    const rows = Object.keys(current).filter((k) => start[k] != null && Math.abs(current[k] - start[k]) > 1e-9).map((k) => {
+      const s0 = start[k], c = current[k];
+      return { name: k, v: s0 > 0 && c > 0 ? Math.log2(c / s0) : 0, label: `${+s0.toFixed(3)} → ${+c.toFixed(3)}`, tip: `<b>${esc(k)}</b><br>start ${s0} → now ${c} (×${(c / s0).toFixed(2)})` };
+    }).sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
+    divergingBars(q("knobs"), rows, { note: `${rows.length} of ${Object.keys(current).length} knobs differ from the start.` });
+    const byRound = new Map();
+    for (const m of r.probe?.moved || []) { if (!byRound.has(m.round)) byRound.set(m.round, { round: m.round, pct: r.budget ? (m.trainingGames / r.budget) * 100 : m.round, list: [] }); byRound.get(m.round).list.push(m); }
+    const kept = [...byRound.values()].map((k) => ({ ...k, changes: k.list.map((m) => `${m.knob} ${m.from}→${m.to}`).join(", ") }));
+    knobEvolution(q("evo"), r, kept);
+    knobGrid(q("grid"), q("gridlegend"), r);
+    q("moves").innerHTML = (r.probe?.rounds || []).length
+      ? `<table><thead><tr><th class="num">round</th><th class="num">training games</th><th class="num">moved</th><th>moves (z)</th></tr></thead><tbody>${r.probe.rounds.map((x) => `<tr><td class="num">${x.round}</td><td class="num">${count(x.trainingGames)}</td><td class="num">${x.moved}</td><td class="chg">${esc((byRound.get(x.round)?.list || []).map((m) => `${m.knob} ${m.from}→${m.to} (z ${m.z >= 0 ? "+" : ""}${m.z.toFixed(1)})`).join(", ") || "nothing reached the threshold")}</td></tr>`).join("")}</tbody></table>`
+      : `<div class="empty">No round finished yet.</div>`;
   }
 
   // ES sections
