@@ -3,7 +3,6 @@ import { Platform, Text, View } from "react-native";
 import { Slot } from "expo-router";
 import { SettingsProvider } from "@/context/SettingsContext";
 import { initRustEngine } from "@/logic/engine/rust";
-import "./global.css";
 
 // The rules engine is Rust compiled to WebAssembly (public/polyengine.wasm,
 // built by `npm run engine:build`). It loads once here, before any screen
