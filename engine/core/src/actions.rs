@@ -834,6 +834,17 @@ pub fn apply_action(s: &mut GameState, a: &Action) -> Result<(), String> {
             let ui = uidx(s, unit).unwrap();
             s.players[pu].stars -= unit_def(to).cost;
             s.units[ui].ty = to;
+            // a Raft (attack 0) starts its turn unable to attack; the upgraded ship may attack this
+            // turn (upgrade, move into range, shoot, as in the game) unless it is done or already
+            // attacked, and after a move only with Dash (Scout, Rammer), as a move leaves it (no Bomber)
+            {
+                let u = &mut s.units[ui];
+                u.can_attack = !u.done
+                    && !u.attacked
+                    && !u.frozen
+                    && unit_def(to).attack > 0.0
+                    && (!u.moved || has(u, Skill::Dash));
+            }
             let u = s.units[ui].clone();
             let r = sight_radius(s, &u);
             explore(s, p, pos(&u), r);
