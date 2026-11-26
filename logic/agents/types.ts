@@ -7,7 +7,7 @@ import type { Action, GameState } from "../engine/types";
 import type { GreedyWeights } from "../engine/bot";
 import type { PartialFullWeights } from "../engine/botFull";
 
-export type ModelKind = "greedy" | "greedy-full" | "random" | "llm" | "external";
+export type ModelKind = "greedy" | "greedy-full" | "random";
 
 export type ModelSpec = {
   /** folder name under models/, also the Elo key ("model:<id>") */
@@ -39,30 +39,11 @@ export type ModelSpec = {
   weights?: Partial<GreedyWeights>;
   /** greedy-full: weight overrides on top of DEFAULT_FULL_WEIGHTS (logic/engine/botFull.ts) */
   full?: PartialFullWeights;
-  /** llm: OpenAI-compatible chat endpoint and model id (LM Studio by default) */
-  llm?: {
-    endpoint: string;
-    model: string;
-    temperature?: number;
-    /** at most this many candidate actions are shown to the model per decision */
-    maxCandidates?: number;
-    /** model id used when the LLM is unreachable or answers nonsense */
-    fallback?: string;
-  };
 };
 
 export interface Agent {
   spec: ModelSpec;
   /** choose one of legalActions(state) for state.current */
   act(state: GameState): Promise<Action>;
-  /** LLM agents count how often the model itself decided vs. fell back */
-  stats?: { decisions: number; byModel: number; fallbacks: number; lastError: string };
 }
 
-/** an OpenAI-style chat call; injected so the browser can go through the arena server */
-export type ChatFn = (req: {
-  endpoint: string;
-  model: string;
-  temperature: number;
-  messages: { role: "system" | "user"; content: string }[];
-}) => Promise<string>;

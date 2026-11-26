@@ -7,8 +7,6 @@ const FAMILY: Record<string, string> = {
   "greedy-full": "Full greedy",
   greedy: "Greedy",
   random: "Random",
-  llm: "LLM",
-  external: "Agent",
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

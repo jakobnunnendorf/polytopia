@@ -1,6 +1,6 @@
 /**
  * opinion.ts on the Rust engine (see logic/engine/rust.ts): what bots think of other tribes, the
- * real game's opinion model (engine/core/src/opinion.rs; POLYTOPIA_RULES.md, Diplomacy).
+ * real game's opinion model (engine/core/src/opinion.rs; docs/RULES.md §10.3).
  */
 import { call, engineConstant } from "./rust";
 import type { GameState } from "./types";

@@ -40,3 +40,6 @@ app-example
 
 # experiment notebook: built on demand (npm run experiment:report, or the dashboard)
 experiments/**/*.pdf
+
+# scratch logs of training runs; a run's log is committed as models/<id>/train.log
+logs/

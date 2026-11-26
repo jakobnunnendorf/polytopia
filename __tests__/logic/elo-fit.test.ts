@@ -6,7 +6,7 @@
 import { applyAction } from "@/logic/engine/actions";
 import { createGame, scoreOf } from "@/logic/engine/state";
 import { call } from "@/logic/engine/rust";
-import { createAgent, directChat } from "@/logic/agents/registry";
+import { createAgent } from "@/logic/agents/registry";
 import type { ModelSpec } from "@/logic/agents/types";
 import type { GameMode } from "@/logic/engine/types";
 import { ANCHOR_ID, ANCHOR_RATING, fit, fitAll, modeWeights, parseResults, readGame, solve, type Agent, type GameRow, type Meta, type PairRow, type Setup } from "../../scripts/lib/elo-fit";
@@ -132,7 +132,7 @@ describe("the Rust engine's random policy", () => {
   // the loop of scripts/arena.ts, with its guard (300 actions a turn) on the random seats only, as in Rust
   async function inTypeScript(seed: number, ids: string[], mode: GameMode, size: number, maxTurn: number) {
     const specs: Record<string, ModelSpec> = { "greedy-v1": greedyV1 as ModelSpec, "random-v1": randomV1 as ModelSpec };
-    const agents = ids.map((id) => createAgent(specs[id], directChat, []));
+    const agents = ids.map((id) => createAgent(specs[id]));
     let s = createGame({ mapSize: size, players: ids.length, mode, seed, humans: [], mapType: "drylands" });
     let perTurn = 0;
     let lastKey = "";

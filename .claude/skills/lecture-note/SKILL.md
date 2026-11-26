@@ -24,7 +24,7 @@ note and keep its shape; this file tells you what the example does not say.
 | Pictures, game side | `app/scene.tsx`, a page of the app that draws a scene with the game's own `Tile` and `UnitSprite` |
 | Server | `/usr/bin/python3 lecture-notes/serve.py [port]` (default 8097), this computer only |
 | Saved syntax explanations | `lecture-notes/explanations/<id>.md`, committed |
-| Game rules to quote | `docs/shardlands/RULES.md` (cite the section numbers) |
+| Game rules to quote | `docs/RULES.md` (cite the section numbers) |
 
 Needs GNU Emacs with Org 9.6 or later, `ocaml` on the PATH, the app's `node_modules`, and
 Google Chrome at its macOS path. Notes are in OCaml; the build knows no other language yet.

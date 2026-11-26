@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Restart the live web preview on port 8090 with a cleared bundler cache,
 # so it serves exactly the current code, plus the arena server on port 8091
-# (records games into data/, keeps profiles and Elo, proxies the local LLM).
+# (records games into data/, keeps profiles and Elo).
 # Run from the repo root.
 # Phone: http://<mac LAN ip>:8090   Mac: http://localhost:8090
 PORT=${PORT:-8090}

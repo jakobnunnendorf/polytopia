@@ -1,6 +1,6 @@
 /**
- * Aquarion rules and tribe spawn multipliers (POLYTOPIA_RULES.md: Aquarion
- * units, Tribes > Aquarion, Unit skills, Movement rules, Tribes table).
+ * Aquarion rules and tribe spawn multipliers (docs/RULES.md: §9.2 Aquarion,
+ * §2.4 skills, §4 movement, §6.3 tribe modifiers).
  */
 import { applyAction, legalActions } from "@/logic/engine/actions";
 import { CLAN_BY_ID, UNITS, buildAllowedFor, trainableUnitsFor } from "@/logic/engine/data";

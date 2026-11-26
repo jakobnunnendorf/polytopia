@@ -8,7 +8,7 @@ import { applyAction } from "../../logic/engine/actions";
 import { createGame } from "../../logic/engine/state";
 import type { Difficulty, GameMode } from "../../logic/engine/types";
 import type { MapType } from "../../logic/engine/mapgen";
-import { createAgent, directChat } from "../../logic/agents/registry";
+import { createAgent } from "../../logic/agents/registry";
 import { finishRecord, latestState, recordStep, startRecord, type GameRecord, type Seat } from "../../logic/arena/record";
 import { findGame, listModels, saveGame } from "./store";
 
@@ -16,7 +16,7 @@ const running = new Set<string>();
 /** running games asked to stop: the loop ends after the move in progress */
 const stopRequests = new Set<string>();
 
-/** every move takes at least this long, so fast bots and a thinking LLM look the same to a watcher */
+/** every move takes at least this long, so a watcher can follow the game */
 // one move per second: the live view (app/analyse.tsx FOLLOW_MS) plays them back at the same pace
 export const PACE_MS = Number(process.env.SHARDLANDS_PACE_MS ?? 1000);
 /** per-match pace set from the live view's speed control (ms per move), else PACE_MS */
@@ -41,8 +41,8 @@ async function run(rec: GameRecord): Promise<void> {
     const agents = rec.seats.map((seat) => {
       if (seat.kind !== "model") throw new Error("Only model seats can run on the server");
       const spec = all.find((m) => m.id === seat.modelId);
-      if (!spec || spec.kind === "external") throw new Error(`Model ${seat.modelId} cannot play on the server`);
-      return createAgent(spec, directChat, all);
+      if (!spec) throw new Error(`Model ${seat.modelId} cannot play on the server`);
+      return createAgent(spec);
     });
     // from the checkpoint: a long game continues at once, and under the position it really reached
     let s = latestState(rec);
@@ -70,7 +70,6 @@ async function run(rec: GameRecord): Promise<void> {
     }
     const out = saveGame(finishRecord(rec, s));
     console.log(`match ${rec.id} finished: winner seat ${s.winner}, Elo ${out.deltas.join(", ")}`);
-    agents.forEach((ag) => ag.stats && console.log(`  ${ag.spec.id}: ${ag.stats.byModel}/${ag.stats.decisions} decisions by the model, ${ag.stats.fallbacks} fallbacks${ag.stats.lastError ? ` (last: ${ag.stats.lastError})` : ""}`));
   } catch (e) {
     console.error(`match ${rec.id} stopped: ${(e as Error).message}`);
   } finally {

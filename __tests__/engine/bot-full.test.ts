@@ -8,7 +8,7 @@ import { applyAction, createGame, legalActions } from "@/logic/engine";
 import { DEFAULT_WEIGHTS, botStep, type GreedyWeights } from "@/logic/engine/bot";
 import { DEFAULT_FULL_WEIGHTS, FULL_ACTION_TYPES, centreDist, fullBotStep, fullWeights, scoreFull, type FullWeights } from "@/logic/engine/botFull";
 import { makeUnit } from "@/logic/engine/state";
-import { createAgent, directChat } from "@/logic/agents/registry";
+import { createAgent } from "@/logic/agents/registry";
 import type { ModelSpec } from "@/logic/agents/types";
 import type { Action, GameState } from "@/logic/engine/types";
 import type { MapType } from "@/logic/engine/mapgen";
@@ -89,7 +89,7 @@ describe("greedy-full bot", () => {
 
   it("a greedy-full model file plays through the registry", async () => {
     const spec: ModelSpec = { id: "t", name: "t", kind: "greedy-full", description: "", created: "", full: { centre: 3, unit: { catapult: 2 } } };
-    const agent = createAgent(spec, directChat);
+    const agent = createAgent(spec);
     const s = domination(5);
     expect(await agent.act(s)).toEqual(fullBotStep(s, fullWeights(spec.full)));
   });
@@ -107,7 +107,7 @@ describe("greedy bots are unchanged", () => {
   });
 
   it("greedy-hill-v4 through the registry plays its weights", async () => {
-    const agent = createAgent(v4 as ModelSpec, directChat);
+    const agent = createAgent(v4 as ModelSpec);
     const s = domination(9);
     const w = { ...DEFAULT_WEIGHTS, ...v4.weights, rewards: { ...DEFAULT_WEIGHTS.rewards, ...v4.weights.rewards } };
     expect(await agent.act(s)).toEqual(botStep(s, w));

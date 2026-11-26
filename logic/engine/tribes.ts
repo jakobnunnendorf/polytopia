@@ -1,8 +1,7 @@
 /**
  * Short tribe descriptions for the new-game screen. The start (tech, unit,
  * stars, capital) is read from CLANS, so it always matches the engine; the
- * one-line character of each tribe follows POLYTOPIA_RULES.md ("Tribes") and
- * docs/shardlands/RULES.md §8.
+ * one-line character of each tribe follows docs/RULES.md §8 and §9.
  */
 import { CLAN_BY_ID } from "./data";
 import { name } from "./names";

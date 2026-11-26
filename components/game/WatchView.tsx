@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import Map from "@/components/Map/Map";
 import { seatLabel } from "@/components/game/GameList";
 import { arena } from "@/components/game/arenaClient";
+import type { ModelSpec } from "@/logic/agents/types";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
 import { extendReplay, type GameRecord } from "@/logic/arena/record";
 import { scoreOf } from "@/logic/engine";
@@ -135,14 +136,20 @@ export default function WatchView({ rec, live, local }: { rec: GameRecord; live:
   const prevTurn = [...turnStarts].reverse().find((i) => i < k) ?? 0;
   const nextTurn = turnStarts.find((i) => i > k) ?? states.length - 1;
 
+  const [models, setModels] = useState<ModelSpec[]>([]);
+  useEffect(() => {
+    arena.models?.().then(setModels).catch(() => {});
+  }, []);
+
   // notable events, extended move by move like the replay
-  const who = (p: number) => seatLabel(rec.seats[p]);
-  const evCache = useRef<{ id: string; r: EventLog } | null>(null);
+  const who = (p: number) => seatLabel(rec.seats[p], models);
+  const evCache = useRef<{ id: string; modelsCount: number; r: EventLog } | null>(null);
   const events = useMemo(() => {
-    const r = extendEvents(evCache.current?.id === rec.id ? evCache.current.r : null, rec, states, who);
-    evCache.current = { id: rec.id, r };
+    const hit = evCache.current?.id === rec.id && evCache.current.modelsCount === models.length ? evCache.current.r : null;
+    const r = extendEvents(hit, rec, states, who);
+    evCache.current = { id: rec.id, modelsCount: models.length, r };
     return r.events;
-  }, [states]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [states, models]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the player who made the latest shown move, and their choices so far this turn
   const mover = step ? step.p : s.current;
@@ -251,7 +258,7 @@ export default function WatchView({ rec, live, local }: { rec: GameRecord; live:
         <Btn label="Mover's view" on={view === "mover"} onPress={() => setView("mover")} />
         <Btn label="Whole map" on={view === "all"} onPress={() => setView("all")} />
         {rec.seats.map((seat, i) => (
-          <Btn key={i} label={`${seatLabel(seat)}'s view`} on={view === i} onPress={() => setView(i)} />
+          <Btn key={i} label={`${seatLabel(seat, models)}'s view`} on={view === i} onPress={() => setView(i)} />
         ))}
       </View>
     </View>

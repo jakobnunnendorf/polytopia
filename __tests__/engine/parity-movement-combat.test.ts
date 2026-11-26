@@ -1,6 +1,6 @@
 /**
- * Parity tests for generic movement, combat and healing against POLYTOPIA_RULES.md
- * ("Unit skills and movement", "Combat", "Explorer") and docs/RULES_PARITY.md.
+ * Parity tests for generic movement, combat and healing against docs/RULES.md
+ * (§2.4 skills, §3 combat, §4 movement, §5.12 Explorer) and docs/RULES_PARITY.md.
  */
 import { applyAction, legalActions, runExplorer } from "@/logic/engine/actions";
 import { EXPLORER_STEPS, UNITS } from "@/logic/engine/data";

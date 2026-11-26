@@ -57,7 +57,7 @@ export default function RankingsTable() {
           const id = key.slice(key.indexOf(":") + 1);
           if (type === "human") return { name: profiles.find((p) => p.id === id)?.name ?? (id === "guest" ? "Guest" : id), kind: "Player" };
           const m = models.find((x) => x.id === id);
-          const kind = m?.kind === "llm" ? "LLM" : m?.kind === "external" ? "Agent" : m?.kind === "random" ? "Baseline" : "Bot";
+          const kind = m?.kind === "random" ? "Baseline" : "Bot";
           return { name: m?.name ?? id, kind };
         };
         setError(false);

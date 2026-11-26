@@ -5,7 +5,7 @@
  * games at once (scripts/lib/elo-fit.ts).
  *
  *   npm run elo-tournament                         # everything, into elo/<today>/
- *   npm run elo-tournament -- --out elo/2026-11-25 # resume a run: finished pairs are skipped
+ *   npm run elo-tournament -- --out elo/<date>     # resume a run: finished pairs are skipped
  *   npm run elo-tournament -- --report             # no games: refit ratings.json and README.md
  *   npm run elo-tournament -- --agents a,b,c --modes domination --games 40 --workers 5
  *
@@ -17,8 +17,7 @@
  *   README.md      the method and the ranking tables
  * Nothing under data/ is written. The dashboard: npm run elo-dashboard.
  *
- * Agents: every models/<id>/model.json of kind greedy, greedy-full or random. LLM-backed and
- * external agents are left out (they cost money or need a local server).
+ * Agents: every models/<id>/model.json of kind greedy, greedy-full or random.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -145,7 +144,7 @@ function loadAgents(): { agents: Agent[]; policies: Record<string, Policy>; excl
       }
       policies[id] = { kind: isFull(w) ? "full" : "greedy", weights: w };
     } else {
-      excluded.push({ id, why: spec.kind === "llm" ? "LLM agent: needs a local model server" : spec.kind === "external" ? "external agent: every move is a paid model call" : `kind ${spec.kind}: the Rust engine cannot play it` });
+      excluded.push({ id, why: `kind ${spec.kind}: the Rust engine cannot play it` });
       continue;
     }
     agents.push({ id, kind: spec.kind, name: spec.name, created: spec.created });

@@ -1,7 +1,7 @@
 # Agent instructions
 
 This repository is worked on by Jakob and David, each with their own coding agents (Claude Code, Codex and
-others). These notes keep every agent coordinated. `CLAUDE.md` imports this file.
+others). These notes keep every agent coordinated. Claude Code reads this file directly (v2.1.277 or later), so there is no `CLAUDE.md`.
 
 ## Coordination between Jakob's and David's agents
 

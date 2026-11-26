@@ -1,74 +1,58 @@
 {
   "human:jakob": {
-    "rating": 1387.2,
-    "games": 2,
-    "wins": 2,
-    "updated": "2026-11-23T19:24:36.917Z",
-    "lo": 1256,
-    "hi": 1525
-  },
-  "model:claude-sonnet-agent": {
-    "rating": 1214.6,
+    "rating": 1341.8,
     "games": 1,
     "wins": 1,
-    "updated": "2026-11-23T17:31:38.740Z",
-    "lo": 1205,
-    "hi": 1283
+    "updated": "2026-11-23T19:24:36.917Z",
+    "lo": 1334,
+    "hi": 1470
   },
   "model:greedy-hill-v1": {
-    "rating": 1260.3,
+    "rating": 1204.9,
     "games": 473,
     "wins": 242,
     "updated": "2026-11-24T00:59:06.642Z",
-    "lo": 1225,
-    "hi": 1313
+    "lo": 1173,
+    "hi": 1257
   },
   "model:greedy-hill-v2": {
-    "rating": 1317,
+    "rating": 1261.7,
     "games": 491,
     "wins": 268,
     "updated": "2026-11-24T00:59:18.113Z",
-    "lo": 1282,
-    "hi": 1371
+    "lo": 1229,
+    "hi": 1311
   },
   "model:greedy-hill-v3": {
-    "rating": 1339.8,
+    "rating": 1284.7,
     "games": 375,
     "wins": 200,
     "updated": "2026-11-24T00:59:18.113Z",
-    "lo": 1303,
-    "hi": 1385
+    "lo": 1252,
+    "hi": 1332
   },
   "model:greedy-hill-v4": {
-    "rating": 1373.6,
+    "rating": 1318.3,
     "games": 486,
     "wins": 317,
     "updated": "2026-11-24T00:59:18.113Z",
-    "lo": 1324,
-    "hi": 1421
+    "lo": 1285,
+    "hi": 1364
   },
   "model:greedy-v1": {
-    "rating": 1201.9,
-    "games": 509,
-    "wins": 219,
+    "rating": 1146.9,
+    "games": 501,
+    "wins": 212,
     "updated": "2026-11-24T00:56:45.130Z",
-    "lo": 1160,
-    "hi": 1250
-  },
-  "model:qwen3-coder-lmstudio": {
-    "rating": 671.2,
-    "games": 13,
-    "wins": 3,
-    "updated": "2026-11-23T19:09:28.833Z",
-    "lo": 440,
-    "hi": 952
+    "lo": 1112,
+    "hi": 1190
   },
   "model:random-v1": {
-    "rating": 387.4,
-    "games": 392,
-    "wins": 1,
+    "rating": 192.3,
+    "games": 384,
+    "wins": 0,
     "updated": "2026-11-24T00:58:24.227Z",
-    "lo": 219,
-    "hi": 461
+    "lo": 163,
+    "hi": 230
   }
 }

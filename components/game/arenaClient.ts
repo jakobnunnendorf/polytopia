@@ -2,10 +2,10 @@
  * Talks to the local arena server (scripts/arena-server.ts, port 8091) on the
  * same host that serves the app, so it works from the phone over Wi-Fi too.
  * Every call fails soft: without the server the game still plays, it just
- * cannot record games, keep profiles or reach the local LLM.
+ * cannot record games or keep profiles.
  */
 import { Platform } from "react-native";
-import type { ChatFn, ModelSpec } from "@/logic/agents/types";
+import type { ModelSpec } from "@/logic/agents/types";
 import type { GameRecord } from "@/logic/arena/record";
 import type { RatingFilter, Ratings } from "@/logic/arena/elo";
 
@@ -131,8 +131,3 @@ export const arena = {
     call<{ file: string; deltas: number[]; ratings: Ratings }>("/api/games", { method: "POST", body: JSON.stringify(rec) }),
 };
 
-/** LLM calls go through the arena server, which can reach LM Studio on the Mac */
-export const serverChat: ChatFn = async (req) => {
-  const out = await call<{ content: string }>("/api/chat", { method: "POST", body: JSON.stringify(req) });
-  return out.content;
-};

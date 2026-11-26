@@ -1,6 +1,6 @@
 # Rust engine migration: progress
 
-Plan: docs/RUST_ENGINE_ROADMAP.md. Contract: engine/PORTING.md.
+Contract: engine/PORTING.md (deleted after the migration; in git history, commit bb6ed13). (The migration plan, docs/RUST_ENGINE_ROADMAP.md, was deleted once all seven done criteria below held; it is in git history.)
 Oracle (TypeScript engine the corpus was recorded from): commit 5d2846d (main, 2026-11-24 04:00).
 
 ## Done criteria
@@ -10,7 +10,7 @@ Oracle (TypeScript engine the corpus was recorded from): commit 5d2846d (main, 2
 | 1 | Corpus parity on >= 2,000 games | done | `polyengine replay corpus/full`: 2,000/2,000 games, 2,800,533/2,800,533 steps equal (legal actions in order, bot choice, state, log, observation every 25 steps), 0 oracle errors |
 | 2 | jest suite passes with the facade on Rust | done | `npx jest --ci`: 18/18 suites, 326/326 tests on Rust (39 s; 366 s on TypeScript). 11 tests that patched TS internals now use real units/opinion; 2 hypothetical cases (unit types the data has none of) removed with a comment |
 | 3 | >= 50x TS speed single-thread | done | scripts/rust/bench-compare.sh, 40 greedy bot games per setting, best of 3, 40/40 games identical to the oracle in every setting (M3 Pro, machine loaded by other jobs, load 24-36). One thread: 89x (11x11, 2 players), 61x (11x11, 4), 148x (16x16, 2), 131x (16x16, 4); against the idle TS baseline (3,450 actions/s) at least 57x. All 12 cores: 0.73-1.19 M actions/s, 333-737x one TS thread. See the table below |
-| 4 | scripts run on Rust with the same results | done | simulate 40/40 games identical to the oracle; train-hill/train-full 12/12 (check-play-games.ts) and a training run; arena 2/2 games step-identical; export-dataset 242/242 rows identical; elo runs |
+| 4 | scripts run on Rust with the same results | done | simulate 40/40 games identical to the oracle; train-hill/train-full 12/12 (check-play-games.ts, deleted; in git history at bb6ed13) and a training run; arena 2/2 games step-identical; export-dataset 242/242 rows identical; elo runs |
 | 5 | Python batched environment + smoke test | done | engine/py, `engine/py/.venv/bin/python engine/py/test_env.py` passes |
 | 6 | web app works, incl. replay in analyse.tsx | done | Chrome on `expo start --web`: home page, new game (map, fog, rider, move tiles), a move, end turn with the bot's reply, tech tree and research, analyse rankings, replay of a 4-player arena game stepped forward; no console errors. Fix needed for it: constants are fetched lazily in the browser (`engineConstant`), and the server-side render finds the addon from the working directory |
 | 7 | TS rules code deleted, thin facade | done | logic/engine 6,289 -> 1,899 lines; kept data.ts, types.ts, names.ts, rng.ts + rust.ts (loader), sync.ts; oracle = commit 5d2846d |

@@ -2,7 +2,7 @@ import { computeDamage } from "@/logic/engine/combat";
 import { TECHS, UNITS, techCostFor } from "@/logic/engine/data";
 
 describe("damage formula (wiki Combat page)", () => {
-  it("warrior vs full-health warrior on open ground: 5 damage, 5 back (RULES §3.1)", () => {
+  it("warrior vs full-health warrior on open ground: 5 damage, 5 back (docs/RULES.md §3.1)", () => {
     // retaliation uses the forces computed BEFORE the damage is applied
     const hit = computeDamage(2, 10, 10, 2, 10, 10, 1);
     expect(hit.damage).toBe(5);

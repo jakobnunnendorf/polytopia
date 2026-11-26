@@ -41,8 +41,8 @@ Do these in order, at the end of the task, before your final report:
    restored first (`git restore public/polyengine.wasm`).
 4. **The branch.** Local: `git branch -D <branch>` (after the check in step 3; `-d` gives a false "not fully
    merged", see below). On GitHub: `git push origin --delete <branch>` if it still exists
-   (`git ls-remote --heads origin <branch>`; GitHub often deletes it on merge) — **except `model/<id>`
-   branches, which stay on GitHub** (one branch per model); for those, delete the local branch only.
+   (`git ls-remote --heads origin <branch>`; GitHub often deletes it on merge). This holds for `model/<id>`
+   branches too: one branch per model is for iterating, not for keeping (Jakob, 26 Nov 2026).
 5. **Stashes you made:** look first (`git stash show --stat --include-untracked <ref>`); one that holds work
    not in `dev` is reported, not dropped. Otherwise drop it by its tag (see below), never by position: the
    stash list is shared by every worktree and session.
@@ -64,8 +64,8 @@ A pull request still open, or waiting for a human: keep its worktree and branch,
 
 ## Repo specifics
 
-- **`logs/` is not git-ignored**, and a few logs are tracked (experiment 12). Delete only the log files
-  you wrote, by name; never `rm logs/*`. An experiment's log belongs in `models/<id>/train.log`.
+- **`logs/` is git-ignored scratch** shared by every session's runs. Delete only the log files you wrote,
+  by name; never `rm logs/*`. An experiment's log is committed as `models/<id>/train.log`.
 - **Never delete a `models/` folder an experiment cites** under `runs` in `experiments/*/experiment.json`,
   even without a `model.json`: those are measurement records (`experiments/README.md`). The settings test
   fails on uncited folders without `model.json`, so a folder it accepts is a record.
@@ -103,5 +103,5 @@ gh pr list
 | `git branch -D` because `-d` refused | First `merge-base --is-ancestor ... origin/dev`; `-d` only compares with the current branch |
 | Removing a worktree with uncommitted run results | Commit the records first (`models/<id>/`, `train.log`) |
 | Leaving a dashboard or lecture server running after the task | Stop it, or name it in the report |
-| `rm logs/*.log` | Delete your own logs by name; some logs are tracked |
+| `rm logs/*.log` | Delete your own logs by name; other sessions' runs write there too |
 | Dropping `stash@{0}` | Drop by your tag; positions shift when others stash |
