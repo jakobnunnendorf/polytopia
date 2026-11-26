@@ -52,8 +52,8 @@ describe("Game setup: model picker", () => {
   const spec = (id: string, extra: Partial<ModelSpec> = {}): ModelSpec =>
     ({ id, name: id, kind: "greedy-full", description: "", created: "2026-11-25", ...extra }) as ModelSpec;
 
-  it("leaves out hidden and external models and puts the strongest first", () => {
-    const models = [spec("old", { hidden: true }), spec("weak"), spec("champ"), spec("cli", { kind: "external" }), spec("unrated")];
+  it("leaves out hidden models and puts the strongest first", () => {
+    const models = [spec("old", { hidden: true }), spec("weak"), spec("champ"), spec("unrated")];
     const overall = { "model:weak": { rating: 1200 }, "model:champ": { rating: 1900 }, "model:old": { rating: 2000 } } as unknown as Ratings;
     expect(pickerModels(models, overall).map((m) => m.id)).toEqual(["champ", "weak", "unrated"]);
   });
@@ -67,8 +67,7 @@ describe("Game setup: model picker", () => {
     // the board shows every seat on its starting region; tapping one opens it in the editor below
     fireEvent.press(screen.getByTestId("seat-1"));
     expect(screen.getByTestId("seat-1").props.accessibilityState).toEqual({ selected: true });
-    // offline: the built-in models; the qwen LLM is hidden
-    expect(screen.queryByTestId("model-card-qwen3-coder-lmstudio")).toBeNull();
+    // offline: the built-in models
     expect(screen.getAllByText("Random legal moves. The floor every model must beat.").length).toBeGreaterThan(0);
     fireEvent.press(screen.getAllByTestId("model-card-random-v1")[0]);
     expect(screen.getAllByTestId("model-card-random-v1")[0].props.accessibilityState).toEqual({ selected: true });

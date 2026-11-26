@@ -6,7 +6,6 @@ import { BUILTIN_MODELS } from "@/logic/agents/registry";
 
 export function seatLabel(seat: GameSummary["seats"][number]): string {
   if (seat.kind === "human") return seat.name;
-  if (seat.modelId === "claude-sonnet-agent") return "Claude Sonnet";
   // trained models live only on the arena server; name the hill climbers from their id
   return BUILTIN_MODELS.find((m) => m.id === seat.modelId)?.name ?? seat.modelId.replace(/^greedy-hill-v(\d+)$/, "Hill climber v$1");
 }

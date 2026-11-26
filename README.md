@@ -12,7 +12,7 @@ What is in the repository:
   and its list of actions, so every game can be replayed exactly.
 - **The game**, an Expo web app (`app/`, `components/`) with a map, fog of war, tech tree, bots,
   hot-seat play, an Analyse page (Elo rankings, game replay, live viewing).
-- **Bots and models** (`models/`): a hand-written greedy bot, a random bot, an LLM opponent,
+- **Bots and models** (`models/`): a hand-written greedy bot, a random bot,
   and bots whose scoring weights were tuned by hill climbing, evolution strategies and
   strength sweeps.
 - **The arena**: model-vs-model games, recordings, and an Elo leaderboard
@@ -66,7 +66,6 @@ each command does is said in the text or table next to the block. Words in angle
 | Google Chrome at `/Applications/Google Chrome.app` | lecture-note pictures | |
 | `tectonic` (`brew install tectonic`) | experiment report PDFs | |
 | Python 3 and numpy | the Python environment (optional) | Python 3.14 |
-| LM Studio (optional) | the LLM opponent | |
 
 The Rust and shell scripts assume macOS (the Node addon is a `.dylib`) and zsh.
 
@@ -148,7 +147,7 @@ a copy-on-write copy that costs almost nothing).
 ├── context/                React context
 ├── logic/                  TypeScript side of the game
 │   ├── engine/               thin facade over the Rust engine (call(name, args)), data tables, types
-│   ├── agents/               model specs turned into agents (greedy, full, random, llm)
+│   ├── agents/               model specs turned into agents (greedy, full, random)
 │   └── arena/                game records, Elo fit (elo.ts), SPRT (sprt.ts)
 ├── engine/                 Rust workspace (the rules of the game)
 │   ├── core/                 polycore: rules, bots, map generation, observation, canonical hash
@@ -165,7 +164,7 @@ a copy-on-write copy that costs almost nothing).
 │   ├── results.jsonl         one line per rated game
 │   └── profiles.json         human player profiles
 ├── scripts/                command-line tools (all run with `node -r sucrase/register`)
-│   ├── simulate.ts arena.ts play.ts elo.ts export-dataset.ts arena-server.ts
+│   ├── simulate.ts arena.ts elo.ts export-dataset.ts arena-server.ts
 │   ├── train-hill.ts train-full.ts train-es.ts sweep.ts train-dashboard.ts experiment-report.ts
 │   ├── arena-grid.sh relaunch-preview.sh
 │   ├── lib/                  store.ts (files), matches.ts, train-greedy.ts (shared trainer code)
@@ -275,7 +274,7 @@ A new decision mechanism touches, in this order: `FullWeights` in `engine/core/s
 |---|---|---|
 | 8081 | Expo dev server (default) | `npm run web` |
 | 8090 | the web game, cleared bundler cache | `zsh scripts/relaunch-preview.sh` |
-| 8091 | arena server: models, ratings, games, matches, LLM proxy | `npm run arena-server` (the script above starts it too) |
+| 8091 | arena server: models, ratings, games, matches | `npm run arena-server` (the script above starts it too) |
 | 8095 | training and experiment dashboard | `npm run train-dashboard` |
 | 8097 | lecture notes with the "explain the syntax" button | `/usr/bin/python3 lecture-notes/serve.py` |
 | 8099 | the scene page the lecture-note build photographs | started by the lecture-note build |
@@ -297,8 +296,8 @@ zsh scripts/relaunch-preview.sh
 same Wi-Fi, use `http://<mac LAN ip>:8090` (`ipconfig getifaddr en0`). The app is web only: Hermes
 has no WebAssembly, so iOS and Android builds show a notice.
 
-The arena server (`scripts/arena-server.ts`) is what lets the browser record games and reach
-LM Studio, because a browser can write neither into the repository nor to the local LLM. Its
+The arena server (`scripts/arena-server.ts`) is what lets the browser record games, because a
+browser cannot write into the repository. Its
 routes include `GET /api/models`, `/api/ratings` (with `?mode=&players=&size=&mapType=`),
 `/api/ratings/facets`, `/api/games`, `/api/games/<id>`, `POST /api/games`, `POST /api/matches`
 (a model-only game that runs on the server), and `GET /api/health`.
@@ -317,8 +316,6 @@ Every opponent is a folder `models/<id>/` with a `model.json`. The kinds:
 | `greedy` | scores each legal action with a hand-written heuristic (about 20 weights) | `weights`: overrides on top of `DEFAULT_WEIGHTS` in `logic/engine/bot.ts` |
 | `greedy-full` | the greedy bot plus a multiplier and an "open" knob per action type, one weight per tech, unit, build and city reward, and a centre pull (about 200 knobs) | `full`: overrides on top of `DEFAULT_FULL_WEIGHTS` in `logic/engine/botFull.ts` (`greedy`, `type`, `open`, `tech`, `unit`, `build`, ...) |
 | `random` | uniformly random legal moves, seeded per step so games replay | none |
-| `llm` | a local LLM through an OpenAI-compatible endpoint, shown a text summary and up to 24 ranked candidates | `llm.endpoint`, `llm.model`, `temperature`, `fallback` |
-| `external` | an agent playing through `npm run play` (for example a Claude subagent) | none, not selectable in the app |
 
 Agents only ever choose among `legalActions(state)`, so no model can play an illegal move.
 
@@ -337,12 +334,9 @@ A trained model's folder can also hold:
 A folder with only `sweep.jsonl` and `train.log` is a measurement record (a re-measure or a sweep
 whose best point was not kept); it has no `model.json`, so the app does not list a duplicate.
 
-To make a model by hand, copy a folder, change `id`, and set `weights` or `llm`. It appears in the
+To make a model by hand, copy a folder, change `id`, and set `weights` or `full`. It appears in the
 app's seat picker after a reload. A new kind of learned policy is a new `kind` in
 `logic/agents/registry.ts`.
-
-For the LLM model, LM Studio must be running with the model loaded:
-`~/.lmstudio/bin/lms load qwen3-coder-30b-a3b-instruct-mlx`.
 
 Naming: `greedy-hill-vN` (hill climbed greedy bot), `greedy-full-vN` (hill climbed full bot),
 `greedy-full-<mechanism>` (one experiment), `greedy-es-vN` (evolution strategies).
@@ -395,22 +389,6 @@ To rate one new model (its pairings, plus 40 games each in 1v1 perfection on 11x
 ```bash
 zsh scripts/arena-grid.sh greedy-hill-v4
 ```
-
-### One seat from a terminal: `play`
-
-For people and for agents (a Claude subagent, for instance). Opponents move automatically in
-between.
-
-Start a game, then ask for the position with its numbered legal moves (`state`), then play
-move `<n>` (`move`), after which the opponents move:
-
-```bash
-npm run play -- new --me claude-sonnet-agent --opponent greedy-v1 --size 11 --mode perfection
-npm run play -- state --game <id>
-npm run play -- move --game <id> <n>
-```
-
-The game is recorded like any other and rated when it ends.
 
 ### Replaying a recording
 
@@ -1104,7 +1082,6 @@ and SPRT tests; `__tests__/app/` the Analyse and home page tests.
 | a new knob never moves in training | it started at 0 and nudges are multiplicative: `--init knob=value` and `--focus knob` |
 | the dashboard shows no run | `--root` points at the wrong folder, or there is no checkpoint, log with a model, or sweep yet |
 | port already in use | find it with `lsof -ti tcp:<port>`; `relaunch-preview.sh` kills 8090 and 8091 itself |
-| LLM model plays like greedy-v1 | LM Studio is off or the model is not loaded; the model falls back to `greedy-v1` |
 | arena results differ between runs | the default `--seed` is time based; pass `--seed` to repeat a run |
 | Elo looks wrong after hand edits to `data/` | `npm run elo -- --rebuild` refits from every recorded game |
 
@@ -1119,7 +1096,7 @@ and SPRT tests; `__tests__/app/` the Analyse and home page tests.
 | `docs/shardlands/ARENA.md` | models, recordings, Elo, and the hill-climbing history (v1 to v4) |
 | `docs/shardlands/RL.md` | the engine API for RL: actions, observation planes, the Python environment |
 | `docs/shardlands/PLAN.md` | the original build plan and standing rules |
-| `docs/RUST_ENGINE_ROADMAP.md`, `engine/PROGRESS.md`, `engine/PORTING.md` | the Rust migration, its done criteria and the contract |
+| `engine/PROGRESS.md`, `engine/PORTING.md` | the finished Rust migration (done criteria with evidence) and the contract |
 | `docs/RULES_PARITY.md` | rule parity with the game |
 | `experiments/README.md` | the notebook format and report sections |
 | `.claude/skills/model-experiment/SKILL.md` | the experiment routine, verdict rules, common mistakes |

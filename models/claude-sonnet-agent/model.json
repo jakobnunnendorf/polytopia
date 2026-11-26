@@ -1,9 +1,0 @@
-{
-  "id": "claude-sonnet-agent",
-  "name": "Claude Sonnet (agent)",
-  "tagline": "Claude Sonnet playing through the command line.",
-  "kind": "external",
-  "description": "A Claude Sonnet subagent playing through the command line (npm run play): it reads the position and the numbered legal moves and answers with one number per call. Not selectable in the app; it plays only when an agent drives it.",
-  "hidden": true,
-  "created": "2026-11-23"
-}

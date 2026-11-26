@@ -111,7 +111,7 @@ export function readResults(): ResultRow[] {
 // elo/<date>/results.jsonl and ratings.json. Those games are not arena games (no recordings, no
 // rows in data/results.jsonl), so the leaderboard takes the bots' ratings from the newest
 // tournament directly: the same numbers as its README and dashboard. Both fits put greedy-v1 at
-// about 1200, so tournament bots and arena players (people, LLM agents) share one scale.
+// about 1200, so tournament bots and arena players (people) share one scale.
 const ELO = path.join(ROOT, "elo");
 type Tournament = { dir: string; mtime: number; at: string; meta: Meta; rows: PairRow[]; stored: { overall?: Fit; modes?: Record<string, Fit> } };
 let tournamentCache: Tournament | null = null;
@@ -164,7 +164,7 @@ export function tournamentRatings(f: RatingFilter): Ratings {
 }
 
 /**
- * The leaderboard for a filter. People, LLM agents and any bot the tournament has not played:
+ * The leaderboard for a filter. People and any bot the tournament has not played:
  * fitted on the arena games that match (no filter = the stored overall table). Bots of the newest
  * tournament: its ratings (marked source "tournament"), which replace their arena ratings.
  */

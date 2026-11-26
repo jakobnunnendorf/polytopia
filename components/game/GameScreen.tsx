@@ -30,7 +30,7 @@ import { rewardDescription } from "@/logic/engine/rewards";
 import type { MapType } from "@/logic/engine/mapgen";
 import type { Action, Difficulty, GameMode, GameState } from "@/logic/engine/types";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
-import { arena, serverChat } from "@/components/game/arenaClient";
+import { arena } from "@/components/game/arenaClient";
 import { BUILTIN_MODELS, DEFAULT_MODEL, createAgent } from "@/logic/agents/registry";
 import type { ModelSpec } from "@/logic/agents/types";
 import { finishRecord, latestState, recordStep, startRecord, type GameRecord, type Seat } from "@/logic/arena/record";
@@ -256,7 +256,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   useEffect(() => {
     arena
       .models()
-      .then((m) => m.length && setModels(m.filter((x) => x.kind !== "external")))
+      .then((m) => m.length && setModels(m))
       .catch(() => {});
   }, []);
   const agents = useMemo(
@@ -264,11 +264,10 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
       seats.map((seat) => {
         if (seat.kind !== "model") return null;
         const spec = models.find((m) => m.id === seat.modelId) ?? models.find((m) => m.id === DEFAULT_MODEL)!;
-        return createAgent(spec, serverChat, models);
+        return createAgent(spec);
       }),
     [seats, models],
   );
-  const [thinking, setThinking] = useState<string | null>(null);
 
   // hot-seat: whose eyes the map is drawn for. With several humans, the next one
   // has to tap "I'm here" first so nobody sees another player's fog.
@@ -292,7 +291,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     return ids;
   }, [actions, myTurn]);
 
-  // models play their turns; slow models (the LLM) redraw after every move
+  // models play their turns, one move at a time
   useEffect(() => {
     const agent = agents[state.current];
     if (state.over || !agent || paused) return;
@@ -301,7 +300,6 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     // every bot move takes the same time (thinking included), so it is pleasant to follow
     (async () => {
       await wait(300);
-      if (agent.spec.kind === "llm") setThinking(agent.spec.name);
       let n = 0;
       while (!cancelled && !stateRef.current.over && stateRef.current.current === p) {
         const t0 = Date.now();
@@ -312,7 +310,6 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
         setState(commit(a));
       }
       if (!cancelled) {
-        setThinking(null);
         setState(stateRef.current);
       }
     })();
@@ -721,7 +718,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
             <Button
               grow
               kind="primary"
-              label={myTurn ? "End Turn" : thinking ? `${thinking} is thinking${dots}` : `${seatName(state.current)} is moving${dots}`}
+              label={myTurn ? "End Turn" : `${seatName(state.current)} is moving${dots}`}
               testID="end-turn"
               disabled={!myTurn || rewardActions.length > 0}
               onPress={() => {

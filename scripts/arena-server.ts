@@ -1,6 +1,6 @@
 /**
  * Local arena server for the phone/web app (port 8091). The browser cannot
- * write into the repo or reach LM Studio on the Mac directly, so it talks to this:
+ * write into the repo directly, so it talks to this:
  *
  *   GET  /api/models            model specs from models/<id>/model.json
  *   GET  /api/profiles          human profiles      POST /api/profiles {name}
@@ -15,14 +15,12 @@
  *   POST /api/matches/<id>/resume   continue an unfinished model-only game
  *   GET|POST /api/matches/<id>/pace  read or set ms per move of a running game ({ms})
  *   POST /api/matches/<id>/stop     stop a model-only game (kept, not rated, never resumed)
- *   POST /api/chat              proxy an OpenAI-style chat call to the model's endpoint
  *
  *   node -r sucrase/register scripts/arena-server.ts      (started by relaunch-preview.sh)
  */
 import { spawn } from "node:child_process";
 import http from "node:http";
 import path from "node:path";
-import { directChat } from "../logic/agents/registry";
 import { liveWindow, type GameRecord } from "../logic/arena/record";
 import { createProfile, findGame, listGames, listModels, listProfiles, ratingFacets, ratingsFor, saveGame } from "./lib/store";
 import { isRunning, paceOf, resumeMatch, setPace, startMatch, stopMatch } from "./lib/matches";
@@ -137,11 +135,6 @@ const server = http.createServer(async (req, res) => {
       console.log(`saved ${out.file} (${rec.steps.length} steps${rec.result?.over ? ", rated" : ""})`);
       scheduleSync(3000);
       return send(res, 200, out);
-    }
-    if (req.method === "POST" && url === "/api/chat") {
-      const r = (await body(req)) as Parameters<typeof directChat>[0];
-      const content = await directChat(r);
-      return send(res, 200, { content });
     }
     send(res, 404, { error: "Unknown route" });
   } catch (e) {

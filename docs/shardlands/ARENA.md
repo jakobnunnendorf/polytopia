@@ -8,12 +8,9 @@ Every opponent is a model with a folder named after it. `model.json` holds its s
 |---|---|---|
 | `greedy-v1` | greedy | The bot that controlled every opponent until 2026-11-23. Scores each legal action with a hand-written heuristic and plays the best one. `policy.snapshot.ts` is a frozen copy of its source. |
 | `random-v1` | random | Random legal moves. The floor any model should beat. |
-| `qwen3-coder-lmstudio` | llm | Qwen3 Coder 30B through LM Studio (`http://localhost:1234/v1`). It gets a position summary and up to 24 numbered candidate moves, and answers with a number. It falls back to `greedy-v1` when LM Studio is off. |
-| `claude-sonnet-agent` | external | A Claude subagent playing through `npm run play`. It is not selectable in the app. |
 
 To make a new model, copy a folder, give it a new `id`, and change its spec:
 - **greedy:** set `weights` (any key of `GreedyWeights` in `logic/engine/bot.ts`).
-- **llm:** set `llm.endpoint` and `llm.model` (any OpenAI-compatible server).
 
 It shows up in the app's seat picker after a reload. A learned policy is a new `kind` in `logic/agents/registry.ts`.
 
@@ -27,7 +24,7 @@ With two or more people in a game, it becomes local hot-seat play. Between their
 
 ## Recordings (`data/games/YYYY-MM-DD/<id>.json.gz`)
 
-Every game is recorded automatically: games from the app, from `npm run arena` and from `npm run play`.
+Every game is recorded automatically: games from the app and from `npm run arena`.
 
 A record (`logic/arena/record.ts`) holds:
 - the options: seed, map, clans;
@@ -68,14 +65,10 @@ rebuilds the results file from all recordings and refits. Keys are `model:<id>` 
 ```bash
 npm run arena-server                      # the app's backend on :8091 (relaunch-preview.sh starts it)
 npm run arena -- --models greedy-v1,random-v1 --games 20       # models play each other, rotating seats
-npm run arena -- --models greedy-v1,qwen3-coder-lmstudio --games 2
+npm run arena -- --models greedy-v1,greedy-full-v1 --games 2
 npm run elo                               # leaderboard;  npm run elo -- --rebuild  recomputes from all games
 npm run export-dataset -- --out data/datasets/all.jsonl [--only-humans]   # one line per decision: obs, legal, action, outcome
-npm run play -- new --me claude-sonnet-agent --opponent qwen3-coder-lmstudio   # play one seat from a terminal or agent
-npm run play -- move --game <id> <n>
 ```
-
-For the LLM model, LM Studio must be running with the model loaded: `~/.lmstudio/bin/lms load qwen3-coder-30b-a3b-instruct-mlx`.
 
 ## Learning bots: hill climbing (`scripts/train-hill.ts`)
 

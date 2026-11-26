@@ -267,12 +267,12 @@ function TribeNote({ clan }: { clan?: string }) {
 }
 
 /**
- * the models the picker offers: no external players, no superseded (hidden) models, strongest first by
+ * the models the picker offers: no superseded (hidden) models, strongest first by
  * overall Elo, so a new model seat starts with the champion
  */
 export function pickerModels(models: ModelSpec[], overall: Ratings): ModelSpec[] {
   const elo = (m: ModelSpec) => overall[`model:${m.id}`]?.rating ?? -Infinity;
-  return models.filter((m) => m.kind !== "external" && !m.hidden).sort((a, b) => elo(b) - elo(a));
+  return models.filter((m) => !m.hidden).sort((a, b) => elo(b) - elo(a));
 }
 
 export default function Settings() {
@@ -429,7 +429,7 @@ export default function Settings() {
       )}
       {online === false && (
         <Text style={{ color: UI.coral, fontSize: 13, lineHeight: 18, marginTop: 4 }}>
-          The arena server is not running, so this game will not be recorded or rated and the local LLM is unreachable.
+          The arena server is not running, so this game will not be recorded or rated.
           Start it with npm run arena-server.
         </Text>
       )}

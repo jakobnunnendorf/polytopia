@@ -122,16 +122,7 @@
    "created": "2026-11-23"
   }
  ],
- "excluded": [
-  {
-   "id": "claude-sonnet-agent",
-   "why": "external agent: every move is a paid model call"
-  },
-  {
-   "id": "qwen3-coder-lmstudio",
-   "why": "LLM agent: needs a local model server"
-  }
- ],
+ "excluded": [],
  "setups": {
   "perfection": {
    "players": 4,
@@ -176,14 +167,6 @@
   }
  },
  "previous": {
-  "claude-sonnet-agent": {
-   "rating": 1214.6,
-   "games": 1,
-   "wins": 1,
-   "updated": "2026-11-23T17:31:38.740Z",
-   "lo": 1205,
-   "hi": 1283
-  },
   "greedy-hill-v1": {
    "rating": 1260.3,
    "games": 473,
@@ -223,14 +206,6 @@
    "updated": "2026-11-24T00:56:45.130Z",
    "lo": 1160,
    "hi": 1250
-  },
-  "qwen3-coder-lmstudio": {
-   "rating": 671.2,
-   "games": 13,
-   "wins": 3,
-   "updated": "2026-11-23T19:09:28.833Z",
-   "lo": 440,
-   "hi": 952
   },
   "random-v1": {
    "rating": 387.4,

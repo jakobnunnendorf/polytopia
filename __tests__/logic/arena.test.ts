@@ -4,7 +4,6 @@ import { botStep } from "../../logic/engine/bot";
 import { finishRecord, latestState, liveWindow, recordStep, replayStates, slimRecord, startRecord, type GameRecord } from "../../logic/arena/record";
 import { facets, matchesFilter, rate, rebuild, resultRow, START_RATING, type ResultRow } from "../../logic/arena/elo";
 import { BUILTIN_MODELS, createAgent } from "../../logic/agents/registry";
-import { candidates, parseChoice } from "../../logic/agents/llm";
 
 function playRecorded(seed: number, maxTurns = 12): GameRecord {
   let s = createGame({ mapSize: 11, players: 2, mode: "perfection", seed, humans: [] });
@@ -153,26 +152,10 @@ describe("agents", () => {
   const s = createGame({ mapSize: 11, players: 2, mode: "perfection", seed: 3, humans: [] });
   it("every built-in model returns a legal action", async () => {
     for (const spec of BUILTIN_MODELS) {
-      const agent = createAgent(spec, async () => {
-        throw new Error("no LLM in tests");
-      });
+      const agent = createAgent(spec);
       const a = await agent.act(s);
       expect(a).toBeTruthy();
       applyAction(s, a); // throws on an illegal action
     }
-  });
-  it("the LLM menu starts with end turn and parses the chosen number", () => {
-    const menu = candidates(s, 24);
-    expect(menu[0].type).toBe("endTurn");
-    expect(menu.length).toBeLessThanOrEqual(24);
-    expect(parseChoice("<think>maybe 9</think> 2", menu.length)).toBe(2);
-    expect(parseChoice("I pick move 99", 5)).toBeNull();
-  });
-  it("an LLM answer picks that menu entry", async () => {
-    const spec = BUILTIN_MODELS.find((m) => m.kind === "llm")!;
-    const agent = createAgent(spec, async () => "1");
-    const a = await agent.act(s);
-    expect(JSON.stringify(a)).toBe(JSON.stringify(candidates(s, spec.llm!.maxCandidates ?? 24)[1]));
-    expect(agent.stats!.byModel).toBe(1);
   });
 });

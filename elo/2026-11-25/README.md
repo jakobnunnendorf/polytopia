@@ -21,8 +21,6 @@ Every bot model against every other, in every game mode, in the Rust engine. 145
 | domination | 4 | 16x16 | drylands | 150 | 200 | 34200 |
 | creative | 8 | 20x20 | drylands | 150 | 50 | 8550 |
 
-Left out: claude-sonnet-agent (external agent: every move is a paid model call); qwen3-coder-lmstudio (LLM agent: needs a local model server).
-
 ## Rating by mode
 
 Rating, with the place in that mode in brackets. Every column is its own fit with greedy-v1 at 1200: compare places and gaps across columns, not levels.
