@@ -69,7 +69,7 @@ export default function AnalyseScreen() {
   }, [id, live]);
 
   return (
-    <ImageBackground source={require("@/assets/images/menu-background.webp")} resizeMode="cover" style={{ flex: 1, backgroundColor: UI.dusk }}>
+    <ImageBackground source={require("@/assets/images/menu-background.webp")} resizeMode="cover" style={{ flex: 1, backgroundColor: UI.dusk, overflow: "hidden" }} imageStyle={{ width: "100%", height: "100%" }}>
       <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#16213a99" }} />
       {id && rec ? (
         <WatchView rec={rec} live={live} />

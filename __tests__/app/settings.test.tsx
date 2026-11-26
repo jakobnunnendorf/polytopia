@@ -26,8 +26,8 @@ describe("Game setup: Perfection difficulty bonus", () => {
     expect(bonus()!.props.children).toBe("Difficulty bonus: 120%");
     fireEvent.press(screen.getByTestId("difficulty-crazy"));
     expect(bonus()!.props.children).toBe("Difficulty bonus: 180%");
-    fireEvent.press(screen.getByTestId("add-seat"));
-    fireEvent.press(screen.getByTestId("add-seat"));
+    fireEvent.press(screen.getByTestId("players-more"));
+    fireEvent.press(screen.getByTestId("players-more"));
     // three opponents on Crazy
     expect(bonus()!.props.children).toBe("Difficulty bonus: 210%");
     fireEvent.press(screen.getByTestId("difficulty-easy"));

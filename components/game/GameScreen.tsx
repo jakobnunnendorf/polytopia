@@ -515,7 +515,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
   const watchRec = useMemo(() => (spectate ? { ...recRef.current } : null), [spectate, state]);
   if (spectate && watchRec) {
     return (
-      <ImageBackground source={require("@/assets/images/menu-background.webp")} resizeMode="cover" style={{ flex: 1, backgroundColor: UI.dusk }}>
+      <ImageBackground source={require("@/assets/images/menu-background.webp")} resizeMode="cover" style={{ flex: 1, backgroundColor: UI.dusk, overflow: "hidden" }} imageStyle={{ width: "100%", height: "100%" }}>
         <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#16213a99" }} />
         <WatchView
           rec={watchRec}
@@ -538,7 +538,7 @@ export default function GameScreen({ resumed }: { resumed?: GameRecord } = {}) {
     <ImageBackground
       source={require("@/assets/images/menu-background.webp")}
       resizeMode="cover"
-      style={{ flex: 1, backgroundColor: UI.dusk }}
+      style={{ flex: 1, backgroundColor: UI.dusk, overflow: "hidden" }} imageStyle={{ width: "100%", height: "100%" }}
     >
       {/* a dusk veil calms the busy landscape so the map stays the focus */}
       <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "#16213a66" }} />
