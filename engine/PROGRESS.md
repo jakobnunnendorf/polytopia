@@ -1,6 +1,6 @@
 # Rust engine migration: progress
 
-Plan: docs/RUST_ENGINE_ROADMAP.md. Contract: engine/PORTING.md.
+Contract: engine/PORTING.md. (The migration plan, docs/RUST_ENGINE_ROADMAP.md, was deleted once all seven done criteria below held; it is in git history.)
 Oracle (TypeScript engine the corpus was recorded from): commit 5d2846d (main, 2026-11-24 04:00).
 
 ## Done criteria
