@@ -309,6 +309,44 @@ describe("naval units", () => {
     expect(unit(s, r.id)).toMatchObject({ x: 5, y: 6, type: "warrior", carried: null, done: true });
   });
 
+  // swimming super units advance like the ships that carry a unit
+  it("a Juggernaut that kills a unit on the shore lands as its Giant and stomps", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing");
+    tile(s, 5, 5).terrain = "water";
+    const j = put(s, "juggernaut", 0, 5, 5);
+    j.carried = "giant";
+    const e = put(s, "warrior", 1, 5, 6);
+    e.hp = 1;
+    const n = put(s, "warrior", 1, 5, 7);
+    s = applyAction(s, { type: "attack", unitId: j.id, targetId: e.id });
+    expect(unit(s, j.id)).toMatchObject({ x: 5, y: 6, type: "giant", carried: null, done: true });
+    expect(s.units.find((u) => u.id === n.id)?.hp ?? 0).toBeLessThan(10);
+  });
+
+  it("a Crab (amphibious super unit) that kills a unit on the shore moves in as a Crab", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing");
+    tile(s, 5, 5).terrain = "water";
+    const c = put(s, "crab", 0, 5, 5);
+    const e = put(s, "warrior", 1, 5, 6);
+    e.hp = 1;
+    s = applyAction(s, { type: "attack", unitId: c.id, targetId: e.id });
+    expect(unit(s, c.id)).toMatchObject({ x: 5, y: 6, type: "crab" });
+  });
+
+  it("a Shark (a ship with no passenger) that kills a unit on the shore stays on the water", () => {
+    let s = blank();
+    s.players[0].techs.push("fishing", "sailing");
+    tile(s, 5, 5).terrain = "water";
+    const sh = put(s, "shark", 0, 5, 5);
+    const e = put(s, "warrior", 1, 5, 6);
+    e.hp = 1;
+    s = applyAction(s, { type: "attack", unitId: sh.id, targetId: e.id });
+    expect(s.units.find((u) => u.id === e.id)).toBeUndefined();
+    expect(unit(s, sh.id)).toMatchObject({ x: 5, y: 5, type: "shark" });
+  });
+
   it("a Scout (ranged, it shoots) that kills a unit next to it stays on the water", () => {
     let s = blank();
     s.players[0].techs.push("fishing", "sailing");
