@@ -4,8 +4,8 @@
 //! The candidate and the base each play seat 0 of the same N evaluation seeds (Perfection, 16x16 Continents,
 //! learner tribe fixed, opponents' tribes fixed per seed). The opponent seats are filled from an opponent list, by
 //! default (Jakob, 25 Nov 2026) the current champion (registry[0] of docs/rl-project/champions.json, the base being
-//! challenged), the previous champion (registry[1]) and the frozen greedy champion `greedy-full-probe` (the anchor,
-//! never changes), shuffled over the seats per seed by a seed-derived permutation that is the same for candidate and base. For each
+//! challenged), the previous champion (registry[1]) and the frozen greedy champion `greedy-full-probe-perf` (the anchor,
+//! never changes; greedy-full-probe until 26 Nov 2026), shuffled over the seats per seed by a seed-derived permutation that is the same for candidate and base. For each
 //! seed d = score(candidate) - score(base) of seat 0's final raw Perfection score (`score_of`). Seat 0 is created as
 //! the game's only human seat (`humans: [0]`): it gets the human capital income (+1 star) instead of the
 //! difficulty's bot bonus, as in the real app, and the game ends when it is eliminated. N is fixed in advance:
@@ -158,10 +158,11 @@ const REGISTRY: &str = "docs/rl-project/champions.json";
 /// the base being challenged, and the previous champion).
 const REGISTRY_OPPONENTS: usize = 2;
 /// The third opponent: the frozen greedy champion (app-like, uses the engine's relation model). It never changes,
-/// whatever the registry says (Jakob, 25 Nov 2026).
-const ANCHOR: &str = "greedy-full-probe";
+/// whatever the registry says (Jakob, 25 Nov 2026). Since 26 Nov 2026 (Jakob, #166, before the first RL iteration)
+/// it is greedy-full-probe tuned for Perfection on Crazy (experiment 17); greedy-full-probe before that.
+const ANCHOR: &str = "greedy-full-probe-perf";
 /// The anchor's label in outputs, so its seat can be told apart from a registry entry with the same model.
-const ANCHOR_LABEL: &str = "greedy-full-probe (anchor)";
+const ANCHOR_LABEL: &str = "greedy-full-probe-perf (anchor)";
 /// Opponents in the default list: registry[0], registry[1], anchor.
 const OPPONENT_COUNT: usize = REGISTRY_OPPONENTS + 1;
 
@@ -735,9 +736,9 @@ const USAGE: &str = "usage:
 Gate: seat 0 (the learner) is the human seat. The opponent seats are filled from --opp (one entry: every seat;
 several: repeated to fill the seats and shuffled per seed, identically for candidate and base); without --opp,
 the current and previous champion (top two of docs/rl-project/champions.json) and the fixed anchor
-greedy-full-probe. After the gate an information-only
+greedy-full-probe-perf. After the gate an information-only
 run with 15 opponents (16 players, seeds from 1500000000) follows; it never changes the verdict or exit code.
-Benchmark (report only): the model against copies of greedy-full-probe, 3 (and 15) opponents, appended to
+Benchmark (report only): the model against copies of greedy-full-probe-perf, 3 (and 15) opponents, appended to
 docs/rl-project/progress.csv. Promote: after a PASS, put the candidate at the top of the registry.
 Exit code: gate 0 = PASS, 1 = FAIL, 2 = error; benchmark and promote 0 = done, 2 = error.";
 

@@ -1513,9 +1513,9 @@ mod tests {
     }
 
     /// play_hash of greedy-full-combo over seeds 11, 22, 33 for 60 rounds, recorded on dev
-    /// (before the merge of #143) without the value field, re-recorded when a melee ship that kills on the shore lands there;
-    /// re-record it when the engine's rules change
-    const COMBO_GOLDEN: (u64, usize) = (0x41193633dcbbcd5e, 8721);
+    /// (before the merge of #143) without the value field, re-recorded when a melee ship that kills on the shore lands there and when an upgraded Raft
+    /// may attack in the turn of the upgrade; re-record it when the engine's rules change
+    const COMBO_GOLDEN: (u64, usize) = (0xdf3852a243d606fb, 8715);
 
     /// the states full_bot_step visits on `seed` below `rounds` with `w`
     fn visited(seed: i64, rounds: i32, w: &FullWeights) -> Vec<GameState> {

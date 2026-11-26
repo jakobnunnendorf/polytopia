@@ -1,0 +1,128 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- TEMPLATE
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+% WHEN: before the first run. WHO: Jakob states the idea in his words; Claude turns it into a prediction.
+% Keep the prediction falsifiable: which number should move, in which direction, by about how much.
+Jakob, 26 Nov 2026: ``I think we should use the current bots as they are as base version and then
+just fine tune on top for perfection. They are already good at domination and there is some carry
+over to perfection but perfection will need some adjustments due to the turn limit and objective
+difference so finetuning is the way to go. However, we should only fine tune the ones in our gate
+for now.'' The proposal came from David (\#166, 26 Nov): every greedy model was tuned only in
+Domination on Drylands, and probe tuning even cut \texttt{type.research} to 0.535, while in
+Perfection every tech adds score.
+
+Prediction (written before the runs): each tuned model beats its base head to head in Perfection
+with a share of points of at least 52\% in the 400-game final test, and \texttt{type.research}
+rises above its base value (probe: 0.535). A share below 50.5\% for both runs, or a research
+weight that falls, counts against the idea that Domination tuning is what holds the bots back in
+Perfection.
+
+\section{Mechanism}
+No new mechanism and no code change. Only the training setup changes: \texttt{--mode perfection
+--map-type continents --difficulty crazy --metric share} instead of Domination, Drylands, Normal
+and the finish score. All knobs are free to move under the perturbation probe (experiment 12).
+The trainer had no difficulty option: no greedy model had ever played Crazy (+4 capital income
+for bots). The new \texttt{--difficulty} flag (\texttt{scripts/lib/train-greedy.ts}) passes it to
+\texttt{createGame}; every trainer seat is a bot, so all seats get the bonus, as the gate's
+opponent seats do. Check: 20 seeds, probe against itself, mean total score 32,979 on Normal and
+41,684 on Crazy.
+
+\section{Setup}
+Two runs from the gate's greedy models (\texttt{docs/rl-project/champions.json}): the champion
+\texttt{greedy-full-probe} (also the frozen anchor, which itself stays unchanged) and the previous
+champion \texttt{greedy-full-combo}. Each: 100k games, rounds of 10k, $\sigma = 0.25$, $z = 3$,
+step 0.5, 5 workers. The league is the gate's opponent set (probe, combo) instead of the
+Domination league, so the bot is tuned against the opponents it meets in the gate. Panel: the
+fixed six plus probe and combo, all in Perfection; means are compared on the fixed six. The
+trainer plays two bot sides on alternating seats with no human seat, so a tuned model is checked
+afterwards on the rl-gate setup (Crazy, learner in the human seat). The base row at round 0 of each
+curve is the control: the change is the training mode, so a run without it would only repeat
+experiment 12.
+
+The check afterwards: \texttt{npm run rl:gate -- --candidate <id> --base greedy-full-probe
+--no-info15} (10k seeds from $10^9$). The reference gates of the untuned models against probe are
+in \texttt{gate-ref/} (session ``rl project plan'', 26 Nov): base probe mean 6,706, p10 1,425,
+win 2.8\%; combo $-415$ (40.9\% of seeds better), economy $-752$, all FAIL. The trainer ranks by the
+share of points, while the gate scores seat 0's raw score; a model could raise its share by keeping
+opponents small rather than by scoring more, so the gate decides.
+
+\section{Results}
+% WHEN: after the runs. The tables and plots below are generated from the measured data; add two to four sentences that read them.
+\ExpResults
+
+Both runs finished their 100k games (probe 1h22m, combo 1h18m; 34 and 65 knob steps). In the
+400-game final test against its own base, \texttt{greedy-full-probe-perf} won 56\% $\pm$ 5 with 53.6\%
+of the points, and \texttt{greedy-full-combo-perf} won 63\% $\pm$ 5 with 56.7\%. Against probe, combo-perf
+went from 36\% won and 42.2\% of the points (round 0 of its curve) to 52\% and 51.3\%. The 8-model panel
+curve rose from 71.5\% to 72.4\% (probe run) and from 68.1\% to 71.8\% (combo run).
+
+The deciding check is \texttt{rl-gate} on the gate setup (Crazy, learner in the human seat, 10{,}000
+seeds, old anchor \texttt{greedy-full-probe}), JSONs in \texttt{gate/}:
+
+\begin{center}
+\begin{tabular}{lrrrrl}
+candidate vs probe & mean & $\bar d$ (99\% bounds) & better share & p10 & verdict \\ \hline
+greedy-full-probe (base) & 6706 & -- & -- & 1425 & -- \\
+greedy-full-probe-perf & 6882 & $+176$ ($+127$, $+225$) & 53.5\% & 1435 & PASS \\
+greedy-full-combo-perf & 6722 & $+16$ ($-24$, $+56$) & 50.4\% & 1420 & FAIL \\
+greedy-full-combo (untuned, gate-ref) & & $-415$ & 40.9\% & & FAIL \\
+\end{tabular}
+\end{center}
+
+Win rates: probe-perf 3.4\%, combo-perf 3.2\%, probe 2.8\%.
+
+\section{Behaviour}
+The behaviour metric is where the research knobs went. Against the prediction, \texttt{type.research}
+fell in both runs, to 0.417 (probe from 0.535, combo from 1.0). What rose is the choice of tech:
+\texttt{tech.philosophy} 3.82 $\to$ 5.56 (probe) and 2.05 $\to$ 4.91 (combo), \texttt{tech.meditation} up in
+both; the combo run also raised the flat research bonus \texttt{greedy.research} from 27.6 to 35.4,
+probe's value. Both runs lowered \texttt{centre} (the pull to the middle of the map) and raised
+\texttt{greedy.special}, \texttt{moveNoise} and \texttt{plan}. Combo moved towards probe's values and then on in the
+same directions: 30 knobs differ from combo's start, 25 from probe's.
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\section{Interpretation}
+Domination tuning held both bots back in Perfection, combo by about 430 points per game on the gate
+and probe by about 180. The prediction held for the head-to-heads (53.6\% and 56.7\% of the points, both
+above 52\%) but not for the research weight: Perfection wants different techs (philosophy, meditation),
+not more research of any kind. ``Research $\times2$ every turn'' (experiment 15) may have worked partly
+because more research also buys these techs. Two tunings from different starts moved the same knobs the
+same way, which makes the direction more credible than one run alone.
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\begin{itemize}
+\item The trainer has no human seat and ranks by share of points; the gate scores seat 0's raw score
+  in the human seat. The gate check covers this for the two final models but not for the path between.
+\item One run per base: no control run with a different seed, so part of each knob step may be noise
+  (a knob moves at $|z| \ge 3$ among 205 knobs, about one false step per round by chance).
+\item The league was the two gate models only, so the tuned bots may be fitted to those opponents; the
+  15-opponent information run of the gate is the check for that.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Kept}: \texttt{greedy-full-probe-perf} passes the gate against the champion (head-to-head rule
+and gate PASS). Jakob, 26 Nov 2026 (\#166): it becomes the champion \emph{and} the frozen anchor
+(\texttt{ANCHOR} in \texttt{engine/gate/src/main.rs}), and \texttt{greedy-full-combo-perf} the previous champion,
+by his decision rather than a gate PASS, so that both opponent seats besides the anchor are tuned for
+Perfection. Iteration 0 of the RL project is: learner RL v1, champion probe-perf, previous champion
+combo-perf, anchor probe-perf. Jakob's pass rule (26 Nov): an RL version only has to beat the previous RL
+version (v1 enters by decision); these greedy opponents stay until an RL version passes the gate against
+probe-perf, and the anchor never changes (\texttt{docs/rl-project/README.md}, ``RL versions and the opponent list'').
+Baseline of iteration 0 (\texttt{gate/gate-greedy-full-probe-vs-greedy-full-probe-perf-n10000.json}, the new
+opponents probe-perf, combo-perf and the anchor probe-perf): the learner's base probe-perf scores mean 6839,
+median 8113, p10 1420, win rate 3.1\%; untuned probe scores $-162$ against it (99\% bounds $-212$,
+$-111$; FAIL), the mirror of the PASS above. With 15 opponents (information only) probe-perf scores mean
+2679, median 1195. Next: the RL tracks re-run their baselines on probe-perf as the learner's base bot.
+
+\section{Notes for the paper}
+Draft claim: ``Tuning the greedy baseline for the evaluation mode was worth 180--430 points per game
+before any learning; we report RL gains against this tuned baseline.'' Carried by the gate table above.
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

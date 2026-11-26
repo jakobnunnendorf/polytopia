@@ -1,0 +1,19 @@
+
+> polytopia@1.0.0 sweep
+> node -r sucrase/register scripts/sweep.ts --id greedy-full-peacebreak-final --from greedy-full-peacebreak --metric finish --games 2 --workers 8
+
+sweep from greedy-full-peacebreak: 0 points + base, 2 games against each of greedy-v1, greedy-hill-v1, greedy-hill-v2, greedy-hill-v3, greedy-hill-v4, greedy-full-v1
+point  base                         | greedy 100% won, 76.3% pts (+191)  v1 100% won, 76.8% pts (+191)  v2 100% won, 81.9% pts (+191)  v3 100% won, 72.6% pts (+191)  v4 100% won, 75.2% pts (+191)  full-v1 50% won, 56.2% pts (+0)  | mean 92% won, 73.2% pts, finish 81.0%, conquest 75%, 62 turns
+
+best: base, mean 81.0% finish (base 81.0%)
+
+final (400 unseen games against each):
+  vs greedy-v1        won  96% ± 2%  (+541 Elo)  points 77.9%  finish 87.7%  conquest 90%  54 turns
+  vs greedy-hill-v1   won  91% ± 3%  (+407 Elo)  points 73.6%  finish 82.2%  conquest 80%  63 turns
+  vs greedy-hill-v2   won  95% ± 2%  (+494 Elo)  points 75.0%  finish 84.8%  conquest 83%  65 turns
+  vs greedy-hill-v3   won  91% ± 3%  (+407 Elo)  points 72.3%  finish 83.4%  conquest 84%  61 turns
+  vs greedy-hill-v4   won  88% ± 3%  (+342 Elo)  points 69.8%  finish 77.9%  conquest 71%  72 turns
+  vs greedy-full-v1   won  57% ± 5%  (+47 Elo)  points 54.7%  finish 56.7%  conquest 52%  63 turns
+changed against greedy-full-peacebreak: base
+saved models/greedy-full-peacebreak-final/model.json and sweep.jsonl
+sweep took 29s

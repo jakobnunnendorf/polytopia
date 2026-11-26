@@ -39,12 +39,15 @@ npm run rl:gate -- --candidate <model id or path> --base <model id or path> --ou
   - **Opponents (Jakob, 25 Nov 2026, "generalisation built in by having different models in each game"):** the
     three opponent seats are (1) the **current champion** (entry 0 of the champions registry, i.e. the base being
     challenged), (2) the **previous champion** (entry 1) and (3) the **frozen greedy champion
-    `greedy-full-probe`**, the anchor (app-like, uses the engine's relation model; it never changes, whatever the
-    registry says). Per seed the three are assigned to seats 1..3 by a seed-derived permutation (Fisher-Yates
+    `greedy-full-probe-perf`**, the anchor (app-like, uses the engine's relation model; it never changes, whatever the
+    registry says). It was `greedy-full-probe` until 26 Nov 2026; Jakob switched it to the Perfection-tuned
+    `greedy-full-probe-perf` (experiment 17) before the first RL iteration, so gate and benchmark numbers from
+    before that day used the old anchor. Per seed the three are assigned to seats 1..3 by a seed-derived permutation (Fisher-Yates
     from `splitmix64(seed ^ SEAT_STREAM)`, a stream separate from the tribes), computed once per seed and used for
     both candidate and base, so the pairing stays exact. Each per-seed row records its seating (`opponents`), the
-    JSON records the list (`opp`, `setup.opponents`, `opponentSource`). Until an RL version is promoted, entry 0 is
-    `greedy-full-probe` and entry 1 is `greedy-full-combo`, so two seats are `greedy-full-probe`.
+    JSON records the list (`opp`, `setup.opponents`, `opponentSource`). Since 26 Nov 2026 entry 0 is
+    `greedy-full-probe-perf` and entry 1 `greedy-full-combo-perf` (both tuned for Perfection in experiment 17).
+    They stay the opponents until an RL version beats the greedy champion; see "RL versions and the opponent list".
   - `--opp a,b,c` overrides the list (one entry: every seat that opponent, as before; several: repeated to fill
     the seats and shuffled per seed). Use it only for diagnostics; a gate verdict uses the default.
   - The **learner seat counts as human**: the gate creates every game with `humans: [0]`, so seat 0 gets the
@@ -119,6 +122,35 @@ same numbers as the gate (sign test, better/worse/equal, mean/median/p10/p90/bes
 in the JSON block **`info15`** (`informationOnly: true`; what the rule would say is `ruleWouldSay`, not `verdict`).
 **It never decides and never changes the exit code**; if it fails, the gate's verdict stands and `info15.error`
 says why. The experiment report records both the 3-opponent verdict and the 15-opponent information numbers.
+
+### RL versions and the opponent list (Jakob, 26 Nov 2026)
+
+The project is about the RL agents improving on themselves; the greedy bots are a sanity check and a baseline,
+not a bar the RL agents must clear (Jakob: "neither have to beat the greedy bots"). Two lists follow from that:
+
+- **The RL line** (`rlLine` in `champions.json`), the pass rule. **RL v1** enters by decision once it plays
+  complete games without errors; its numbers against the greedy base are reported, not required. **Every later
+  version** must pass `rl-gate` with `--base` = the current head of the RL line (v2 against v1, v3 against v2, and
+  so on). A greedy model is never the base of an RL pass decision.
+- **The opponent list** (`champions` in `champions.json`, entries 0 and 1 fill the champion and
+  previous-champion seats). It stays greedy (`greedy-full-probe-perf`, `greedy-full-combo-perf`) while the RL
+  agents are weaker. Every new head of the RL line also gets a gate run with `--base` = the opponent list's entry 0
+  (information only). The **first time that run is a PASS**, that RL version is promoted onto the opponent list
+  (it takes the champion seat, the greedy champion moves to the previous-champion seat). From then on each new
+  head of the RL line is promoted onto the opponent list too, so the seats are: newest RL, the RL before it, anchor.
+- **The anchor** `greedy-full-probe-perf` never changes, so every game keeps at least one greedy bot.
+
+| Phase | Champion seat | Previous-champion seat | Anchor |
+| --- | --- | --- | --- |
+| RL weaker than greedy (from 26 Nov) | greedy-full-probe-perf | greedy-full-combo-perf | greedy-full-probe-perf |
+| RL vK first passes vs the greedy champion | RL vK | greedy-full-probe-perf | greedy-full-probe-perf |
+| Every RL version after that | newest RL | the RL before it | greedy-full-probe-perf |
+
+When the opponent list changes, the environment changes: scores before and after are not directly comparable.
+At each such switch, re-run the greedy baseline (`--candidate greedy-full-probe-perf`) on the new opponents and
+record it, so the progress curve stays readable. Two pieces of `rl-gate` are still to build: playing an RL policy
+as candidate and base (needed for v2 against v1), and as an opponent (needed only once an RL version enters the
+opponent list); `promote` gets a target for the RL line and the "v1 by decision" case with the first of them.
 
 ### Champions registry and promotion
 
