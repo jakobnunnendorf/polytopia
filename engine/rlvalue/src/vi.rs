@@ -25,6 +25,9 @@ pub enum Driver {
     Fixed(usize),
     /// the action of a value-iteration policy; action 0 in a state it has no entry for
     Policy(HashMap<State, u8>, String),
+    /// the policy's action, but with probability eps a uniformly random action instead (fixed by seed and turn, a
+    /// stream separate from `Random`): the data of a round of play and refit (experiment 22)
+    EpsPolicy(HashMap<State, u8>, String, f64),
 }
 
 impl Driver {
@@ -40,7 +43,17 @@ impl Driver {
                 Driver::Fixed(k)
             }
             _ if s.starts_with("policy:") => Driver::Policy(read_table(&s[7..])?.1, s[7..].to_string()),
-            _ => return Err(format!("--driver {s:?}: bot, random, fixed:K or policy:<file>")),
+            _ if s.starts_with("eps:") => {
+                // eps:<eps>:<policy file>
+                let rest = &s[4..];
+                let (e, f) = rest.split_once(':').ok_or(format!("--driver {s:?}: eps:<eps>:<policy file>"))?;
+                let eps: f64 = e.parse().map_err(|_| format!("--driver {s:?}: eps {e:?}"))?;
+                if !(0.0..=1.0).contains(&eps) {
+                    return Err(format!("--driver {s:?}: eps must be in [0, 1]"));
+                }
+                Driver::EpsPolicy(read_table(f)?.1, f.to_string(), eps)
+            }
+            _ => return Err(format!("--driver {s:?}: bot, random, fixed:K, policy:<file> or eps:<eps>:<file>")),
         })
     }
     pub fn label(&self) -> String {
@@ -49,6 +62,7 @@ impl Driver {
             Driver::Random => "random".into(),
             Driver::Fixed(k) => format!("fixed:{}", ACTION_NAMES[*k]),
             Driver::Policy(_, p) => format!("policy:{p}"),
+            Driver::EpsPolicy(_, p, e) => format!("eps:{e}:{p}"),
         }
     }
     pub fn pick(&self, seed: i64, f: &State) -> usize {
@@ -57,6 +71,14 @@ impl Driver {
             Driver::Random => (splitmix64((seed as u64).wrapping_mul(64) ^ (f[0] as u64 + 1).wrapping_mul(0x9E37_79B9)) % NA as u64) as usize,
             Driver::Fixed(k) => *k,
             Driver::Policy(t, _) => t.get(f).copied().unwrap_or(0) as usize,
+            Driver::EpsPolicy(t, _, eps) => {
+                let h = splitmix64((seed as u64).wrapping_mul(64) ^ (f[0] as u64 + 1).wrapping_mul(0x9E37_79B9) ^ 0xE95E_0000_0000_0022);
+                if ((h >> 11) as f64 / (1u64 << 53) as f64) < *eps {
+                    (splitmix64(h) % NA as u64) as usize
+                } else {
+                    t.get(f).copied().unwrap_or(0) as usize
+                }
+            }
         }
     }
 }
@@ -254,7 +276,24 @@ pub fn value_iteration(train: &[Traj], min_count: u32) -> ViResult {
 }
 
 pub fn fit_vi_cmd(m: &HashMap<String, String>) -> R<()> {
-    let (meta, train) = read(m.get("train").ok_or("--train <file.tsv> is required")?)?;
+    // --train a.tsv,b.tsv,...: all games together (off-policy is fine: Q conditions on the action taken); the
+    // first file's setup is the policy header's, and every file must share the base bot, boost and opponents
+    let files: Vec<&str> = m.get("train").ok_or("--train <file.tsv>[,<file.tsv>...] is required")?.split(',').filter(|x| !x.is_empty()).collect();
+    let (meta, mut train) = read(files[0])?;
+    for f in &files[1..] {
+        let (mt, tr) = read(f)?;
+        for k in ["model", "opp", "players", "difficulty", "humanLearner"] {
+            if mt[k] != meta[k] {
+                return Err(format!("{f}: {k} {} differs from {}'s {}", mt[k], files[0], meta[k]));
+            }
+        }
+        // files from before the boost was recorded used the default 2
+        let boost = |v: &Value| v["boost"].as_f64().unwrap_or(2.0);
+        if boost(&mt) != boost(&meta) {
+            return Err(format!("{f}: boost {} differs from {}'s {}", boost(&mt), files[0], boost(&meta)));
+        }
+        train.extend(tr);
+    }
     let out = PathBuf::from(m.get("out").ok_or("--out <dir> is required")?);
     std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
     let counts: Vec<u32> = m
@@ -282,7 +321,7 @@ pub fn fit_vi_cmd(m: &HashMap<String, String>) -> R<()> {
         let mut w = BufWriter::new(std::fs::File::create(&f).map_err(|e| e.to_string())?);
         // the header names the base bot and the boost, so the file plays on its own (rl-gate --candidate rl-policy:<file>)
         let head = json!({"tool": "rl-value fit-vi", "model": meta["model"], "boost": meta["boost"].as_f64().unwrap_or(2.0), "minCount": mc,
-                          "actions": ACTION_NAMES, "train": m.get("train"), "trainGames": train.len(), "opp": meta["opp"], "players": meta["players"],
+                          "actions": ACTION_NAMES, "train": files, "trainGames": train.len(), "opp": meta["opp"], "players": meta["players"],
                           "difficulty": meta["difficulty"], "humanLearner": meta["humanLearner"]});
         writeln!(w, "# {head}").unwrap();
         writeln!(w, "turn\tcities\tincome\tunits\tlevels\ttechs\taction\tv\tvisits\t{}", ACTION_NAMES.map(|a| format!("q_{a}")).join("\t")).unwrap();
@@ -420,5 +459,30 @@ mod tests {
         assert_eq!(a, play(11, &su, &Driver::Random).unwrap());
         let used: std::collections::HashSet<i32> = a.iter().take(a.len() - 1).map(|r| r[8]).collect();
         assert!(used.len() >= 3, "random driver should use several actions: {used:?}");
+    }
+
+    #[test]
+    fn eps_policy_explores_at_the_given_rate() {
+        let t: HashMap<State, u8> = (0..30).map(|turn| ([turn, 1, 2, 1, 1, 1], 4u8)).collect();
+        let at = |eps: f64| Driver::EpsPolicy(t.clone(), "t".into(), eps);
+        let (d0, d1, d2) = (at(0.0), at(1.0), at(0.2));
+        let mut off = 0;
+        let mut counts = [0usize; NA];
+        let n = 20_000;
+        for seed in 0..n / 30 {
+            for turn in 0..30 {
+                let f = [turn, 1, 2, 1, 1, 1];
+                assert_eq!(d0.pick(seed, &f), 4, "eps 0 is the policy");
+                counts[d1.pick(seed, &f)] += 1;
+                let a = d2.pick(seed, &f);
+                assert_eq!(a, d2.pick(seed, &f), "reproducible");
+                off += (a != 4) as usize;
+            }
+        }
+        let total = (n / 30 * 30) as f64;
+        // eps 0.2: a random action 20% of the time, of which 4 in 5 differ from the policy's
+        assert!((off as f64 / total - 0.16).abs() < 0.015, "{}", off as f64 / total);
+        assert!(counts.iter().all(|&c| (c as f64 / total - 0.2).abs() < 0.02), "eps 1 is uniform: {counts:?}");
+        assert_eq!(at(0.0).pick(3, &[5, 9, 9, 9, 9, 9]), 0, "unknown state: the bot");
     }
 }

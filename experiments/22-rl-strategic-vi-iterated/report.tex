@@ -1,0 +1,89 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 22-rl-strategic-vi-iterated
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+\textbf{The idea (David, 26 Nov 2026, issue \#166).} ``Maybe it's better to just run the experiment longer?'' In
+experiment 21, more random-action data helped less and less: the validation gain of the policy against
+\texttt{greedy-full-probe-perf} was +67, +137 and +154 points at 30{,}000, 100{,}000 and 300{,}000 games. The
+explanation tested here: a research-heavy player reaches states (many techs for the turn) that uniformly random
+play almost never visits (five research turns in a row happen in 1 of 3{,}125 stretches), so value iteration has no
+data where a better policy goes. ``Running longer'' then means rounds of play and refit: play with the current
+policy plus some random actions, refit on all data, repeat (approximate policy iteration).
+
+\textbf{Prediction} (before the run):
+\begin{enumerate}
+  \item \emph{The rounds help.} The validation gain against the bot rises from round to round and reaches at least
+        +250 points in round 4 (21: +154 on the same 2{,}000 seeds).
+  \item \emph{More research.} The share of learner turns on which the policy plays research rises above 50\% by
+        round 4 (21: 29.5\%).
+  \item \emph{Less optimism.} $V$(start) minus the policy's real mean remaining score falls round by round, below
+        +800 in round 4 (21: +1{,}793 at min-count 5).
+  \item \emph{Final test.} On the 10{,}000 evaluation seeds the round-4 policy passes the \#171 rule against
+        \texttt{greedy-full-probe-perf}, with a mean gain of 200--400 points; against research every turn it still
+        does not pass, but the gap shrinks below 150 points (21: 352).
+\end{enumerate}
+\textbf{Against the explanation:} if the validation gain does not rise over the rounds, missing data in
+research-heavy states is not what holds value iteration back.
+
+\section{Mechanism}
+State, actions, boost and value iteration as in experiment 21 (\texttt{engine/rlvalue}: six exact integers; five
+strategic actions that multiply the base bot's move-type factors by 2 for one turn; finite-horizon value iteration
+over the learned model, min-count 5; a state without a policy entry plays the bot).
+
+\textbf{Rounds.} Round 0 is experiment 21: 300{,}000 random-action games and its policy $\pi_0$ (\texttt{policy-m5}).
+Round $k = 1,\dots,4$: play 100{,}000 games in which the learner follows $\pi_{k-1}$, except that with probability
+$\varepsilon = 0.2$ per turn it takes a uniformly random action instead (fixed by seed and turn;
+\texttt{--driver eps:0.2:<policy>}); then run value iteration on all games so far (round 0 and rounds $1..k$) to get
+$\pi_k$. Mixing data from different behaviour policies is fine for the model: each transition is counted under the
+action that was actually taken. Each $\pi_k$ plays the 2{,}000 validation seeds against the bot.
+
+\section{Setup}
+As experiment 21 (decided gate setup on \texttt{dev} at da04376; learner base bot \texttt{greedy-full-probe-perf};
+opponents probe-perf, combo-perf and the anchor probe-perf, shuffled per seed). Seeds: round 0 training
+$1\dots300{,}000$; round $k$ $k\cdot10^7+1 \dots k\cdot10^7+100{,}000$; validation $700{,}000{,}000\dots$ (2{,}000);
+evaluation $10^9\dots$ (10{,}000). All training seeds are below the held-out and evaluation ranges.
+
+Sanity checks: unit tests (the $\varepsilon$-policy driver plays the policy at $\varepsilon = 0$, uniform actions at
+$\varepsilon = 1$, and a random action 20\% of the time at $\varepsilon = 0.2$, reproducibly); \texttt{fit-vi} on two
+files gives exactly the policy of one file holding the same games.
+
+Under the pass rule of 26 Nov the gate against \texttt{greedy-full-probe-perf} is information; by the DECISION of
+26 Nov 14:11 David's strategic agent is an RL v2 candidate, gated against RL v1 (experiment 14) once v1 exists.
+
+Commands (from \texttt{engine/}), for $k = 1..4$:
+\begin{verbatim}
+B=./target/release/rl-value; R=target/rl-value; E=../experiments/22-rl-strategic-vi-iterated
+$B collect --driver eps:0.2:$POLICY_{k-1} --games 100000 --seed-start $((k*10000000+1)) \
+  --out $R/p4-round$k.tsv
+$B fit-vi --train $R/p4-train-random.tsv,$R/p4-round1.tsv,...,$R/p4-round$k.tsv --min-count 5 \
+  --out $R/vi-round$k
+$B eval --policy $R/vi-round$k/policy-m5.tsv --n 2000 --seed-start 700000000 --out $E/val-round$k.json
+\end{verbatim}
+Final: \texttt{rl-gate --candidate rl-policy:experiments/22-rl-strategic-vi-iterated/policy-round4.tsv --base
+greedy-full-probe-perf}, and \texttt{rl-value eval --base-driver fixed:4} against research every turn.
+
+\section{Results}
+\ExpResults
+
+\todo{claude}{After the run.}
+
+\section{Behaviour}
+\todo{claude}{After the run.}
+
+\section{Interpretation}
+\todo{claude}{After the run.}
+
+\section{Threats to validity}
+\todo{claude}{After the run.}
+
+\section{Verdict and next step}
+\todo{claude}{After the run.}
+
+\section{Notes for the paper}
+\todo{claude}{After the run.}
+
+\end{document}

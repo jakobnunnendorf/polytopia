@@ -1,0 +1,46 @@
+{
+  "n": 22,
+  "slug": "rl-strategic-vi-iterated",
+  "title": "Strategic value iteration with rounds of play and refit",
+  "kind": "method",
+  "issue": 166,
+  "pr": 0,
+  "date": "2026-11-26",
+  "status": "running",
+  "verdict": "pending",
+  "base": "greedy-full-probe-perf",
+  "result": null,
+  "question": "Do rounds of play and refit (approximate policy iteration: play with the current policy plus 20% random actions, then value iteration on all data) give a better strategic policy than value iteration on random-action data alone (experiment 21)?",
+  "change": "Experiment 21 plus 4 rounds: each round plays 100,000 games with the current policy and epsilon 0.2 (rl-value --driver eps:0.2:<policy>), then value iteration on all games so far (min-count 5).",
+  "method": "Round 0 = experiment 21 (300k random-action games, policy-m5); rounds 1-4 of 100k games each; each round's policy on 2,000 validation seeds; the last on 10,000 evaluation seeds with rl-gate",
+  "measured": "Paired, 10,000 evaluation seeds",
+  "metric": "final raw score, #171 rule",
+  "setups": [
+    "Perfection, 16×16 continents, 4 players, Crazy, seat 0 Xin-Xi (human seat), learner base greedy-full-probe-perf; opponents greedy-full-probe-perf, greedy-full-combo-perf, greedy-full-probe-perf (anchor), seats shuffled per seed (rl-gate defaults)"
+  ],
+  "knobs": [
+    {
+      "name": "epsilon",
+      "tested": [
+        0.2
+      ],
+      "chosen": 0.2
+    },
+    {
+      "name": "rounds",
+      "tested": [
+        4
+      ],
+      "chosen": 4
+    },
+    {
+      "name": "minCount",
+      "tested": [
+        5
+      ],
+      "chosen": 5
+    }
+  ],
+  "headline": [],
+  "runs": []
+}
