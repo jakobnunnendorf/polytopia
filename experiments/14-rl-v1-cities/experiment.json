@@ -1,0 +1,24 @@
+{
+  "n": 14,
+  "slug": "rl-v1-cities",
+  "title": "RL v1: value function from cities captured",
+  "kind": "method",
+  "issue": 166,
+  "pr": 0,
+  "date": "2026-11-26",
+  "status": "planned",
+  "verdict": "planned",
+  "base": "none (RL v1 enters by decision); information gate against greedy-full-probe-perf",
+  "result": null,
+  "question": "TODO with Jakob",
+  "change": "TODO with Jakob",
+  "method": "TODO with Jakob",
+  "measured": "TODO with Jakob",
+  "metric": "TODO with Jakob",
+  "setups": [
+    "4 players (3 Crazy opponents), 16×16, continents, Perfection, turn cap 30"
+  ],
+  "knobs": [],
+  "headline": [],
+  "runs": []
+}
