@@ -1,0 +1,80 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 25-rl-spend-vi-r15
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+\textbf{The idea (David, 27 Nov 2026, issue \#166).} Re-run experiment 23 with \texttt{greedy-full-probe-perf-r15}
+as the base bot. In 23 the best policy (spending actions, state with the turn) gained +165 against probe-perf, but
+probe-perf researched too little: raising its research weight ×1.5 alone (r15) gains +336 on the same gate. Most of
+what value iteration found so far may have been this tuning gap. With r15 as the base, a gain would have to come
+from deciding \emph{when} to spend on what.
+
+\textbf{Prediction} (before any run of this experiment):
+\begin{enumerate}
+  \item \emph{Research every turn no longer helps.} In the action check, research ×2 on top of r15 (×3 against
+        probe-perf, which gained less than ×1.5 there) is not better than r15: mean difference between $-150$ and
+        $+50$. Economy every turn stays worse than the bot, army about even.
+  \item \emph{The policy researches less} than in 23: research on fewer than 30\% of learner turns (23: 35.9\%).
+  \item \emph{Little left to gain.} With the turn, the chosen policy's mean gain against r15 on the evaluation seeds
+        is between $-50$ and $+100$ points, and it does \emph{not} pass the \#171 rule against r15.
+  \item \emph{The turn still matters.} Without the turn the policy is again worse than the bot, and the sweeps do
+        not settle.
+\end{enumerate}
+\textbf{Against the prediction:} if the policy passes against r15, value iteration finds timing decisions beyond
+the research weight.
+
+\section{Mechanism}
+\textbf{Actions} (\texttt{spend3} in \texttt{rl\_value::strategic}): 0 economy (build), 1 army (train, attack),
+2 research; each multiplies the base bot's move-type factors of its types by 2 for one learner turn (the same
+boosts as these three actions in experiments 15--22). There is no ``bot unchanged'' action: a state without a policy
+entry plays the base bot unchanged (David's choice). Army keeps train and attack (David's choice).
+
+\textbf{State} (\texttt{--features}): (cities, income, units, techs), and (turn, cities, income, units, techs).
+Dropped features are 0 in the policy table and in the lookup.
+
+\textbf{Value iteration} as in experiment 21 ($Q(s,a) = $ mean of $r + V(s')$, $V(s) = \max_{a: n(s,a) \ge m}
+Q(s,a)$, fallback to the mean over all transitions, $\gamma = 1$). With the turn, one backward sweep from the last
+turn is exact. Without it, the same projected state occurs at different turns and can lead back to itself, so the
+sweeps repeat (Jacobi, from $V = 0$) until the largest change is below $10^{-6}$, at most 30 times (the game's length
+in learner turns); the tool reports the number of sweeps and the last change.
+
+\section{Setup}
+As experiment 23, with the base bot and the opponents of 27 Nov: learner base \texttt{greedy-full-probe-perf-r15};
+opponents r15, probe-perf and the anchor probe-perf (\texttt{rl-gate} defaults after PR \#204), shuffled per seed.
+Perfection, 16$\times$16 Continents, 4 players, Crazy, learner Xin-xi in the human seat. Seeds as in 23: training
+$1\dots300{,}000$ (new games), action check $600{,}000{,}000\dots$ (2{,}000), validation $700{,}000{,}000\dots$
+(2{,}000), evaluation $10^9\dots$ (10{,}000). Min-count chosen per state version on validation; both chosen policies
+on the evaluation seeds with \texttt{rl-gate} against r15, and against the best fixed action of the check (if one
+beats the bot) with \texttt{rl-value eval}.
+
+Sanity check before the run: \texttt{rl-value} (default model now r15) and \texttt{rl-gate} give the same seat-0
+score and win flag on 500 of 500 seeds (r15 against r15, seeds $1\dots500$).
+
+Commands (from \texttt{engine/}): those of experiment 23 with \texttt{s3r15-} data files and
+\texttt{../experiments/25-rl-spend-vi-r15} as output; \texttt{rl-gate --candidate
+rl-policy:experiments/25-rl-spend-vi-r15/policy-<v>.tsv --base greedy-full-probe-perf-r15}.
+
+\section{Results}
+\ExpResults
+
+\todo{claude}{After the run.}
+
+\section{Behaviour}
+\todo{claude}{After the run.}
+
+\section{Interpretation}
+\todo{claude}{After the run.}
+
+\section{Threats to validity}
+\todo{claude}{After the run.}
+
+\section{Verdict and next step}
+\todo{claude}{After the run.}
+
+\section{Notes for the paper}
+\todo{claude}{After the run.}
+
+\end{document}

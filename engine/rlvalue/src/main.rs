@@ -143,7 +143,7 @@ fn default_opponents() -> R<Vec<String>> {
 
 /// the setup from the command line (shared by collect, check and eval)
 pub(crate) fn setup(m: &HashMap<String, String>) -> R<(Setup, String, String)> {
-    let model = m.get("model").cloned().unwrap_or("greedy-full-probe-perf".into());
+    let model = m.get("model").cloned().unwrap_or("greedy-full-probe-perf-r15".into());
     let opp_ids: Vec<String> = match m.get("opp") {
         Some(l) => l.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect(),
         None => default_opponents()?,
@@ -541,7 +541,7 @@ fn fit_cmd(m: &HashMap<String, String>) -> R<()> {
 }
 
 const USAGE: &str = "usage:
-  rl-value collect --out <file.tsv> [--games 1000] [--seed-start 1] [--driver bot] [--model greedy-full-probe-perf] [--opp a,b,c]
+  rl-value collect --out <file.tsv> [--games 1000] [--seed-start 1] [--driver bot] [--model greedy-full-probe-perf-r15] [--opp a,b,c]
                    [--players 4] [--difficulty crazy] [--tribe xinxi] [--human 1] [--threads 0]
   rl-value fit --train <file.tsv> --test <file.tsv> --out <dir> [--sizes 1000,10000,...]
   rl-value check --games 2000 --seed-start 600000000 --out <file.json>     (each action played every turn)
