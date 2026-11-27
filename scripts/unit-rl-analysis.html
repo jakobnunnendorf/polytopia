@@ -78,7 +78,12 @@
     <h2>2 · Real decisions, step by step</h2>
     <p class="lede">Decisions recorded in the analysis games with the current weights. Each row is one candidate action: the reward it earns now, V of the unit before and after it, and the gain = reward + V after − V before. The highest gain is played if it is above 0, otherwise the units pass. Click a row to see which features moved V.</p>
     <div class="panel">
-      <select id="exPick"></select>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button id="exPrev" title="previous recorded decision">◀</button>
+        <select id="exPick"></select>
+        <button id="exNext" title="next recorded decision">▶</button>
+        <span class="note">to step through a whole game move by move, see 2b below</span>
+      </div>
       <iframe id="board" title="the board at this decision" style="display:block;width:100%;height:640px;margin-top:12px;border:1px solid var(--line);border-radius:8px;background:#16213a"></iframe>
       <p class="note">The real board at this decision, drawn by the game itself (app route /decision on port 8093). The acting unit is selected; each tile it could move to or attack shows that action's gain. Click a row below to switch to that row's unit.</p>
       <div id="exTable" style="margin-top:12px"></div>
@@ -307,6 +312,9 @@ function drawExamples(a) {
   exSel = +pick.value || 0;
   drawExample(a.model, a.weights);
   pick.onchange = () => { exSel = +pick.value; rowSel = null; drawExample(a.model, a.weights); };
+  const go = (d) => { const k = exSel + d; if (k < 0 || k >= EX.length) return; pick.value = String(k); pick.onchange(); };
+  $("exPrev").onclick = () => go(-1);
+  $("exNext").onclick = () => go(1);
 }
 function drawExample(model, weights) {
   const e = EX[exSel];
@@ -346,12 +354,18 @@ function renderDecision(e, model, weights, tableId, whyId, rowSel, onRow) {
 // ---- 2b. whole games
 const REPLAY = "http://localhost:8093/rl-replay";
 let G = null, gRow = null, gDec = null;
-async function listGames(select) {
+async function listGames(select, autoOpen) {
   const r = await (await fetch("/api/replays?run=" + encodeURIComponent(RUN))).json();
+  if (autoOpen && !select) {
+    // a run just picked: show its newest replayed game, or replay one from the latest iteration
+    if (r.files.length) select = r.files[0];
+    else { $("gGo").onclick(); return; }
+  }
   const pick = $("gPick");
   pick.innerHTML = `<option value="">—</option>` + r.files.map((f) => `<option value="${f}">${f.replace("i", "iteration ").replace("-g", ", game ")}</option>`).join("");
   if (select) pick.value = select;
   pick.onchange = () => pick.value && openGame(pick.value);
+  if (autoOpen && select) openGame(select);
 }
 async function openGame(file) {
   gRow = null; gDec = null;
@@ -416,7 +430,7 @@ function render(a, hist, tr) {
     gRun = RUN; G = null;
     $("gIter").max = iters.length; $("gIter").value = iters.length;
     $("gBoard").removeAttribute("src"); $("gInfo").textContent = ""; $("gNow").textContent = ""; $("gTable").innerHTML = ""; $("gWhy").innerHTML = "";
-    listGames();
+    listGames(undefined, true);
   } else $("gIter").max = iters.length;
   const base = tr.find((l) => l.type === "baseline");
   $("meta").textContent = `${a.model === "mlp" ? "neural net" : "linear"} · analysis at iteration ${a.iteration} (training at ${iters.length}) · ${a.games} games, ${a.samples.toLocaleString()} unit samples · ${a.at}`;
