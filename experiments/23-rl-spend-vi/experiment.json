@@ -6,10 +6,10 @@
   "issue": 166,
   "pr": 0,
   "date": "2026-11-27",
-  "status": "running",
-  "verdict": "pending",
+  "status": "done",
+  "verdict": "adopted",
   "base": "greedy-full-probe-perf",
-  "result": null,
+  "result": "with the turn: rl-gate vs greedy-full-probe-perf PASS (+165, 55.9% better); vs exp 21 +61 (p = 2.4e-4), vs exp 22 +47 (p = 0.0013); vs research every turn -291. Without the turn: FAIL (-86).",
   "question": "With three spending actions (economy, army, research) and a smaller state (cities, income, units, techs; with and without the turn), does value iteration give a policy that beats the bot and comes closer to research every turn than experiment 21's policy?",
   "change": "Actions: spend3 (economy = build, army = train and attack, research; each x2 for one turn; no 'bot' action, states without a policy entry play the bot unchanged). State: (cities, income, units, techs) and (turn, cities, income, units, techs) on the same data; without the turn, value iteration sweeps until the values settle (at most 30 sweeps).",
   "method": "300k games with a random spend3 action per turn; value iteration for both state versions and min-count 1, 5, 20, 50; min-count chosen per version on 2,000 validation seeds; both chosen policies on the 10,000 evaluation seeds",
@@ -25,7 +25,7 @@
         "cities,income,units,techs",
         "turn,cities,income,units,techs"
       ],
-      "chosen": null
+      "chosen": "turn,cities,income,units,techs"
     },
     {
       "name": "minCount",
@@ -35,9 +35,28 @@
         20,
         50
       ],
-      "chosen": null
+      "chosen": 5
     }
   ],
-  "headline": [],
+  "headline": [
+    {
+      "label": "Mean final score, 10,000 evaluation seeds: probe-perf vs spend3 policy (with turn)",
+      "base": 6839,
+      "new": 7004,
+      "unit": "points"
+    },
+    {
+      "label": "Same seeds: experiment 21 policy vs spend3 policy (with turn)",
+      "base": 6943,
+      "new": 7004,
+      "unit": "points"
+    },
+    {
+      "label": "Same seeds: probe-perf vs spend3 policy without the turn",
+      "base": 6839,
+      "new": 6753,
+      "unit": "points"
+    }
+  ],
   "runs": []
 }

@@ -1,0 +1,155 @@
+{
+  "tool": "rl-value check",
+  "model": "greedy-full-probe-perf",
+  "opp": "greedy-full-probe-perf,greedy-full-combo-perf,greedy-full-probe-perf",
+  "players": 4,
+  "difficulty": "crazy",
+  "humanLearner": true,
+  "boost": 2.0,
+  "actionSet": "spend3",
+  "games": 2000,
+  "seedStart": 600000000,
+  "wallSeconds": 40.214477583,
+  "actions": [
+    {
+      "action": "bot",
+      "score": {
+        "mean": 6871.0575,
+        "sd": 3548.2318686763742,
+        "p10": 1419.5,
+        "median": 8080.0,
+        "p90": 10631.500000000002
+      },
+      "final": {
+        "cities": 2.6055,
+        "income": 16.8265,
+        "units": 11.573,
+        "levels": 13.756,
+        "techs": 18.4895
+      },
+      "vsBot": {
+        "rule": "#171: sign test (one-sided exact, ties dropped) at alpha, mean(d) upper bound >= 0, p10(candidate) >= p10(base); computed by rl-value, not rl-gate",
+        "pass": false,
+        "verdict": "FAIL",
+        "better": 0,
+        "worse": 0,
+        "ties": 2000,
+        "betterShare": null,
+        "signP": 1.0,
+        "signPass": false,
+        "meanD": 0.0,
+        "sdD": 0.0,
+        "meanDUpper": 0.0,
+        "guardMean": true,
+        "p10Candidate": 1419.5,
+        "p10Base": 1419.5,
+        "guardP10": true
+      }
+    },
+    {
+      "action": "economy",
+      "score": {
+        "mean": 6653.9125,
+        "sd": 3582.4960109785866,
+        "p10": 1380.0,
+        "median": 7852.5,
+        "p90": 10430.0
+      },
+      "final": {
+        "cities": 2.466,
+        "income": 15.9175,
+        "units": 10.82,
+        "levels": 13.0135,
+        "techs": 18.274
+      },
+      "vsBot": {
+        "rule": "#171: sign test (one-sided exact, ties dropped) at alpha, mean(d) upper bound >= 0, p10(candidate) >= p10(base); computed by rl-value, not rl-gate",
+        "pass": false,
+        "verdict": "FAIL",
+        "better": 760,
+        "worse": 886,
+        "ties": 354,
+        "betterShare": 0.4617253948967193,
+        "signP": 0.9991310662039498,
+        "signPass": false,
+        "meanD": -217.145,
+        "sdD": 1751.2571126800196,
+        "meanDUpper": -126.04684686008892,
+        "guardMean": false,
+        "p10Candidate": 1380.0,
+        "p10Base": 1419.5,
+        "guardP10": false
+      }
+    },
+    {
+      "action": "army",
+      "score": {
+        "mean": 6860.985,
+        "sd": 3522.8550614049973,
+        "p10": 1399.5,
+        "median": 8067.5,
+        "p90": 10530.0
+      },
+      "final": {
+        "cities": 2.581,
+        "income": 16.6915,
+        "units": 11.5485,
+        "levels": 13.644,
+        "techs": 18.5495
+      },
+      "vsBot": {
+        "rule": "#171: sign test (one-sided exact, ties dropped) at alpha, mean(d) upper bound >= 0, p10(candidate) >= p10(base); computed by rl-value, not rl-gate",
+        "pass": false,
+        "verdict": "FAIL",
+        "better": 404,
+        "worse": 426,
+        "ties": 1170,
+        "betterShare": 0.4867469879518072,
+        "signP": 0.7876554021004071,
+        "signPass": false,
+        "meanD": -10.0725,
+        "sdD": 1148.2519969797784,
+        "meanDUpper": 49.6580989547094,
+        "guardMean": true,
+        "p10Candidate": 1399.5,
+        "p10Base": 1419.5,
+        "guardP10": false
+      }
+    },
+    {
+      "action": "research",
+      "score": {
+        "mean": 7275.9875,
+        "sd": 3554.6824852761492,
+        "p10": 1464.5,
+        "median": 8845.0,
+        "p90": 10696.500000000002
+      },
+      "final": {
+        "cities": 2.5845,
+        "income": 16.911,
+        "units": 11.707,
+        "levels": 13.7705,
+        "techs": 19.7815
+      },
+      "vsBot": {
+        "rule": "#171: sign test (one-sided exact, ties dropped) at alpha, mean(d) upper bound >= 0, p10(candidate) >= p10(base); computed by rl-value, not rl-gate",
+        "pass": true,
+        "verdict": "PASS",
+        "better": 1098,
+        "worse": 731,
+        "ties": 171,
+        "betterShare": 0.6003280481137233,
+        "signP": 4.478227250485501e-18,
+        "signPass": true,
+        "meanD": 404.93,
+        "sdD": 2244.4325416053116,
+        "meanDUpper": 521.6825076169207,
+        "guardMean": true,
+        "p10Candidate": 1464.5,
+        "p10Base": 1419.5,
+        "guardP10": true
+      }
+    }
+  ]
+}
