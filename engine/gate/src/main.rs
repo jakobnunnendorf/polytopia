@@ -21,15 +21,21 @@
 //!
 //! After the gate, an information-only run plays the same two versions with 15 opponents (16 players, the same
 //! opponent list repeated to fill the seats, seeds from INFO15_SEED_START). It is reported, never decides, and never
-//! changes the exit code. `rl-gate promote <id>` puts a version that passed at the top of the registry;
+//! changes the exit code. `rl-gate promote <id>` puts a version that passed at the top of the opponent list, or with
+//! `--line rl` at the head of the RL line (v1 by decision, later versions after a PASS against the line's head);
 //! `rl-gate --benchmark <id>` appends report-only rows against fixed opponents to docs/rl-project/progress.csv.
 //!
 //! Evaluation seeds start at EVAL_SEED_START (1,000,000,000) and run upwards. Training must never use them.
 //!
+//! Learners: a bot model, or `rl-policy:<policy.tsv>`, a strategic-action policy of David's track (rl-value),
+//! played move by move with the same stop rule as playGames.
+//!
 //! Exit code: 0 PASS, 1 FAIL, 2 error.
 use rayon::prelude::*;
+use rl_value::strategic::{self as sg, FullWeights, StrategicPolicy};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Instant;
 
 /// First evaluation seed. Seeds EVAL_SEED_START.. are reserved for evaluation; training must stay below it.
@@ -51,26 +57,62 @@ type R<T> = Result<T, String>;
 
 // ---------------------------------------------------------------- learners and opponents
 
-/// What sits in seat 0. Seam for later learner kinds: an RL agent becomes a new variant here plus a branch in
-/// `play_seed` that runs the game step by step and asks the agent for seat 0's action (playGames only drives
-/// the engine's own bot policies).
+/// What sits in seat 0. Seam for learner kinds: an RL agent is a variant here plus a branch in `play_seed` that runs
+/// the game step by step and asks the agent for seat 0's action (playGames only drives the engine's own bot
+/// policies); `RlPolicy` is the first.
 #[derive(Clone, Debug)]
 enum Learner {
     /// a bot model from models/<id>/model.json, played through polyapi "playGames"
     Bot { label: String, policy: Value },
+    /// `rl-policy:<policy.tsv>`: a strategic-action policy (`rl-value fit-vi`, engine/rlvalue). At the start of each
+    /// of seat 0's turns the policy table maps the state (a subset of turn, cities, income, units, sum of city
+    /// levels, techs) to an action that multiplies some move-type factors of the base bot for that turn; the file's
+    /// header names the base bot, the boost, the action set and the features. Played move by move (`rl_value::strategic::
+    /// play_game`, the same loop as playGames); every other seat as for a bot learner.
+    RlPolicy { label: String, policy: Arc<StrategicPolicy> },
 }
+
+/// The prefix of an RL policy learner on the command line and in the registry (`rl-policy:<policy.tsv>`).
+const RL_POLICY_PREFIX: &str = "rl-policy:";
+/// Registry kind of an RL policy.
+const KIND_RL: &str = "rl-policy";
 
 impl Learner {
     fn label(&self) -> &str {
         match self {
-            Learner::Bot { label, .. } => label,
+            Learner::Bot { label, .. } | Learner::RlPolicy { label, .. } => label,
         }
     }
     /// The champions-registry kind this learner is promoted as.
     fn registry_kind(&self) -> &'static str {
         match self {
             Learner::Bot { .. } => KIND_GREEDY,
+            Learner::RlPolicy { .. } => KIND_RL,
         }
+    }
+    /// Where the learner is loaded from, relative to the repo root when inside it: the model folder or the policy file.
+    fn path(&self) -> R<String> {
+        let p = match self {
+            Learner::Bot { label, .. } => model_file(label)?.parent().map(Path::to_path_buf).ok_or("model folder")?,
+            Learner::RlPolicy { policy, .. } => sg::resolve(&policy.path),
+        };
+        let p = p.canonicalize().unwrap_or(p);
+        Ok(p.strip_prefix(repo_root()).map(|q| q.to_string_lossy().to_string()).unwrap_or(p.to_string_lossy().to_string()))
+    }
+}
+
+/// Two learner ids name the same learner: the same model (by file name, as before) or the same policy file.
+fn same_learner(a: &str, b: &str) -> bool {
+    match (a.strip_prefix(RL_POLICY_PREFIX), b.strip_prefix(RL_POLICY_PREFIX)) {
+        (Some(x), Some(y)) => {
+            let c = |p: &str| {
+                let r = sg::resolve(p);
+                r.canonicalize().unwrap_or(r)
+            };
+            c(x) == c(y)
+        }
+        (None, None) => safe(a) == safe(b),
+        _ => false,
     }
 }
 
@@ -135,7 +177,12 @@ fn bot_policy(id: &str) -> R<Value> {
     }
 }
 
+/// A learner from its id: `rl-policy:<policy.tsv>` (path from the working directory, then from the repo root) or a
+/// bot model id.
 fn learner(id: &str) -> R<Learner> {
+    if let Some(path) = id.strip_prefix(RL_POLICY_PREFIX) {
+        return Ok(Learner::RlPolicy { label: id.to_string(), policy: Arc::new(StrategicPolicy::load(path)?) });
+    }
     Ok(Learner::Bot { label: id.to_string(), policy: bot_policy(id)? })
 }
 
@@ -193,6 +240,75 @@ fn champions(reg: &Value) -> R<Vec<Champion>> {
             Ok(Champion { id: s("id")?, kind: s("kind")?, path: s("path")? })
         })
         .collect()
+}
+
+/// The RL line (`rlLine`), head (the last promoted RL version) first; a registry without it has an empty line.
+fn rl_line(reg: &Value) -> R<Vec<Champion>> {
+    match reg.get("rlLine") {
+        None | Some(Value::Null) => Ok(vec![]),
+        Some(v) => champions(&json!({"champions": v})).map_err(|e| e.replace("\"champions\"", "\"rlLine\"")),
+    }
+}
+
+/// promote --line values: the opponent list (`champions`) and the RL line (`rlLine`).
+const LINE_OPPONENTS: &str = "opponents";
+const LINE_RL: &str = "rl";
+
+/// Check a promotion against the registry (Jakob, 26 Nov 2026, #166, docs/rl-project/README.md "RL versions and the
+/// opponent list") and return the registry list it goes on.
+/// * RL line: only RL policies. RL v1 enters the empty line by decision (`first`, no PASS needed; a gate JSON, if
+///   given, is recorded as information). Every later version needs a PASS whose base is the line's head.
+/// * Opponent list: a PASS whose base is the list's entry 0. RL policies cannot fill opponent seats yet, so they
+///   are refused here until `Opponent` has an RL variant.
+fn check_promotion(reg: &Value, id: &str, kind: &str, line: &str, gate: Option<&Value>, first: bool) -> R<&'static str> {
+    if let Some(g) = gate {
+        if g["tool"].as_str() != Some("rl-gate") {
+            return Err("the gate JSON is not from rl-gate".into());
+        }
+        let gc = g["candidate"].as_str().unwrap_or("");
+        if !same_learner(gc, id) {
+            return Err(format!("the gate's candidate is {gc:?}, not {id:?}"));
+        }
+    }
+    let passed_against = |head: &str| -> R<()> {
+        let g = gate.ok_or("a gate JSON is required")?;
+        if g["pass"].as_bool() != Some(true) {
+            return Err("not a PASS of rl-gate; only a version that passed the gate is promoted".into());
+        }
+        let gb = g["base"].as_str().unwrap_or("");
+        if !same_learner(gb, head) {
+            return Err(format!("the gate's base is {gb:?}; a promotion needs a PASS against the head of the list, {head:?}"));
+        }
+        Ok(())
+    };
+    match line {
+        LINE_RL => {
+            if kind != KIND_RL {
+                return Err(format!("{id:?} is a {kind}; the RL line takes only RL policies ({RL_POLICY_PREFIX}<policy.tsv>)"));
+            }
+            let rl = rl_line(reg)?;
+            if rl.iter().any(|c| same_learner(&c.id, id)) {
+                return Err(format!("{id:?} is already in the RL line"));
+            }
+            match (rl.first(), first) {
+                (None, true) => {}
+                (None, false) => return Err("the RL line is empty: RL v1 enters by decision, with --first --note \"..\"".into()),
+                (Some(h), true) => return Err(format!("the RL line already has a head ({:?}); a later version needs a PASS against it, not --first", h.id)),
+                (Some(h), false) => passed_against(&h.id)?,
+            }
+            Ok("rlLine")
+        }
+        LINE_OPPONENTS => {
+            if kind == KIND_RL {
+                return Err("RL policies cannot fill opponent seats yet (add the RL variant of `Opponent` in engine/gate/src/main.rs first)".into());
+            }
+            let c = champions(reg)?;
+            let head = c.first().ok_or("champions registry: empty")?;
+            passed_against(&head.id)?;
+            Ok("champions")
+        }
+        l => Err(format!("unknown list {l:?}")),
+    }
 }
 
 /// Insert `entry` at the top of the registry. A version is promoted once: an id already listed is an error.
@@ -315,6 +431,20 @@ fn play_seed(l: &Learner, seed: i64, tribes: &[String], assign: &[usize], s: &Se
             let r = &r[0];
             let score = r["scores"][LEARNER_SEAT as usize].as_i64().ok_or("playGames: no score for seat 0")?;
             Ok(Game { score, won: r["winner"].as_i64() == Some(LEARNER_SEAT) })
+        }
+        Learner::RlPolicy { policy, .. } => {
+            // move by move, the same stop rule as playGames; the opponents play their greedy-full weights
+            let ws = assign
+                .iter()
+                .map(|&i| match &s.opps[i] {
+                    Opponent::Bot { policy: p, .. } if p["kind"].as_str() == Some("full") => sg::full_weights(&p["weights"]),
+                    Opponent::Bot { label, .. } => Err(format!("opponent {label}: an rl-policy learner plays only against greedy-full models")),
+                })
+                .collect::<R<Vec<FullWeights>>>()?;
+            let refs: Vec<&FullWeights> = ws.iter().collect();
+            let mut pick = |f: &sg::State| policy.action(f);
+            let o = sg::play_game(&game_opts(seed, tribes, s), &policy.weights, &policy.base, &mut pick, &refs, MAX_TURN as i32, MAX_MOVES)?;
+            Ok(Game { score: o.score as i64, won: o.winner == Some(LEARNER_SEAT as i32) })
         }
     }
 }
@@ -728,18 +858,24 @@ fn print_comparison(c: &Comparison, s: &Setup, seed_start: i64, n: i64, alpha: f
 // ---------------------------------------------------------------- command line
 
 const USAGE: &str = "usage:
-  rl-gate --candidate <model> --base <model> [--opp a,b,c] [--registry <champions.json>] [--n 10000] [--alpha 0.01]
+  rl-gate --candidate <learner> --base <learner> [--opp a,b,c] [--registry <champions.json>] [--n 10000] [--alpha 0.01]
           [--seed-start 1000000000] [--threads 0] [--tribe xinxi] [--players 4] [--difficulty crazy]
           [--info15-n 5000] [--no-info15] [--out <dir>]
   rl-gate --benchmark <model> [--n 10000] [--info15-n 5000] [--no-info15] [--progress <progress.csv>] [--threads 0]
-  rl-gate promote <model> --gate <gate json> [--experiment NN-rl-slug] [--pr N] [--date YYYY-MM-DD] [--registry <file>]
+  rl-gate promote <learner> --gate <gate json> [--line opponents|rl] [--experiment NN-rl-slug] [--pr N] [--date YYYY-MM-DD]
+          [--registry <file>]
+  rl-gate promote rl-policy:<policy.tsv> --line rl --first --note \"<decision>\" [--gate <gate json>] [...]   (RL v1)
+A learner is a bot model (an id under models/, a model folder or model.json) or rl-policy:<policy.tsv>, a
+strategic-action policy (rl-value fit-vi; its header names the base bot and the boost), played move by move.
 Gate: seat 0 (the learner) is the human seat. The opponent seats are filled from --opp (one entry: every seat;
 several: repeated to fill the seats and shuffled per seed, identically for candidate and base); without --opp,
 the current and previous champion (top two of docs/rl-project/champions.json) and the fixed anchor
 greedy-full-probe-perf. After the gate an information-only
 run with 15 opponents (16 players, seeds from 1500000000) follows; it never changes the verdict or exit code.
 Benchmark (report only): the model against copies of greedy-full-probe-perf, 3 (and 15) opponents, appended to
-docs/rl-project/progress.csv. Promote: after a PASS, put the candidate at the top of the registry.
+docs/rl-project/progress.csv. Promote --line opponents (default): after a PASS against champions[0], put the
+candidate at the top of the opponent list. Promote --line rl: RL v1 by decision (--first --note); every later
+RL version after a PASS against the head of rlLine.
 Exit code: gate 0 = PASS, 1 = FAIL, 2 = error; benchmark and promote 0 = done, 2 = error.";
 
 enum Mode {
@@ -769,13 +905,19 @@ struct Args {
     experiment: Option<String>,
     pr: Option<String>,
     date: Option<String>,
+    /// promote: "opponents" (the champions list, default) or "rl" (the RL line)
+    line: String,
+    /// promote --line rl: RL v1 enters the empty RL line by decision, without a gate PASS
+    first: bool,
+    note: Option<String>,
 }
 
-const VALUE_FLAGS: [&str; 19] = [
+const VALUE_FLAGS: [&str; 21] = [
     "--candidate", "--base", "--opp", "--registry", "--n", "--alpha", "--seed-start", "--threads", "--tribe", "--players",
-    "--difficulty", "--info15-n", "--out", "--benchmark", "--progress", "--gate", "--experiment", "--pr", "--date",
+    "--difficulty", "--info15-n", "--out", "--benchmark", "--progress", "--gate", "--experiment", "--pr", "--date", "--line",
+    "--note",
 ];
-const BOOL_FLAGS: [&str; 1] = ["--no-info15"];
+const BOOL_FLAGS: [&str; 2] = ["--no-info15", "--first"];
 
 fn parse_args(a: &[String]) -> R<Args> {
     if a.iter().any(|x| x == "--help" || x == "-h") {
@@ -824,7 +966,7 @@ fn parse_args(a: &[String]) -> R<Args> {
         Ok(())
     };
     match &mode {
-        Mode::Promote(_) => only(&["--gate", "--experiment", "--pr", "--date", "--registry"], "promote")?,
+        Mode::Promote(_) => only(&["--gate", "--experiment", "--pr", "--date", "--registry", "--line", "--first", "--note"], "promote")?,
         // the benchmark's setup is fixed forever, so its rows stay comparable
         Mode::Benchmark(_) => only(&["--benchmark", "--n", "--info15-n", "--no-info15", "--progress", "--threads"], "--benchmark (its setup is fixed)")?,
         Mode::Gate => only(
@@ -853,11 +995,24 @@ fn parse_args(a: &[String]) -> R<Args> {
         experiment: get("--experiment"),
         pr: get("--pr"),
         date: get("--date"),
+        line: get("--line").unwrap_or(LINE_OPPONENTS.into()),
+        first: bools.contains(&"--first"),
+        note: get("--note"),
         mode,
     };
     if let Mode::Promote(_) = args.mode {
-        if args.gate.is_none() {
-            return Err(format!("promote needs --gate <the PASS gate JSON>\n{USAGE}"));
+        if args.line != LINE_OPPONENTS && args.line != LINE_RL {
+            return Err(format!("--line {:?}: {LINE_OPPONENTS} (the champions list) or {LINE_RL} (the RL line)", args.line));
+        }
+        if args.first {
+            if args.line != LINE_RL {
+                return Err(format!("--first applies only to --line {LINE_RL} (RL v1 by decision)"));
+            }
+            if args.note.as_deref().map_or(true, |n| n.trim().is_empty()) {
+                return Err("--first needs --note \"<the decision: who, when, where>\"".into());
+            }
+        } else if args.gate.is_none() {
+            return Err(format!("promote needs --gate <the PASS gate JSON> (or, for RL v1 by decision, --line {LINE_RL} --first --note ..)\n{USAGE}"));
         }
         return Ok(args);
     }
@@ -891,6 +1046,14 @@ fn parse_args(a: &[String]) -> R<Args> {
 }
 
 fn safe(s: &str) -> String {
+    // an RL policy: its folder and file name (policy files of different experiments share names)
+    if let Some(p) = s.strip_prefix(RL_POLICY_PREFIX) {
+        let p = Path::new(p);
+        let dir = p.parent().and_then(|d| d.file_name()).map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
+        let stem = p.file_stem().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
+        let name = if dir.is_empty() { format!("rl-{stem}") } else { format!("rl-{dir}-{stem}") };
+        return name.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
+    }
     let base = Path::new(s).file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or(s.to_string());
     let base = base.trim_end_matches(".json").to_string();
     base.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect()
@@ -1077,35 +1240,51 @@ fn run_benchmark(a: &Args, model: &str) -> R<()> {
     Ok(())
 }
 
-/// Put a candidate that passed the gate at the top of the champions registry. Explicit, never automatic.
+/// Put a version at the top of the opponent list (`--line opponents`, after a PASS against its entry 0) or of the RL
+/// line (`--line rl`: v1 by decision with --first, later versions after a PASS against the line's head). Explicit,
+/// never automatic.
 fn run_promote(a: &Args, id: &str) -> R<()> {
     let l = learner(id)?;
-    let gf = a.gate.as_deref().unwrap();
-    let g: Value = serde_json::from_str(&std::fs::read_to_string(gf).map_err(|e| format!("{gf}: {e}"))?).map_err(|e| format!("{gf}: {e}"))?;
-    if g["tool"].as_str() != Some("rl-gate") || g["pass"].as_bool() != Some(true) {
-        return Err(format!("{gf}: not a PASS of rl-gate; only a version that passed the gate is promoted"));
-    }
-    let gc = g["candidate"].as_str().unwrap_or("");
-    if safe(gc) != safe(id) {
-        return Err(format!("{gf}: the gate's candidate is {gc:?}, not {id:?}"));
-    }
-    let folder = model_file(id)?.parent().map(Path::to_path_buf).ok_or("model folder")?;
-    let folder = folder.canonicalize().unwrap_or(folder);
-    let rel = folder.strip_prefix(repo_root()).map(|p| p.to_string_lossy().to_string()).unwrap_or(folder.to_string_lossy().to_string());
-    let entry = json!({
-        "id": id, "path": rel, "kind": l.registry_kind(), "date": a.date.clone().unwrap_or_else(today),
-        "experiment": a.experiment, "pr": a.pr,
-        "gate": {"file": gf, "verdict": g["verdict"], "base": g["base"], "opponents": g["opp"], "n": g["n"],
-                 "betterShare": g["signTest"]["betterShare"], "meanD": g["meanD"],
-                 "candidateMedian": g["candidateStats"]["median"], "baseMedian": g["baseStats"]["median"]},
-    });
+    let g: Option<Value> = match a.gate.as_deref() {
+        None => None,
+        Some(gf) => Some(serde_json::from_str(&std::fs::read_to_string(gf).map_err(|e| format!("{gf}: {e}"))?).map_err(|e| format!("{gf}: {e}"))?),
+    };
     let f = registry_path(a.registry.as_deref());
     let mut reg = read_registry(&f)?;
-    promote_entry(&mut reg, entry)?;
+    let list = check_promotion(&reg, id, l.registry_kind(), &a.line, g.as_ref(), a.first).map_err(|e| format!("promote {id}: {e}"))?;
+    let gate = g.as_ref().map(|g| {
+        json!({"file": a.gate, "verdict": g["verdict"], "base": g["base"], "opponents": g["opp"], "n": g["n"],
+               "betterShare": g["signTest"]["betterShare"], "meanD": g["meanD"],
+               "candidateMedian": g["candidateStats"]["median"], "baseMedian": g["baseStats"]["median"]})
+    });
+    let mut entry = json!({
+        "id": id, "path": l.path()?, "kind": l.registry_kind(), "date": a.date.clone().unwrap_or_else(today),
+        "experiment": a.experiment, "pr": a.pr, "gate": gate,
+    });
+    if list == "rlLine" {
+        entry["decision"] = json!(a.note);
+        if a.first {
+            entry["note"] = json!("RL v1 by decision; a gate JSON here is information, not a pass");
+        }
+        if reg.get("rlLine").map_or(true, |v| v.is_null()) {
+            reg["rlLine"] = json!([]);
+        }
+        let mut sub = json!({"champions": reg["rlLine"].take()});
+        let r = promote_entry(&mut sub, entry);
+        reg["rlLine"] = sub["champions"].take();
+        r?;
+    } else {
+        promote_entry(&mut reg, entry)?;
+    }
     std::fs::write(&f, serde_json::to_string_pretty(&reg).unwrap() + "\n").map_err(|e| format!("{}: {e}", f.display()))?;
-    let top: Vec<String> = default_opponent_specs(&reg)?.into_iter().map(|s| s.0).collect();
-    println!("promoted {id} to the top of {}; the gate's opponents are now {}", f.display(), top.join(", "));
-    println!("next: commit the registry and run `npm run rl:gate -- --benchmark {id}` for the progress curve");
+    if list == "rlLine" {
+        println!("promoted {id} to the head of the RL line in {}; later RL versions are gated with --base {id}", f.display());
+        println!("next: commit the registry; for information, gate it against the opponent list's entry 0 ({})", champions(&reg)?[0].id);
+    } else {
+        let top: Vec<String> = default_opponent_specs(&reg)?.into_iter().map(|s| s.0).collect();
+        println!("promoted {id} to the top of {}; the gate's opponents are now {}", f.display(), top.join(", "));
+        println!("next: commit the registry and run `npm run rl:gate -- --benchmark {id}` for the progress curve");
+    }
     Ok(())
 }
 
@@ -1453,5 +1632,75 @@ mod tests {
         let d = today();
         assert_eq!(d.len(), 10);
         assert!(d.as_str() >= "2026-01-01", "{d}");
+    }
+    /// The learner seam: an RL policy with an empty table plays action 0 (its base bot unchanged) every turn, so the
+    /// move-by-move loop must give exactly the playGames games of the base bot, seed by seed.
+    #[test]
+    fn rl_policy_with_an_empty_table_plays_like_its_base() {
+        let base = "greedy-full-probe-perf";
+        let pol = StrategicPolicy::new("empty", base, 2.0, Default::default()).unwrap();
+        let rl = Learner::RlPolicy { label: format!("{RL_POLICY_PREFIX}empty"), policy: Arc::new(pol) };
+        // spend3 has no "bot" action: its default (no entry) is the base bot unchanged, so an empty table ties too
+        let pol3 = StrategicPolicy::with("empty3", base, 2.0, Default::default(), &sg::SPEND3, sg::FeatureMask::from_names(&["cities", "techs"]).unwrap()).unwrap();
+        let rl3 = Learner::RlPolicy { label: format!("{RL_POLICY_PREFIX}empty3"), policy: Arc::new(pol3) };
+        let bot = learner(base).unwrap();
+        let opps = vec![opponent("p", KIND_GREEDY, "greedy-full-probe-perf").unwrap(), opponent("c", KIND_GREEDY, "greedy-full-combo-perf").unwrap()];
+        let s = Setup { players: 4, tribe: "xinxi".into(), difficulty: "crazy".into(), opps };
+        for seed in EVAL_SEED_START..EVAL_SEED_START + 4 {
+            let tribes = tribes_for(seed, &s.tribe, s.players);
+            let assign = seat_assignment(seed, s.opps.len(), s.players - 1);
+            let (a, b) = (play_seed(&rl, seed, &tribes, &assign, &s).unwrap(), play_seed(&bot, seed, &tribes, &assign, &s).unwrap());
+            assert_eq!((a.score, a.won), (b.score, b.won), "seed {seed}");
+            let c = play_seed(&rl3, seed, &tribes, &assign, &s).unwrap();
+            assert_eq!((c.score, c.won), (b.score, b.won), "seed {seed}, spend3");
+        }
+        // only greedy-full opponents can be played move by move
+        let s2 = Setup { players: 4, tribe: "xinxi".into(), difficulty: "crazy".into(), opps: vec![random_opp("r")] };
+        let tribes = tribes_for(EVAL_SEED_START, "xinxi", 4);
+        let e = play_seed(&rl, EVAL_SEED_START, &tribes, &[0, 0, 0], &s2).err().expect("a random opponent is refused");
+        assert!(e.contains("greedy-full"), "{e}");
+    }
+
+    #[test]
+    fn rl_policy_ids_and_file_names() {
+        assert!(same_learner("rl-policy:experiments/21-x/policy-m5.tsv", "rl-policy:experiments/21-x/policy-m5.tsv"));
+        assert!(!same_learner("rl-policy:experiments/21-x/policy-m5.tsv", "rl-policy:experiments/22-y/policy-m5.tsv"));
+        assert!(!same_learner("rl-policy:a/greedy-full-probe-perf", "greedy-full-probe-perf"));
+        assert!(same_learner("greedy-full-probe-perf", "models/greedy-full-probe-perf"), "models: by name, as before");
+        assert_eq!(safe("rl-policy:experiments/21-x/policy-m5.tsv"), "rl-21-x-policy-m5");
+        assert_ne!(safe("rl-policy:experiments/21-x/policy-m5.tsv"), safe("rl-policy:experiments/22-y/policy-m5.tsv"));
+        assert_eq!(safe("greedy-full-probe-perf"), "greedy-full-probe-perf");
+        assert!(learner("rl-policy:/no/such/file.tsv").is_err());
+    }
+
+    /// The pass rule of 26 Nov 2026 (#166): RL v1 by decision; later RL versions only with a PASS against the head of
+    /// the RL line; the opponent list only with a PASS against its entry 0, and no RL policies there yet.
+    #[test]
+    fn promotion_rules() {
+        let (v1, v2, v3) = ("rl-policy:e/21/p1.tsv", "rl-policy:e/22/p2.tsv", "rl-policy:e/23/p3.tsv");
+        let gate = |cand: &str, base: &str, pass: bool| json!({"tool": "rl-gate", "candidate": cand, "base": base, "pass": pass});
+        let mut reg = json!({"champions": [{"id": "probe-perf", "kind": KIND_GREEDY, "path": "models/p"}], "rlLine": []});
+        // v1: only by decision
+        assert!(check_promotion(&reg, v1, KIND_RL, LINE_RL, None, false).unwrap_err().contains("by decision"));
+        assert_eq!(check_promotion(&reg, v1, KIND_RL, LINE_RL, None, true).unwrap(), "rlLine");
+        assert_eq!(check_promotion(&reg, v1, KIND_RL, LINE_RL, Some(&gate(v1, "probe-perf", false)), true).unwrap(), "rlLine", "a gate JSON with v1 is information");
+        assert!(check_promotion(&reg, v1, KIND_RL, LINE_RL, Some(&gate(v2, "probe-perf", true)), true).is_err(), "the gate must be about this candidate");
+        assert!(check_promotion(&reg, "greedy-x", KIND_GREEDY, LINE_RL, None, true).unwrap_err().contains("only RL policies"));
+        reg["rlLine"] = json!([{"id": v1, "kind": KIND_RL, "path": "e/21/p1.tsv"}]);
+        assert!(rl_line(&json!({"champions": []})).unwrap().is_empty(), "no rlLine: empty");
+        // v2: a PASS against v1, nothing else
+        assert!(check_promotion(&reg, v2, KIND_RL, LINE_RL, None, true).unwrap_err().contains("already has a head"));
+        assert!(check_promotion(&reg, v2, KIND_RL, LINE_RL, None, false).is_err(), "needs a gate");
+        assert!(check_promotion(&reg, v2, KIND_RL, LINE_RL, Some(&gate(v2, v1, false)), false).unwrap_err().contains("not a PASS"));
+        assert!(check_promotion(&reg, v2, KIND_RL, LINE_RL, Some(&gate(v2, "probe-perf", true)), false).unwrap_err().contains("head of the list"), "a greedy base never decides an RL pass");
+        assert_eq!(check_promotion(&reg, v2, KIND_RL, LINE_RL, Some(&gate(v2, v1, true)), false).unwrap(), "rlLine");
+        assert!(check_promotion(&reg, v1, KIND_RL, LINE_RL, Some(&gate(v1, v1, true)), false).unwrap_err().contains("already"));
+        reg["rlLine"] = json!([{"id": v2, "kind": KIND_RL, "path": "e/22/p2.tsv"}, {"id": v1, "kind": KIND_RL, "path": "e/21/p1.tsv"}]);
+        assert!(check_promotion(&reg, v3, KIND_RL, LINE_RL, Some(&gate(v3, v1, true)), false).is_err(), "against the head, not an older version");
+        // the opponent list
+        assert!(check_promotion(&reg, v2, KIND_RL, LINE_OPPONENTS, Some(&gate(v2, "probe-perf", true)), false).unwrap_err().contains("opponent seats"));
+        assert_eq!(check_promotion(&reg, "g2", KIND_GREEDY, LINE_OPPONENTS, Some(&gate("g2", "probe-perf", true)), false).unwrap(), "champions");
+        assert!(check_promotion(&reg, "g2", KIND_GREEDY, LINE_OPPONENTS, Some(&gate("g2", "other", true)), false).unwrap_err().contains("head of the list"));
+        assert!(check_promotion(&reg, "g2", KIND_GREEDY, LINE_OPPONENTS, Some(&json!({"tool": "x", "candidate": "g2", "pass": true})), false).is_err());
     }
 }
