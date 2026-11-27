@@ -54,29 +54,53 @@ The combination with the exploration reward is a later experiment.
 % WHEN: after the runs. The tables and plots below are generated from the measured data; add two to four sentences that read them.
 \ExpResults
 
-\todo{claude}{Read the tables: the best point, the size of the effect against the noise (about $\pm$1.2 points on a 6-model mean), the head-to-head.}
+On the 200 evaluation games (seeds 6e9.., the same for both), learner minus the champions' mean:
+base (experiment 24 linear, iteration 300) $-2322$ (95\% interval $-2834$ to $-1811$), feature set 2 at iteration
+300 $-2365$ ($-2874$ to $-1857$). The difference, $-43$, is far inside the noise. Per game: kills 11.9 $\to$ 12.3,
+units lost 14.9 $\to$ 17.8, cities captured 0.63 $\to$ 0.72, villages 2.19 $\to$ 2.56. Files:
+\texttt{base-measure-200.json}, \texttt{measure-200.json} in this folder.
 
 \section{Behaviour}
 % WHEN: after the runs. WHO: both. One count the mechanism should change, plus what was seen in watched games.
-\todo{claude}{The behaviour metric: one count the mechanism should change, with base and new value.}
+Unit-turns that end idle although the unit still had options (12 replayed training games at iteration 300):
+17\% in turns 1--10 (experiment 24 linear: 10\%) and 32\% in turns 11--30 (34\%). The units do not idle less.
+By permutation importance the value function barely uses the new features: \texttt{noFrontier} ranks 9th of 41,
+\texttt{fogNear} 15th, \texttt{tFrontier} 17th, \texttt{tCityOrFog} 30th, \texttt{exploredShare} 35th; the top
+three stay \texttt{tVillage}, \texttt{noVillage} and \texttt{turnsLeft}.
 \todo{jakob}{What you saw in the live games, if you watched any.}
 
 \section{Interpretation}
 % WHEN: after the runs. WHO: both. Why it worked or did not; was the prediction right?
-\todo{claude}{Why the result came out this way, and whether the prediction held.}
+The prediction failed on all three counts (idle unit-turns under 20\%, \texttt{tCityOrFog} and \texttt{tFrontier}
+in the top five, +300 points). The features describe the map correctly, but the value function can only use a
+feature that predicts the unit's return, and the return contains almost nothing an enemy city or the fog frontier
+would predict: cities are captured 0.6 times per game, exploring earns nothing (experiment 27 is the reward side), and
+unit deaths cost nothing. Villages do predict returns, so \texttt{tVillage} stays on top and the finer step distance
+made the units take a few more villages (+0.37 per game) while losing more units (+2.8). In experiment 24's runs
+fighting was also flat from the first 20 iterations to the last: the least-squares fit converges within a few
+iterations and greedy play keeps producing the same games, so a new feature that is not tied to a reward cannot
+change play.
 \todo{jakob}{Your reading: agree, disagree, what is missing?}
 
 \section{Threats to validity}
 % WHO: Claude. What could make this result wrong or narrow: panel, map sizes, sample size, interactions with other knobs.
-\todo{claude}{Two or three concrete threats.}
+(1) 300 iterations for 41 features against 1000 for experiment 24's final runs; experiment 24's curves were flat
+by iteration 300, and the base is measured at iteration 300 too. (2) One run, one seed of the trainer; the idle count
+comes from 12 replayed games only. (3) The finer step distance and the five orientation features changed together,
+so their separate effects are not known (the step distance may explain the extra villages).
 
 \section{Verdict and next step}
 % WHO: Claude proposes by the keep rules (.claude/skills/model-experiment/SKILL.md); Jakob decides anything outside them.
-\todo{claude}{Kept or not, under which keep rule, the champion afterwards, and the next experiment this suggests.}
+Not kept: no measurable change in score. The code stays (off by default, \texttt{--features 2}). Next: tie the state
+to rewards that predict it. A per-unit reward built from the score's own parts (exploration 5 points per tile,
+a unit's score value lost when it dies, kills and captures as now), then this feature set again on top of it; and a
+way past the early plateau (start V from the champion's unit play, or over-sample captures and kills).
 
 \section{Notes for the paper}
 % WHO: Jakob, with Claude's draft. What this experiment contributes: a claim, a figure, a negative result worth a line.
-\todo{claude}{Draft: the one-sentence claim and which figure or table would carry it.}
+Draft: ``Features that describe where enemies could be did not change play: a value function only uses state
+that predicts its return, and with captures this rare the map orientation predicts almost nothing.'' Carried by the
+importance ranking (new features 9th--35th of 41) next to the unchanged score.
 \todo{jakob}{Is this worth a place in the paper? Where?}
 
 \end{document}
