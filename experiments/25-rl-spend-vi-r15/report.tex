@@ -60,21 +60,116 @@ rl-policy:experiments/25-rl-spend-vi-r15/policy-<v>.tsv --base greedy-full-probe
 \section{Results}
 \ExpResults
 
-\todo{claude}{After the run.}
+All numbers are copied from \texttt{check.json}, \texttt{vi-summary-*.json}, \texttt{val-*.json} and the two
+\texttt{rl-gate} JSONs in this folder (27 Nov 2026; per-seed rows dropped, the runs are deterministic). Data: 300{,}000
+games with a random spend3 action per turn on r15, 8{,}449{,}051 rows, 1{,}485\,s on 10 threads.
+
+\paragraph{Action check} (2{,}000 seeds; each action every turn, against r15):
+
+\begin{center}\small
+\begin{tabular}{lrrrrrl}
+\toprule
+action & mean & median & p10 & cities & techs & better / worse vs r15 \\
+\midrule
+bot (r15)  & 7148 & 8585 & 1510 & 2.62 & 19.31 & -- \\
+economy    & 6687 & 7892 & 1365 & 2.48 & 18.34 & 629 / 1{,}051 \\
+army       & 7157 & 8622 & 1500 & 2.62 & 19.36 & 418 / 427 \\
+research   & 7112 & 8862 & 1424 & 2.32 & 19.96 & 997 / 922 \\
+\bottomrule
+\end{tabular}
+\end{center}
+No action beats the bot when played every turn (economy $-461$, army $+9$, research $-36$), so there is no fixed
+action to compare the policy with on the evaluation seeds.
+
+\paragraph{Value iteration and validation} (2{,}000 validation seeds, policy against r15, which scores 7{,}282 there;
+start score 515):
+
+\begin{center}\small
+\begin{tabular}{lrrrrrrr}
+\toprule
+state & $m$ & covered & sweeps (last change) & optimism & policy mean & gain & better share \\
+\midrule
+no turn   & 1  & 100.0\% & 30 (755.0) & $+914$     & 6{,}739 & $-542$ & 40.42\% \\
+no turn   & 5  & 98.9\%  & 30 (209.7) & $+743$     & 6{,}748 & $-534$ & 40.82\% \\
+no turn   & 20 & 95.8\%  & 30 (197.6) & $+605$     & 6{,}760 & $-521$ & 41.40\% \\
+no turn   & 50 & 91.3\%  & 30 (191.6) & $+506$     & 6{,}766 & $-515$ & \textbf{41.42\%} \\
+with turn & 1  & 100.0\% & 1          & $+2{,}254$ & 6{,}971 & $-310$ & 46.19\% \\
+with turn & 5  & 94.0\%  & 1          & $+1{,}348$ & 7{,}009 & $-273$ & 46.86\% \\
+with turn & 20 & 81.5\%  & 1          & $+830$     & 7{,}033 & $-248$ & 46.89\% \\
+with turn & 50 & 68.8\%  & 1          & $+524$     & 7{,}060 & $-221$ & \textbf{47.74\%} \\
+\bottomrule
+\end{tabular}
+\end{center}
+States: 53{,}521 without the turn, 258{,}897 with it. Min-count 50 is chosen for both versions.
+
+\paragraph{Final test} (10{,}000 evaluation seeds $10^9\dots$, \texttt{rl-gate} against r15 with the default
+opponents r15, probe-perf and the anchor probe-perf):
+
+\begin{center}\small
+\begin{tabular}{lrrrrl}
+\toprule
+policy & mean / p10 (r15) & better / worse & mean $d$ (99\% bounds) & 15 opponents (info) & rule \\
+\midrule
+with turn, $m=50$ & 6959 / 1435 (7199 / 1480) & 3947 / 4811 & $-240$ ($-295$, $-185$) & $-294$ & FAIL \\
+no turn, $m=50$   & 6754 / 1425 (7199 / 1480) & 3707 / 5415 & $-445$ ($-502$, $-389$) & $-361$ & FAIL \\
+\bottomrule
+\end{tabular}
+\end{center}
+Both fail all three parts of the rule. Win rate 3.3\% (with turn) and 2.8\% (no turn) against r15's 3.8\%.
 
 \section{Behaviour}
-\todo{claude}{After the run.}
+On the validation seeds the chosen policy with the turn plays economy 16.8\%, army 37.7\% and research 15.0\% of
+learner turns, and the base bot unchanged (no policy entry) on 30.5\%; without the turn economy 44.7\%, army 35.4\%,
+research 11.5\%. The fewer turns a policy takes an entry for (higher min-count), the less it loses: with the turn
+$-310$ at $m=1$ (98.9\% of turns decided by the policy) up to $-221$ at $m=50$ (69.5\%).
 
 \section{Interpretation}
-\todo{claude}{After the run.}
+\textbf{Prediction 1 (research every turn not better than r15, $-150$ to $+50$): right} ($-36$; economy and army as
+predicted, $-461$ and $+9$).
+
+\textbf{Prediction 2 (research on fewer than 30\% of turns): right} (24.4\% at $m=5$, 15.0\% at the chosen $m=50$).
+
+\textbf{Prediction 3 (gain between $-50$ and $+100$, no PASS): no PASS right, range wrong.} The policy is clearly
+worse than r15: $-240$ on the evaluation seeds.
+
+\textbf{Prediction 4 (without the turn worse than the bot, sweeps do not settle): right} ($-445$; last change
+192--755 after 30 sweeps).
+
+\textbf{Why the policy is now worse than the bot.} With r15 as the base, the best choice in most turns is to leave the
+bot as it is: none of the three boosts helps when played every turn. The spend3 action set has no ``bot unchanged''
+action (David's choice in experiment 23, where the base still researched too little); the policy reaches the
+unchanged bot only in states without an entry. So every decision the policy makes is a boost, and the noisy
+maximum over three $Q$ estimates picks economy on a sixth of the turns, which costs 461 points when played every
+turn. The more states fall back to the unchanged bot (higher min-count), the smaller the loss, which fits.
+
+\textbf{What this says about experiments 21--23.} Their gains against probe-perf came from the research weight that
+probe-perf lacked: r15 alone gains +336 there, 23's policy +165. Once the base bot is corrected, value iteration over
+these one-turn boosts finds no timing decision that pays.
+
+\todo{david}{Your reading: agree, disagree, what is missing?}
 
 \section{Threats to validity}
-\todo{claude}{After the run.}
+\begin{itemize}
+  \item \emph{The action set excludes the best single choice.} The result is about spend3 on r15; with ``bot
+        unchanged'' as an action the policy could at least match the bot.
+  \item \emph{Opponents changed with the base bot} (r15, probe-perf, anchor), so 25 and 23 are not paired.
+\end{itemize}
 
 \section{Verdict and next step}
-\todo{claude}{After the run.}
+\textbf{Not kept.} Both policies fail \texttt{rl-gate} against r15 ($-240$ with the turn, $-445$ without). David's RL v2
+candidate stays experiment 23's policy, which was measured on the old base bot; against r15 it would be expected to
+lose too.
+
+Next step (one idea): put ``bot unchanged'' back into the action set (bot, economy, army, research) on r15, so the
+policy has to justify every boost against doing nothing; together with a higher min-count this tests whether
+\emph{any} turn-dependent boost pays on the corrected bot.
 
 \section{Notes for the paper}
-\todo{claude}{After the run.}
+Claim: the gains of value iteration over strategic boosts (experiments 21--23) came from a mistuned base bot. After
+correcting its research weight (r15: +336 against the old bot on its own), the same method gives a policy that loses
+to the bot ($-240$), because none of the boosts pays when the base is well tuned and the action set had no ``do
+nothing''. A clean example of measuring an RL gain against a weak baseline.
+
+\todo{david}{Is this worth a place in the talk or report? Where?}
 
 \end{document}
