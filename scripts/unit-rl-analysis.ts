@@ -67,7 +67,19 @@ http
       res.writeHead(404);
       return res.end("unknown run");
     }
-    if (url.pathname === "/api/runs") return json({ root: ROOT, runs: runs() });
+    if (url.pathname === "/api/runs")
+      return json({
+        root: ROOT,
+        runs: runs(),
+        // settings per run, from the first line of its training log
+        info: Object.fromEntries(
+          runs().map((r) => {
+            const m: any = lines(path.join(MODELS, r, "rl.jsonl")).find((l: any) => l.type === "meta") ?? {};
+            const method = String(m.method ?? "");
+            return [r, { explore: m.explore ?? 0, featureSet: m.featureSet ?? 1, gamma: m.gamma ?? 1, mlp: method.includes("neural"), td: method.includes("TD") }];
+          }),
+        ),
+      });
     if (url.pathname === "/api/analysis")
       return json(JSON.parse(fs.readFileSync(path.join(MODELS, run, "analysis.json"), "utf8")));
     if (url.pathname === "/api/decision") {

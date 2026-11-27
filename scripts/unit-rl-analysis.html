@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Experiment 24 · what the unit agent learns</title>
+<title>Unit agent · experiments 24, 27, 28</title>
 <style>
   :root {
     --bg: #111214; --panel: #1a1b1e; --line: #2c2e33; --ink: #e8e8ea; --ink2: #a3a5ab; --ink3: #6f7279;
@@ -16,6 +16,8 @@
   header .meta { color: var(--ink2); font-size: 12px; }
   .runs button { background: var(--panel); color: var(--ink2); border: 1px solid var(--line); padding: 5px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
   .runs button.on { color: var(--ink); border-color: var(--blue); }
+  .runs .grp { display: inline-flex; gap: 4px; align-items: center; margin-right: 12px; }
+  .runs .grp > span { color: var(--ink2); font-size: 12px; margin-right: 2px; }
   main { padding: 8px 32px 60px; max-width: 1500px; }
   section { margin-top: 34px; }
   h2 { font-size: 17px; margin: 0 0 2px; }
@@ -57,7 +59,7 @@
 </head>
 <body>
 <header>
-  <h1>Experiment 24 · what the unit agent learns</h1>
+  <h1>Unit agent · what it learns</h1>
   <div class="runs" id="runs"></div>
   <div class="meta" id="meta">loading…</div>
 </header>
@@ -167,7 +169,14 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const tip = $("tip");
-let RUN = null, RUNS = [];
+let RUN = null, RUNS = [], INFO = {};
+/** which experiment a run belongs to, and a short label of its setting */
+function expOf(r) {
+  const i = INFO[r] || {};
+  if (i.featureSet >= 2) return { n: 28, what: "orientation features", label: i.explore > 0 ? `features 2, explore ${i.explore}` : "features 2" };
+  if (i.explore > 0) return { n: 27, what: "exploration reward", label: `w = ${i.explore} star/tile` };
+  return { n: 24, what: "unit value function", label: `${i.mlp ? "net" : "linear"}${i.td ? ", TD(λ)" : ""}${i.gamma < 1 ? ", γ " + i.gamma : ""}` };
+}
 const fmt = (v, d = 1) => (v == null || Number.isNaN(v) ? "–" : Number(v).toFixed(d));
 const sgn = (v, d = 1) => (v == null ? "–" : (v > 0 ? "+" : "") + Number(v).toFixed(d));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -251,7 +260,8 @@ const legendHtml = (series) => series.map((s) => `<span><span style="color:${s.c
 function drawFlow(model) {
   const box = (x, y, w, h, title, body, stroke = "#3a3d44") => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="#141518" stroke="${stroke}"/><text x="${x + 10}" y="${y + 20}" font-weight="600">${title}</text>${body.map((t, i) => `<text x="${x + 10}" y="${y + 38 + i * 16}" class="muted">${t}</text>`).join("")}`;
   const arrow = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#6f7279" stroke-width="1.5" marker-end="url(#ah)"/>`;
-  const vbox = model === "mlp" ? ["36 features → 32 hidden", "tanh units → one number"] : ["V = Σ w_j · φ_j", "36 weights, least squares"];
+  const nf = (INFO[RUN]?.featureSet ?? 1) >= 2 ? 41 : 36;
+  const vbox = model === "mlp" ? [`${nf} features → 32 hidden`, "tanh units → one number"] : ["V = Σ w_j · φ_j", `${nf} weights, least squares`];
   $("flow").innerHTML = `<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6f7279"/></marker></defs>
     ${box(10, 20, 160, 92, "State s", ["the game now,", "learner's turn"])}
     ${arrow(170, 66, 200, 66)}
@@ -263,7 +273,7 @@ function drawFlow(model) {
     ${arrow(770, 66, 800, 66)}
     ${box(800, 20, 170, 92, "Value V(φ)", vbox, "#4c8fe8")}
     ${arrow(970, 66, 1000, 66)}
-    ${box(1000, 20, 170, 92, "Gain", ["r_u(a) + V(s_a) − V(s)", "r: kill / capture credit", "V(s): unit stays put"], "#e8893a")}
+    ${box(1000, 20, 170, 92, "Gain", ["r_u(a) + V(s_a) − V(s)", INFO[RUN]?.explore > 0 ? `r: kills, captures + ${INFO[RUN].explore}★/new tile` : "r: kill / capture credit", "V(s): unit stays put"], "#e8893a")}
     ${arrow(1085, 112, 1085, 150)}
     ${box(820, 150, 350, 82, "Choose", ["best gain > 0 → play it (ties at random);", "otherwise pass: the units' part of the turn ends.", "Training only: with probability ε a random one."])}
     ${arrow(820, 190, 200, 190)}
@@ -385,7 +395,12 @@ async function load() {
   const rs = await (await fetch("/api/runs")).json();
   RUNS = rs.runs;
   if (!RUN || !RUNS.includes(RUN)) RUN = RUNS[0];
-  $("runs").innerHTML = RUNS.map((r) => `<button class="${r === RUN ? "on" : ""}" data-r="${r}">${r}</button>`).join("");
+  INFO = rs.info || {};
+  const groups = {};
+  RUNS.forEach((r) => (groups[expOf(r).n] ||= []).push(r));
+  $("runs").innerHTML = Object.keys(groups).sort((a, b) => a - b).map((n) =>
+    `<span class="grp"><span>${n} · ${expOf(groups[n][0]).what}</span>` +
+    groups[n].map((r) => `<button class="${r === RUN ? "on" : ""}" data-r="${r}" title="${r}">${expOf(r).label}</button>`).join("") + `</span>`).join("");
   $("runs").querySelectorAll("button").forEach((b) => (b.onclick = () => { RUN = b.dataset.r; rowSel = null; load(); }));
   if (!RUN) { $("meta").textContent = "no analysis yet"; return; }
   const q = "?run=" + encodeURIComponent(RUN);
