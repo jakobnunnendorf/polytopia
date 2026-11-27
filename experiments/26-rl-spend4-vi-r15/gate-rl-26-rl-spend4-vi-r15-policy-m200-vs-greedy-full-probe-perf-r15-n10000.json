@@ -1,0 +1,227 @@
+{
+  "verdict": "FAIL",
+  "pass": false,
+  "rule": "paired sign test on d = seat-0 Perfection score (candidate - base) per seed, ties dropped: PASS iff the exact one-sided binomial test of P(better) = 0.5 rejects at alpha AND guard (a) the one-sided (1 - alpha) upper bound mean(d) + z * sd(d) / sqrt(N) >= 0 AND guard (b) candidate 10th-percentile score >= base 10th-percentile score (linear-interpolation quantile, Hyndman-Fan type 7)",
+  "failReasons": [
+    "sign test not rejected: 3141 better vs 4044 worse (ties dropped: 2815), exact one-sided p = 1.000e0 >= alpha 0.01",
+    "guard (a): the mean got significantly worse: mean(d) = -209.875, one-sided upper bound -158.166 < 0",
+    "guard (b): the lower tail got worse: candidate 10th percentile 1435.00 < base 1480.00"
+  ],
+  "opp": [
+    "greedy-full-probe-perf-r15",
+    "greedy-full-probe-perf",
+    "greedy-full-probe-perf (anchor)"
+  ],
+  "setup": {
+    "mode": "perfection",
+    "mapSize": 16,
+    "mapType": "continents",
+    "difficulty": "crazy",
+    "players": 4,
+    "learnerSeat": 0,
+    "humans": [
+      0
+    ],
+    "learnerTribe": "xinxi",
+    "maxTurn": 60,
+    "opponents": [
+      "greedy-full-probe-perf-r15",
+      "greedy-full-probe-perf",
+      "greedy-full-probe-perf (anchor)"
+    ],
+    "seatAssignment": "opponent list repeated to fill seats 1..players-1, shuffled per seed by a Fisher-Yates permutation from splitmix64(seed ^ SEAT_STREAM); identical for candidate and base"
+  },
+  "n": 10000,
+  "alpha": 0.01,
+  "seedStart": 1000000000,
+  "seedEnd": 1000009999,
+  "signTest": {
+    "test": "exact one-sided binomial, H0 P(better) = 0.5, ties dropped",
+    "better": 3141,
+    "worse": 4044,
+    "ties": 2815,
+    "nEffective": 7185,
+    "betterShare": 0.437160751565762,
+    "betterShareLowerBound": 0.4235152804417568,
+    "pValue": 1.0,
+    "reject": false
+  },
+  "guards": {
+    "meanNotWorse": {
+      "rule": "mean(d) + z * se >= 0",
+      "upperBound": -158.1658143410094,
+      "ok": false
+    },
+    "lowerTailNotWorse": {
+      "rule": "candidate p10 >= base p10 (type 7 quantile)",
+      "candidateP10": 1435.0,
+      "baseP10": 1480.0,
+      "ok": false
+    }
+  },
+  "candidateStats": {
+    "mean": 6989.0145,
+    "sd": 3601.3702347921158,
+    "median": 8405.0,
+    "p10": 1435.0,
+    "p90": 10665.0,
+    "best": 18140.0,
+    "bestOfK": {
+      "1": 6989.014499999973,
+      "10": 11303.94489497574,
+      "100": 13645.947822348402
+    }
+  },
+  "baseStats": {
+    "mean": 7198.889,
+    "sd": 3592.7156172218433,
+    "median": 8655.0,
+    "p10": 1480.0,
+    "p90": 10785.0,
+    "best": 18140.0,
+    "bestOfK": {
+      "1": 7198.88899999998,
+      "10": 11440.85786375961,
+      "100": 13680.083966247412
+    }
+  },
+  "meanCandidate": 6989.0145,
+  "meanBase": 7198.889,
+  "sdCandidate": 3601.3702347921158,
+  "sdBase": 3592.7156172218433,
+  "meanD": -209.8745,
+  "sdD": 2222.7408990838553,
+  "seD": 22.227408990838555,
+  "correlation": 0.8090804118234253,
+  "z": 2.326347874388028,
+  "lowerBound": -261.5831856589906,
+  "upperBound": -158.1658143410094,
+  "t": 2.3267208763227267,
+  "lowerBoundT": -261.59147652554753,
+  "upperBoundT": -158.1575234744525,
+  "seedsBetter": 3141,
+  "seedsWorse": 4044,
+  "seedsEqual": 2815,
+  "winRateCandidate": 0.032,
+  "winRateBase": 0.0378,
+  "wallSeconds": 166.214814959,
+  "perSeed": null,
+  "tool": "rl-gate",
+  "candidate": "rl-policy:experiments/26-rl-spend4-vi-r15/policy-m200.tsv",
+  "base": "greedy-full-probe-perf-r15",
+  "opponentSource": "champions registry /Users/davidwunsch/VSCode/polytopia-ai-research/.claude/worktrees/rl-full-state-vi/docs/rl-project/champions.json (top 2) + anchor greedy-full-probe-perf",
+  "threads": 10,
+  "info15": {
+    "ruleWouldPass": false,
+    "ruleWouldSay": "FAIL",
+    "rule": "paired sign test on d = seat-0 Perfection score (candidate - base) per seed, ties dropped: PASS iff the exact one-sided binomial test of P(better) = 0.5 rejects at alpha AND guard (a) the one-sided (1 - alpha) upper bound mean(d) + z * sd(d) / sqrt(N) >= 0 AND guard (b) candidate 10th-percentile score >= base 10th-percentile score (linear-interpolation quantile, Hyndman-Fan type 7)",
+    "failReasons": [
+      "sign test not rejected: 1471 better vs 2127 worse (ties dropped: 1402), exact one-sided p = 1.000e0 >= alpha 0.01",
+      "guard (a): the mean got significantly worse: mean(d) = -276.205, one-sided upper bound -174.740 < 0",
+      "guard (b): the lower tail got worse: candidate 10th percentile 650.00 < base 675.00"
+    ],
+    "opp": [
+      "greedy-full-probe-perf-r15",
+      "greedy-full-probe-perf",
+      "greedy-full-probe-perf (anchor)"
+    ],
+    "setup": {
+      "mode": "perfection",
+      "mapSize": 16,
+      "mapType": "continents",
+      "difficulty": "crazy",
+      "players": 16,
+      "learnerSeat": 0,
+      "humans": [
+        0
+      ],
+      "learnerTribe": "xinxi",
+      "maxTurn": 60,
+      "opponents": [
+        "greedy-full-probe-perf-r15",
+        "greedy-full-probe-perf",
+        "greedy-full-probe-perf (anchor)"
+      ],
+      "seatAssignment": "opponent list repeated to fill seats 1..players-1, shuffled per seed by a Fisher-Yates permutation from splitmix64(seed ^ SEAT_STREAM); identical for candidate and base"
+    },
+    "n": 5000,
+    "alpha": 0.01,
+    "seedStart": 1500000000,
+    "seedEnd": 1500004999,
+    "signTest": {
+      "test": "exact one-sided binomial, H0 P(better) = 0.5, ties dropped",
+      "better": 1471,
+      "worse": 2127,
+      "ties": 1402,
+      "nEffective": 3598,
+      "betterShare": 0.40883824346859365,
+      "betterShareLowerBound": 0.3897419809683673,
+      "pValue": 1.0,
+      "reject": false
+    },
+    "guards": {
+      "meanNotWorse": {
+        "rule": "mean(d) + z * se >= 0",
+        "upperBound": -174.7398362512753,
+        "ok": false
+      },
+      "lowerTailNotWorse": {
+        "rule": "candidate p10 >= base p10 (type 7 quantile)",
+        "candidateP10": 650.0,
+        "baseP10": 675.0,
+        "ok": false
+      }
+    },
+    "candidateStats": {
+      "mean": 2458.572,
+      "sd": 2929.2984789419666,
+      "median": 1237.5,
+      "p10": 650.0,
+      "p90": 7111.5000000000055,
+      "best": 21030.0,
+      "bestOfK": {
+        "1": 2458.572,
+        "10": 8462.461343890656,
+        "100": 14151.297196410245
+      }
+    },
+    "baseStats": {
+      "mean": 2734.777,
+      "sd": 3173.533535082097,
+      "median": 1320.0,
+      "p10": 675.0,
+      "p90": 7936.5000000000055,
+      "best": 17980.0,
+      "bestOfK": {
+        "1": 2734.777000000002,
+        "10": 9211.052949258026,
+        "100": 14671.307905324804
+      }
+    },
+    "meanCandidate": 2458.572,
+    "meanBase": 2734.777,
+    "sdCandidate": 2929.2984789419666,
+    "sdBase": 3173.533535082097,
+    "meanD": -276.205,
+    "sdD": 3084.0918562018787,
+    "seD": 43.6156453064511,
+    "correlation": 0.4916232220677993,
+    "z": 2.326347874388028,
+    "lowerBound": -377.6701637487247,
+    "upperBound": -174.7398362512753,
+    "t": 2.327094067365209,
+    "lowerBoundT": -377.70270943694754,
+    "upperBoundT": -174.7072905630524,
+    "seedsBetter": 1471,
+    "seedsWorse": 2127,
+    "seedsEqual": 1402,
+    "winRateCandidate": 0.0094,
+    "winRateBase": 0.0112,
+    "wallSeconds": 45.739576583,
+    "perSeed": null,
+    "informationOnly": true,
+    "note": "information only, does not decide: the gate's verdict is the top-level `verdict` (3 opponents)",
+    "perSeedNote": "per-seed rows dropped to keep the repo small; the run is deterministic, re-run it with the same seeds to get them"
+  },
+  "perSeedNote": "per-seed rows dropped to keep the repo small; the run is deterministic, re-run it with the same seeds to get them"
+}
