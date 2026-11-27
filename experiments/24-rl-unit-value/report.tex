@@ -1,0 +1,113 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 24-rl-unit-value
+% DRAFT by Claude from the design discussion with Jakob on 27 Nov 2026; Jakob edits before the first research run.
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+% WHEN: before the first run. WHO: Jakob states the idea in his words; Claude turns it into a prediction.
+Jakob's idea, in his words (27 Nov 2026): ``What if we train separate value functions for a city and a unit? Then we
+could have the unit rewarded by kills and captures [\ldots] Lets start the experiment by just controlling each unit with
+its own value function and leaving the rest unchanged.'' The value function must let a unit learn ``the value of
+different attack squad structures (which combination of units attack successfully), whom to attack and where it needs
+to move.''
+
+Why: curiosity runs on 26--27 Nov showed that value functions over the whole empire, trained in self-play, lose
+clearly to the greedy champion (best: 5{,}020 against the champions' 8{,}701, 200 games); they never saw an attack.
+A unit decides locally, so a function of the unit's own surroundings can learn fighting, and every unit in every game
+is a training sample.
+
+\todo{jakob}{Confirm or change the prediction below.}
+Prediction: with the champion playing the economy, the learner's unit play is at least as good as the champion's.
+Measured as learner score minus the base bots' mean score in the same game (the champion in the learner seat scores
+$-496 \pm 555$ by this measure, i.e.\ about even):
+\begin{itemize}
+  \item linear: about even with the champion ($-500$ to $+500$); kills and captures per game at least the champion's;
+  \item neural net: better than linear by at least 300 points, because squad combinations are interactions a linear
+        model cannot represent.
+\end{itemize}
+Against the idea: the learner clearly below the champion reference after training (worse than $-1{,}000$), or more
+kills with a lower score (the reward misses what the score needs).
+
+\section{Mechanism}
+% WHEN: before the first run. WHO: Claude.
+\textbf{Who acts.} In the learner's seat the base bot (\texttt{greedy-full-probe-perf}) plays every non-unit action
+(build, research, train, city rewards); every unit action (move, attack, capture) is chosen by the unit value
+function. The other three seats are the base bot.
+
+\textbf{Choice.} For each legal unit action $a$ of unit $u$: $Q(a) = r(a) + V(\phi_u(s_a))$, where $s_a$ is the state
+after $a$ and $\phi_u$ the features of $u$ in it (afterstate values, as in the earlier RL runs). The highest $Q$ is
+played; when no unit action beats leaving the units as they are, the turn passes to the end of turn.
+
+\textbf{One function, every unit.} $V$ is shared by all units; each evaluates it from its own local view.
+
+\textbf{Rewards} (in stars):
+\begin{itemize}
+  \item capture of a city or village: the captured city's income times the turns left in the game;
+  \item kill: the victim's cost;
+  \item credit for a kill or capture is split among the learner's units that damaged the target, by damage share;
+  \item own city lost: minus the same amount as a capture of it would bring, given to all the learner's units;
+  \item no explicit death penalty: a dead unit's return ends, so V learns what dying costs from the rewards it loses.
+\end{itemize}
+Return: Monte Carlo, discounted per turn ($\gamma = 0.97$), per unit.
+
+\textbf{Features} of a unit, read after the action:
+own unit (attack, defence, range, movement, HP, HP share, cost);
+squad within 3 tiles (count, total attack, total HP, number with range $\geq 2$);
+nearest enemy unit (attack, defence, HP share, expected damage dealt and received if attacked now, can kill now);
+danger (enemy units that can reach the unit next turn, their total attack, defence bonus of its tile);
+where (distance to the nearest enemy city, village, enemy unit and threatened own city).
+
+\textbf{Water} (Jakob, 27 Nov: ``what about water?''). On a continents map most attacks cross water, so every distance
+is a \emph{travel} distance in turns, found by a search under the unit's own movement rules (land, and water where the
+unit can embark or already floats), not a straight line; a target with no route yet gets a flag instead of a distance.
+The same search covers obstacles (Jakob: ``and obstacles''): mountains without climbing, extra movement cost of
+forests, roads, tiles occupied by units and enemy zones of control, all by the engine's own movement rules, so unit
+skills such as climbing count automatically.
+A unit on water has its own form (stats read from its current form) and an on-water flag, so its weakness there shows
+in its own stats and in the danger features. Embarking and disembarking are ordinary legal actions and are evaluated
+like any other move.
+
+\textbf{Two variants}, same features, rewards and seeds: linear ($V = w \cdot \phi$, least squares per iteration) and a
+small neural net (one hidden layer, trained by stochastic gradient descent on the same returns).
+
+Code: a new binary crate \texttt{engine/unitrl} (self-play loop on threads, both learners, run file for the RL dashboard).
+
+\section{Setup}
+% WHEN: before the first run. WHO: Claude.
+Perfection, 4 players, 16$\times$16 continents, 30 turns; all seats human, normal difficulty (the same economic rules
+in every seat, so only the unit play differs). Training: the learner in one seat, rotated, against 3$\times$ the base
+bot; training seeds from 7{,}000{,}000{,}000. Measurement: 200 games per variant on seeds 6{,}000{,}000{,}000.. (the
+seeds of the 27 Nov comparison), the learner seat rotated; the champion in the learner seat on the same seeds is the
+reference. The official \texttt{rl-gate} needs a learner kind for this policy (see \#198); until then the 200-game
+comparison is the measure, and the gate follows once the policy is playable there.
+
+Deferred to later iterations (decided 27 Nov): credit for damage absorbed (tanks shielding ranged units), skill flags,
+pair features.
+
+\section{Results}
+\ExpResults
+
+\todo{claude}{Read the tables.}
+
+\section{Behaviour}
+\todo{claude}{Kills, captures and units lost per game, learner vs champion reference.}
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\section{Interpretation}
+\todo{claude}{Why the result came out this way, and whether the prediction held.}
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\todo{claude}{Two or three concrete threats.}
+
+\section{Verdict and next step}
+\todo{claude}{Kept or not, and the next experiment this suggests.}
+
+\section{Notes for the paper}
+\todo{claude}{Draft: the one-sentence claim and which figure or table would carry it.}
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

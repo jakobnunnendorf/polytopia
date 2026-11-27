@@ -1,0 +1,34 @@
+{
+  "n": 24,
+  "slug": "rl-unit-value",
+  "title": "Units controlled by a shared per-unit value function (linear vs neural net)",
+  "kind": "method",
+  "issue": 166,
+  "pr": 0,
+  "date": "2026-11-27",
+  "status": "running",
+  "verdict": "pending",
+  "base": "greedy-full-probe-perf",
+  "result": null,
+  "question": "Does a value function that controls each unit from its own local view, trained on kills and captures against the greedy champion, beat the champion's own unit play when the champion keeps playing the economy?",
+  "change": "Every unit action (move, attack, capture) of the learner is chosen by one value function shared by all units, evaluated on the afterstate of each candidate action; every other action is played by the base bot. Two variants on the same features, rewards and seeds: linear and a small neural net.",
+  "method": "Monte Carlo on per-unit returns, trained against 3x the base bot; measured alone against 3x the base bot",
+  "measured": "200 games per variant, learner seat rotated; the base bot in the learner seat is the reference",
+  "metric": "learner score minus the base bots' mean score (paired per game)",
+  "setups": [
+    "Perfection, 4 players, 16×16 continents, 30 turns, all seats human, normal difficulty"
+  ],
+  "knobs": [],
+  "headline": [
+    {
+      "label": "Learner minus base-bot mean score, 200 games",
+      "base": null,
+      "new": null,
+      "unit": "points"
+    }
+  ],
+  "runs": [
+    { "id": "rl-unit-linear", "label": "Linear unit value" },
+    { "id": "rl-unit-mlp", "label": "Neural-net unit value" }
+  ]
+}

@@ -557,7 +557,7 @@ pub fn full_bot_step(s: &GameState, w: &FullWeights) -> Action {
 
 /// the choice of full_bot_step among `actions` (the legal actions of `s`, in order).
 /// goal() is cached per unit for this call: it is a pure function of the unchanged state.
-fn full_best_of(s: &GameState, actions: &[Action], w: &FullWeights) -> Action {
+pub fn full_best_of(s: &GameState, actions: &[Action], w: &FullWeights) -> Action {
     let mut best = Action::EndTurn;
     let mut best_score = 0.0f64;
     let mut cache: Option<GoalCache> = Some(GoalCache::default());

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["core", "cli", "api", "node", "wasm", "py", "gate", "rlvalue"]
+members = ["core", "cli", "api", "node", "wasm", "py", "gate", "rlvalue", "unitrl"]
 
 [workspace.package]
 edition = "2021"
