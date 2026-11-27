@@ -1,0 +1,36 @@
+{
+  "n": 26,
+  "slug": "rl-spend4-vi-r15",
+  "title": "Spending actions with the unchanged bot as an action, value iteration on r15",
+  "kind": "method",
+  "issue": 166,
+  "pr": 0,
+  "date": "2026-11-27",
+  "status": "running",
+  "verdict": "pending",
+  "base": "greedy-full-probe-perf-r15",
+  "result": null,
+  "question": "If the unchanged bot is one of the actions (bot, economy, army, research), does value iteration on r15 find turns where a spending boost pays, or does it learn to leave the bot alone?",
+  "change": "Experiment 25 (state with the turn) with the action set spend4 = bot, economy, army, research instead of spend3; the bot is also the default for states without an entry.",
+  "method": "300k games with a random spend4 action per turn; value iteration with the turn and min-count 1, 5, 20, 50, 200; min-count chosen on 2,000 validation seeds; the chosen policy on the 10,000 evaluation seeds against r15 and against experiment 25's policy",
+  "measured": "Paired, 10,000 evaluation seeds",
+  "metric": "final raw score, #171 rule",
+  "setups": [
+    "Perfection, 16×16 continents, 4 players, Crazy, seat 0 Xin-Xi (human seat), learner base greedy-full-probe-perf-r15; opponents greedy-full-probe-perf-r15, greedy-full-probe-perf, greedy-full-probe-perf (anchor), seats shuffled per seed (rl-gate defaults from 27 Nov)"
+  ],
+  "knobs": [
+    {
+      "name": "minCount",
+      "tested": [
+        1,
+        5,
+        20,
+        50,
+        200
+      ],
+      "chosen": null
+    }
+  ],
+  "headline": [],
+  "runs": []
+}

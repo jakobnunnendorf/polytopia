@@ -549,8 +549,9 @@ const USAGE: &str = "usage:
                                                                           (value iteration -> policy-mN.tsv)
   rl-value eval --policy <policy.tsv> [--n 10000] [--seed-start 1000000000] --out <file.json>
 collect, check and eval take the setup flags; --driver bot|random|fixed:K|policy:<file> picks the strategic
-action of the learner each turn; --boost 2 is the weight multiplier of an action; --actions strategic5|spend3
-the action set (spend3: economy, army, research; states without a policy entry play the bot unchanged).
+action of the learner each turn; --boost 2 is the weight multiplier of an action; --actions strategic5|spend3|spend4
+the action set (spend3: economy, army, research; states without a policy entry play the bot unchanged;
+spend4: bot, economy, army, research).
 Seeds must stay below 1,000,000,000 (the gate's evaluation seeds).";
 
 fn main() {

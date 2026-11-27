@@ -5,7 +5,8 @@
 //! Action: one action of an action set (`ActionSet`), chosen at the start of a learner turn and held for that turn.
 //! An action multiplies the base bot's move-type factors (`FullWeights::ty`) of its move types by the boost.
 //! `strategic5` (experiments 15, 21, 22): bot, expand, economy, army, research, where action 0 is the base bot
-//! unchanged; `spend3` (experiment 23): economy, army, research.
+//! unchanged; `spend3` (experiment 23): economy, army, research; `spend4` (experiment 26): bot, economy, army,
+//! research.
 //! Policy: a table state -> action (`rl-value fit-vi` writes it), keyed on a subset of the six features
 //! (`FeatureMask`; dropped features are 0 in the table). A state without an entry plays the action set's default:
 //! action 0 for strategic5, the base bot unchanged for spend3.
@@ -49,7 +50,11 @@ pub struct ActionSet {
 pub const STRATEGIC5: ActionSet = ActionSet { id: "strategic5", names: &ACTION_NAMES, boosted: &BOOSTED, default: Some(0) };
 /// Spending only (experiment 23, David): build, train and attack, research; expansion stays at the base weights.
 pub const SPEND3: ActionSet = ActionSet { id: "spend3", names: &["economy", "army", "research"], boosted: &[&[13], &[12, 2], &[0]], default: None };
-pub const ACTION_SETS: [&ActionSet; 2] = [&STRATEGIC5, &SPEND3];
+/// Spending with the bot unchanged as an action (experiment 26, David): bot, build, train and attack, research;
+/// action 0 is also the default, so a state without an entry plays the bot unchanged.
+pub const SPEND4: ActionSet =
+    ActionSet { id: "spend4", names: &["bot", "economy", "army", "research"], boosted: &[&[], &[13], &[12, 2], &[0]], default: Some(0) };
+pub const ACTION_SETS: [&ActionSet; 3] = [&STRATEGIC5, &SPEND3, &SPEND4];
 
 impl ActionSet {
     pub fn len(&self) -> usize {
@@ -340,5 +345,14 @@ mod tests {
         assert!(StrategicPolicy::load(f.to_str().unwrap()).unwrap_err().contains("out of range for spend3"));
         assert!(FeatureMask::from_names(&["cities", "gold"]).is_err());
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn spend4_is_the_bot_plus_spend3() {
+        let base = model_weights("greedy-full-probe-perf-r15").unwrap();
+        let (w4, w3) = (SPEND4.weights(&base, 2.0), SPEND3.weights(&base, 2.0));
+        assert_eq!(w4[0], base, "action 0 is the base bot unchanged");
+        assert_eq!(&w4[1..], &w3[..], "actions 1-3 are spend3's");
+        assert_eq!((SPEND4.default, ActionSet::by_id(Some("spend4")).unwrap().len()), (Some(0), 4));
     }
 }

@@ -1,0 +1,87 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 26-rl-spend4-vi-r15
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+\textbf{The idea (David, 27 Nov 2026, issue \#166).} Experiment 25 again, with the unchanged bot as a fourth action:
+\texttt{spend4} = bot, economy, army, research. In 25 the action set had no ``do nothing'' action, so every policy
+decision was a boost; the noisy maximum over three $Q$ estimates chose economy on 16.8\% of learner turns, and the
+policy lost 240 points against r15. With the bot as an action, a boost is played only where its estimate beats the
+unchanged bot in that state. This asks whether any turn-dependent boost pays on r15 at all.
+
+\textbf{Prediction} (before any run of this experiment):
+\begin{enumerate}
+  \item \emph{The policy leaves the bot alone more often.} At the chosen min-count, the bot plays unchanged (as the
+        chosen action or by fallback) on at least 40\% of learner turns, and economy on fewer than 10\%
+        (25: bot 30.5\%, economy 16.8\%).
+  \item \emph{Still no gain over r15.} The mean difference against r15 on the evaluation seeds is between $-150$ and
+        $+30$ points, and the policy does \emph{not} pass the \#171 rule against r15.
+  \item \emph{Better than experiment 25.} Paired on the evaluation seeds, the policy beats 25's policy (with turn,
+        $m = 50$) by at least $+80$ points, and the sign test rejects ``no better'' at $\alpha = 0.01$.
+  \item \emph{The larger the min-count, the better.} On validation, $m = 200$ is best or within noise of the best
+        (fewer qualifying actions, more turns played by the bot).
+\end{enumerate}
+\textbf{Against the prediction:} a PASS against r15 would mean that value iteration finds timing decisions that the
+research-corrected bot misses. A policy that is no better than 25's would mean the loss in 25 does not come from
+the missing bot action.
+
+\section{Mechanism}
+\textbf{Actions} (\texttt{spend4} in \texttt{rl\_value::strategic}, new): 0 bot (the base weights unchanged),
+1 economy (build), 2 army (train, attack), 3 research; each boost multiplies the base bot's move-type factors of its
+types by 2 for one learner turn, as in 23 and 25. Action 0 is also the default: a state without a policy entry
+plays the bot unchanged. A test checks that action 0 is exactly r15 and actions 1--3 are spend3's.
+
+\textbf{State}: (turn, cities, income, units, techs), as the chosen version of 25 (without the turn lost more there).
+
+\textbf{Value iteration} as in experiment 25 ($Q(s,a) = $ mean of $r + V(s')$, $V(s) = \max_{a: n(s,a) \ge m}
+Q(s,a)$, fallback to the mean over all transitions, $\gamma = 1$), one backward sweep from the last turn.
+
+\section{Setup}
+As experiment 25: learner base \texttt{greedy-full-probe-perf-r15}; opponents r15, probe-perf and the anchor
+probe-perf (\texttt{rl-gate} defaults after PR \#204), shuffled per seed. Perfection, 16$\times$16 Continents,
+4 players, Crazy, learner Xin-xi in the human seat. Seeds: training $1\dots300{,}000$ (new games, random spend4
+action per turn, so the bot is played on a quarter of the turns), action check $600{,}000{,}000\dots$ (2{,}000),
+validation $700{,}000{,}000\dots$ (2{,}000), evaluation $10^9\dots$ (10{,}000). Min-count $1, 5, 20, 50, 200$, chosen
+on validation; the chosen policy on the evaluation seeds with \texttt{rl-gate} against r15 and against 25's policy
+(\texttt{--base rl-policy:experiments/25-rl-spend-vi-r15/policy-turn-m50.tsv}).
+
+Commands (from \texttt{engine/}):
+\begin{verbatim}
+B=./target/release/rl-value; R=target/rl-value; E=../experiments/26-rl-spend4-vi-r15
+$B check --actions spend4 --games 2000 --seed-start 600000000 --out $E/check.json
+$B collect --actions spend4 --driver random --games 300000 --seed-start 1 --out $R/s4r15-train-random.tsv
+$B fit-vi --train $R/s4r15-train-random.tsv --features turn,cities,income,units,techs \
+  --min-count 1,5,20,50,200 --out $R/vi-s4r15-turn
+$B eval --actions spend4 --policy $R/vi-s4r15-turn/policy-mM.tsv --n 2000 --seed-start 700000000 --out $E/val-mM.json
+rl-gate --candidate rl-policy:experiments/26-rl-spend4-vi-r15/policy-mM.tsv --base greedy-full-probe-perf-r15
+rl-gate --candidate rl-policy:experiments/26-rl-spend4-vi-r15/policy-mM.tsv \
+  --base rl-policy:experiments/25-rl-spend-vi-r15/policy-turn-m50.tsv
+\end{verbatim}
+
+\section{Results}
+\ExpResults
+
+\todo{claude}{After the runs.}
+
+\section{Behaviour}
+\todo{claude}{Action shares of the chosen policy on validation, against 25's.}
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\section{Interpretation}
+\todo{claude}{Why the result came out this way, and whether the prediction held.}
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\todo{claude}{Two or three concrete threats.}
+
+\section{Verdict and next step}
+\todo{claude}{Kept or not, and the next experiment this suggests.}
+
+\section{Notes for the paper}
+\todo{claude}{Draft: the one-sentence claim and which figure or table would carry it.}
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}
