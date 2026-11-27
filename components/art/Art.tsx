@@ -6,12 +6,13 @@
  * Purely cosmetic; the engine never imports this file.
  */
 import React from "react";
-import { Image, type ImageSourcePropType } from "react-native";
+import { Image, Platform, View, type ImageSourcePropType } from "react-native";
 import Svg, { Circle, Ellipse, G, Line, Path, Polygon, Rect } from "react-native-svg";
+import { PLAYER_COLORS } from "@/components/game/theme";
 import type { Terrain } from "@/logic/engine/types";
 import { SpecialBuildingArt, SpecialUnitArt, TribeEmblem } from "./TribeArt";
 import { TRIBE_UNIT_SPRITES } from "./tribeUnits";
-import { useTeamSprite } from "./teamTint";
+import { useMultiplySprite, useTeamSprite } from "./teamTint";
 
 export { TribeEmblem };
 
@@ -72,6 +73,9 @@ const BUILDING_SPRITES: Record<string, ImageSourcePropType> = {
 };
 
 const STAR_SPRITE: ImageSourcePropType = require("@/assets/sprites/star.png");
+const LIGHTHOUSE_ROOF: ImageSourcePropType = require("@/assets/sprites/lighthouseRoof.png");
+const LIGHTHOUSE_SECTION: ImageSourcePropType = require("@/assets/sprites/lighthouseSection.png");
+const LIGHTHOUSE_SECTION_TINT: ImageSourcePropType = require("@/assets/sprites/lighthouseSectionTint.png");
 
 function Sprite({ source, size, pad = 0, team }: { source: ImageSourcePropType; size: number; pad?: number; team?: string }) {
   const shown = useTeamSprite(source, team);
@@ -589,6 +593,104 @@ export function VillageArt({ size }: { size: number }) {
       <IsoBuilding cx={60} cy={70} rx={9} ry={4.9} h={9} roof="#9c5a2e" roofH={8} wall="#efe2c6" />
       <IsoBuilding cx={50} cy={86} rx={9.5} ry={5.1} h={9.5} roof="#7c4220" roofH={8.5} wall="#f3e8cf" door />
     </Box>
+  );
+}
+
+function LighthouseTier({
+  color,
+  w,
+  h,
+  bottom,
+  left,
+  testID,
+}: {
+  color: string;
+  w: number;
+  h: number;
+  bottom: number;
+  left: number;
+  testID?: string;
+}) {
+  const gem = useMultiplySprite(LIGHTHOUSE_SECTION_TINT, color);
+  return (
+    <View
+      testID={testID}
+      pointerEvents="none"
+      style={{ position: "absolute", left, bottom, width: w, height: h }}
+    >
+      <Image source={LIGHTHOUSE_SECTION} resizeMode="contain" style={{ width: w, height: h }} />
+      <Image
+        source={gem}
+        resizeMode="contain"
+        style={{
+          position: "absolute",
+          left: w * 0.334,
+          top: h * 0.475,
+          width: w * (63 / 190),
+          height: h * (73 / 205),
+          ...(Platform.OS !== "web" ? { tintColor: color } : null),
+        }}
+      />
+    </View>
+  );
+}
+
+/**
+ * Corner lighthouse built from the official Polytopia sprites:
+ * one stacked hexagonal section per finder (with its tribe-coloured gem), topped by the lantern roof.
+ */
+export function LighthouseArt({
+  size,
+  finders = [],
+  testID,
+}: {
+  size: number;
+  finders?: number[];
+  testID?: string;
+}) {
+  const n = finders.length;
+  const baseSecW = size * 0.5;
+  const baseSecH = baseSecW * (205 / 190);
+  const baseRoofW = baseSecW * (207 / 190);
+  const baseRoofH = baseRoofW * (214 / 207);
+  const baseStep = baseSecH * 0.42;
+  const naturalH = baseRoofH + n * baseStep;
+  const scale = Math.min(1, (size * 0.92) / naturalH);
+  const secW = baseSecW * scale;
+  const secH = baseSecH * scale;
+  const roofW = baseRoofW * scale;
+  const roofH = baseRoofH * scale;
+  const step = baseStep * scale;
+  const baseBottom = size * 0.04;
+  return (
+    <View
+      testID={testID}
+      pointerEvents="none"
+      style={{ position: "absolute", left: 0, top: 0, width: size, height: size }}
+    >
+      {finders.map((p, k) => (
+        <LighthouseTier
+          key={`${p}-${k}`}
+          testID={testID ? `${testID}-tier-${k}` : `lighthouse-tier-${k}`}
+          color={PLAYER_COLORS[p % PLAYER_COLORS.length]}
+          w={secW}
+          h={secH}
+          left={(size - secW) / 2}
+          bottom={baseBottom + k * step}
+        />
+      ))}
+      <Image
+        source={LIGHTHOUSE_ROOF}
+        resizeMode="contain"
+        style={{
+          position: "absolute",
+          left: (size - roofW) / 2,
+          bottom: baseBottom + n * step,
+          width: roofW,
+          height: roofH,
+        }}
+      />
+    </View>
   );
 }
 

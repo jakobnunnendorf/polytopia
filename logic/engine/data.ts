@@ -1,7 +1,7 @@
 import type { ResourceId } from "./types";
 /**
  * Rules data, matching The Battle of Polytopia 2.18 (regular tribes) as
- * documented in docs/shardlands/RULES.md. Section numbers (§) refer to it.
+ * documented in docs/RULES.md. Section numbers (§) refer to it.
  * Ids are plain words; display names are in names.ts.
  */
 

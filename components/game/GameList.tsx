@@ -3,12 +3,16 @@ import { Pressable, Text, View } from "react-native";
 import { arena, type GameSummary } from "@/components/game/arenaClient";
 import { PLAYER_COLORS, UI } from "@/components/game/theme";
 import { BUILTIN_MODELS } from "@/logic/agents/registry";
+import type { ModelSpec } from "@/logic/agents/types";
 
-export function seatLabel(seat: GameSummary["seats"][number]): string {
+export function seatLabel(seat: GameSummary["seats"][number], models?: readonly ModelSpec[]): string {
   if (seat.kind === "human") return seat.name;
-  if (seat.modelId === "claude-sonnet-agent") return "Claude Sonnet";
-  // trained models live only on the arena server; name the hill climbers from their id
-  return BUILTIN_MODELS.find((m) => m.id === seat.modelId)?.name ?? seat.modelId.replace(/^greedy-hill-v(\d+)$/, "Hill climber v$1");
+  // trained models live on the arena server; look up their short display name there first
+  return (
+    models?.find((m) => m.id === seat.modelId)?.name ??
+    BUILTIN_MODELS.find((m) => m.id === seat.modelId)?.name ??
+    seat.modelId.replace(/^greedy-hill-v(\d+)$/, "Hill climber v$1")
+  );
 }
 
 function when(iso: string): string {
@@ -28,12 +32,14 @@ export default function GameList({
   anySource?: boolean;
 }) {
   const [games, setGames] = useState<GameSummary[] | null>(null);
+  const [models, setModels] = useState<ModelSpec[]>([]);
   const [error, setError] = useState(false);
   useEffect(() => {
     arena
       .games()
       .then((all) => setGames(all.filter((g) => (finished ? g.over : !g.over && (anySource || g.source === "play")))))
       .catch(() => setError(true));
+    arena.models?.().then(setModels).catch(() => {});
   }, [finished, anySource]);
 
   if (error)
@@ -71,7 +77,7 @@ export default function GameList({
               <View key={i} style={{ flexDirection: "row", alignItems: "center", marginRight: 10 }}>
                 <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: PLAYER_COLORS[i % PLAYER_COLORS.length], marginRight: 5 }} />
                 <Text style={{ color: UI.mist, fontSize: 15, fontWeight: g.winner === i ? "800" : "600" }}>
-                  {seatLabel(s)}
+                  {seatLabel(s, models)}
                   {g.winner === i ? " won" : ""}
                 </Text>
               </View>

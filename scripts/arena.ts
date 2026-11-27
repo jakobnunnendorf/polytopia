@@ -3,7 +3,7 @@
  * every game into data/games/ and updates data/ratings.json.
  *
  *   npm run arena -- --models greedy-v1,random-v1 --games 20
- *   npm run arena -- --models greedy-v1,qwen3-coder-lmstudio --games 2 --size 11 --mode perfection
+ *   npm run arena -- --models greedy-v1,greedy-full-v1 --games 2 --size 11 --mode perfection
  *
  * Seats rotate every game so each model plays from every seat (first-move advantage evens out).
  */
@@ -11,7 +11,7 @@ import { applyAction } from "../logic/engine/actions";
 import { createGame, mapTypeFor } from "../logic/engine/state";
 import type { GameMode } from "../logic/engine/types";
 import type { MapType } from "../logic/engine/mapgen";
-import { createAgent, directChat } from "../logic/agents/registry";
+import { createAgent } from "../logic/agents/registry";
 import { finishRecord, recordStep, startRecord, type Seat } from "../logic/arena/record";
 import { listModels, readRatings, saveGame } from "./lib/store";
 
@@ -37,7 +37,7 @@ async function main() {
 
   for (let g = 0; g < games; g++) {
     const order = specs.map((_, i) => specs[(i + g) % specs.length]);
-    const agents = order.map((m) => createAgent(m, directChat, all));
+    const agents = order.map((m) => createAgent(m));
     const seats: Seat[] = order.map((m) => ({ kind: "model", modelId: m.id }));
     let s = createGame({ mapSize: size, players: order.length, mode, seed: seed0 + g, humans: [], mapType });
     const rec = startRecord(s, seats, "arena", mapType);
@@ -58,7 +58,6 @@ async function main() {
       .map((m, i) => `${m.id}${s.winner === i ? " (won)" : ""} ${rec.result!.scores[i]} ${out.deltas[i] >= 0 ? "+" : ""}${out.deltas[i]}`)
       .join("  |  ");
     console.log(`game ${g + 1}/${games}  turns ${s.turn}  ${line}  -> ${out.file}`);
-    agents.forEach((ag) => ag.stats && console.log(`  ${ag.spec.id}: ${ag.stats.byModel}/${ag.stats.decisions} decisions by the model, ${ag.stats.fallbacks} fallbacks${ag.stats.lastError ? ` (last: ${ag.stats.lastError})` : ""}`));
   }
 
   const ratings = readRatings();

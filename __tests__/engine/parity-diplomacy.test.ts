@@ -1,7 +1,8 @@
 /**
- * Parity tests for diplomacy against POLYTOPIA_RULES.md ("Diplomacy": peace
- * treaty, embassy, Cloak, what bots think of you, meeting tribes; plus the
- * peace rules in Movement, Healing, Capture and Roads) and docs/RULES_PARITY.md.
+ * Parity tests for diplomacy against docs/RULES.md (§5.14 peace treaty, §10.1
+ * embassy, §3.6 Cloak, §10.3 what bots think of you, §5.9 meeting tribes; plus
+ * the peace rules in §4 movement, §3.5 healing, §5.8 capture and §4.4 roads) and
+ * docs/RULES_PARITY.md.
  */
 import { applyAction, legalActions } from "@/logic/engine/actions";
 import { botStep, scoreAction } from "@/logic/engine/bot";

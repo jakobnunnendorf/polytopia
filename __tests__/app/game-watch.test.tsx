@@ -18,7 +18,6 @@ jest.mock("../../components/game/arenaClient", () => {
   const fail = () => Promise.reject(new Error("offline"));
   return {
     arena: new Proxy({}, { get: () => jest.fn(fail) }),
-    serverChat: jest.fn(fail),
   };
 });
 

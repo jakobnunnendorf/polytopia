@@ -6,14 +6,12 @@ import { legalActions } from "../engine/actions";
 import { DEFAULT_WEIGHTS, botStep, type GreedyWeights } from "../engine/bot";
 import { fullBotStep, fullWeights } from "../engine/botFull";
 import type { GameState } from "../engine/types";
-import { llmAgent } from "./llm";
-import type { Agent, ChatFn, ModelSpec } from "./types";
+import type { Agent, ModelSpec } from "./types";
 
 import greedyV1 from "../../models/greedy-v1/model.json";
 import randomV1 from "../../models/random-v1/model.json";
-import qwen from "../../models/qwen3-coder-lmstudio/model.json";
 
-export const BUILTIN_MODELS: ModelSpec[] = [greedyV1, randomV1, qwen] as ModelSpec[];
+export const BUILTIN_MODELS: ModelSpec[] = [greedyV1, randomV1] as ModelSpec[];
 export const DEFAULT_MODEL = "greedy-v1";
 
 function rngFor(s: GameState): () => number {
@@ -58,7 +56,7 @@ export function randomAgent(spec: ModelSpec): Agent {
   };
 }
 
-export function createAgent(spec: ModelSpec, chat: ChatFn, all: ModelSpec[] = BUILTIN_MODELS): Agent {
+export function createAgent(spec: ModelSpec): Agent {
   switch (spec.kind) {
     case "greedy":
       return greedyAgent(spec);
@@ -66,23 +64,7 @@ export function createAgent(spec: ModelSpec, chat: ChatFn, all: ModelSpec[] = BU
       return greedyFullAgent(spec);
     case "random":
       return randomAgent(spec);
-    case "llm": {
-      const fb = all.find((m) => m.id === (spec.llm?.fallback ?? DEFAULT_MODEL)) ?? greedyV1;
-      return llmAgent(spec, chat, greedyAgent(fb as ModelSpec));
-    }
     default:
       return greedyAgent(greedyV1 as ModelSpec);
   }
 }
-
-/** direct OpenAI-compatible call (Node, or a browser on the same machine as LM Studio) */
-export const directChat: ChatFn = async ({ endpoint, model, temperature, messages }) => {
-  const res = await fetch(`${endpoint.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model, temperature, messages, max_tokens: 16, stream: false }),
-  });
-  if (!res.ok) throw new Error(`LLM HTTP ${res.status}`);
-  const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  return json.choices?.[0]?.message?.content ?? "";
-};

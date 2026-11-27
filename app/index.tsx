@@ -130,7 +130,7 @@ export default function HomeScreen() {
     <ImageBackground
       source={require("@/assets/images/menu-background.webp")}
       resizeMode="cover"
-      style={{ flex: 1, backgroundColor: UI.dusk }}
+      style={{ flex: 1, backgroundColor: UI.dusk, overflow: "hidden" }} imageStyle={{ width: "100%", height: "100%" }}
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end", alignItems: "center", padding: 16 }}>
         {/* the landscape stays visible above; logo and menu share one dusk panel */}

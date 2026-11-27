@@ -1,7 +1,7 @@
 import React, { memo, useEffect, useRef } from "react";
 import { Animated, Easing, Platform, Pressable, Text, View } from "react-native";
 import { Pop, Pulse, reduceMotion } from "@/components/anim";
-import { BuildingArt, CityArt, CloudArt, IceArt, ResourceArt, TerrainArt, VillageArt } from "@/components/art/Art";
+import { BuildingArt, CityArt, CloudArt, IceArt, LighthouseArt, ResourceArt, TerrainArt, VillageArt } from "@/components/art/Art";
 import type { City, Tile as TileData } from "@/logic/engine/types";
 import { PLAYER_COLORS, TERRAIN_COLOR, TILE as TILE_BASE, UI } from "@/components/game/theme";
 
@@ -69,6 +69,7 @@ function Tile({
   ruinThroughClouds = false,
   territoryFocus = false,
   roadDirs = 0,
+  lighthouseFinders,
 }: {
   x: number;
   y: number;
@@ -92,6 +93,8 @@ function Tile({
   territoryFocus?: boolean;
   /** road links to the 8 neighbours (bit k = ROAD_DIRS[k]); drawn as half-segments that meet the neighbour's */
   roadDirs?: number;
+  /** ids of players who have uncovered this corner lighthouse (each adds a coloured tier) */
+  lighthouseFinders?: number[];
 }) {
   const TILE = size ?? TILE_BASE;
   // remember when this tile was revealed, so the clearing clouds survive quick re-renders
@@ -244,6 +247,7 @@ function Tile({
         </Pop>
       )}
       {tile.village && !city && <VillageArt size={TILE} />}
+      {tile.lighthouse && <LighthouseArt size={TILE} finders={lighthouseFinders} testID={`lighthouse-${x}-${y}`} />}
       {city && (
         <>
           {/* the city art is drawn in the lower half of its box, so draw it 1.3x and lift it */}

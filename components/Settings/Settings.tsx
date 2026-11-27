@@ -25,7 +25,7 @@ const MAP_SIZES = [
 ];
 
 const MODES = [
-  { id: "perfection", title: "Perfection", hint: "Highest score after 30 turns wins. Always a Normal (16×16) map, as in the game." },
+  { id: "perfection", title: "Perfection", hint: "Highest score after 30 turns wins. Always a Normal (16×16) map of Continents, as in the game." },
   { id: "domination", title: "Domination", hint: "The last tribe holding a city wins. The size is preset from the opponent count; pick another if you like." },
   { id: "creative", title: "Creative", hint: "Any size and opponents, no turn limit; the last tribe holding a city wins." },
   { id: "glory", title: "Glory", hint: "First to 10,000 points wins; if several reach it in one turn, the highest score." },
@@ -92,6 +92,14 @@ function Heading({ children }: { children: React.ReactNode }) {
   return <Text style={{ color: UI.muted, fontSize: 13, fontWeight: "700", marginTop: 16, marginBottom: 8 }}>{children}</Text>;
 }
 
+/** who sits at the table, e.g. "1 person, 3 models" or "4 models" */
+function tableLine(seats: Seat[]): string {
+  const people = seats.filter((s) => s.kind === "human").length;
+  const bots = seats.length - people;
+  const part = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  return [people && part(people, "person", "people"), bots && part(bots, "model", "models")].filter(Boolean).join(", ");
+}
+
 /** one seat: a human profile (for Elo per local player) or an opponent model */
 function SeatRow({
   i,
@@ -101,7 +109,6 @@ function SeatRow({
   ratings,
   overall,
   onChange,
-  onRemove,
   onNewProfile,
   where,
 }: {
@@ -115,7 +122,6 @@ function SeatRow({
   /** the overall table, used when a player has no games with the chosen settings */
   overall: Ratings;
   onChange: (s: Seat) => void;
-  onRemove?: () => void;
   onNewProfile: (name: string) => Promise<Profile | null>;
 }) {
   const [adding, setAdding] = useState(false);
@@ -133,11 +139,6 @@ function SeatRow({
         </View>
         <Chip label="Person" on={seat.kind === "human"} onPress={() => onChange({ kind: "human", profileId: GUEST.id, name: GUEST.name })} />
         <Chip label="Model" on={seat.kind === "model"} onPress={() => onChange({ kind: "model", modelId: models[0]?.id ?? "greedy-v1" })} />
-        {onRemove && (
-          <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove seat ${i + 1}`} style={{ padding: 6, marginBottom: 8 }}>
-            <Text style={{ color: UI.muted, fontSize: 18 }}>×</Text>
-          </Pressable>
-        )}
       </View>
       {seat.kind === "model" && (
         <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
@@ -267,12 +268,12 @@ function TribeNote({ clan }: { clan?: string }) {
 }
 
 /**
- * the models the picker offers: no external players, no superseded (hidden) models, strongest first by
+ * the models the picker offers: no superseded (hidden) models, strongest first by
  * overall Elo, so a new model seat starts with the champion
  */
 export function pickerModels(models: ModelSpec[], overall: Ratings): ModelSpec[] {
   const elo = (m: ModelSpec) => overall[`model:${m.id}`]?.rating ?? -Infinity;
-  return models.filter((m) => m.kind !== "external" && !m.hidden).sort((a, b) => elo(b) - elo(a));
+  return models.filter((m) => !m.hidden).sort((a, b) => elo(b) - elo(a));
 }
 
 export default function Settings() {
@@ -314,13 +315,12 @@ export default function Settings() {
       live = false;
     };
   }, [mode.id, seats.length, settings.mapSize]);
-  // the Players board: one world the engine could deal for these settings; "Deal again" draws another
-  const [deal, setDeal] = useState(1);
+  // the Seats board: one world the engine could deal for these settings (a fixed sample seed)
   const [selected, setSelected] = useState(0);
   const sel = Math.min(selected, seats.length - 1);
   const world = useMemo(
-    () => sampleWorld({ mapSize: settings.mapSize, players: seats.length, mode: mode.id, mapType: settings.mapType, seed: deal * 7919 + 13 }),
-    [settings.mapSize, seats.length, mode.id, settings.mapType, deal],
+    () => sampleWorld({ mapSize: settings.mapSize, players: seats.length, mode: mode.id, mapType: settings.mapType, seed: 7932 }),
+    [settings.mapSize, seats.length, mode.id, settings.mapType],
   );
   const setSeat = (i: number, s: Seat) => settings.setSeats(seats.map((x, j) => (j === i ? s : x)));
   const newProfile = async (name: string) => {
@@ -334,6 +334,22 @@ export default function Settings() {
     }
   };
 
+  // the Players count, as in the game: pick how many first, then who sits where
+  const maxPlayers = Math.min(16, Math.max(...MAP_SIZES.filter((m) => mapSizeAllowed(mode.id, m.size)).map((m) => maxPlayersFor(m.size))));
+  const resize = (n: number) => {
+    const target = Math.max(2, Math.min(maxPlayers, n));
+    let next = [...seats];
+    while (next.length < target) next.push({ kind: "model", modelId: models[0]?.id ?? "greedy-v1" });
+    while (next.length > target) {
+      const j = next.map((s) => s.kind).lastIndexOf("model");
+      next.splice(j >= 0 ? j : next.length - 1, 1);
+    }
+    settings.setSeats(next);
+    setSelected((s) => Math.min(s, target - 1));
+  };
+
+  const sizes = MAP_SIZES.filter((m) => mapSizeAllowed(mode.id, m.size) && seats.length <= maxPlayersFor(m.size));
+
   return (
     <View testID="settings-component">
       <Heading>Victory</Heading>
@@ -344,26 +360,38 @@ export default function Settings() {
       </View>
       <Text style={{ color: UI.muted, fontSize: 13 }}>{mode.hint}</Text>
 
-      <Heading>World</Heading>
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-        {WORLDS.filter((w) => !forcedWorld || w.id === forcedWorld).map((w) => (
-          <Chip key={w.id} testID={`world-${w.id}`} label={w.title} on={settings.mapType === w.id} onPress={() => settings.setMapType(w.id)} />
-        ))}
-      </View>
-      <Text style={{ color: UI.muted, fontSize: 13 }}>
-        {WORLDS.find((w) => w.id === settings.mapType)?.hint}
-        {forcedWorld ? ` ${mode.title} is always played on ${WORLDS.find((w) => w.id === forcedWorld)?.title ?? forcedWorld}, as in the game.` : ""}
-      </Text>
+      {/* a choice the mode fixes (Perfection: Continents, Normal size) is not shown; the mode's hint names it */}
+      {!forcedWorld && (
+        <>
+          <Heading>World</Heading>
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            {WORLDS.map((w) => (
+              <Chip key={w.id} testID={`world-${w.id}`} label={w.title} on={settings.mapType === w.id} onPress={() => settings.setMapType(w.id)} />
+            ))}
+          </View>
+          <Text style={{ color: UI.muted, fontSize: 13 }}>{WORLDS.find((w) => w.id === settings.mapType)?.hint}</Text>
+        </>
+      )}
 
-      <Heading>Map size</Heading>
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-        {MAP_SIZES.filter(
-          (m) =>
-            mapSizeAllowed(mode.id, m.size) &&
-            seats.length <= maxPlayersFor(m.size),
-        ).map((m) => (
-          <Chip key={m.size} label={m.title} on={settings.mapSize === m.size} onPress={() => settings.setMapSize(m.size)} />
-        ))}
+      {sizes.length > 1 && (
+        <>
+          <Heading>Map size</Heading>
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            {sizes.map((m) => (
+              <Chip key={m.size} label={m.title} on={settings.mapSize === m.size} onPress={() => settings.setMapSize(m.size)} />
+            ))}
+          </View>
+        </>
+      )}
+
+      <Heading>Players</Heading>
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <Chip testID="players-less" label="−" on={false} onPress={() => resize(seats.length - 1)} />
+        <Text testID="players-count" style={{ color: UI.mist, fontWeight: "800", fontSize: 18, minWidth: 34, textAlign: "center", marginBottom: 8 }}>
+          {seats.length}
+        </Text>
+        <Chip testID="players-more" label="+" on={false} onPress={() => resize(seats.length + 1)} />
+        <Text style={{ color: UI.muted, fontSize: 13, marginLeft: 6, marginBottom: 8 }}>{tableLine(seats)}</Text>
       </View>
 
       <Heading>Difficulty</Heading>
@@ -384,17 +412,16 @@ export default function Settings() {
         </Text>
       )}
 
-      <Heading>Players</Heading>
+      <Heading>Seats</Heading>
       <WorldBoard
         seats={seats}
         models={models}
         ratings={ratings}
         overall={overall}
         world={world}
-        dealKey={`${deal}-${seats.length}-${settings.mapSize}-${settings.mapType}-${mode.id}`}
+        dealKey={`${seats.length}-${settings.mapSize}-${settings.mapType}-${mode.id}`}
         selected={sel}
         onSelect={setSelected}
-        onDeal={() => setDeal((d) => d + 1)}
       />
       <SeatRow
         key={sel}
@@ -406,30 +433,11 @@ export default function Settings() {
         ratings={ratings}
         overall={overall}
         onChange={(s) => setSeat(sel, s)}
-        onRemove={
-          seats.length > 2
-            ? () => {
-                settings.setSeats(seats.filter((_, j) => j !== sel));
-                setSelected(Math.max(0, sel - 1));
-              }
-            : undefined
-        }
         onNewProfile={newProfile}
       />
-      {seats.length < 16 && (
-        <Chip
-          testID="add-seat"
-          label="+ Add a seat"
-          on={false}
-          onPress={() => {
-            settings.setSeats([...seats, { kind: "model", modelId: models[0]?.id ?? "greedy-v1" }]);
-            setSelected(seats.length);
-          }}
-        />
-      )}
       {online === false && (
         <Text style={{ color: UI.coral, fontSize: 13, lineHeight: 18, marginTop: 4 }}>
-          The arena server is not running, so this game will not be recorded or rated and the local LLM is unreachable.
+          The arena server is not running, so this game will not be recorded or rated.
           Start it with npm run arena-server.
         </Text>
       )}

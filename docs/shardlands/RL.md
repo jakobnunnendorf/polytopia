@@ -1,12 +1,13 @@
 # Shardlands for reinforcement learning
 
-The game engine in `logic/engine/` is pure TypeScript with no UI and no
-`Math.random`: the random generator's state is part of the game state. A game is
-fully determined by its creation options (including `seed`) plus the list of
-actions taken, so any game can be replayed exactly.
+The rules engine is Rust (`engine/core`), with no UI and no hidden randomness: the random
+generator's state is part of the game state. A game is fully determined by its creation options
+(including `seed`) plus the list of actions taken, so any game can be replayed exactly.
 
-The phone UI, the bots, the tests and an RL agent all use the same three
-functions, so an agent trains on exactly the game you play.
+TypeScript reaches it through a thin typed facade in `logic/engine/` (the Node addon in scripts and
+tests, WebAssembly in the browser); Python through the `polyengine` module (`engine/py`). The web
+app, the bots, the tests and an RL agent all call the same functions, so an agent trains on exactly
+the game you play.
 
 ## API
 
@@ -35,7 +36,7 @@ const obs = observe(s, 0);          // what player 0 can know (fog of war applie
 | `applyAction(s, a)` | Next state. `a` must be one of `legalActions(s)`. `{type: "endTurn"}` passes play to the next player (and increments `s.turn` after the last one). |
 | `observe(s, p)` | Observation for player `p` (below). |
 | `botStep(s)` / `playBotTurn(s)` | The built-in greedy bot: one action, or a whole turn. Use as opponent or baseline. |
-| `scoreOf(s, p)` | Score per RULES.md §7.1 (the Perfection objective). |
+| `scoreOf(s, p)` | Score per docs/RULES.md §7.1 (the Perfection objective). |
 
 Episode end: `s.over === true`; `s.winner` is the winning player id
 (Perfection: highest score after turn 30; Domination: last player with a city).
@@ -105,42 +106,30 @@ npm run simulate -- --games 5 --random      # player 0 plays uniformly random le
 ```
 
 It prints one JSON line per game (winner, scores, clans, observation shape) and
-a summary with games per player won and actions per second. On the dev Mac it
-reaches about 6,000 actions per second on an 11×11 map in one Node process.
-`scripts/simulate.ts` is also the template for a training loop: replace
-`botStep(s)` with your policy.
+a summary with games per player won and actions per second. Every facade call crosses into Rust
+with the whole state as JSON, so a per-action loop in Node is slow; for training use Python's
+`VecEnv` or the bulk engine call `playGames` (`engine/api`, used by the trainers and the Elo tournament). The Rust engine itself plays 146,000 to 222,000 actions
+per second on one thread (`engine/PROGRESS.md`).
 
 ### Using it from Python
 
-The engine is TypeScript. Three ways to drive it from a Python RL stack
-(Gymnasium, PettingZoo, PyTorch):
-
-1. **Subprocess with JSON lines (simplest).** A small Node server reads
-   `{"cmd": "reset" | "step", ...}` on stdin and writes the observation, legal
-   actions, reward and done flag on stdout. Python wraps it in a
-   `gymnasium.Env`. Run one process per environment for parallelism.
-2. **Batch in Node.** Roll out many games in Node, write trajectories to disk
-   (`.jsonl` or `.npz`), and train offline in Python. Good for
-   imitation learning from the greedy bot.
-3. **Port the engine.** The rules are about 1,500 lines with no dependencies.
-   A port to Python, Rust or JAX, cross-checked against this engine with the
-   seeded simulation tests, gives the throughput needed for large-scale
-   self-play.
+`engine/py` builds the `polyengine` module (PyO3): `VecEnv` runs n games in Rust in parallel and
+returns observation tensors, scalar features and legal-action lists per game, with the opponents
+played by the greedy bot. Build, API and an example are in `engine/py/README.md`; the RL project's
+value-function agent and `rl-gate` use it (`docs/rl-project/README.md`).
 
 ## Determinism and tests
 
 - `__tests__/engine/simulate.test.ts`:
   - 200 bot-vs-bot games with mixed player counts, modes and map types finish with no errors.
   - A 1,500-step check that every bot action is in `legalActions` and that the invariants hold (one unit per tile, HP in range, stars never negative).
-- `__tests__/engine/rules-data.test.ts` checks the numbers in RULES.md: unit stats, the damage formula and rounding, and the tech cost table including Literacy.
+- `__tests__/engine/rules-data.test.ts` checks the numbers in docs/RULES.md: unit stats, the damage formula and rounding, and the tech cost table including Literacy.
 - `__tests__/engine/mapgen.test.ts` checks determinism per seed, settlement spacing, the 48/38/14 land split, resource radius and ruin counts.
 
-## Deviations from RULES.md (known simplifications)
+## Deviations from the rules (known simplifications)
 
-- **Peace treaties** (§5.14) are not implemented, so players are always at war.
-  The rest of Diplomacy is: Cloak, Embassy and Capital Vision.
 - **Explorer** (§5.12): this engine walks toward the most unexplored
-  surroundings, with RNG tie-breaks. RULES.md describes the game's own
+  surroundings, with RNG tie-breaks. docs/RULES.md describes the game's own
   3-pass breadth-first scoring.
 - **Forced pushes** (§5.13): this engine pushes toward the last move direction
   or the map centre and tries the alternatives in the same ±45° order. The

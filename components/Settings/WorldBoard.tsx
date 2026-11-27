@@ -352,7 +352,6 @@ export function WorldBoard({
   dealKey,
   selected,
   onSelect,
-  onDeal,
 }: {
   seats: Seat[];
   models: ModelSpec[];
@@ -363,7 +362,6 @@ export function WorldBoard({
   dealKey: string;
   selected: number;
   onSelect: (i: number) => void;
-  onDeal: () => void;
 }) {
   const [width, setWidth] = useState(400);
   const side = world?.side ?? Math.ceil(Math.sqrt(seats.length));
@@ -405,19 +403,10 @@ export function WorldBoard({
           );
         })}
       </View>
-      <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2, marginBottom: 6 }}>
-        <Text style={{ color: UI.muted, fontSize: 12, lineHeight: 16, flex: 1, marginRight: 10 }}>
-          A sample world: each card shows the land around that capital. Every game deals a new map.
-        </Text>
-        <Pressable
-          testID="deal-again"
-          onPress={onDeal}
-          accessibilityRole="button"
-          style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: UI.line }}
-        >
-          <Text style={{ color: UI.mist, fontWeight: "700", fontSize: 13 }}>Deal again</Text>
-        </Pressable>
-      </View>
+      <Text style={{ color: UI.muted, fontSize: 12, lineHeight: 16, marginTop: 2, marginBottom: 6 }}>
+        A sample world: each card shows the land around that capital. Every game deals a new map. Tap a
+        card to choose who plays it.
+      </Text>
     </View>
   );
 }

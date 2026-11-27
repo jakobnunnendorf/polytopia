@@ -1,7 +1,7 @@
-# Rules parity with POLYTOPIA_RULES.md
+# Rules parity with docs/RULES.md
 
-`POLYTOPIA_RULES.md` (export of the Claude Doc "The Battle of Polytopia: rules
-and game logic", game version 2.18) is the spec for the engine in
+`docs/RULES.md` ("The Battle of Polytopia: rules and game logic", game
+version 2.18; the source of truth since 26 Nov 2026) is the spec for the engine in
 `logic/engine`. Where the engine and the doc disagree, the doc wins, except
 for the items listed under "Kept on purpose" and the "2.18 data corrections"
 below: the game's own 2.18 rules data and the polybots-engine replay engine
@@ -9,7 +9,7 @@ win over the doc.
 
 ## Decisions where the doc leaves a choice
 
-The doc's "Open questions" table names a value under "Used here"; the engine
+The doc's open-questions table (§13.1) names a value under "Used here"; the engine
 uses that value. Where it says "Open" or "Both shown", the engine uses:
 
 | Topic | Engine value |
@@ -34,7 +34,7 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 | Unit stats | the unit-page value (the doc's "Used here"), e.g. Pirate movement 2 |
 | Unlocking techs | the tech-page value in the doc |
 | Bot capital income | a bot capital makes 1/2/3/5★ in total for Easy/Normal/Hard/Crazy (Normal = a human capital) |
-| Creep and zone of control | the doc contradicts itself (Terrain and Cloak sections: Creep ignores it; Movement rules: only Sneak, Hide and invisibility do). The engine follows Movement rules; Cloak and Dinghy ignore it through Hide anyway |
+| Creep and zone of control | Creep does not ignore it; only Sneak and Hide do (doc §4.3, which now says so; the wiki's Terrain and Cloak pages disagree). Cloak and Dinghy ignore it through Hide anyway |
 | Escape | after attacking, the unit may move again with its full movement |
 | Stomp | corrected (second core audit): half the damage rounded down, like splash |
 
@@ -66,8 +66,8 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 - Daggers: city, then forest or mountain (mountain only with Climbing), then
   other land in the city's borders, then water as Pirates.
 - Bot opinions follow the game's own model, per a community decompile of a
-  pre-February-2024 build (raphael-64/polyterra-env); POLYTOPIA_RULES.md, What
-  bots think of you, lists every term. Ported: all thirteen terms with their
+  pre-February-2024 build (raphael-64/polyterra-env); docs/RULES.md §10.3,
+  What bots think of you, lists every term. Ported: all thirteen terms with their
   constants, the level thresholds (great > 2, decent > 0.5, poor < -0.5,
   horrible < -2), accept peace above 2, offer when opinion x roll > 2 (the roll
   is a hash of game seed, turn, bot and tribe), break below 0 when
@@ -88,10 +88,9 @@ uses that value. Where it says "Open" or "Both shown", the engine uses:
 
 ## Kept on purpose
 
-- Monuments: the doc says "once per game by the first tribe to finish its
-  task". The engine lets every tribe build each monument once, as the game
-  does in practice. Change `canBuild` in `logic/engine/actions.ts` if the doc's
-  reading is wanted.
+- Monuments: every tribe may build each monument once, as the game does in
+  practice; the doc (§7.3) now says so too, and notes the wiki's "once per
+  game by the first tribe to finish its task" as the reading not used.
 
 ## Aquarion and spawn multipliers (engine choices)
 

@@ -1,6 +1,6 @@
 /**
- * Rules parity for Polaris, Cymanti and Elyrion (POLYTOPIA_RULES.md, Units,
- * Unit skills and movement, Tribes > Special tribes, Temples, Monuments).
+ * Rules parity for Polaris, Cymanti and Elyrion (docs/RULES.md §9.3-§9.5
+ * special tribes, §2.4 skills, §5.5 temples, §7.3 monuments).
  */
 import { applyAction, legalActions } from "@/logic/engine/actions";
 import { BUILDS, UNITS, buildAllowedFor, trainableUnitsFor } from "@/logic/engine/data";

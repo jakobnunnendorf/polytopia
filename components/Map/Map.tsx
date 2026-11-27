@@ -47,7 +47,7 @@ export default function Map({
   const [zoom, setZoom] = useState(0);
   const TILE = zoom <= 0 ? fit : Math.min(96, Math.round(fit * 1.25 ** zoom));
 
-  const { unitAt, cityById, ownerOfTile, roadDirs } = useMemo(() => {
+  const { unitAt, cityById, ownerOfTile, roadDirs, lighthouseFinders } = useMemo(() => {
     const unitAt = new globalThis.Map<number, Unit>();
     for (const u of state.units) unitAt.set(u.y * n + u.x, u);
     const cityById = new globalThis.Map<number, City>();
@@ -75,7 +75,16 @@ export default function Map({
       });
       return bits;
     });
-    return { unitAt, cityById, ownerOfTile, roadDirs };
+    const lighthouseFinders = new globalThis.Map<number, number[]>();
+    state.tiles.forEach((t, i) => {
+      if (t.lighthouse) {
+        lighthouseFinders.set(
+          i,
+          state.players.filter((p) => p.lighthouses.includes(i)).map((p) => p.id),
+        );
+      }
+    });
+    return { unitAt, cityById, ownerOfTile, roadDirs, lighthouseFinders };
   }, [state, n]);
 
   // animations: compare with the previous state seen by the same viewer
@@ -182,6 +191,7 @@ export default function Map({
                 ruinThroughClouds={!seen && tile.ruin && state.players[viewer].clan === "elyrion"}
                 territoryFocus={territoryFocus}
                 roadDirs={seen ? roadDirs[i] : 0}
+                lighthouseFinders={tile.lighthouse ? lighthouseFinders.get(i) : undefined}
               />
             );
           })}

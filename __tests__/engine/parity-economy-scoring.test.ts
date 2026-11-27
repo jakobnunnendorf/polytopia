@@ -1,5 +1,5 @@
 /**
- * Rules parity (POLYTOPIA_RULES.md, docs/RULES_PARITY.md): economy, cities,
+ * Rules parity (docs/RULES.md §5 and §7, docs/RULES_PARITY.md): economy, cities,
  * scoring, game setup and modes. Each block names the rule it pins down.
  */
 import { applyAction, legalActions } from "@/logic/engine/actions";
