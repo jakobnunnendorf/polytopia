@@ -1,0 +1,3372 @@
+{
+ "at": "2026-11-27T14:08:15.975Z",
+ "anchor": {
+  "id": "greedy-v1",
+  "rating": 1200
+ },
+ "firstSeed": 1800000000,
+ "commit": "46ac3ed",
+ "seconds": 487,
+ "agents": [
+  {
+   "id": "greedy-full-combo",
+   "kind": "greedy-full",
+   "name": "Combo",
+   "created": "2026-11-25"
+  },
+  {
+   "id": "greedy-full-combo-perf",
+   "kind": "greedy-full",
+   "name": "Combo P",
+   "created": "2026-11-26"
+  },
+  {
+   "id": "greedy-full-economy",
+   "kind": "greedy-full",
+   "name": "Economy",
+   "created": "2026-11-24"
+  },
+  {
+   "id": "greedy-full-probe",
+   "kind": "greedy-full",
+   "name": "Probe",
+   "created": "2026-11-25"
+  },
+  {
+   "id": "greedy-full-probe-perf",
+   "kind": "greedy-full",
+   "name": "Probe P",
+   "created": "2026-11-26"
+  },
+  {
+   "id": "greedy-full-probe-perf-r15",
+   "kind": "greedy-full",
+   "name": "Probe R",
+   "created": "2026-11-27"
+  },
+  {
+   "id": "greedy-v1",
+   "kind": "greedy",
+   "name": "Greedy v1",
+   "created": "2026-11-23"
+  },
+  {
+   "id": "random-v1",
+   "kind": "random",
+   "name": "Random",
+   "created": "2026-11-23"
+  }
+ ],
+ "excluded": [],
+ "setups": {
+  "perfection": {
+   "players": 4,
+   "size": 16,
+   "mapType": "continents",
+   "maxTurns": 40,
+   "maxMoves": 1000000,
+   "turnLimit": 30,
+   "games": 200
+  },
+  "glory": {
+   "players": 4,
+   "size": 16,
+   "mapType": "drylands",
+   "maxTurns": 150,
+   "maxMoves": 1000000,
+   "games": 200
+  },
+  "might": {
+   "players": 4,
+   "size": 16,
+   "mapType": "drylands",
+   "maxTurns": 150,
+   "maxMoves": 1000000,
+   "games": 200
+  },
+  "domination": {
+   "players": 4,
+   "size": 16,
+   "mapType": "drylands",
+   "maxTurns": 150,
+   "maxMoves": 1000000,
+   "games": 200
+  },
+  "creative": {
+   "players": 8,
+   "size": 20,
+   "mapType": "drylands",
+   "maxTurns": 150,
+   "maxMoves": 1000000,
+   "games": 50
+  }
+ },
+ "previous": {
+  "greedy-hill-v1": {
+   "rating": 1204.9,
+   "games": 473,
+   "wins": 242,
+   "updated": "2026-11-24T00:59:06.642Z",
+   "lo": 1173,
+   "hi": 1257
+  },
+  "greedy-hill-v2": {
+   "rating": 1261.7,
+   "games": 491,
+   "wins": 268,
+   "updated": "2026-11-24T00:59:18.113Z",
+   "lo": 1229,
+   "hi": 1311
+  },
+  "greedy-hill-v3": {
+   "rating": 1284.7,
+   "games": 375,
+   "wins": 200,
+   "updated": "2026-11-24T00:59:18.113Z",
+   "lo": 1252,
+   "hi": 1332
+  },
+  "greedy-hill-v4": {
+   "rating": 1318.3,
+   "games": 486,
+   "wins": 317,
+   "updated": "2026-11-24T00:59:18.113Z",
+   "lo": 1285,
+   "hi": 1364
+  },
+  "greedy-v1": {
+   "rating": 1146.9,
+   "games": 501,
+   "wins": 212,
+   "updated": "2026-11-24T00:56:45.130Z",
+   "lo": 1112,
+   "hi": 1190
+  },
+  "random-v1": {
+   "rating": 192.3,
+   "games": 384,
+   "wins": 0,
+   "updated": "2026-11-24T00:58:24.227Z",
+   "lo": 163,
+   "hi": 230
+  }
+ },
+ "overall": {
+  "games": 23800,
+  "pairs": 140,
+  "ranking": [
+   {
+    "id": "greedy-full-probe-perf-r15",
+    "rating": 1859,
+    "lo": 1846,
+    "hi": 1873,
+    "aboveNext": 0.948,
+    "games": 5950,
+    "wins": 4166,
+    "winRate": 0.7014285714285714,
+    "pointShare": 0.6059470374106674,
+    "finish": 0.6515880854591509,
+    "outright": 0.6288571428571429,
+    "turns": 49.34014285714286,
+    "decided": 0.8937142857142857
+   },
+   {
+    "id": "greedy-full-probe-perf",
+    "rating": 1848,
+    "lo": 1836,
+    "hi": 1861,
+    "aboveNext": 0.892,
+    "games": 5950,
+    "wins": 4074,
+    "winRate": 0.6878571428571428,
+    "pointShare": 0.603482739170038,
+    "finish": 0.6417356638859488,
+    "outright": 0.6171428571428571,
+    "turns": 49.093714285714285,
+    "decided": 0.8962857142857142
+   },
+   {
+    "id": "greedy-full-probe",
+    "rating": 1839,
+    "lo": 1827,
+    "hi": 1851,
+    "aboveNext": 0.564,
+    "games": 5950,
+    "wins": 4010,
+    "winRate": 0.6765714285714286,
+    "pointShare": 0.5968971634483315,
+    "finish": 0.6338535510156421,
+    "outright": 0.6035714285714285,
+    "turns": 49.622142857142855,
+    "decided": 0.8898571428571429
+   },
+   {
+    "id": "greedy-full-combo-perf",
+    "rating": 1837,
+    "lo": 1823,
+    "hi": 1852,
+    "aboveNext": 1,
+    "games": 5950,
+    "wins": 4026,
+    "winRate": 0.675,
+    "pointShare": 0.5969201301165173,
+    "finish": 0.6351921840679112,
+    "outright": 0.6127142857142858,
+    "turns": 48.65085714285714,
+    "decided": 0.9022857142857142
+   },
+   {
+    "id": "greedy-full-combo",
+    "rating": 1749,
+    "lo": 1737,
+    "hi": 1762,
+    "aboveNext": 1,
+    "games": 5950,
+    "wins": 3359,
+    "winRate": 0.5672857142857143,
+    "pointShare": 0.5461439351947351,
+    "finish": 0.5525340365200846,
+    "outright": 0.5241428571428571,
+    "turns": 48.05728571428571,
+    "decided": 0.9127142857142857
+   },
+   {
+    "id": "greedy-full-economy",
+    "rating": 1711,
+    "lo": 1694,
+    "hi": 1728,
+    "aboveNext": 1,
+    "games": 5950,
+    "wins": 3133,
+    "winRate": 0.5225714285714286,
+    "pointShare": 0.5219918011701048,
+    "finish": 0.5200102590949557,
+    "outright": 0.48428571428571426,
+    "turns": 47.865,
+    "decided": 0.9185714285714286
+   },
+   {
+    "id": "greedy-v1",
+    "rating": 1200,
+    "lo": 1163,
+    "hi": 1233,
+    "aboveNext": 1,
+    "games": 5950,
+    "wins": 1028,
+    "winRate": 0.1687142857142857,
+    "pointShare": 0.33686338868024496,
+    "finish": 0.24544134403747772,
+    "outright": 0.16457142857142856,
+    "turns": 45.26271428571429,
+    "decided": 0.9295714285714286
+   },
+   {
+    "id": "random-v1",
+    "rating": 250,
+    "lo": 61,
+    "hi": 361,
+    "aboveNext": null,
+    "games": 5950,
+    "wins": 4,
+    "winRate": 0.0005714285714285715,
+    "pointShare": 0.19175380480936116,
+    "finish": 0.1196448759188191,
+    "outright": 0.0005714285714285715,
+    "turns": 45.153,
+    "decided": 0.9287142857142857
+   }
+  ],
+  "matrix": {
+   "greedy-full-combo": {
+    "greedy-full-combo-perf": {
+     "games": 850,
+     "wins": 343,
+     "winRate": 0.415,
+     "pointShare": 0.4595468010153815,
+     "finish": 0.42743575865368516
+    },
+    "greedy-full-economy": {
+     "games": 850,
+     "wins": 441,
+     "winRate": 0.525,
+     "pointShare": 0.5114239536232985,
+     "finish": 0.5145375191072452
+    },
+    "greedy-full-probe": {
+     "games": 850,
+     "wins": 301,
+     "winRate": 0.352,
+     "pointShare": 0.43350320922281377,
+     "finish": 0.3938404464580616
+    },
+    "greedy-full-probe-perf": {
+     "games": 850,
+     "wins": 316,
+     "winRate": 0.367,
+     "pointShare": 0.43540674953886815,
+     "finish": 0.3986602292531108
+    },
+    "greedy-full-probe-perf-r15": {
+     "games": 850,
+     "wins": 291,
+     "winRate": 0.345,
+     "pointShare": 0.43161714666013734,
+     "finish": 0.38553102743800194
+    },
+    "greedy-v1": {
+     "games": 850,
+     "wins": 817,
+     "winRate": 0.967,
+     "pointShare": 0.7397857332586413,
+     "finish": 0.8601518488194512
+    },
+    "random-v1": {
+     "games": 850,
+     "wins": 850,
+     "winRate": 1,
+     "pointShare": 0.8117239530440054,
+     "finish": 0.8875814259110265
+    }
+   },
+   "greedy-full-combo-perf": {
+    "greedy-full-combo": {
+     "games": 850,
+     "wins": 507,
+     "winRate": 0.585,
+     "pointShare": 0.5404531989846184,
+     "finish": 0.5725642413463149
+    },
+    "greedy-full-economy": {
+     "games": 850,
+     "wins": 571,
+     "winRate": 0.676,
+     "pointShare": 0.5841398160563906,
+     "finish": 0.6369385732003007
+    },
+    "greedy-full-probe": {
+     "games": 850,
+     "wins": 430,
+     "winRate": 0.511,
+     "pointShare": 0.5073553803428967,
+     "finish": 0.5084251087917199
+    },
+    "greedy-full-probe-perf": {
+     "games": 850,
+     "wins": 415,
+     "winRate": 0.487,
+     "pointShare": 0.49641753472257844,
+     "finish": 0.4912360436389798
+    },
+    "greedy-full-probe-perf-r15": {
+     "games": 850,
+     "wins": 423,
+     "winRate": 0.486,
+     "pointShare": 0.49331695811516146,
+     "finish": 0.49171211297268735
+    },
+    "greedy-v1": {
+     "games": 850,
+     "wins": 830,
+     "winRate": 0.98,
+     "pointShare": 0.7443325411426853,
+     "finish": 0.8680240433529669
+    },
+    "random-v1": {
+     "games": 850,
+     "wins": 850,
+     "winRate": 1,
+     "pointShare": 0.8124254814513009,
+     "finish": 0.8774451651724338
+    }
+   },
+   "greedy-full-economy": {
+    "greedy-full-combo": {
+     "games": 850,
+     "wins": 409,
+     "winRate": 0.475,
+     "pointShare": 0.48857604637670166,
+     "finish": 0.4854624808927548
+    },
+    "greedy-full-combo-perf": {
+     "games": 850,
+     "wins": 279,
+     "winRate": 0.324,
+     "pointShare": 0.4158601839436094,
+     "finish": 0.36306142679970044
+    },
+    "greedy-full-probe": {
+     "games": 850,
+     "wins": 284,
+     "winRate": 0.323,
+     "pointShare": 0.4182076983684024,
+     "finish": 0.3629165558227395
+    },
+    "greedy-full-probe-perf": {
+     "games": 850,
+     "wins": 267,
+     "winRate": 0.312,
+     "pointShare": 0.41283466313194206,
+     "finish": 0.35957610792896577
+    },
+    "greedy-full-probe-perf-r15": {
+     "games": 850,
+     "wins": 245,
+     "winRate": 0.278,
+     "pointShare": 0.40139539506883043,
+     "finish": 0.33518568768068663
+    },
+    "greedy-v1": {
+     "games": 850,
+     "wins": 799,
+     "winRate": 0.946,
+     "pointShare": 0.71861678231186,
+     "finish": 0.8466725127812476
+    },
+    "random-v1": {
+     "games": 850,
+     "wins": 850,
+     "winRate": 1,
+     "pointShare": 0.7984518389893821,
+     "finish": 0.8871970417585975
+    }
+   },
+   "greedy-full-probe": {
+    "greedy-full-combo": {
+     "games": 850,
+     "wins": 549,
+     "winRate": 0.648,
+     "pointShare": 0.5664967907771862,
+     "finish": 0.6061595535419394
+    },
+    "greedy-full-combo-perf": {
+     "games": 850,
+     "wins": 420,
+     "winRate": 0.489,
+     "pointShare": 0.49264461965710316,
+     "finish": 0.49157489120828013
+    },
+    "greedy-full-economy": {
+     "games": 850,
+     "wins": 566,
+     "winRate": 0.677,
+     "pointShare": 0.581792301631598,
+     "finish": 0.6370834441772614
+    },
+    "greedy-full-probe-perf": {
+     "games": 850,
+     "wins": 399,
+     "winRate": 0.468,
+     "pointShare": 0.4889895025933568,
+     "finish": 0.478957731802362
+    },
+    "greedy-full-probe-perf-r15": {
+     "games": 850,
+     "wins": 401,
+     "winRate": 0.479,
+     "pointShare": 0.4938824299205212,
+     "finish": 0.4893353964055437
+    },
+    "greedy-v1": {
+     "games": 850,
+     "wins": 825,
+     "winRate": 0.975,
+     "pointShare": 0.7421358029466413,
+     "finish": 0.8586652416197392
+    },
+    "random-v1": {
+     "games": 850,
+     "wins": 850,
+     "winRate": 1,
+     "pointShare": 0.8123386966119078,
+     "finish": 0.8751985983543786
+    }
+   },
+   "greedy-full-probe-perf": {
+    "greedy-full-combo": {
+     "games": 850,
+     "wins": 534,
+     "winRate": 0.633,
+     "pointShare": 0.564593250461132,
+     "finish": 0.6013397707468895
+    },
+    "greedy-full-combo-perf": {
+     "games": 850,
+     "wins": 435,
+     "winRate": 0.513,
+     "pointShare": 0.5035824652774218,
+     "finish": 0.5087639563610202
+    },
+    "greedy-full-economy": {
+     "games": 850,
+     "wins": 583,
+     "winRate": 0.688,
+     "pointShare": 0.5871653368680576,
+     "finish": 0.6404238920710346
+    },
+    "greedy-full-probe": {
+     "games": 850,
+     "wins": 451,
+     "winRate": 0.532,
+     "pointShare": 0.5110104974066433,
+     "finish": 0.5210422681976383
+    },
+    "greedy-full-probe-perf-r15": {
+     "games": 850,
+     "wins": 398,
+     "winRate": 0.476,
+     "pointShare": 0.49756297808994304,
+     "finish": 0.4802489561365877
+    },
+    "greedy-v1": {
+     "games": 850,
+     "wins": 823,
+     "winRate": 0.973,
+     "pointShare": 0.74434902692978,
+     "finish": 0.8646159430792807
+    },
+    "random-v1": {
+     "games": 850,
+     "wins": 850,
+     "winRate": 1,
+     "pointShare": 0.8161156191572879,
+     "finish": 0.8757148606092083
+    }
+   },
+   "greedy-full-probe-perf-r15": {
+    "greedy-full-combo": {
+     "games": 850,
+     "wins": 559,
+     "winRate": 0.655,
+     "pointShare": 0.5683828533398623,
+     "finish": 0.6144689725619982
+    },
+    "greedy-full-combo-perf": {
+     "games": 850,
+     "wins": 427,
+     "winRate": 0.514,
+     "pointShare": 0.5066830418848384,
+     "finish": 0.5082878870273126
+    },
+    "greedy-full-economy": {
+     "games": 850,
+     "wins": 605,
+     "winRate": 0.722,
+     "pointShare": 0.5986046049311691,
+     "finish": 0.6648143123193142
+    },
+    "greedy-full-probe": {
+     "games": 850,
+     "wins": 449,
+     "winRate": 0.521,
+     "pointShare": 0.5061175700794788,
+     "finish": 0.5106646035944566
+    },
+    "greedy-full-probe-perf": {
+     "games": 850,
+     "wins": 452,
+     "winRate": 0.524,
+     "pointShare": 0.5024370219100568,
+     "finish": 0.5197510438634123
+    },
+    "greedy-v1": {
+     "games": 850,
+     "wins": 824,
+     "winRate": 0.974,
+     "pointShare": 0.7464802327257835,
+     "finish": 0.8612495292728831
+    },
+    "random-v1": {
+     "games": 850,
+     "wins": 850,
+     "winRate": 1,
+     "pointShare": 0.8129239370034869,
+     "finish": 0.881880249574683
+    }
+   },
+   "greedy-v1": {
+    "greedy-full-combo": {
+     "games": 850,
+     "wins": 33,
+     "winRate": 0.033,
+     "pointShare": 0.26021426674135945,
+     "finish": 0.13984815118054683
+    },
+    "greedy-full-combo-perf": {
+     "games": 850,
+     "wins": 20,
+     "winRate": 0.02,
+     "pointShare": 0.25566745885731434,
+     "finish": 0.1319759566470331
+    },
+    "greedy-full-economy": {
+     "games": 850,
+     "wins": 51,
+     "winRate": 0.054,
+     "pointShare": 0.28138321768814006,
+     "finish": 0.15332748721875195
+    },
+    "greedy-full-probe": {
+     "games": 850,
+     "wins": 25,
+     "winRate": 0.025,
+     "pointShare": 0.2578641970533583,
+     "finish": 0.1413347583802605
+    },
+    "greedy-full-probe-perf": {
+     "games": 850,
+     "wins": 27,
+     "winRate": 0.027,
+     "pointShare": 0.25565097307021956,
+     "finish": 0.13538405692071842
+    },
+    "greedy-full-probe-perf-r15": {
+     "games": 850,
+     "wins": 26,
+     "winRate": 0.026,
+     "pointShare": 0.25351976727421704,
+     "finish": 0.13875047072711638
+    },
+    "random-v1": {
+     "games": 850,
+     "wins": 846,
+     "winRate": 0.996,
+     "pointShare": 0.7937438400770974,
+     "finish": 0.8774685271879576
+    }
+   },
+   "random-v1": {
+    "greedy-full-combo": {
+     "games": 850,
+     "wins": 0,
+     "winRate": 0,
+     "pointShare": 0.1882760469559945,
+     "finish": 0.11241857408897288
+    },
+    "greedy-full-combo-perf": {
+     "games": 850,
+     "wins": 0,
+     "winRate": 0,
+     "pointShare": 0.1875745185486995,
+     "finish": 0.12255483482756623
+    },
+    "greedy-full-economy": {
+     "games": 850,
+     "wins": 0,
+     "winRate": 0,
+     "pointShare": 0.20154816101061723,
+     "finish": 0.11280295824140192
+    },
+    "greedy-full-probe": {
+     "games": 850,
+     "wins": 0,
+     "winRate": 0,
+     "pointShare": 0.18766130338809175,
+     "finish": 0.12480140164562253
+    },
+    "greedy-full-probe-perf": {
+     "games": 850,
+     "wins": 0,
+     "winRate": 0,
+     "pointShare": 0.1838843808427125,
+     "finish": 0.12428513939079205
+    },
+    "greedy-full-probe-perf-r15": {
+     "games": 850,
+     "wins": 0,
+     "winRate": 0,
+     "pointShare": 0.18707606299651297,
+     "finish": 0.11811975042531708
+    },
+    "greedy-v1": {
+     "games": 850,
+     "wins": 4,
+     "winRate": 0.004,
+     "pointShare": 0.20625615992290125,
+     "finish": 0.12253147281203865
+    }
+   }
+  }
+ },
+ "modes": {
+  "perfection": {
+   "games": 5600,
+   "pairs": 28,
+   "ranking": [
+    {
+     "id": "greedy-full-probe-perf-r15",
+     "rating": 1638,
+     "lo": 1621,
+     "hi": 1659,
+     "aboveNext": 0.994,
+     "games": 1400,
+     "wins": 972,
+     "winRate": 0.6942857142857143,
+     "pointShare": 0.5652341590218256,
+     "finish": 0.5971309523809524,
+     "outright": 0.6942857142857143,
+     "turns": 29.994285714285713,
+     "decided": 1
+    },
+    {
+     "id": "greedy-full-probe-perf",
+     "rating": 1613,
+     "lo": 1597,
+     "hi": 1633,
+     "aboveNext": 0.78,
+     "games": 1400,
+     "wins": 927,
+     "winRate": 0.6621428571428571,
+     "pointShare": 0.5607789734766625,
+     "finish": 0.5810595238095239,
+     "outright": 0.6621428571428571,
+     "turns": 29.99,
+     "decided": 1
+    },
+    {
+     "id": "greedy-full-combo-perf",
+     "rating": 1604,
+     "lo": 1586,
+     "hi": 1624,
+     "aboveNext": 0.518,
+     "games": 1400,
+     "wins": 911,
+     "winRate": 0.6507142857142857,
+     "pointShare": 0.562108158456375,
+     "finish": 0.5753928571428572,
+     "outright": 0.6507142857142857,
+     "turns": 29.98857142857143,
+     "decided": 1
+    },
+    {
+     "id": "greedy-full-probe",
+     "rating": 1603,
+     "lo": 1585,
+     "hi": 1626,
+     "aboveNext": 0.999,
+     "games": 1400,
+     "wins": 910,
+     "winRate": 0.65,
+     "pointShare": 0.5595861264109749,
+     "finish": 0.5750833333333334,
+     "outright": 0.65,
+     "turns": 29.97142857142857,
+     "decided": 1
+    },
+    {
+     "id": "greedy-full-combo",
+     "rating": 1555,
+     "lo": 1535,
+     "hi": 1577,
+     "aboveNext": 0.999,
+     "games": 1400,
+     "wins": 823,
+     "winRate": 0.5878571428571429,
+     "pointShare": 0.5435810388375585,
+     "finish": 0.5440595238095238,
+     "outright": 0.5878571428571429,
+     "turns": 29.98,
+     "decided": 1
+    },
+    {
+     "id": "greedy-full-economy",
+     "rating": 1507,
+     "lo": 1482,
+     "hi": 1531,
+     "aboveNext": 1,
+     "games": 1400,
+     "wins": 737,
+     "winRate": 0.5264285714285715,
+     "pointShare": 0.5235120225315678,
+     "finish": 0.513517857142857,
+     "outright": 0.5264285714285715,
+     "turns": 29.963571428571427,
+     "decided": 1
+    },
+    {
+     "id": "greedy-v1",
+     "rating": 1200,
+     "lo": 1155,
+     "hi": 1239,
+     "aboveNext": 1,
+     "games": 1400,
+     "wins": 316,
+     "winRate": 0.2257142857142857,
+     "pointShare": 0.4198813392574386,
+     "finish": 0.36274999999999996,
+     "outright": 0.2257142857142857,
+     "turns": 29.978571428571428,
+     "decided": 1
+    },
+    {
+     "id": "random-v1",
+     "rating": 472,
+     "lo": 291,
+     "hi": 578,
+     "aboveNext": null,
+     "games": 1400,
+     "wins": 4,
+     "winRate": 0.002857142857142857,
+     "pointShare": 0.2653181820075983,
+     "finish": 0.25100595238095236,
+     "outright": 0.002857142857142857,
+     "turns": 29.949285714285715,
+     "decided": 1
+    }
+   ],
+   "matrix": {
+    "greedy-full-combo": {
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 85,
+      "winRate": 0.425,
+      "pointShare": 0.4830604969773159,
+      "finish": 0.4627083333333333
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 117,
+      "winRate": 0.585,
+      "pointShare": 0.5187919101454112,
+      "finish": 0.5423749999999999
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 86,
+      "winRate": 0.43,
+      "pointShare": 0.48062800635867736,
+      "finish": 0.4652083333333333
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 86,
+      "winRate": 0.43,
+      "pointShare": 0.48652309848811504,
+      "finish": 0.465
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 70,
+      "winRate": 0.35,
+      "pointShare": 0.47423082647745146,
+      "finish": 0.425
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 179,
+      "winRate": 0.895,
+      "pointShare": 0.6178511220350572,
+      "finish": 0.6975416666666666
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7439818113808805,
+      "finish": 0.7505833333333334
+     }
+    },
+    "greedy-full-combo-perf": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 115,
+      "winRate": 0.575,
+      "pointShare": 0.5169395030226842,
+      "finish": 0.5372916666666667
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 121,
+      "winRate": 0.605,
+      "pointShare": 0.5347492885315641,
+      "finish": 0.5525
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 99,
+      "winRate": 0.495,
+      "pointShare": 0.5066074143010992,
+      "finish": 0.4975
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 94,
+      "winRate": 0.47,
+      "pointShare": 0.500374847759024,
+      "finish": 0.485
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 99,
+      "winRate": 0.495,
+      "pointShare": 0.49727434323011754,
+      "finish": 0.4975
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 183,
+      "winRate": 0.915,
+      "pointShare": 0.6299408834916465,
+      "finish": 0.7077083333333333
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7488708288584897,
+      "finish": 0.7502499999999999
+     }
+    },
+    "greedy-full-economy": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 83,
+      "winRate": 0.415,
+      "pointShare": 0.4812080898545886,
+      "finish": 0.457625
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 79,
+      "winRate": 0.395,
+      "pointShare": 0.465250711468436,
+      "finish": 0.4475
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 71,
+      "winRate": 0.355,
+      "pointShare": 0.4699129426003797,
+      "finish": 0.4278333333333333
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 71,
+      "winRate": 0.355,
+      "pointShare": 0.4684666557021071,
+      "finish": 0.4278333333333333
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 68,
+      "winRate": 0.34,
+      "pointShare": 0.4617706363727249,
+      "finish": 0.4202083333333333
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 165,
+      "winRate": 0.825,
+      "pointShare": 0.5906921825473843,
+      "finish": 0.6629166666666666
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7272829391753582,
+      "finish": 0.7507083333333333
+     }
+    },
+    "greedy-full-probe": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 114,
+      "winRate": 0.57,
+      "pointShare": 0.5193719936413227,
+      "finish": 0.5347916666666667
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 101,
+      "winRate": 0.505,
+      "pointShare": 0.49339258569890077,
+      "finish": 0.5025
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 129,
+      "winRate": 0.645,
+      "pointShare": 0.5300870573996204,
+      "finish": 0.5721666666666667
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 92,
+      "winRate": 0.46,
+      "pointShare": 0.5018927414682285,
+      "finish": 0.48
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 91,
+      "winRate": 0.455,
+      "pointShare": 0.49459103418658246,
+      "finish": 0.4775
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 183,
+      "winRate": 0.915,
+      "pointShare": 0.6306158893167484,
+      "finish": 0.7077916666666667
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7471515831654192,
+      "finish": 0.7508333333333332
+     }
+    },
+    "greedy-full-probe-perf": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 114,
+      "winRate": 0.57,
+      "pointShare": 0.5134769015118851,
+      "finish": 0.535
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 106,
+      "winRate": 0.53,
+      "pointShare": 0.49962515224097614,
+      "finish": 0.515
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 129,
+      "winRate": 0.645,
+      "pointShare": 0.531533344297893,
+      "finish": 0.5721666666666667
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 108,
+      "winRate": 0.54,
+      "pointShare": 0.4981072585317715,
+      "finish": 0.52
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 88,
+      "winRate": 0.44,
+      "pointShare": 0.49707856811402157,
+      "finish": 0.47
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 182,
+      "winRate": 0.91,
+      "pointShare": 0.6332175750809206,
+      "finish": 0.705
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7524140145591584,
+      "finish": 0.7502500000000001
+     }
+    },
+    "greedy-full-probe-perf-r15": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 130,
+      "winRate": 0.65,
+      "pointShare": 0.5257691735225485,
+      "finish": 0.575
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 101,
+      "winRate": 0.505,
+      "pointShare": 0.5027256567698825,
+      "finish": 0.5025
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 132,
+      "winRate": 0.66,
+      "pointShare": 0.5382293636272749,
+      "finish": 0.5797916666666667
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 109,
+      "winRate": 0.545,
+      "pointShare": 0.5054089658134174,
+      "finish": 0.5225
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 112,
+      "winRate": 0.56,
+      "pointShare": 0.5029214318859783,
+      "finish": 0.53
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 188,
+      "winRate": 0.94,
+      "pointShare": 0.6323524662774167,
+      "finish": 0.7200416666666666
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7492320552562639,
+      "finish": 0.7500833333333332
+     }
+    },
+    "greedy-v1": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 21,
+      "winRate": 0.105,
+      "pointShare": 0.3821488779649424,
+      "finish": 0.30245833333333333
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 17,
+      "winRate": 0.085,
+      "pointShare": 0.3700591165083534,
+      "finish": 0.2922916666666666
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 35,
+      "winRate": 0.175,
+      "pointShare": 0.40930781745261563,
+      "finish": 0.33708333333333335
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 17,
+      "winRate": 0.085,
+      "pointShare": 0.3693841106832514,
+      "finish": 0.29220833333333335
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 18,
+      "winRate": 0.09,
+      "pointShare": 0.36678242491907886,
+      "finish": 0.295
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 12,
+      "winRate": 0.06,
+      "pointShare": 0.36764753372258313,
+      "finish": 0.2799583333333333
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 196,
+      "winRate": 0.98,
+      "pointShare": 0.6738394935512431,
+      "finish": 0.7402500000000001
+     }
+    },
+    "random-v1": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.25601818861911946,
+      "finish": 0.24941666666666668
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.2511291711415105,
+      "finish": 0.24975000000000003
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.27271706082464187,
+      "finish": 0.24929166666666666
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.2528484168345807,
+      "finish": 0.24916666666666668
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.24758598544084204,
+      "finish": 0.24975000000000003
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.2507679447437358,
+      "finish": 0.24991666666666668
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 4,
+      "winRate": 0.02,
+      "pointShare": 0.32616050644875677,
+      "finish": 0.25975000000000004
+     }
+    }
+   }
+  },
+  "glory": {
+   "games": 5600,
+   "pairs": 28,
+   "ranking": [
+    {
+     "id": "greedy-full-probe-perf-r15",
+     "rating": 1812,
+     "lo": 1791,
+     "hi": 1835,
+     "aboveNext": 0.878,
+     "games": 1400,
+     "wins": 974,
+     "winRate": 0.6957142857142857,
+     "pointShare": 0.5724601814651917,
+     "finish": 0.6793416666666706,
+     "outright": 0.6957142857142857,
+     "turns": 25.303571428571427,
+     "decided": 1
+    },
+    {
+     "id": "greedy-full-combo-perf",
+     "rating": 1798,
+     "lo": 1779,
+     "hi": 1817,
+     "aboveNext": 0.542,
+     "games": 1400,
+     "wins": 949,
+     "winRate": 0.6778571428571428,
+     "pointShare": 0.56865828453811,
+     "finish": 0.6630071428571451,
+     "outright": 0.6778571428571428,
+     "turns": 25.31714285714286,
+     "decided": 1
+    },
+    {
+     "id": "greedy-full-probe-perf",
+     "rating": 1797,
+     "lo": 1778,
+     "hi": 1816,
+     "aboveNext": 0.563,
+     "games": 1400,
+     "wins": 947,
+     "winRate": 0.6764285714285714,
+     "pointShare": 0.5733882969002788,
+     "finish": 0.6617214285714331,
+     "outright": 0.6764285714285714,
+     "turns": 25.318571428571428,
+     "decided": 1
+    },
+    {
+     "id": "greedy-full-probe",
+     "rating": 1794,
+     "lo": 1774,
+     "hi": 1817,
+     "aboveNext": 1,
+     "games": 1400,
+     "wins": 943,
+     "winRate": 0.6735714285714286,
+     "pointShare": 0.567721809603989,
+     "finish": 0.6589833333333384,
+     "outright": 0.6735714285714286,
+     "turns": 25.35,
+     "decided": 1
+    },
+    {
+     "id": "greedy-full-combo",
+     "rating": 1701,
+     "lo": 1678,
+     "hi": 1724,
+     "aboveNext": 0.793,
+     "games": 1400,
+     "wins": 782,
+     "winRate": 0.5585714285714286,
+     "pointShare": 0.5384086377379032,
+     "finish": 0.5533119047619024,
+     "outright": 0.5585714285714286,
+     "turns": 25.7,
+     "decided": 1
+    },
+    {
+     "id": "greedy-full-economy",
+     "rating": 1688,
+     "lo": 1668,
+     "hi": 1708,
+     "aboveNext": 1,
+     "games": 1400,
+     "wins": 760,
+     "winRate": 0.5428571428571428,
+     "pointShare": 0.5282980284116322,
+     "finish": 0.5386083333333379,
+     "outright": 0.5428571428571428,
+     "turns": 25.837857142857143,
+     "decided": 1
+    },
+    {
+     "id": "greedy-v1",
+     "rating": 1200,
+     "lo": 1134,
+     "hi": 1250,
+     "aboveNext": 1,
+     "games": 1400,
+     "wins": 245,
+     "winRate": 0.175,
+     "pointShare": 0.40260060093955163,
+     "finish": 0.20125833333333695,
+     "outright": 0.175,
+     "turns": 25.96785714285714,
+     "decided": 1
+    },
+    {
+     "id": "random-v1",
+     "rating": 242,
+     "lo": 189,
+     "hi": 279,
+     "aboveNext": null,
+     "games": 1400,
+     "wins": 0,
+     "winRate": 0,
+     "pointShare": 0.24846416040334313,
+     "finish": 0.043767857142857226,
+     "outright": 0,
+     "turns": 26.260714285714286,
+     "decided": 1
+    }
+   ],
+   "matrix": {
+    "greedy-full-combo": {
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 79,
+      "winRate": 0.395,
+      "pointShare": 0.47248505976488564,
+      "finish": 0.40360000000000007
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 102,
+      "winRate": 0.51,
+      "pointShare": 0.5066619953247087,
+      "finish": 0.5094166666666663
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 69,
+      "winRate": 0.345,
+      "pointShare": 0.4621775951705719,
+      "finish": 0.3581333333333332
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 76,
+      "winRate": 0.38,
+      "pointShare": 0.4657780314371086,
+      "finish": 0.38970000000000016
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 67,
+      "winRate": 0.335,
+      "pointShare": 0.4540589877427215,
+      "finish": 0.34853333333333336
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 189,
+      "winRate": 0.945,
+      "pointShare": 0.6541258913922482,
+      "finish": 0.9070500000000018
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7535729033330689,
+      "finish": 0.9567500000000015
+     }
+    },
+    "greedy-full-combo-perf": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 121,
+      "winRate": 0.605,
+      "pointShare": 0.5275149402351144,
+      "finish": 0.5964
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 132,
+      "winRate": 0.66,
+      "pointShare": 0.5396290418311279,
+      "finish": 0.6464749999999997
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 101,
+      "winRate": 0.505,
+      "pointShare": 0.5018573469571345,
+      "finish": 0.5047333333333335
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 98,
+      "winRate": 0.49,
+      "pointShare": 0.49494367011636575,
+      "finish": 0.4907916666666673
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 100,
+      "winRate": 0.5,
+      "pointShare": 0.5036625542436617,
+      "finish": 0.4999333333333336
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 197,
+      "winRate": 0.985,
+      "pointShare": 0.6559548350832781,
+      "finish": 0.945125000000002
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7570456033000897,
+      "finish": 0.9575916666666686
+     }
+    },
+    "greedy-full-economy": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 98,
+      "winRate": 0.49,
+      "pointShare": 0.49333800467529154,
+      "finish": 0.4905833333333338
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 68,
+      "winRate": 0.34,
+      "pointShare": 0.4603709581688722,
+      "finish": 0.35352500000000014
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 69,
+      "winRate": 0.345,
+      "pointShare": 0.46361447332193284,
+      "finish": 0.3576166666666667
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 72,
+      "winRate": 0.36,
+      "pointShare": 0.455642704404998,
+      "finish": 0.37099166666666655
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 61,
+      "winRate": 0.305,
+      "pointShare": 0.4452457888500889,
+      "finish": 0.3207666666666667
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 192,
+      "winRate": 0.96,
+      "pointShare": 0.6367161243568631,
+      "finish": 0.9200250000000014
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7431581451033799,
+      "finish": 0.9567500000000012
+     }
+    },
+    "greedy-full-probe": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 131,
+      "winRate": 0.655,
+      "pointShare": 0.5378224048294282,
+      "finish": 0.6418666666666664
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 99,
+      "winRate": 0.495,
+      "pointShare": 0.4981426530428656,
+      "finish": 0.4952666666666666
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 131,
+      "winRate": 0.655,
+      "pointShare": 0.5363855266780672,
+      "finish": 0.6423833333333329
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 94,
+      "winRate": 0.47,
+      "pointShare": 0.4942417493206081,
+      "finish": 0.4726250000000001
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 94,
+      "winRate": 0.47,
+      "pointShare": 0.49914740672885816,
+      "finish": 0.47241666666666665
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 194,
+      "winRate": 0.97,
+      "pointShare": 0.6548157209240025,
+      "finish": 0.9309250000000023
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7534972057040977,
+      "finish": 0.9574000000000027
+     }
+    },
+    "greedy-full-probe-perf": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 124,
+      "winRate": 0.62,
+      "pointShare": 0.5342219685628916,
+      "finish": 0.6102999999999996
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 102,
+      "winRate": 0.51,
+      "pointShare": 0.5050563298836342,
+      "finish": 0.5092083333333326
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 128,
+      "winRate": 0.64,
+      "pointShare": 0.5443572955950021,
+      "finish": 0.6290083333333335
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 106,
+      "winRate": 0.53,
+      "pointShare": 0.505758250679392,
+      "finish": 0.5273749999999997
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 95,
+      "winRate": 0.475,
+      "pointShare": 0.5061845389325409,
+      "finish": 0.47742500000000015
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 192,
+      "winRate": 0.96,
+      "pointShare": 0.6579807900082493,
+      "finish": 0.921725000000002
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7601589046402456,
+      "finish": 0.9570083333333353
+     }
+    },
+    "greedy-full-probe-perf-r15": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 133,
+      "winRate": 0.665,
+      "pointShare": 0.5459410122572783,
+      "finish": 0.6514666666666669
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 100,
+      "winRate": 0.5,
+      "pointShare": 0.4963374457563382,
+      "finish": 0.5000666666666663
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 139,
+      "winRate": 0.695,
+      "pointShare": 0.5547542111499107,
+      "finish": 0.6792333333333331
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 106,
+      "winRate": 0.53,
+      "pointShare": 0.5008525932711418,
+      "finish": 0.5275833333333333
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 105,
+      "winRate": 0.525,
+      "pointShare": 0.493815461067459,
+      "finish": 0.5225749999999999
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 191,
+      "winRate": 0.955,
+      "pointShare": 0.6591303283548723,
+      "finish": 0.9170750000000021
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7563902183993385,
+      "finish": 0.9573916666666686
+     }
+    },
+    "greedy-v1": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 11,
+      "winRate": 0.055,
+      "pointShare": 0.3458741086077516,
+      "finish": 0.09295000000000003
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 3,
+      "winRate": 0.015,
+      "pointShare": 0.3440451649167218,
+      "finish": 0.05487500000000004
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 8,
+      "winRate": 0.04,
+      "pointShare": 0.3632838756431371,
+      "finish": 0.07997500000000002
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 6,
+      "winRate": 0.03,
+      "pointShare": 0.3451842790759976,
+      "finish": 0.06907499999999998
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 8,
+      "winRate": 0.04,
+      "pointShare": 0.34201920999175117,
+      "finish": 0.07827499999999998
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 9,
+      "winRate": 0.045,
+      "pointShare": 0.3408696716451278,
+      "finish": 0.08292499999999993
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7369278966963728,
+      "finish": 0.9507333333333335
+     }
+    },
+    "random-v1": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.24642709666693122,
+      "finish": 0.043249999999999976
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.24295439669991026,
+      "finish": 0.04240833333333334
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.2568418548966205,
+      "finish": 0.04324999999999997
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.2465027942959023,
+      "finish": 0.04259999999999997
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.23984109535975434,
+      "finish": 0.04299166666666668
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.24360978160066196,
+      "finish": 0.04260833333333332
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.2630721033036273,
+      "finish": 0.04926666666666667
+     }
+    }
+   }
+  },
+  "might": {
+   "games": 5600,
+   "pairs": 28,
+   "ranking": [
+    {
+     "id": "greedy-full-probe-perf-r15",
+     "rating": 2086,
+     "lo": 2064,
+     "hi": 2115,
+     "aboveNext": 0.804,
+     "games": 1400,
+     "wins": 990,
+     "winRate": 0.7071428571428572,
+     "pointShare": 0.6199430722098317,
+     "finish": 0.673321619324933,
+     "outright": 0.6471428571428571,
+     "turns": 49.745714285714286,
+     "decided": 0.9114285714285715
+    },
+    {
+     "id": "greedy-full-probe-perf",
+     "rating": 2078,
+     "lo": 2056,
+     "hi": 2104,
+     "aboveNext": 0.772,
+     "games": 1400,
+     "wins": 976,
+     "winRate": 0.6971428571428572,
+     "pointShare": 0.6168496843616348,
+     "finish": 0.6688018937076502,
+     "outright": 0.65,
+     "turns": 48.84571428571429,
+     "decided": 0.9214285714285714
+    },
+    {
+     "id": "greedy-full-combo-perf",
+     "rating": 2069,
+     "lo": 2050,
+     "hi": 2093,
+     "aboveNext": 0.628,
+     "games": 1400,
+     "wins": 962,
+     "winRate": 0.6871428571428572,
+     "pointShare": 0.6127942028627671,
+     "finish": 0.6612520371233154,
+     "outright": 0.6385714285714286,
+     "turns": 49.363571428571426,
+     "decided": 0.915
+    },
+    {
+     "id": "greedy-full-probe",
+     "rating": 2066,
+     "lo": 2045,
+     "hi": 2091,
+     "aboveNext": 1,
+     "games": 1400,
+     "wins": 956,
+     "winRate": 0.6828571428571428,
+     "pointShare": 0.6086342471835863,
+     "finish": 0.6554755532283923,
+     "outright": 0.6321428571428571,
+     "turns": 48.91571428571429,
+     "decided": 0.9171428571428571
+    },
+    {
+     "id": "greedy-full-combo",
+     "rating": 1958,
+     "lo": 1934,
+     "hi": 1991,
+     "aboveNext": 0.972,
+     "games": 1400,
+     "wins": 776,
+     "winRate": 0.5542857142857143,
+     "pointShare": 0.5426329496874032,
+     "finish": 0.5505842937205548,
+     "outright": 0.5257142857142857,
+     "turns": 47.94857142857143,
+     "decided": 0.9364285714285714
+    },
+    {
+     "id": "greedy-full-economy",
+     "rating": 1930,
+     "lo": 1903,
+     "hi": 1961,
+     "aboveNext": 1,
+     "games": 1400,
+     "wins": 731,
+     "winRate": 0.5221428571428571,
+     "pointShare": 0.5223556537844248,
+     "finish": 0.5218416078713395,
+     "outright": 0.49642857142857144,
+     "turns": 47.78357142857143,
+     "decided": 0.9407142857142857
+    },
+    {
+     "id": "greedy-v1",
+     "rating": 1200,
+     "lo": 1077,
+     "hi": 1277,
+     "aboveNext": 1,
+     "games": 1400,
+     "wins": 209,
+     "winRate": 0.1492857142857143,
+     "pointShare": 0.3115056827281007,
+     "finish": 0.1977254787877832,
+     "outright": 0.145,
+     "turns": 42.21357142857143,
+     "decided": 0.9635714285714285
+    },
+    {
+     "id": "random-v1",
+     "rating": 271,
+     "lo": 153,
+     "hi": 343,
+     "aboveNext": null,
+     "games": 1400,
+     "wins": 0,
+     "winRate": 0,
+     "pointShare": 0.16528450718225104,
+     "finish": 0.07099751623604149,
+     "outright": 0,
+     "turns": 41.42071428571428,
+     "decided": 0.9642857142857143
+    }
+   ],
+   "matrix": {
+    "greedy-full-combo": {
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 78,
+      "winRate": 0.39,
+      "pointShare": 0.4372162923336303,
+      "finish": 0.40142089381064017
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 101,
+      "winRate": 0.505,
+      "pointShare": 0.5067671051648472,
+      "finish": 0.5011918259018364
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 62,
+      "winRate": 0.31,
+      "pointShare": 0.40940210681671574,
+      "finish": 0.3510544172998873
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 70,
+      "winRate": 0.35,
+      "pointShare": 0.4211600095216801,
+      "finish": 0.3753093738054314
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 66,
+      "winRate": 0.33,
+      "pointShare": 0.41191976275600056,
+      "finish": 0.3662226997336447
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 199,
+      "winRate": 0.995,
+      "pointShare": 0.7784772736788104,
+      "finish": 0.9232258385876081
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8334880975401306,
+      "finish": 0.9356650069048256
+     }
+    },
+    "greedy-full-combo-perf": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 122,
+      "winRate": 0.61,
+      "pointShare": 0.5627837076663695,
+      "finish": 0.5985791061893597
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 141,
+      "winRate": 0.705,
+      "pointShare": 0.5979169933078575,
+      "finish": 0.6720961930703188
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 101,
+      "winRate": 0.505,
+      "pointShare": 0.5035372133887329,
+      "finish": 0.5043553721101339
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 98,
+      "winRate": 0.49,
+      "pointShare": 0.5025944472004558,
+      "finish": 0.49415625271922864
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 100,
+      "winRate": 0.5,
+      "pointShare": 0.5019469841267168,
+      "finish": 0.5000391625325061
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.7825666769423409,
+      "finish": 0.9282812634030794
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8382133974068998,
+      "finish": 0.9312569098385715
+     }
+    },
+    "greedy-full-economy": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 99,
+      "winRate": 0.495,
+      "pointShare": 0.49323289483515276,
+      "finish": 0.4988081740981635
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 59,
+      "winRate": 0.295,
+      "pointShare": 0.4020830066921423,
+      "finish": 0.3279038069296807
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 65,
+      "winRate": 0.325,
+      "pointShare": 0.40963613870548987,
+      "finish": 0.3536773361867776
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 57,
+      "winRate": 0.285,
+      "pointShare": 0.38657892921662373,
+      "finish": 0.31725150331605856
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 54,
+      "winRate": 0.27,
+      "pointShare": 0.379221090597286,
+      "finish": 0.30582030503102264
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 197,
+      "winRate": 0.985,
+      "pointShare": 0.762589851140365,
+      "finish": 0.9135246205860578
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8231476653039206,
+      "finish": 0.9359055089516068
+     }
+    },
+    "greedy-full-probe": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 138,
+      "winRate": 0.69,
+      "pointShare": 0.590597893183284,
+      "finish": 0.6489455827001122
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 99,
+      "winRate": 0.495,
+      "pointShare": 0.4964627866112671,
+      "finish": 0.495644627889866
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 135,
+      "winRate": 0.675,
+      "pointShare": 0.5903638612945101,
+      "finish": 0.6463226638132226
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 91,
+      "winRate": 0.455,
+      "pointShare": 0.4817007797133402,
+      "finish": 0.45838452466355945
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 94,
+      "winRate": 0.47,
+      "pointShare": 0.48937917272969345,
+      "finish": 0.4908324228875105
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 199,
+      "winRate": 0.995,
+      "pointShare": 0.7772375899923412,
+      "finish": 0.9239131026297224
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8346976467606708,
+      "finish": 0.9242859480147425
+     }
+    },
+    "greedy-full-probe-perf": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 130,
+      "winRate": 0.65,
+      "pointShare": 0.5788399904783199,
+      "finish": 0.6246906261945687
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 102,
+      "winRate": 0.51,
+      "pointShare": 0.49740555279954424,
+      "finish": 0.5058437472807714
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 143,
+      "winRate": 0.715,
+      "pointShare": 0.6134210707833762,
+      "finish": 0.682748496683942
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 109,
+      "winRate": 0.545,
+      "pointShare": 0.5182992202866599,
+      "finish": 0.5416154753364409
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 93,
+      "winRate": 0.465,
+      "pointShare": 0.4946581034604129,
+      "finish": 0.4694049155915383
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 199,
+      "winRate": 0.995,
+      "pointShare": 0.775691477307911,
+      "finish": 0.9298590884802614
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8396323754152205,
+      "finish": 0.9274509063860096
+     }
+    },
+    "greedy-full-probe-perf-r15": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 134,
+      "winRate": 0.67,
+      "pointShare": 0.5880802372439994,
+      "finish": 0.6337773002663549
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 100,
+      "winRate": 0.5,
+      "pointShare": 0.498053015873283,
+      "finish": 0.49996083746749376
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 146,
+      "winRate": 0.73,
+      "pointShare": 0.6207789094027141,
+      "finish": 0.6941796949689772
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 106,
+      "winRate": 0.53,
+      "pointShare": 0.5106208272703067,
+      "finish": 0.5091675771124895
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 107,
+      "winRate": 0.535,
+      "pointShare": 0.5053418965395874,
+      "finish": 0.5305950844084615
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 197,
+      "winRate": 0.985,
+      "pointShare": 0.7811110868365794,
+      "finish": 0.9151242866924274
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8356155323023482,
+      "finish": 0.930446554358316
+     }
+    },
+    "greedy-v1": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 1,
+      "winRate": 0.005,
+      "pointShare": 0.2215227263211897,
+      "finish": 0.07677416141239166
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.21743332305765914,
+      "finish": 0.07171873659692057
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 3,
+      "winRate": 0.015,
+      "pointShare": 0.23741014885963485,
+      "finish": 0.08647537941394211
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 1,
+      "winRate": 0.005,
+      "pointShare": 0.22276241000765862,
+      "finish": 0.07608689737027713
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 1,
+      "winRate": 0.005,
+      "pointShare": 0.22430852269208892,
+      "finish": 0.07014091151973816
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 3,
+      "winRate": 0.015,
+      "pointShare": 0.21888891316342055,
+      "finish": 0.08487571330757201
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8382137349950526,
+      "finish": 0.9180065518936351
+     }
+    },
+    "random-v1": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.16651190245986974,
+      "finish": 0.06433499309517364
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.16178660259309985,
+      "finish": 0.06874309016142845
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.17685233469607894,
+      "finish": 0.0640944910483926
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.1653023532393297,
+      "finish": 0.07571405198525706
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.16036762458477924,
+      "finish": 0.07254909361398974
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.1643844676976519,
+      "finish": 0.0695534456416831
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.16178626500494758,
+      "finish": 0.08199344810636494
+     }
+    }
+   }
+  },
+  "domination": {
+   "games": 5600,
+   "pairs": 28,
+   "ranking": [
+    {
+     "id": "greedy-full-probe-perf-r15",
+     "rating": 2118,
+     "lo": 2093,
+     "hi": 2150,
+     "aboveNext": 0.639,
+     "games": 1400,
+     "wins": 982,
+     "winRate": 0.7014285714285714,
+     "pointShare": 0.6307044335057573,
+     "finish": 0.667829750361328,
+     "outright": 0.6385714285714286,
+     "turns": 54.191428571428574,
+     "decided": 0.9
+    },
+    {
+     "id": "greedy-full-probe-perf",
+     "rating": 2115,
+     "lo": 2094,
+     "hi": 2141,
+     "aboveNext": 0.612,
+     "games": 1400,
+     "wins": 977,
+     "winRate": 0.6978571428571428,
+     "pointShare": 0.6284422472259051,
+     "finish": 0.6625490749505073,
+     "outright": 0.6257142857142857,
+     "turns": 55.04,
+     "decided": 0.8885714285714286
+    },
+    {
+     "id": "greedy-full-combo-perf",
+     "rating": 2111,
+     "lo": 2089,
+     "hi": 2138,
+     "aboveNext": 0.752,
+     "games": 1400,
+     "wins": 971,
+     "winRate": 0.6935714285714286,
+     "pointShare": 0.6265149784076195,
+     "finish": 0.6636298395677821,
+     "outright": 0.6392857142857142,
+     "turns": 53.127857142857145,
+     "decided": 0.9107142857142857
+    },
+    {
+     "id": "greedy-full-probe",
+     "rating": 2104,
+     "lo": 2084,
+     "hi": 2132,
+     "aboveNext": 1,
+     "games": 1400,
+     "wins": 959,
+     "winRate": 0.685,
+     "pointShare": 0.6172563946123841,
+     "finish": 0.652686501921073,
+     "outright": 0.6221428571428571,
+     "turns": 53.17928571428571,
+     "decided": 0.9035714285714286
+    },
+    {
+     "id": "greedy-full-combo",
+     "rating": 1993,
+     "lo": 1970,
+     "hi": 2020,
+     "aboveNext": 0.971,
+     "games": 1400,
+     "wins": 774,
+     "winRate": 0.5528571428571428,
+     "pointShare": 0.5420211287653263,
+     "finish": 0.5472621055475901,
+     "outright": 0.5085714285714286,
+     "turns": 53.50642857142857,
+     "decided": 0.9128571428571428
+    },
+    {
+     "id": "greedy-full-economy",
+     "rating": 1965,
+     "lo": 1940,
+     "hi": 1994,
+     "aboveNext": 1,
+     "games": 1400,
+     "wins": 730,
+     "winRate": 0.5214285714285715,
+     "pointShare": 0.5204832666267215,
+     "finish": 0.5191285248938715,
+     "outright": 0.4785714285714286,
+     "turns": 53.691428571428574,
+     "decided": 0.915
+    },
+    {
+     "id": "greedy-v1",
+     "rating": 1200,
+     "lo": 1070,
+     "hi": 1279,
+     "aboveNext": 1,
+     "games": 1400,
+     "wins": 207,
+     "winRate": 0.14785714285714285,
+     "pointShare": 0.28517599253273673,
+     "finish": 0.20666828848049124,
+     "outright": 0.14285714285714285,
+     "turns": 48.39071428571429,
+     "decided": 0.9357142857142857
+    },
+    {
+     "id": "random-v1",
+     "rating": 273,
+     "lo": 147,
+     "hi": 347,
+     "aboveNext": null,
+     "games": 1400,
+     "wins": 0,
+     "winRate": 0,
+     "pointShare": 0.14940155832355054,
+     "finish": 0.08024591427735743,
+     "outright": 0,
+     "turns": 46.354285714285716,
+     "decided": 0.945
+    }
+   ],
+   "matrix": {
+    "greedy-full-combo": {
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 77,
+      "winRate": 0.385,
+      "pointShare": 0.42766463849572667,
+      "finish": 0.3982881716751091
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 93,
+      "winRate": 0.465,
+      "pointShare": 0.4882974608928155,
+      "finish": 0.4773961329722254
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 67,
+      "winRate": 0.335,
+      "pointShare": 0.4042516009428471,
+      "finish": 0.3753821321979849
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 67,
+      "winRate": 0.335,
+      "pointShare": 0.4026350333086321,
+      "finish": 0.3718644512973531
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 70,
+      "winRate": 0.35,
+      "pointShare": 0.404860646394299,
+      "finish": 0.37544437199214803
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.815090448112764,
+      "finish": 0.9099267000682629
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8513480732102015,
+      "finish": 0.922532778630036
+     }
+    },
+    "greedy-full-combo-perf": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 123,
+      "winRate": 0.615,
+      "pointShare": 0.5723353615042732,
+      "finish": 0.6017118283248909
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 142,
+      "winRate": 0.71,
+      "pointShare": 0.6225014760035125,
+      "finish": 0.6800013979263564
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 102,
+      "winRate": 0.51,
+      "pointShare": 0.5073585330451511,
+      "finish": 0.506614059209772
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 101,
+      "winRate": 0.505,
+      "pointShare": 0.506127881539781,
+      "finish": 0.5055330250751386
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 103,
+      "winRate": 0.515,
+      "pointShare": 0.5109958258122124,
+      "finish": 0.513414727699373
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8146707153305023,
+      "finish": 0.9151348240725072
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8516150556179,
+      "finish": 0.9229990146664429
+     }
+    },
+    "greedy-full-economy": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 107,
+      "winRate": 0.535,
+      "pointShare": 0.5117025391071844,
+      "finish": 0.5226038670277746
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 58,
+      "winRate": 0.29,
+      "pointShare": 0.37749852399648737,
+      "finish": 0.319998602073644
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 66,
+      "winRate": 0.33,
+      "pointShare": 0.40208301770093496,
+      "finish": 0.3577647901352475
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 52,
+      "winRate": 0.26,
+      "pointShare": 0.36073969055833793,
+      "finish": 0.309489684989999
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 51,
+      "winRate": 0.255,
+      "pointShare": 0.3601648124670202,
+      "finish": 0.3026851662370173
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 196,
+      "winRate": 0.98,
+      "pointShare": 0.7903180634561767,
+      "finish": 0.8972362165857939
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8408762191009125,
+      "finish": 0.9241213472076221
+     }
+    },
+    "greedy-full-probe": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 133,
+      "winRate": 0.665,
+      "pointShare": 0.5957483990571532,
+      "finish": 0.6246178678020151
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 98,
+      "winRate": 0.49,
+      "pointShare": 0.49264146695484906,
+      "finish": 0.4933859407902281
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 134,
+      "winRate": 0.67,
+      "pointShare": 0.5979169822990653,
+      "finish": 0.6422352098647528
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 99,
+      "winRate": 0.495,
+      "pointShare": 0.4891743114749218,
+      "finish": 0.4871550403221096
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 96,
+      "winRate": 0.48,
+      "pointShare": 0.48779365302433514,
+      "finish": 0.48826311160933045
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 199,
+      "winRate": 0.995,
+      "pointShare": 0.8091572457411051,
+      "finish": 0.9125423828029139
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8483627037352554,
+      "finish": 0.9206059602561689
+     }
+    },
+    "greedy-full-probe-perf": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 133,
+      "winRate": 0.665,
+      "pointShare": 0.597364966691368,
+      "finish": 0.6281355487026467
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 99,
+      "winRate": 0.495,
+      "pointShare": 0.4938721184602194,
+      "finish": 0.49446697492486114
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 148,
+      "winRate": 0.74,
+      "pointShare": 0.6392603094416621,
+      "finish": 0.6905103150100014
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 101,
+      "winRate": 0.505,
+      "pointShare": 0.5108256885250783,
+      "finish": 0.5128449596778905
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 96,
+      "winRate": 0.48,
+      "pointShare": 0.4878667358955637,
+      "finish": 0.47694092719907594
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.815090854671783,
+      "finish": 0.9174565884956496
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8548150568956576,
+      "finish": 0.9174882106434177
+     }
+    },
+    "greedy-full-probe-perf-r15": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 130,
+      "winRate": 0.65,
+      "pointShare": 0.5951393536057008,
+      "finish": 0.6245556280078517
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 97,
+      "winRate": 0.485,
+      "pointShare": 0.48900417418778774,
+      "finish": 0.486585272300627
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 149,
+      "winRate": 0.745,
+      "pointShare": 0.6398351875329797,
+      "finish": 0.6973148337629828
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 104,
+      "winRate": 0.52,
+      "pointShare": 0.5122063469756647,
+      "finish": 0.5117368883906696
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 104,
+      "winRate": 0.52,
+      "pointShare": 0.5121332641044365,
+      "finish": 0.523059072800924
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 198,
+      "winRate": 0.99,
+      "pointShare": 0.8118178228389789,
+      "finish": 0.9110401477985516
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.854794885294753,
+      "finish": 0.9205164094676885
+     }
+    },
+    "greedy-v1": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.18490955188723648,
+      "finish": 0.0900732999317362
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.18532928466949797,
+      "finish": 0.08486517592749213
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 4,
+      "winRate": 0.02,
+      "pointShare": 0.2096819365438232,
+      "finish": 0.10276378341420603
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 1,
+      "winRate": 0.005,
+      "pointShare": 0.1908427542588947,
+      "finish": 0.08745761719708564
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.1849091453282168,
+      "finish": 0.08254341150434978
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 2,
+      "winRate": 0.01,
+      "pointShare": 0.18818217716102076,
+      "finish": 0.08895985220144802
+     },
+     "random-v1": {
+      "games": 200,
+      "wins": 200,
+      "winRate": 1,
+      "pointShare": 0.8523770978804656,
+      "finish": 0.9100148791871223
+     }
+    },
+    "random-v1": {
+     "greedy-full-combo": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.14865192678979855,
+      "finish": 0.07746722136996402
+     },
+     "greedy-full-combo-perf": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.14838494438210004,
+      "finish": 0.07700098533355662
+     },
+     "greedy-full-economy": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.15912378089908735,
+      "finish": 0.07587865279237806
+     },
+     "greedy-full-probe": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.15163729626474484,
+      "finish": 0.0793940397438311
+     },
+     "greedy-full-probe-perf": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.1451849431043423,
+      "finish": 0.08251178935658154
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.14520511470524655,
+      "finish": 0.0794835905323112
+     },
+     "greedy-v1": {
+      "games": 200,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.14762290211953466,
+      "finish": 0.08998512081287821
+     }
+    }
+   }
+  },
+  "creative": {
+   "games": 1400,
+   "pairs": 28,
+   "ranking": [
+    {
+     "id": "greedy-full-probe-perf-r15",
+     "rating": 2089,
+     "lo": 2061,
+     "hi": 2123,
+     "aboveNext": 0.541,
+     "games": 350,
+     "wins": 248,
+     "winRate": 0.7085714285714285,
+     "pointShare": 0.641393340850734,
+     "finish": 0.6403164385618781,
+     "outright": 0.4685714285714286,
+     "turns": 87.46571428571428,
+     "decided": 0.6571428571428571
+    },
+    {
+     "id": "greedy-full-probe-perf",
+     "rating": 2087,
+     "lo": 2054,
+     "hi": 2126,
+     "aboveNext": 0.75,
+     "games": 350,
+     "wins": 247,
+     "winRate": 0.7057142857142857,
+     "pointShare": 0.6379544938857111,
+     "finish": 0.6345463983906497,
+     "outright": 0.4714285714285714,
+     "turns": 86.27428571428571,
+     "decided": 0.6714285714285714
+    },
+    {
+     "id": "greedy-full-probe",
+     "rating": 2075,
+     "lo": 2040,
+     "hi": 2113,
+     "aboveNext": 0.725,
+     "games": 350,
+     "wins": 242,
+     "winRate": 0.6914285714285714,
+     "pointShare": 0.6312872394307185,
+     "finish": 0.6270390332620849,
+     "outright": 0.44,
+     "turns": 90.69428571428571,
+     "decided": 0.6285714285714286
+    },
+    {
+     "id": "greedy-full-combo-perf",
+     "rating": 2053,
+     "lo": 2008,
+     "hi": 2102,
+     "aboveNext": 0.992,
+     "games": 350,
+     "wins": 233,
+     "winRate": 0.6657142857142857,
+     "pointShare": 0.6145250263177224,
+     "finish": 0.6126790436484749,
+     "outright": 0.45714285714285713,
+     "turns": 85.45714285714286,
+     "decided": 0.6857142857142857
+    },
+    {
+     "id": "greedy-full-combo",
+     "rating": 1984,
+     "lo": 1957,
+     "hi": 2015,
+     "aboveNext": 0.995,
+     "games": 350,
+     "wins": 204,
+     "winRate": 0.5828571428571429,
+     "pointShare": 0.5640759209454862,
+     "finish": 0.5674523547608475,
+     "outright": 0.44,
+     "turns": 83.15142857142857,
+     "decided": 0.7142857142857143
+    },
+    {
+     "id": "greedy-full-economy",
+     "rating": 1912,
+     "lo": 1869,
+     "hi": 1956,
+     "aboveNext": 1,
+     "games": 350,
+     "wins": 175,
+     "winRate": 0.5,
+     "pointShare": 0.5153100344961714,
+     "finish": 0.5069549722333816,
+     "outright": 0.37714285714285717,
+     "turns": 82.04857142857144,
+     "decided": 0.7371428571428571
+    },
+    {
+     "id": "greedy-v1",
+     "rating": 1200,
+     "lo": 1123,
+     "hi": 1287,
+     "aboveNext": 1,
+     "games": 350,
+     "wins": 51,
+     "winRate": 0.1457142857142857,
+     "pointShare": 0.26515332794339314,
+     "finish": 0.2588046195858126,
+     "outright": 0.13428571428571429,
+     "turns": 79.76285714285714,
+     "decided": 0.7485714285714286
+    },
+    {
+     "id": "random-v1",
+     "rating": 514,
+     "lo": 440,
+     "hi": 593,
+     "aboveNext": null,
+     "games": 350,
+     "wins": 0,
+     "winRate": 0,
+     "pointShare": 0.13030061613006352,
+     "finish": 0.15220713955687118,
+     "outright": 0,
+     "turns": 81.78,
+     "decided": 0.7342857142857143
+    }
+   ],
+   "matrix": {
+    "greedy-full-combo": {
+     "greedy-full-combo-perf": {
+      "games": 50,
+      "wins": 24,
+      "winRate": 0.48,
+      "pointShare": 0.47730751750534767,
+      "finish": 0.47116139444934746
+     },
+     "greedy-full-economy": {
+      "games": 50,
+      "wins": 28,
+      "winRate": 0.56,
+      "pointShare": 0.5366012965887085,
+      "finish": 0.5423079699954969
+     },
+     "greedy-full-probe": {
+      "games": 50,
+      "wins": 17,
+      "winRate": 0.34,
+      "pointShare": 0.4110567368252569,
+      "finish": 0.4194240161257687
+     },
+     "greedy-full-probe-perf": {
+      "games": 50,
+      "wins": 17,
+      "winRate": 0.34,
+      "pointShare": 0.4009375749388051,
+      "finish": 0.39142732116277057
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 50,
+      "wins": 18,
+      "winRate": 0.36,
+      "pointShare": 0.41301550993021513,
+      "finish": 0.4124547321308838
+     },
+     "greedy-v1": {
+      "games": 50,
+      "wins": 50,
+      "winRate": 1,
+      "pointShare": 0.8333839310743228,
+      "finish": 0.8630150387747286
+     },
+     "random-v1": {
+      "games": 50,
+      "wins": 50,
+      "winRate": 1,
+      "pointShare": 0.8762288797557463,
+      "finish": 0.8723760106869404
+     }
+    },
+    "greedy-full-combo-perf": {
+     "greedy-full-combo": {
+      "games": 50,
+      "wins": 26,
+      "winRate": 0.52,
+      "pointShare": 0.5226924824946524,
+      "finish": 0.5288386055506525
+     },
+     "greedy-full-economy": {
+      "games": 50,
+      "wins": 35,
+      "winRate": 0.7,
+      "pointShare": 0.625902280607889,
+      "finish": 0.6336202750048211
+     },
+     "greedy-full-probe": {
+      "games": 50,
+      "wins": 27,
+      "winRate": 0.54,
+      "pointShare": 0.5174163940223656,
+      "finish": 0.528922779305359
+     },
+     "greedy-full-probe-perf": {
+      "games": 50,
+      "wins": 24,
+      "winRate": 0.48,
+      "pointShare": 0.4780468269972623,
+      "finish": 0.48069927373386684
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 50,
+      "wins": 21,
+      "winRate": 0.42,
+      "pointShare": 0.45270508316309993,
+      "finish": 0.44767334129822367
+     },
+     "greedy-v1": {
+      "games": 50,
+      "wins": 50,
+      "winRate": 1,
+      "pointShare": 0.8385295948656589,
+      "finish": 0.843870795955914
+     },
+     "random-v1": {
+      "games": 50,
+      "wins": 50,
+      "winRate": 1,
+      "pointShare": 0.8663825220731234,
+      "finish": 0.825128234690487
+     }
+    },
+    "greedy-full-economy": {
+     "greedy-full-combo": {
+      "games": 50,
+      "wins": 22,
+      "winRate": 0.44,
+      "pointShare": 0.46339870341129147,
+      "finish": 0.4576920300045031
+     },
+     "greedy-full-combo-perf": {
+      "games": 50,
+      "wins": 15,
+      "winRate": 0.3,
+      "pointShare": 0.3740977193921109,
+      "finish": 0.3663797249951788
+     },
+     "greedy-full-probe": {
+      "games": 50,
+      "wins": 13,
+      "winRate": 0.26,
+      "pointShare": 0.3457919195132726,
+      "finish": 0.31769065279167363
+     },
+     "greedy-full-probe-perf": {
+      "games": 50,
+      "wins": 15,
+      "winRate": 0.3,
+      "pointShare": 0.39274533577764265,
+      "finish": 0.3723143513387718
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 50,
+      "wins": 11,
+      "winRate": 0.22,
+      "pointShare": 0.3605746470570297,
+      "finish": 0.3264479671353934
+     },
+     "greedy-v1": {
+      "games": 50,
+      "wins": 49,
+      "winRate": 0.98,
+      "pointShare": 0.8127676900585102,
+      "finish": 0.8396600600677236
+     },
+     "random-v1": {
+      "games": 50,
+      "wins": 50,
+      "winRate": 1,
+      "pointShare": 0.8577942262633426,
+      "finish": 0.8685000193004272
+     }
+    },
+    "greedy-full-probe": {
+     "greedy-full-combo": {
+      "games": 50,
+      "wins": 33,
+      "winRate": 0.66,
+      "pointShare": 0.5889432631747431,
+      "finish": 0.5805759838742311
+     },
+     "greedy-full-combo-perf": {
+      "games": 50,
+      "wins": 23,
+      "winRate": 0.46,
+      "pointShare": 0.48258360597763433,
+      "finish": 0.471077220694641
+     },
+     "greedy-full-economy": {
+      "games": 50,
+      "wins": 37,
+      "winRate": 0.74,
+      "pointShare": 0.6542080804867278,
+      "finish": 0.6823093472083264
+     },
+     "greedy-full-probe-perf": {
+      "games": 50,
+      "wins": 23,
+      "winRate": 0.46,
+      "pointShare": 0.47793793098968484,
+      "finish": 0.49662409402614016
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 50,
+      "wins": 26,
+      "winRate": 0.52,
+      "pointShare": 0.4985008829331349,
+      "finish": 0.5176647808642119
+     },
+     "greedy-v1": {
+      "games": 50,
+      "wins": 50,
+      "winRate": 1,
+      "pointShare": 0.8388525687590115,
+      "finish": 0.8181540559993948
+     },
+     "random-v1": {
+      "games": 50,
+      "wins": 50,
+      "winRate": 1,
+      "pointShare": 0.8779843436940982,
+      "finish": 0.8228677501676429
+     }
+    },
+    "greedy-full-probe-perf": {
+     "greedy-full-combo": {
+      "games": 50,
+      "wins": 33,
+      "winRate": 0.66,
+      "pointShare": 0.5990624250611947,
+      "finish": 0.6085726788372295
+     },
+     "greedy-full-combo-perf": {
+      "games": 50,
+      "wins": 26,
+      "winRate": 0.52,
+      "pointShare": 0.5219531730027377,
+      "finish": 0.5193007262661332
+     },
+     "greedy-full-economy": {
+      "games": 50,
+      "wins": 35,
+      "winRate": 0.7,
+      "pointShare": 0.6072546642223575,
+      "finish": 0.6276856486612281
+     },
+     "greedy-full-probe": {
+      "games": 50,
+      "wins": 27,
+      "winRate": 0.54,
+      "pointShare": 0.5220620690103152,
+      "finish": 0.50337590597386
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 50,
+      "wins": 26,
+      "winRate": 0.52,
+      "pointShare": 0.5020269440471793,
+      "finish": 0.5074739378923242
+     },
+     "greedy-v1": {
+      "games": 50,
+      "wins": 50,
+      "winRate": 1,
+      "pointShare": 0.8397644375800365,
+      "finish": 0.8490390384204973
+     },
+     "random-v1": {
+      "games": 50,
+      "wins": 50,
+      "winRate": 1,
+      "pointShare": 0.873557744276156,
+      "finish": 0.8263768526832785
+     }
+    },
+    "greedy-full-probe-perf-r15": {
+     "greedy-full-combo": {
+      "games": 50,
+      "wins": 32,
+      "winRate": 0.64,
+      "pointShare": 0.5869844900697848,
+      "finish": 0.5875452678691162
+     },
+     "greedy-full-combo-perf": {
+      "games": 50,
+      "wins": 29,
+      "winRate": 0.58,
+      "pointShare": 0.5472949168369001,
+      "finish": 0.5523266587017763
+     },
+     "greedy-full-economy": {
+      "games": 50,
+      "wins": 39,
+      "winRate": 0.78,
+      "pointShare": 0.6394253529429704,
+      "finish": 0.6735520328646065
+     },
+     "greedy-full-probe": {
+      "games": 50,
+      "wins": 24,
+      "winRate": 0.48,
+      "pointShare": 0.501499117066865,
+      "finish": 0.48233521913578814
+     },
+     "greedy-full-probe-perf": {
+      "games": 50,
+      "wins": 24,
+      "winRate": 0.48,
+      "pointShare": 0.49797305595282076,
+      "finish": 0.4925260621076758
+     },
+     "greedy-v1": {
+      "games": 50,
+      "wins": 50,
+      "winRate": 1,
+      "pointShare": 0.8479894593210671,
+      "finish": 0.842966545206772
+     },
+     "random-v1": {
+      "games": 50,
+      "wins": 50,
+      "winRate": 1,
+      "pointShare": 0.8685869937647301,
+      "finish": 0.8509632840474093
+     }
+    },
+    "greedy-v1": {
+     "greedy-full-combo": {
+      "games": 50,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.16661606892567737,
+      "finish": 0.13698496122527146
+     },
+     "greedy-full-combo-perf": {
+      "games": 50,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.16147040513434077,
+      "finish": 0.15612920404408584
+     },
+     "greedy-full-economy": {
+      "games": 50,
+      "wins": 1,
+      "winRate": 0.02,
+      "pointShare": 0.18723230994148968,
+      "finish": 0.16033993993227663
+     },
+     "greedy-full-probe": {
+      "games": 50,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.16114743124098843,
+      "finish": 0.18184594400060547
+     },
+     "greedy-full-probe-perf": {
+      "games": 50,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.16023556241996317,
+      "finish": 0.15096096157950253
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 50,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.15201054067893283,
+      "finish": 0.1570334547932282
+     },
+     "random-v1": {
+      "games": 50,
+      "wins": 50,
+      "winRate": 1,
+      "pointShare": 0.8673609772623597,
+      "finish": 0.8683378715257174
+     }
+    },
+    "random-v1": {
+     "greedy-full-combo": {
+      "games": 50,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.1237711202442537,
+      "finish": 0.1276239893130601
+     },
+     "greedy-full-combo-perf": {
+      "games": 50,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.1336174779268769,
+      "finish": 0.17487176530951318
+     },
+     "greedy-full-economy": {
+      "games": 50,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.14220577373665755,
+      "finish": 0.13149998069957286
+     },
+     "greedy-full-probe": {
+      "games": 50,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.12201565630590182,
+      "finish": 0.17713224983235712
+     },
+     "greedy-full-probe-perf": {
+      "games": 50,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.12644225572384404,
+      "finish": 0.17362314731672132
+     },
+     "greedy-full-probe-perf-r15": {
+      "games": 50,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.13141300623527008,
+      "finish": 0.1490367159525905
+     },
+     "greedy-v1": {
+      "games": 50,
+      "wins": 0,
+      "winRate": 0,
+      "pointShare": 0.1326390227376406,
+      "finish": 0.13166212847428277
+     }
+    }
+   }
+  }
+ }
+}
