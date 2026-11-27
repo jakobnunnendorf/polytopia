@@ -167,8 +167,8 @@ pub(crate) fn play(seed: i64, su: &Setup, drive: &vi::Driver) -> R<Vec<[i32; 9]>
     let opts = sg::game_opts(seed, su.players, &su.difficulty, &tribes, su.human, MODE, MAP_SIZE, MAP_TYPE);
     let assign = seat_assignment(seed, su.opps.len(), su.players - 1);
     let opps: Vec<&FullWeights> = assign.iter().map(|&i| &su.opps[i]).collect();
-    let mut pick = |f: &State| drive.pick(seed, f);
-    Ok(sg::play_game(&opts, &su.learner, &mut pick, &opps, MAX_TURN, MAX_MOVES)?.rows)
+    let mut pick = |f: &State| Some(drive.pick(seed, f));
+    Ok(sg::play_game(&opts, &su.learner, &su.learner[0], &mut pick, &opps, MAX_TURN, MAX_MOVES)?.rows)
 }
 
 fn collect(m: &HashMap<String, String>) -> R<()> {

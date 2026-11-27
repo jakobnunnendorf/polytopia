@@ -64,10 +64,10 @@ type R<T> = Result<T, String>;
 enum Learner {
     /// a bot model from models/<id>/model.json, played through polyapi "playGames"
     Bot { label: String, policy: Value },
-    /// `rl-policy:<policy.tsv>`: a strategic-action policy of David's track (`rl-value fit-vi`, engine/rlvalue). At
-    /// the start of each of seat 0's turns the policy table maps the six-integer state (turn, cities, income, units,
-    /// sum of city levels, techs) to an action that multiplies some move-type factors of the base bot for that
-    /// turn; the file's header names the base bot and the boost. Played move by move (`rl_value::strategic::
+    /// `rl-policy:<policy.tsv>`: a strategic-action policy (`rl-value fit-vi`, engine/rlvalue). At the start of each
+    /// of seat 0's turns the policy table maps the state (a subset of turn, cities, income, units, sum of city
+    /// levels, techs) to an action that multiplies some move-type factors of the base bot for that turn; the file's
+    /// header names the base bot, the boost, the action set and the features. Played move by move (`rl_value::strategic::
     /// play_game`, the same loop as playGames); every other seat as for a bot learner.
     RlPolicy { label: String, policy: Arc<StrategicPolicy> },
 }
@@ -443,7 +443,7 @@ fn play_seed(l: &Learner, seed: i64, tribes: &[String], assign: &[usize], s: &Se
                 .collect::<R<Vec<FullWeights>>>()?;
             let refs: Vec<&FullWeights> = ws.iter().collect();
             let mut pick = |f: &sg::State| policy.action(f);
-            let o = sg::play_game(&game_opts(seed, tribes, s), &policy.weights, &mut pick, &refs, MAX_TURN as i32, MAX_MOVES)?;
+            let o = sg::play_game(&game_opts(seed, tribes, s), &policy.weights, &policy.base, &mut pick, &refs, MAX_TURN as i32, MAX_MOVES)?;
             Ok(Game { score: o.score as i64, won: o.winner == Some(LEARNER_SEAT as i32) })
         }
     }
@@ -1640,6 +1640,9 @@ mod tests {
         let base = "greedy-full-probe-perf";
         let pol = StrategicPolicy::new("empty", base, 2.0, Default::default()).unwrap();
         let rl = Learner::RlPolicy { label: format!("{RL_POLICY_PREFIX}empty"), policy: Arc::new(pol) };
+        // spend3 has no "bot" action: its default (no entry) is the base bot unchanged, so an empty table ties too
+        let pol3 = StrategicPolicy::with("empty3", base, 2.0, Default::default(), &sg::SPEND3, sg::FeatureMask::from_names(&["cities", "techs"]).unwrap()).unwrap();
+        let rl3 = Learner::RlPolicy { label: format!("{RL_POLICY_PREFIX}empty3"), policy: Arc::new(pol3) };
         let bot = learner(base).unwrap();
         let opps = vec![opponent("p", KIND_GREEDY, "greedy-full-probe-perf").unwrap(), opponent("c", KIND_GREEDY, "greedy-full-combo-perf").unwrap()];
         let s = Setup { players: 4, tribe: "xinxi".into(), difficulty: "crazy".into(), opps };
@@ -1648,6 +1651,8 @@ mod tests {
             let assign = seat_assignment(seed, s.opps.len(), s.players - 1);
             let (a, b) = (play_seed(&rl, seed, &tribes, &assign, &s).unwrap(), play_seed(&bot, seed, &tribes, &assign, &s).unwrap());
             assert_eq!((a.score, a.won), (b.score, b.won), "seed {seed}");
+            let c = play_seed(&rl3, seed, &tribes, &assign, &s).unwrap();
+            assert_eq!((c.score, c.won), (b.score, b.won), "seed {seed}, spend3");
         }
         // only greedy-full opponents can be played move by move
         let s2 = Setup { players: 4, tribe: "xinxi".into(), difficulty: "crazy".into(), opps: vec![random_opp("r")] };
