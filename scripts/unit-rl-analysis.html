@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Experiment 24 · what the unit agent learns</title>
+<style>
+  :root {
+    --bg: #111214; --panel: #1a1b1e; --line: #2c2e33; --ink: #e8e8ea; --ink2: #a3a5ab; --ink3: #6f7279;
+    --blue: #4c8fe8; --orange: #e8893a; --green: #4cb37a; --neutral: #2b2d31; --hi: #f2c94c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; background: rgba(17,18,20,.96); border-bottom: 1px solid var(--line); padding: 14px 32px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  header .meta { color: var(--ink2); font-size: 12px; }
+  .runs button { background: var(--panel); color: var(--ink2); border: 1px solid var(--line); padding: 5px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
+  .runs button.on { color: var(--ink); border-color: var(--blue); }
+  main { padding: 8px 32px 60px; max-width: 1500px; }
+  section { margin-top: 34px; }
+  h2 { font-size: 17px; margin: 0 0 2px; }
+  .lede { color: var(--ink2); margin: 0 0 12px; max-width: 980px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  .row { display: grid; gap: 16px; }
+  .c2 { grid-template-columns: 1fr 1fr; } .c3 { grid-template-columns: repeat(3, 1fr); } .c6 { grid-template-columns: repeat(6, 1fr); }
+  @media (max-width: 1100px) { .c2, .c3 { grid-template-columns: 1fr; } .c6 { grid-template-columns: repeat(3, 1fr); } }
+  .tile .k { color: var(--ink2); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+  .tile .v { font-size: 24px; font-weight: 600; margin-top: 2px; }
+  .tile .s { color: var(--ink3); font-size: 12px; }
+  h3 { font-size: 14px; margin: 0 0 2px; } .sub { color: var(--ink2); font-size: 12px; margin: 0 0 10px; }
+  .hm { display: grid; gap: 2px; font-size: 11px; }
+  .hm .rl { color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 6px; align-self: center; text-align: right; }
+  .hm .cl { color: var(--ink2); text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .hm .cell { height: 20px; border-radius: 3px; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,.85); font-size: 10px; }
+  .hm .cell.empty { background: transparent; outline: 1px dashed var(--line); outline-offset: -1px; }
+  .legend { display: flex; align-items: center; gap: 8px; color: var(--ink2); font-size: 11px; margin-top: 8px; }
+  .legend .bar { width: 160px; height: 8px; border-radius: 4px; }
+  #tip { position: fixed; pointer-events: none; background: #000; border: 1px solid var(--line); color: var(--ink); padding: 6px 9px; border-radius: 6px; font-size: 12px; max-width: 360px; display: none; z-index: 10; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th { text-align: left; color: var(--ink2); font-weight: 500; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  tr.chosen td { background: rgba(76,143,232,.12); }
+  tr.cand { cursor: pointer; } tr.cand:hover td { background: rgba(255,255,255,.04); }
+  tr.sel td { outline: 1px solid var(--blue); outline-offset: -1px; }
+  .num { text-align: right; }
+  .pill { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; background: var(--neutral); color: var(--ink2); }
+  .pill.chosen { background: var(--blue); color: #fff; }
+  select { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: inherit; max-width: 100%; }
+  .why { display: grid; grid-template-columns: 130px 120px 1fr 70px; gap: 4px 10px; align-items: center; font-size: 12px; }
+  .why .b { height: 12px; border-radius: 3px; }
+  .eq { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; color: var(--ink); background: #111; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin: 8px 0; white-space: pre-wrap; }
+  svg text { fill: var(--ink); font: 12px -apple-system, sans-serif; }
+  svg .muted { fill: var(--ink2); }
+  .note { color: var(--ink3); font-size: 12px; }
+  a { color: var(--blue); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Experiment 24 · what the unit agent learns</h1>
+  <div class="runs" id="runs"></div>
+  <div class="meta" id="meta">loading…</div>
+</header>
+<main>
+  <section>
+    <div class="row c6" id="tiles"></div>
+  </section>
+
+  <section>
+    <h2>1 · How one decision is made</h2>
+    <p class="lede">Every fighting action of the learner's units goes through this loop; the greedy champion plays everything that spends or earns stars before and after it. One value function V is shared by all units; each unit evaluates it from its own view.</p>
+    <div class="panel"><svg id="flow" viewBox="0 0 1180 250" width="100%"></svg></div>
+  </section>
+
+  <section>
+    <h2>2 · Real decisions, step by step</h2>
+    <p class="lede">Decisions recorded in the analysis games with the current weights. Each row is one candidate action: the reward it earns now, V of the unit before and after it, and the gain = reward + V after − V before. The highest gain is played if it is above 0, otherwise the units pass. Click a row to see which features moved V.</p>
+    <div class="panel">
+      <select id="exPick"></select>
+      <div id="exTable" style="margin-top:12px"></div>
+      <div id="exWhy" style="margin-top:14px"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3 · Is it getting better?</h2>
+    <p class="lede">Evaluation games after each training iteration (greedy, same seeds every time). 0 = level with the three champions; the champion itself in the learner seat scores about −490 on these seeds.</p>
+    <div class="row c2">
+      <div class="panel"><h3>Score minus the champions' mean</h3><p class="sub">mean over the evaluation games, per iteration</p><svg id="chDiff" viewBox="0 0 600 220" width="100%"></svg></div>
+      <div class="panel"><h3>Fighting per game</h3><p class="sub">kills, own units lost, captures (cities + villages)</p><svg id="chFight" viewBox="0 0 600 220" width="100%"></svg><div class="legend" id="lgFight"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4 · Which features matter</h2>
+    <p class="lede">Permutation importance: how much worse V predicts the returns when one feature is shuffled across samples (rise in squared error, stars²). For the linear model also the signed weight × one standard deviation of the feature: what a typical change of that feature is worth.</p>
+    <div class="row c2">
+      <div class="panel"><h3>Importance now</h3><p class="sub" id="impSub"></p><div id="imp"></div></div>
+      <div class="panel"><h3>Importance over training</h3><p class="sub">one column per analysis snapshot; colour = permutation importance</p><div id="impHist"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>5 · Prediction against reality</h2>
+    <p class="lede">For each feature, the samples are split into 8 bins of its value (low → high). Left: the mean V the agent predicts in that bin. Right: the mean return that actually followed. Where the two maps differ, the model has not (yet) captured the pattern.</p>
+    <div class="row c2">
+      <div class="panel"><h3>Predicted V by feature value</h3><p class="sub">stars of future kills and captures</p><div id="pdV"></div></div>
+      <div class="panel"><h3>Actual return by feature value</h3><p class="sub">same bins, same colour scale</p><div id="pdG"></div></div>
+    </div>
+    <div class="row c2" style="margin-top:16px">
+      <div class="panel"><h3>Calibration</h3><p class="sub">samples grouped by predicted V: mean prediction vs mean actual return (perfect = on the diagonal)</p><svg id="chCal" viewBox="0 0 600 240" width="100%"></svg></div>
+      <div class="panel"><h3>By turn</h3><p class="sub">mean predicted V, mean actual return and mean absolute error per turn</p><svg id="chTurn" viewBox="0 0 600 240" width="100%"></svg><div class="legend" id="lgTurn"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>6 · Learned interactions</h2>
+    <p class="lede">Slices through the learned V: two features vary, all others stay at their median. A linear model can only draw tilted planes here (parallel colour bands); bands that bend or cross mean the network has learned that one feature's worth depends on the other, e.g. that high danger matters only when HP is low.</p>
+    <div class="row c3" id="slices"></div>
+  </section>
+
+  <section>
+    <h2>7 · Which situation leads to which action</h2>
+    <p class="lede">After each type of action, how far each feature sits above (orange) or below (blue) its average over all unit decisions, in standard deviations.</p>
+    <div class="panel"><div id="sit"></div></div>
+  </section>
+
+  <section>
+    <h2>8 · Who does what, and when</h2>
+    <div class="row c2">
+      <div class="panel"><h3>Action mix by turn</h3><p class="sub">share of each action type among the decisions of that turn</p><div id="turnKind"></div></div>
+      <div class="panel"><h3>Action mix by unit type</h3><p class="sub">share of each action type among that unit type's decisions</p><div id="typeKind"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>9 · Where the rewards come from</h2>
+    <div class="row c2">
+      <div class="panel"><h3>Reward by unit type and source</h3><p class="sub">stars credited per game (kills split by damage share; city loss shared by all units)</p><div id="rew"></div></div>
+      <div class="panel"><h3>Who fights whom</h3><p class="sub">colour = share of attacks that killed; number = attacks in the analysis games</p><div id="mu"></div></div>
+    </div>
+  </section>
+  <p class="note" id="foot"></p>
+</main>
+<div id="tip"></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const tip = $("tip");
+let RUN = null, RUNS = [];
+const fmt = (v, d = 1) => (v == null || Number.isNaN(v) ? "–" : Number(v).toFixed(d));
+const sgn = (v, d = 1) => (v == null ? "–" : (v > 0 ? "+" : "") + Number(v).toFixed(d));
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ---- colour: diverging blue · neutral · orange; sequential neutral → blue
+const C = { neutral: [43, 45, 49], blue: [76, 143, 232], orange: [232, 137, 58] };
+const mix = (a, b, t) => `rgb(${a.map((x, i) => Math.round(x + (b[i] - x) * t)).join(",")})`;
+const divColor = (v, m) => { const t = Math.max(-1, Math.min(1, v / (m || 1))); return t >= 0 ? mix(C.neutral, C.orange, t) : mix(C.neutral, C.blue, -t); };
+const seqColor = (v, m) => mix(C.neutral, C.blue, Math.max(0, Math.min(1, v / (m || 1))));
+
+function showTip(e, html) { tip.innerHTML = html; tip.style.display = "block"; tip.style.left = Math.min(e.clientX + 14, innerWidth - 370) + "px"; tip.style.top = e.clientY + 14 + "px"; }
+function hideTip() { tip.style.display = "none"; }
+
+/** a heat map as a CSS grid. vals[r][c] (null = no data). */
+function heatmap(el, { rows, cols, vals, mode = "div", max, labels = false, labelW = 120, cellFmt, tipFn, legend }) {
+  const flat = vals.flat().filter((v) => v != null && Number.isFinite(v));
+  const m = max ?? (mode === "div" ? Math.max(1e-9, ...flat.map(Math.abs)) : Math.max(1e-9, ...flat));
+  const g = document.createElement("div");
+  g.className = "hm";
+  g.style.gridTemplateColumns = `${labelW}px repeat(${cols.length}, minmax(14px, 1fr))`;
+  g.appendChild(document.createElement("div"));
+  cols.forEach((c) => { const d = document.createElement("div"); d.className = "cl"; d.textContent = c; d.title = c; g.appendChild(d); });
+  rows.forEach((r, i) => {
+    const l = document.createElement("div"); l.className = "rl"; l.textContent = r; l.title = r; g.appendChild(l);
+    cols.forEach((c, j) => {
+      const v = vals[i]?.[j];
+      const d = document.createElement("div");
+      d.className = "cell" + (v == null ? " empty" : "");
+      if (v != null) {
+        d.style.background = mode === "div" ? divColor(v, m) : seqColor(v, m);
+        if (labels) d.textContent = cellFmt ? cellFmt(v, i, j) : fmt(v, 1);
+      }
+      d.onmousemove = (e) => showTip(e, tipFn ? tipFn(i, j, v) : `<b>${esc(r)}</b> · ${esc(c)}<br>${v == null ? "no data" : fmt(v, 2)}`);
+      d.onmouseleave = hideTip;
+      g.appendChild(d);
+    });
+  });
+  el.innerHTML = "";
+  el.appendChild(g);
+  const lg = document.createElement("div");
+  lg.className = "legend";
+  const bar = mode === "div" ? `linear-gradient(90deg, ${divColor(-1, 1)}, ${divColor(0, 1)}, ${divColor(1, 1)})` : `linear-gradient(90deg, ${seqColor(0, 1)}, ${seqColor(1, 1)})`;
+  lg.innerHTML = `<span>${mode === "div" ? "−" + fmt(m, 2) : "0"}</span><span class="bar" style="background:${bar}"></span><span>${(mode === "div" ? "+" : "") + fmt(m, 2)}</span><span>${legend ?? ""}</span>`;
+  el.appendChild(lg);
+}
+
+/** a small line chart in an SVG with viewBox 600 x H */
+function lineChart(svg, series, { zero = false, H = 220, xLabel = "", diag = false, points = false } = {}) {
+  const W = 600, L = 48, R = 12, T = 10, B = 26;
+  const all = series.flatMap((s) => s.pts).filter((p) => p[1] != null && Number.isFinite(p[1]));
+  if (!all.length) { svg.innerHTML = `<text x="300" y="${H / 2}" text-anchor="middle" class="muted">waiting for data…</text>`; return; }
+  let [x0, x1] = [Math.min(...all.map((p) => p[0])), Math.max(...all.map((p) => p[0]))];
+  let [y0, y1] = [Math.min(...all.map((p) => p[1])), Math.max(...all.map((p) => p[1]))];
+  if (zero) { y0 = Math.min(y0, 0); y1 = Math.max(y1, 0); }
+  if (diag) { x0 = y0 = Math.min(x0, y0); x1 = y1 = Math.max(x1, y1); }
+  if (x1 === x0) x1 = x0 + 1; if (y1 === y0) y1 = y0 + 1;
+  const pad = (y1 - y0) * 0.06; y0 -= pad; y1 += pad;
+  const X = (x) => L + ((x - x0) / (x1 - x0)) * (W - L - R), Y = (y) => T + (1 - (y - y0) / (y1 - y0)) * (H - T - B);
+  let h = "";
+  for (let k = 0; k <= 4; k++) { const y = y0 + ((y1 - y0) * k) / 4; h += `<line x1="${L}" x2="${W - R}" y1="${Y(y)}" y2="${Y(y)}" stroke="#2c2e33"/><text x="${L - 6}" y="${Y(y) + 4}" text-anchor="end" class="muted" font-size="10">${Math.abs(y1 - y0) > 50 ? Math.round(y) : y.toFixed(1)}</text>`; }
+  h += `<text x="${L}" y="${H - 6}" class="muted" font-size="10">${Math.round(x0)}</text><text x="${W - R}" y="${H - 6}" text-anchor="end" class="muted" font-size="10">${Math.round(x1)} ${xLabel}</text>`;
+  if (zero) h += `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#6f7279" stroke-dasharray="4 4"/>`;
+  if (diag) h += `<line x1="${X(x0)}" y1="${Y(x0)}" x2="${X(x1)}" y2="${Y(x1)}" stroke="#6f7279" stroke-dasharray="4 4"/>`;
+  series.forEach((s) => {
+    const p = s.pts.filter((q) => q[1] != null && Number.isFinite(q[1]));
+    if (p.length) h += `<path d="${p.map((q, i) => (i ? "L" : "M") + X(q[0]).toFixed(1) + " " + Y(q[1]).toFixed(1)).join("")}" fill="none" stroke="${s.color}" stroke-width="2"/>`;
+    if (points) p.forEach((q) => (h += `<circle cx="${X(q[0])}" cy="${Y(q[1])}" r="4" fill="${s.color}" stroke="#1a1b1e" stroke-width="2"/>`));
+  });
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = h;
+  svg.onmousemove = (e) => {
+    const r = svg.getBoundingClientRect(), x = x0 + (((e.clientX - r.left) / r.width) * W - L) / (W - L - R) * (x1 - x0);
+    const rows = series.map((s) => { const p = s.pts.reduce((b, q) => (Math.abs(q[0] - x) < Math.abs(b[0] - x) ? q : b), s.pts[0] || [0, null]); return `<span style="color:${s.color}">■</span> ${esc(s.name)}: ${fmt(p[1], 1)} <span style="color:#6f7279">at ${fmt(p[0], 1)}</span>`; });
+    showTip(e, rows.join("<br>"));
+  };
+  svg.onmouseleave = hideTip;
+}
+const legendHtml = (series) => series.map((s) => `<span><span style="color:${s.color}">■</span> ${esc(s.name)}</span>`).join("");
+
+// ---- 1. the decision loop
+function drawFlow(model) {
+  const box = (x, y, w, h, title, body, stroke = "#3a3d44") => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="#141518" stroke="${stroke}"/><text x="${x + 10}" y="${y + 20}" font-weight="600">${title}</text>${body.map((t, i) => `<text x="${x + 10}" y="${y + 38 + i * 16}" class="muted">${t}</text>`).join("")}`;
+  const arrow = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#6f7279" stroke-width="1.5" marker-end="url(#ah)"/>`;
+  const vbox = model === "mlp" ? ["36 features → 32 hidden", "tanh units → one number"] : ["V = Σ w_j · φ_j", "36 weights, least squares"];
+  $("flow").innerHTML = `<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6f7279"/></marker></defs>
+    ${box(10, 20, 160, 92, "State s", ["the game now,", "learner's turn"])}
+    ${arrow(170, 66, 200, 66)}
+    ${box(200, 20, 170, 92, "Candidate actions", ["every legal move, attack,", "capture, recover, promote,", "heal, ability + pass"])}
+    ${arrow(370, 66, 400, 66)}
+    ${box(400, 20, 170, 92, "Afterstate s_a", ["the engine applies a", "to a copy of the game"])}
+    ${arrow(570, 66, 600, 66)}
+    ${box(600, 20, 170, 92, "Features φ_u(s_a)", ["of the acting unit u:", "own stats, squad, enemy,", "danger, travel turns"])}
+    ${arrow(770, 66, 800, 66)}
+    ${box(800, 20, 170, 92, "Value V(φ)", vbox, "#4c8fe8")}
+    ${arrow(970, 66, 1000, 66)}
+    ${box(1000, 20, 170, 92, "Gain", ["r_u(a) + V(s_a) − V(s)", "r: kill / capture credit", "V(s): unit stays put"], "#e8893a")}
+    ${arrow(1085, 112, 1085, 150)}
+    ${box(820, 150, 350, 82, "Choose", ["best gain > 0 → play it (ties at random);", "otherwise pass: the units' part of the turn ends.", "Training only: with probability ε a random one."])}
+    ${arrow(820, 190, 200, 190)}
+    <text x="510" y="182" text-anchor="middle" class="muted">played → new state, repeat for the next unit action</text>
+    ${box(10, 150, 190, 82, "Learning", ["after the game: each unit's", "discounted future rewards G", "→ fit V(φ) ≈ G"], "#4cb37a")}`;
+}
+
+// ---- 2. example decisions
+let EX = [], exSel = 0, rowSel = null;
+function drawExamples(a) {
+  EX = a.examples || [];
+  const pick = $("exPick");
+  const prev = pick.value;
+  pick.innerHTML = EX.map((e, i) => {
+    const ch = e.rows.find((r) => r.chosen);
+    return `<option value="${i}">Game ${e.game} · turn ${e.turn} · ${esc(e.rows[0]?.unit || "")} · ${e.passed ? "passed" : "chose: " + esc(ch?.action || "")} (${e.candidates} candidates)</option>`;
+  }).join("");
+  if (prev && +prev < EX.length) pick.value = prev;
+  else {
+    // start on a decision with a fight in it: more instructive than the first moves of the game
+    const k = EX.findIndex((e) => e.rows.some((r) => r.kind === "attack"));
+    if (k >= 0) pick.value = String(k);
+  }
+  exSel = +pick.value || 0;
+  drawExample(a.model, a.weights);
+  pick.onchange = () => { exSel = +pick.value; rowSel = null; drawExample(a.model, a.weights); };
+}
+function drawExample(model, weights) {
+  const e = EX[exSel];
+  if (!e) { $("exTable").innerHTML = '<p class="note">no examples yet</p>'; $("exWhy").innerHTML = ""; return; }
+  const gmax = Math.max(1e-9, ...e.rows.map((r) => Math.abs(r.gain)));
+  let h = `<table><tr><th>Unit</th><th>Action</th><th class="num">Reward now</th><th class="num">V before</th><th class="num">V after</th><th class="num">Gain</th><th style="width:22%"></th><th></th></tr>`;
+  e.rows.forEach((r, i) => {
+    const w = (Math.abs(r.gain) / gmax) * 50;
+    const bar = `<div style="position:relative;height:12px"><div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:#6f7279"></div><div style="position:absolute;top:1px;height:10px;border-radius:2px;${r.gain >= 0 ? `left:50%;width:${w}%;background:${C ? "rgb(232,137,58)" : ""}` : `right:50%;width:${w}%;background:rgb(76,143,232)`}"></div></div>`;
+    h += `<tr class="cand ${r.chosen ? "chosen" : ""} ${rowSel === i ? "sel" : ""}" data-i="${i}"><td>${esc(r.unit)}</td><td>${esc(r.action)} <span class="pill">${r.kind}</span></td><td class="num">${fmt(r.reward, 2)}</td><td class="num">${fmt(r.vBefore, 2)}</td><td class="num">${fmt(r.vAfter, 2)}</td><td class="num">${sgn(r.gain, 2)}</td><td>${bar}</td><td>${r.chosen ? '<span class="pill chosen">played</span>' : ""}</td></tr>`;
+  });
+  h += `</table>`;
+  if (e.passed) h += `<p class="note">No candidate had a gain above 0, so the units passed (the rest of the turn goes back to the champion bot).</p>`;
+  $("exTable").innerHTML = h;
+  $("exTable").querySelectorAll("tr.cand").forEach((tr) => (tr.onclick = () => { rowSel = +tr.dataset.i; drawExample(model, weights); }));
+  const r = e.rows[rowSel ?? Math.max(0, e.rows.findIndex((x) => x.chosen))] || e.rows[0];
+  const cm = Math.max(1e-9, ...r.why.map((w) => Math.abs(w.contribution)));
+  let wh = `<h3>Why: ${esc(r.unit)} → ${esc(r.action)}</h3>`;
+  wh += `<div class="eq">gain = reward ${fmt(r.reward, 2)} + V after ${fmt(r.vAfter, 2)} − V before ${fmt(r.vBefore, 2)} = ${sgn(r.gain, 2)}</div>`;
+  wh += `<p class="sub">${model === "linear" ? "Each feature's share of the change in V: weight × (value after − value before). The rest of the change comes from smaller terms." : "Each feature's share of the change in V: V after minus V with only that feature set back to its value before (the network has no single weights)."}</p><div class="why">`;
+  wh += `<span class="note">feature</span><span class="note">before → after</span><span class="note">share of the change in V</span><span class="note num">stars</span>`;
+  r.why.forEach((w) => {
+    const wt = model === "linear" && weights?.w ? weights.w[weights.features.indexOf(w.feature)] : null;
+    const pct = (Math.abs(w.contribution) / cm) * 100;
+    wh += `<span>${esc(w.feature)}</span><span class="note">${fmt(w.before, 2)} → ${fmt(w.after, 2)}${wt != null ? ` · w ${sgn(wt, 2)}` : ""}</span><span><div class="b" style="width:${pct}%;background:${w.contribution >= 0 ? "rgb(232,137,58)" : "rgb(76,143,232)"}"></div></span><span class="num">${sgn(w.contribution, 2)}</span>`;
+  });
+  if (!r.why.length) wh += `<span class="note" style="grid-column:1/-1">no feature of this unit changed (the gain is the reward alone)</span>`;
+  $("exWhy").innerHTML = wh + "</div>";
+}
+
+// ---- render everything
+async function load() {
+  const rs = await (await fetch("/api/runs")).json();
+  RUNS = rs.runs;
+  if (!RUN || !RUNS.includes(RUN)) RUN = RUNS[0];
+  $("runs").innerHTML = RUNS.map((r) => `<button class="${r === RUN ? "on" : ""}" data-r="${r}">${r}</button>`).join("");
+  $("runs").querySelectorAll("button").forEach((b) => (b.onclick = () => { RUN = b.dataset.r; rowSel = null; load(); }));
+  if (!RUN) { $("meta").textContent = "no analysis yet"; return; }
+  const q = "?run=" + encodeURIComponent(RUN);
+  const [a, hist, tr] = await Promise.all([fetch("/api/analysis" + q).then((r) => r.json()), fetch("/api/history" + q).then((r) => r.json()), fetch("/api/training" + q).then((r) => r.json())]);
+  render(a, hist, tr);
+}
+
+function render(a, hist, tr) {
+  const F = a.features, K = a.kinds, s = a.summary;
+  const iters = tr.filter((l) => l.type === "iter");
+  const base = tr.find((l) => l.type === "baseline");
+  $("meta").textContent = `${a.model === "mlp" ? "neural net" : "linear"} · analysis at iteration ${a.iteration} (training at ${iters.length}) · ${a.games} games, ${a.samples.toLocaleString()} unit samples · ${a.at}`;
+  const tile = (k, v, sub) => `<div class="panel tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
+  const bd = base?.detail?.diff?.mean;
+  $("tiles").innerHTML =
+    tile("vs champions", sgn(s.diff.mean, 0), `±${fmt((s.diff.hi - s.diff.lo) / 2, 0)}; champion in seat ${sgn(bd, 0)}`) +
+    tile("score", fmt(s.score.mean, 0), `champions ${fmt(s.champs.mean, 0)}`) +
+    tile("kills / game", fmt(s.kills, 1), `champion in seat ${fmt(base?.detail?.kills, 1)}`) +
+    tile("units lost / game", fmt(s.losses, 1), `champion in seat ${fmt(base?.detail?.losses, 1)}`) +
+    tile("captures / game", fmt(s.capturesCity, 2) + " + " + fmt(s.capturesVillage, 2), "cities + villages") +
+    tile("prediction error", fmt(a.fitRmse, 2), "RMSE of V against returns (stars)");
+
+  drawFlow(a.model);
+  drawExamples(a);
+
+  // 3. training curves
+  const pts = (f) => iters.map((l) => [l.i, f(l)]);
+  lineChart($("chDiff"), [{ name: "learner − champions", color: "#4c8fe8", pts: pts((l) => l.diff?.mean) }, ...(bd != null ? [{ name: "champion in the seat", color: "#6f7279", pts: [[iters[0]?.i ?? 1, bd], [iters.at(-1)?.i ?? 1, bd]] }] : [])], { zero: true, xLabel: "iteration" });
+  const fight = [
+    { name: "kills", color: "#e8893a", pts: pts((l) => l.kills) },
+    { name: "units lost", color: "#4c8fe8", pts: pts((l) => l.losses) },
+    { name: "captures", color: "#4cb37a", pts: pts((l) => (l.capturesCity ?? 0) + (l.capturesVillage ?? 0)) },
+  ];
+  lineChart($("chFight"), fight, { xLabel: "iteration" });
+  $("lgFight").innerHTML = legendHtml(fight);
+
+  // 4. importance
+  const imp = a.importance.map((x, j) => ({ ...x, j })).filter((x) => x.feature !== "bias").sort((p, q) => q.permutation - p.permutation);
+  const im = Math.max(1e-9, ...imp.map((x) => x.permutation));
+  const wm = Math.max(1e-9, ...imp.map((x) => Math.abs(x.weightSd ?? 0)));
+  $("impSub").textContent = a.model === "linear" ? "bar = permutation importance; right column = weight × 1 sd (orange = more of it is worth more)" : "bar = permutation importance";
+  $("imp").innerHTML = `<div class="why" style="grid-template-columns:120px 1fr 60px ${a.model === "linear" ? "70px" : ""}">` + imp.map((x) => `<span>${x.feature}</span><span><div class="b" style="width:${(Math.max(0, x.permutation) / im) * 100}%;background:rgb(76,143,232)"></div></span><span class="num note">${fmt(x.permutation, 2)}</span>${a.model === "linear" ? `<span class="num" style="color:${divColor(x.weightSd, wm)}">${sgn(x.weightSd, 2)}</span>` : ""}`).join("") + "</div>";
+  const hs = hist.slice(-40);
+  const order = imp.map((x) => x.j);
+  heatmap($("impHist"), { rows: order.map((j) => F[j]), cols: hs.map((h) => String(h.iteration)), vals: order.map((j) => hs.map((h) => h.importance?.[j] ?? null)), mode: "seq", labelW: 110,
+    tipFn: (i, c, v) => `<b>${F[order[i]]}</b> at iteration ${hs[c].iteration}<br>importance ${fmt(v, 2)}`, legend: "importance" });
+
+  // 5. partial dependence
+  const pdRows = a.partial.filter((p) => p.feature !== "bias" && p.hi > p.lo);
+  const pdMax = Math.max(1e-9, ...pdRows.flatMap((p) => [...p.V, ...p.G].filter((v) => v != null).map(Math.abs)));
+  const binCols = Array.from({ length: 8 }, (_, b) => (b === 0 ? "low" : b === 7 ? "high" : ""));
+  const pdTip = (key) => (i, j, v) => { const p = pdRows[i], w = (p.hi - p.lo) / 8; return `<b>${p.feature}</b> in ${fmt(p.lo + j * w, 2)} … ${fmt(p.lo + (j + 1) * w, 2)}<br>predicted V ${fmt(p.V[j], 2)} · actual ${fmt(p.G[j], 2)}<br>${p.n[j]} samples`; };
+  heatmap($("pdV"), { rows: pdRows.map((p) => p.feature), cols: binCols, vals: pdRows.map((p) => p.V), max: pdMax, tipFn: pdTip("V"), legend: "stars" });
+  heatmap($("pdG"), { rows: pdRows.map((p) => p.feature), cols: binCols, vals: pdRows.map((p) => p.G), max: pdMax, tipFn: pdTip("G"), legend: "stars" });
+  const cal = a.calibration.filter(Boolean);
+  lineChart($("chCal"), [{ name: "actual return", color: "#e8893a", pts: cal.map((c) => [c.V, c.G]) }], { diag: true, H: 240, xLabel: "predicted V", points: true });
+  const turnS = [
+    { name: "predicted V", color: "#4c8fe8", pts: a.perTurn.filter((t) => t.n).map((t) => [t.turn, t.V]) },
+    { name: "actual return", color: "#e8893a", pts: a.perTurn.filter((t) => t.n).map((t) => [t.turn, t.G]) },
+    { name: "mean abs error", color: "#6f7279", pts: a.perTurn.filter((t) => t.n).map((t) => [t.turn, t.mae]) },
+  ];
+  lineChart($("chTurn"), turnS, { H: 240, xLabel: "turn" });
+  $("lgTurn").innerHTML = legendHtml(turnS);
+
+  // 6. slices
+  const sm = Math.max(1e-9, ...a.slices.flatMap((sl) => sl.V.flat().map(Math.abs)));
+  $("slices").innerHTML = a.slices.map((_, i) => `<div class="panel"><h3 id="slh${i}"></h3><p class="sub" id="sls${i}"></p><div id="sl${i}"></div></div>`).join("");
+  a.slices.forEach((sl, i) => {
+    $("slh" + i).textContent = `${sl.y} × ${sl.x}`;
+    $("sls" + i).textContent = `rows: ${sl.y} (top = high) · columns: ${sl.x} (left = low)`;
+    const ys = [...sl.ys].reverse(), V = [...sl.V].reverse();
+    heatmap($("sl" + i), { rows: ys.map((y) => fmt(y, 2)), cols: sl.xs.map((x, k) => (k % 2 ? "" : fmt(x, 1))), vals: V, labelW: 44,
+      tipFn: (r, c, v) => `${sl.y} = ${fmt(ys[r], 2)}, ${sl.x} = ${fmt(sl.xs[c], 2)}<br>V = ${fmt(v, 2)} stars`, legend: "V" });
+  });
+
+  // 7. situation x action
+  const sitRows = F.map((f, j) => j).filter((j) => F[j] !== "bias");
+  heatmap($("sit"), { rows: sitRows.map((j) => F[j]), cols: K.map((k, i) => `${k} (${a.situation.n[i]})`), vals: sitRows.map((j) => K.map((_, k) => a.situation.z[k]?.[j] ?? null)), labels: true, cellFmt: (v) => sgn(v, 1), labelW: 120, max: 2,
+    tipFn: (i, k, v) => `after <b>${K[k]}</b>: ${F[sitRows[i]]} is ${v == null ? "–" : sgn(v, 2) + " sd"} vs all decisions`, legend: "standard deviations from the average decision" });
+
+  // 8. when / who
+  const tk = a.turnKind.map((r) => { const t = r.reduce((x, y) => x + y, 0); return t ? r.map((v) => v / t) : r.map(() => null); });
+  const turns = tk.map((_, t) => t).filter((t) => t >= 1 && a.turnKind[t].some((v) => v));
+  heatmap($("turnKind"), { rows: turns.map((t) => "turn " + t), cols: K, vals: turns.map((t) => tk[t]), mode: "seq", max: 1, labelW: 60, labels: true, cellFmt: (v) => (v >= 0.05 ? Math.round(v * 100) : ""),
+    tipFn: (i, k, v) => `turn ${turns[i]}: ${K[k]} ${fmt((v ?? 0) * 100, 0)}% (${a.turnKind[turns[i]][k]} decisions)`, legend: "share of the turn's decisions" });
+  const tyk = a.typeKind.counts.map((r) => { const t = r.reduce((x, y) => x + y, 0); return r.map((v) => (t ? v / t : null)); });
+  heatmap($("typeKind"), { rows: a.typeKind.types.map((t, i) => `${t} (${a.typeKind.counts[i].reduce((x, y) => x + y, 0)})`), cols: K, vals: tyk, mode: "seq", max: 1, labels: true, cellFmt: (v) => (v >= 0.05 ? Math.round(v * 100) : ""), labelW: 130,
+    tipFn: (i, k, v) => `${a.typeKind.types[i]}: ${K[k]} ${fmt((v ?? 0) * 100, 0)}% (${a.typeKind.counts[i][k]})`, legend: "share of the type's decisions" });
+
+  // 9. rewards and matchups
+  heatmap($("rew"), { rows: a.rewards.types, cols: a.sources, vals: a.rewards.perGame, labels: true, cellFmt: (v) => (Math.abs(v) >= 0.05 ? sgn(v, 1) : ""), labelW: 110,
+    tipFn: (i, k, v) => `${a.rewards.types[i]} · ${a.sources[k]}: ${sgn(v, 2)} stars per game`, legend: "stars per game" });
+  const kr = a.matchup.attacks.map((r, i) => r.map((n, j) => (n ? a.matchup.kills[i][j] / n : null)));
+  heatmap($("mu"), { rows: a.matchup.attackers.map((t) => t + " →"), cols: a.matchup.victims, vals: kr, mode: "seq", max: 1, labels: true, cellFmt: (v, i, j) => a.matchup.attacks[i][j], labelW: 110,
+    tipFn: (i, j, v) => `${a.matchup.attackers[i]} attacking ${a.matchup.victims[j]}: ${a.matchup.attacks[i][j]} attacks, ${a.matchup.kills[i][j]} kills (${v == null ? "–" : fmt(v * 100, 0) + "%"})`, legend: "kill rate" });
+
+  $("foot").textContent = `Analysis: ${a.games} greedy games on the evaluation seeds with the weights of iteration ${a.iteration}, ${fmt(a.seconds, 1)} s. Refreshed about every 90 s while training runs; this page reloads every 10 s.`;
+}
+
+load();
+setInterval(() => { if (!document.hidden) load(); }, 10000);
+</script>
+</body>
+</html>

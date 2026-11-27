@@ -623,14 +623,37 @@ fn credit(before: &GameState, after: &GameState, a: &Action, log: &HitLog) -> (V
 
 // ---------------------------------------------------------------- one game
 
+/// Sample: features, turn, action kind that led to it (END_SAMPLE = end of turn), unit type.
 enum Ev {
-    Sample([f64; NF], i32),
+    Sample([f64; NF], i32, u8, u8),
     Reward(f64, i32),
+}
+
+const END_SAMPLE: u8 = NK as u8;
+/// reward sources, for the analysis
+const SOURCES: [&str; 4] = ["kill", "capture city", "capture village", "own city lost"];
+
+/// One recorded sample for the analysis: features, return, action kind (END_SAMPLE = end of turn), unit type, turn.
+#[derive(Clone)]
+struct Rec {
+    f: [f64; NF],
+    g: f64,
+    kind: u8,
+    ty: u8,
+    turn: i32,
 }
 
 #[derive(Default)]
 struct GameOut {
     samples: Vec<([f64; NF], f64)>,
+    recs: Vec<Rec>,
+    /// (unit type, source, stars)
+    rewards: Vec<(u8, u8, f64)>,
+    /// (attacker type, victim type, killed)
+    attacks: Vec<(u8, u8, bool)>,
+    type_names: HashMap<u8, String>,
+    /// example decisions, for the analysis page
+    examples: Vec<Value>,
     score: f64,
     champs: f64,
     levels: f64,
@@ -676,7 +699,7 @@ fn bot_phase(s: &mut GameState, w: &FullWeights, moves: &mut i32) -> R<()> {
     Ok(())
 }
 
-fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect: bool) -> R<GameOut> {
+fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect: bool, ex: bool) -> R<GameOut> {
     let me = (seed % 4) as i32;
     let mut s = new_game(seed)?;
     let mut rng = Rng::new(seed as u64 ^ 0xA5A5);
@@ -684,6 +707,7 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
     let mut ev: HashMap<Id, Vec<Ev>> = HashMap::new();
     let mut log: HitLog = HashMap::new();
     let mut owned: HashSet<Id> = HashSet::new();
+    let mut types: HashMap<Id, u8> = HashMap::new();
     let mut moves = 0;
     while !s.over && moves < MAX_MOVES {
         s.log.clear();
@@ -696,11 +720,17 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
         // ---- the learner's turn
         let now: HashSet<Id> = s.cities.iter().filter(|c| c.owner == me).map(|c| c.id).collect();
         let mine: Vec<Id> = s.units.iter().filter(|u| u.owner == me).map(|u| u.id).collect();
+        for u in s.units.iter().filter(|u| u.owner == me) {
+            let t = land_type(u);
+            types.insert(u.id, t as u8);
+            out.type_names.entry(t as u8).or_insert_with(|| format!("{t:?}"));
+        }
         for lost in owned.difference(&now) {
             if let Some(c) = s.cities.iter().find(|c| c.id == *lost) {
                 let pen = st::city_income(&s, c) as f64 * turns_left(s.turn);
                 for id in &mine {
                     ev.entry(*id).or_default().push(Ev::Reward(-pen / mine.len() as f64, s.turn));
+                    out.rewards.push((types[id], 3, -pen / mine.len() as f64));
                 }
             }
         }
@@ -752,16 +782,37 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
                 }
                 ties[rng.below(ties.len())]
             };
+            if ex && out.examples.len() < 12 && !cands.is_empty() {
+                let interesting = cands.iter().any(|c| kind_ix(&c.1) != 0) || pick.is_none() || s.turn % 5 == 0;
+                if interesting {
+                    out.examples.push(example(&s, me, &cands, pick, model, &mut tr));
+                }
+            }
             let Some(k) = pick else {
                 out.kinds[PASS][1] += 1;
                 break;
             };
             let (_, a, t, cr, hit, kind) = cands.swap_remove(k);
             out.kinds[kind_ix(&a)][1] += 1;
+            if let Action::Attack { unit: by, target } = a {
+                if let (Some(au), Some(vu)) = (unit(&s, by), unit(&s, target)) {
+                    let (at, vt) = (land_type(au), land_type(vu));
+                    out.type_names.entry(vt as u8).or_insert_with(|| format!("{vt:?}"));
+                    out.attacks.push((at as u8, vt as u8, kind == 1));
+                }
+            }
             s = t;
             moves += 1;
+            for u in s.units.iter().filter(|u| u.owner == me) {
+                let t = land_type(u);
+                types.entry(u.id).or_insert(t as u8);
+                out.type_names.entry(t as u8).or_insert_with(|| format!("{t:?}"));
+            }
             for (id, r) in cr {
                 ev.entry(id).or_default().push(Ev::Reward(r, s.turn));
+                if let (Some(&ty), 1..=3) = (types.get(&id), kind) {
+                    out.rewards.push((ty, kind - 1, r));
+                }
             }
             if let Some((target, h)) = hit {
                 log.entry(target).or_default().push(h);
@@ -775,7 +826,8 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
             let uid = actor(&a);
             if collect {
                 if let Some(f) = features(&s, me, uid, &mut tr) {
-                    ev.entry(uid).or_default().push(Ev::Sample(f, s.turn));
+                    let ty = types.get(&uid).copied().unwrap_or(0);
+                    ev.entry(uid).or_default().push(Ev::Sample(f, s.turn, kind_ix(&a) as u8, ty));
                 }
             }
         }
@@ -787,7 +839,8 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
             let ids: Vec<Id> = s.units.iter().filter(|u| u.owner == me).map(|u| u.id).collect();
             for id in ids {
                 if let Some(f) = features(&s, me, id, &mut tr) {
-                    ev.entry(id).or_default().push(Ev::Sample(f, s.turn));
+                    let ty = types.get(&id).copied().unwrap_or(0);
+                    ev.entry(id).or_default().push(Ev::Sample(f, s.turn, END_SAMPLE, ty));
                 }
             }
         }
@@ -802,7 +855,7 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
             let mut cur: Option<i32> = None;
             for e in evs.iter().rev() {
                 let t = match e {
-                    Ev::Sample(_, t) | Ev::Reward(_, t) => *t,
+                    Ev::Sample(_, t, _, _) | Ev::Reward(_, t) => *t,
                 };
                 if let Some(c) = cur {
                     g *= GAMMA.powi(c - t);
@@ -810,7 +863,10 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
                 cur = Some(t);
                 match e {
                     Ev::Reward(r, _) => g += r,
-                    Ev::Sample(f, _) => out.samples.push((*f, g)),
+                    Ev::Sample(f, t, kind, ty) => {
+                        out.samples.push((*f, g));
+                        out.recs.push(Rec { f: *f, g, kind: *kind, ty: *ty, turn: *t });
+                    }
                 }
             }
         }
@@ -825,6 +881,64 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
     out.losses = s.players[me as usize].losses as f64;
     out.turns = s.turn as f64;
     Ok(out)
+}
+
+/// One decision for the analysis page: the acting units' situation, the best candidates (by gain) with their reward,
+/// V before and after, and the features that moved V most (the change of each feature's contribution between
+/// standing still and the afterstate: w_j * delta f_j for the linear model, the change in V when the feature alone is
+/// set back to its value before, for the net).
+fn example(s: &GameState, me: i32, cands: &[(f64, Action, GameState, Vec<(Id, f64)>, Option<(Id, Hit)>, u8)], pick: Option<usize>, model: &Model, tr: &mut Travel) -> Value {
+    let mut order: Vec<usize> = (0..cands.len()).collect();
+    order.sort_by(|&a, &b| cands[b].0.partial_cmp(&cands[a].0).unwrap());
+    if let Some(k) = pick {
+        if !order[..order.len().min(6)].contains(&k) {
+            order.insert(0, k);
+        }
+    }
+    let rows: Vec<Value> = order
+        .iter()
+        .take(7)
+        .map(|&i| {
+            let (gain, a, t, cr, _, _) = &cands[i];
+            let uid = actor(a);
+            let u = unit(s, uid);
+            let fb = features(s, me, uid, tr);
+            let fa = features(t, me, uid, tr);
+            let vb = fb.map(|f| model.value(&f)).unwrap_or(0.0);
+            let va = fa.map(|f| model.value(&f)).unwrap_or(0.0);
+            let r: f64 = cr.iter().filter(|(id, _)| *id == uid).map(|(_, r)| r).sum();
+            let mut why: Vec<(usize, f64, f64, f64)> = Vec::new();
+            if let (Some(fb), Some(fa)) = (fb, fa) {
+                for j in 1..NF {
+                    if (fa[j] - fb[j]).abs() < 1e-9 {
+                        continue;
+                    }
+                    let c = match model {
+                        Model::Linear(w) => w[j] * (fa[j] - fb[j]),
+                        Model::Mlp(_) => {
+                            let mut f = fa;
+                            f[j] = fb[j];
+                            va - model.value(&f)
+                        }
+                    };
+                    why.push((j, fb[j], fa[j], c));
+                }
+            }
+            why.sort_by(|a, b| b.3.abs().partial_cmp(&a.3.abs()).unwrap());
+            let what = match a {
+                Action::Move { to, .. } => format!("move to ({},{})", to.x, to.y),
+                Action::Attack { target, .. } => format!("attack {}", unit(s, *target).map(|v| format!("{:?} ({} hp)", land_type(v), v.hp)).unwrap_or_default()),
+                other => format!("{:?}", other).split_whitespace().next().unwrap_or("").to_lowercase(),
+            };
+            json!({
+                "unit": u.map(|u| format!("{:?} #{} at ({},{}), {} hp", land_type(u), u.id, u.x, u.y, u.hp)).unwrap_or_default(),
+                "action": what, "kind": KIND_NAMES[kind_ix(a)], "chosen": pick == Some(i),
+                "reward": r, "vBefore": vb, "vAfter": va, "gain": gain,
+                "why": why.iter().take(6).map(|(j, b, a, c)| json!({"feature": FEATURES[*j], "before": b, "after": a, "contribution": c})).collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    json!({"turn": s.turn, "candidates": cands.len(), "passed": pick.is_none(), "rows": rows})
 }
 
 // ---------------------------------------------------------------- statistics and output
@@ -846,7 +960,7 @@ fn mean(xs: impl Iterator<Item = f64>) -> f64 {
 }
 
 fn run_games(pool: &rayon::ThreadPool, seeds: &[i64], model: Option<&Model>, champ: &FullWeights, eps: f64, collect: bool) -> R<Vec<GameOut>> {
-    pool.install(|| seeds.par_iter().map(|&sd| play(sd, model, champ, eps, collect)).collect())
+    pool.install(|| seeds.par_iter().map(|&sd| play(sd, model, champ, eps, collect, false)).collect())
 }
 
 fn summary(gs: &[GameOut]) -> Value {
@@ -896,6 +1010,7 @@ fn run() -> R<()> {
     let dir = repo_root().join("models").join(&run);
     match cmd.as_str() {
         "train" => train(&m, &pool, &champ, &run, &dir),
+        "analyse" => analyse(&pool, &champ, &run, &dir, num(&m, "games", 64i64)),
         "measure" => {
             let games = num(&m, "games", 200i64);
             let seeds: Vec<i64> = (0..games).map(|g| EVAL0 + g).collect();
@@ -1001,4 +1116,242 @@ fn now_iso() -> String {
     let mo = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = yoe + era * 400 + (mo <= 2) as i64;
     format!("{y:04}-{mo:02}-{d:02}T{:02}:{:02}:{:02}Z", secs / 3600, secs % 3600 / 60, secs % 60)
+}
+
+// ---------------------------------------------------------------- analysis (the analysis dashboard reads it)
+
+/// Feature pairs whose 2-D slice of the learned V is drawn (all other features at their median).
+const SLICES: [(&str, &str); 6] = [
+    ("hpShare", "dangerAtk"),
+    ("dmgDealt", "dmgTaken"),
+    ("squadN", "enemyDist"),
+    ("tEnemyCity", "turnsLeft"),
+    ("tVillage", "turnsLeft"),
+    ("atk", "squadRanged"),
+];
+const BINS: usize = 8;
+const GRID: usize = 9;
+
+fn fx(name: &str) -> usize {
+    FEATURES.iter().position(|f| *f == name).unwrap_or(0)
+}
+
+fn quantile(v: &mut Vec<f64>, q: f64) -> f64 {
+    if v.is_empty() {
+        return 0.0;
+    }
+    v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    v[((v.len() as f64 - 1.0) * q).round() as usize]
+}
+
+/// Plays `games` greedy evaluation games with the run's current weights and writes models/<run>/analysis.json
+/// (plus one line in analysis-history.jsonl): what the agent values, does and earns.
+fn analyse(pool: &rayon::ThreadPool, champ: &FullWeights, run: &str, dir: &PathBuf, games: i64) -> R<()> {
+    let t0 = Instant::now();
+    let wtxt = std::fs::read_to_string(dir.join("weights.json")).map_err(|e| e.to_string())?;
+    let model = Model::from_json(&serde_json::from_str(&wtxt).map_err(|e| e.to_string())?)?;
+    let iteration = std::fs::read_to_string(dir.join("rl.jsonl"))
+        .map(|t| t.lines().filter(|l| l.contains("\"type\":\"iter\"")).count())
+        .unwrap_or(0);
+    let seeds: Vec<i64> = (0..games).map(|g| EVAL0 + g).collect();
+    let gs: Vec<GameOut> = pool.install(|| seeds.par_iter().enumerate().map(|(i, &sd)| play(sd, Some(&model), champ, 0.0, true, i < 4)).collect::<R<Vec<_>>>())?;
+    let examples: Vec<Value> = gs.iter().take(4).enumerate().flat_map(|(g, o)| o.examples.iter().map(move |e| { let mut e = e.clone(); e["game"] = json!(g + 1); e })).collect();
+    let recs: Vec<Rec> = gs.iter().flat_map(|g| g.recs.iter().cloned()).collect();
+    let mut tnames: HashMap<u8, String> = HashMap::new();
+    for g in &gs {
+        for (k, v) in &g.type_names {
+            tnames.entry(*k).or_insert_with(|| v.clone());
+        }
+    }
+    let n = recs.len().max(1) as f64;
+    let v: Vec<f64> = recs.iter().map(|r| model.value(&r.f)).collect();
+    let mean_f: Vec<f64> = (0..NF).map(|j| recs.iter().map(|r| r.f[j]).sum::<f64>() / n).collect();
+    let sd_f: Vec<f64> = (0..NF).map(|j| (recs.iter().map(|r| (r.f[j] - mean_f[j]).powi(2)).sum::<f64>() / n).sqrt()).collect();
+
+    // 1. importance: permutation (rise in squared error when the feature is shuffled) and the linear weight x sd
+    let mse = |pred: &dyn Fn(usize) -> f64| recs.iter().enumerate().map(|(i, r)| (pred(i) - r.g).powi(2)).sum::<f64>() / n;
+    let base_mse = mse(&|i| v[i]);
+    let mut rng = Rng::new(99);
+    let perm: Vec<usize> = {
+        let mut p: Vec<usize> = (0..recs.len()).collect();
+        for i in (1..p.len()).rev() {
+            let j = rng.below(i + 1);
+            p.swap(i, j);
+        }
+        p
+    };
+    let importance: Vec<Value> = (0..NF)
+        .map(|j| {
+            let pm = if sd_f[j] < 1e-12 {
+                base_mse
+            } else {
+                mse(&|i| {
+                    let mut f = recs[i].f;
+                    f[j] = recs[perm[i]].f[j];
+                    model.value(&f)
+                })
+            };
+            let w = match &model {
+                Model::Linear(w) => json!(w[j]),
+                _ => Value::Null,
+            };
+            json!({"feature": FEATURES[j], "permutation": pm - base_mse, "weight": w, "weightSd": match &model { Model::Linear(w) => json!(w[j] * sd_f[j]), _ => Value::Null }, "mean": mean_f[j], "sd": sd_f[j]})
+        })
+        .collect();
+
+    // 2. by feature value: mean predicted V and mean actual return per bin
+    let mut partial = Vec::new();
+    for j in 0..NF {
+        let mut col: Vec<f64> = recs.iter().map(|r| r.f[j]).collect();
+        let lo = quantile(&mut col, 0.01);
+        let hi = quantile(&mut col, 0.99);
+        let width = (hi - lo) / BINS as f64;
+        let mut cnt = [0.0; BINS];
+        let mut sv = [0.0; BINS];
+        let mut sg = [0.0; BINS];
+        for (i, r) in recs.iter().enumerate() {
+            let b = if width <= 1e-12 { 0 } else { (((r.f[j] - lo) / width) as isize).clamp(0, BINS as isize - 1) as usize };
+            cnt[b] += 1.0;
+            sv[b] += v[i];
+            sg[b] += r.g;
+        }
+        let cell = |s: &[f64; BINS]| (0..BINS).map(|b| if cnt[b] > 0.0 { json!(s[b] / cnt[b]) } else { Value::Null }).collect::<Vec<_>>();
+        partial.push(json!({"feature": FEATURES[j], "lo": lo, "hi": hi, "n": cnt.to_vec(), "V": cell(&sv), "G": cell(&sg)}));
+    }
+
+    // 3. situation per action kind: standardized mean feature value after actions of that kind
+    let act: Vec<&Rec> = recs.iter().filter(|r| (r.kind as usize) < NK - 1).collect();
+    let mut situation = Vec::new();
+    let mut kind_n = vec![0usize; NK - 1];
+    for k in 0..NK - 1 {
+        let rk: Vec<&&Rec> = act.iter().filter(|r| r.kind as usize == k).collect();
+        kind_n[k] = rk.len();
+        let row: Vec<Value> = (0..NF)
+            .map(|j| {
+                if rk.is_empty() || sd_f[j] < 1e-12 {
+                    Value::Null
+                } else {
+                    json!((rk.iter().map(|r| r.f[j]).sum::<f64>() / rk.len() as f64 - mean_f[j]) / sd_f[j])
+                }
+            })
+            .collect();
+        situation.push(row);
+    }
+
+    // 4. turn x kind, 5. unit type x kind
+    let mut turn_kind = vec![vec![0u64; NK - 1]; TURNS as usize + 1];
+    let mut ty_kind: HashMap<u8, Vec<u64>> = HashMap::new();
+    for r in &act {
+        turn_kind[(r.turn.clamp(0, TURNS)) as usize][r.kind as usize] += 1;
+        ty_kind.entry(r.ty).or_insert_with(|| vec![0; NK - 1])[r.kind as usize] += 1;
+    }
+    let mut tys: Vec<u8> = ty_kind.keys().copied().collect();
+    tys.sort();
+    let tyname = |t: &u8| tnames.get(t).cloned().unwrap_or_else(|| t.to_string());
+
+    // 6. rewards by unit type x source (stars per game)
+    let mut rew: HashMap<u8, [f64; 4]> = HashMap::new();
+    for g in &gs {
+        for (t, src, r) in &g.rewards {
+            rew.entry(*t).or_insert([0.0; 4])[*src as usize] += r / games as f64;
+        }
+    }
+    let mut rtys: Vec<u8> = rew.keys().copied().collect();
+    rtys.sort();
+
+    // 7. who fights whom
+    let mut mu: HashMap<(u8, u8), (u64, u64)> = HashMap::new();
+    for g in &gs {
+        for (a, b, k) in &g.attacks {
+            let e = mu.entry((*a, *b)).or_default();
+            e.0 += 1;
+            e.1 += *k as u64;
+        }
+    }
+    let mut atys: Vec<u8> = mu.keys().map(|k| k.0).collect::<HashSet<_>>().into_iter().collect();
+    let mut vtys: Vec<u8> = mu.keys().map(|k| k.1).collect::<HashSet<_>>().into_iter().collect();
+    atys.sort();
+    vtys.sort();
+
+    // 8. calibration: predicted V bins vs actual return; per turn
+    let mut vs = v.clone();
+    let (vlo, vhi) = (quantile(&mut vs.clone(), 0.01), quantile(&mut vs, 0.99));
+    let cw = ((vhi - vlo) / 12.0).max(1e-9);
+    let mut cal: Vec<(f64, f64, f64)> = vec![(0.0, 0.0, 0.0); 12];
+    for (i, r) in recs.iter().enumerate() {
+        let b = (((v[i] - vlo) / cw) as isize).clamp(0, 11) as usize;
+        cal[b].0 += 1.0;
+        cal[b].1 += v[i];
+        cal[b].2 += r.g;
+    }
+    let mut per_turn: Vec<(f64, f64, f64, f64)> = vec![(0.0, 0.0, 0.0, 0.0); TURNS as usize + 1];
+    for (i, r) in recs.iter().enumerate() {
+        let t = &mut per_turn[r.turn.clamp(0, TURNS) as usize];
+        t.0 += 1.0;
+        t.1 += v[i];
+        t.2 += r.g;
+        t.3 += (v[i] - r.g).abs();
+    }
+
+    // 9. 2-D slices of the learned V (other features at their median over action samples)
+    let median: Vec<f64> = (0..NF).map(|j| quantile(&mut act.iter().map(|r| r.f[j]).collect(), 0.5)).collect();
+    let slices: Vec<Value> = SLICES
+        .iter()
+        .map(|(xn, yn)| {
+            let (xi, yi) = (fx(xn), fx(yn));
+            let range = |j: usize| {
+                let mut c: Vec<f64> = recs.iter().map(|r| r.f[j]).collect();
+                let lo = quantile(&mut c, 0.02);
+                let hi = quantile(&mut c, 0.98).max(lo + 1e-6);
+                (0..GRID).map(|k| lo + (hi - lo) * k as f64 / (GRID - 1) as f64).collect::<Vec<f64>>()
+            };
+            let (xs, ys) = (range(xi), range(yi));
+            let grid: Vec<Vec<f64>> = ys
+                .iter()
+                .map(|y| {
+                    xs.iter()
+                        .map(|x| {
+                            let mut f = [0.0; NF];
+                            f.copy_from_slice(&median);
+                            f[0] = 1.0;
+                            f[xi] = *x;
+                            f[yi] = *y;
+                            model.value(&f)
+                        })
+                        .collect()
+                })
+                .collect();
+            json!({"x": xn, "y": yn, "xs": xs, "ys": ys, "V": grid})
+        })
+        .collect();
+
+    let summary = summary(&gs);
+    let out = json!({
+        "run": run, "model": match model { Model::Linear(_) => "linear", Model::Mlp(_) => "mlp" },
+        "iteration": iteration, "games": games, "samples": recs.len(), "at": now_iso(), "seconds": t0.elapsed().as_secs_f64(),
+        "features": FEATURES.to_vec(), "kinds": KIND_NAMES[..NK - 1].to_vec(), "sources": SOURCES.to_vec(),
+        "summary": summary, "fitRmse": base_mse.sqrt(),
+        "importance": importance,
+        "partial": partial,
+        "situation": {"kinds": KIND_NAMES[..NK - 1].to_vec(), "n": kind_n, "z": situation},
+        "turnKind": turn_kind,
+        "typeKind": {"types": tys.iter().map(tyname).collect::<Vec<_>>(), "counts": tys.iter().map(|t| ty_kind[t].clone()).collect::<Vec<_>>()},
+        "rewards": {"types": rtys.iter().map(tyname).collect::<Vec<_>>(), "perGame": rtys.iter().map(|t| rew[t].to_vec()).collect::<Vec<_>>()},
+        "matchup": {"attackers": atys.iter().map(tyname).collect::<Vec<_>>(), "victims": vtys.iter().map(tyname).collect::<Vec<_>>(),
+            "attacks": atys.iter().map(|a| vtys.iter().map(|b| mu.get(&(*a, *b)).map(|e| e.0).unwrap_or(0)).collect::<Vec<_>>()).collect::<Vec<_>>(),
+            "kills": atys.iter().map(|a| vtys.iter().map(|b| mu.get(&(*a, *b)).map(|e| e.1).unwrap_or(0)).collect::<Vec<_>>()).collect::<Vec<_>>()},
+        "calibration": cal.iter().map(|c| if c.0 > 0.0 { json!({"n": c.0, "V": c.1 / c.0, "G": c.2 / c.0}) } else { Value::Null }).collect::<Vec<_>>(),
+        "perTurn": per_turn.iter().enumerate().skip(1).map(|(t, c)| json!({"turn": t, "n": c.0, "V": c.1 / c.0.max(1.0), "G": c.2 / c.0.max(1.0), "mae": c.3 / c.0.max(1.0)})).collect::<Vec<_>>(),
+        "slices": slices,
+        "examples": examples,
+        "weights": model.to_json(),
+    });
+    std::fs::write(dir.join("analysis.json"), serde_json::to_string(&out).unwrap()).map_err(|e| e.to_string())?;
+    let hist = json!({"iteration": iteration, "at": now_iso(), "importance": out["importance"].as_array().unwrap().iter().map(|x| x["permutation"].clone()).collect::<Vec<_>>(),
+        "weightSd": out["importance"].as_array().unwrap().iter().map(|x| x["weightSd"].clone()).collect::<Vec<_>>(),
+        "diff": out["summary"]["diff"]["mean"], "kills": out["summary"]["kills"], "fitRmse": base_mse.sqrt()});
+    let mut h = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("analysis-history.jsonl")).map_err(|e| e.to_string())?;
+    writeln!(h, "{hist}").map_err(|e| e.to_string())?;
+    eprintln!("analysis of {run} at iteration {iteration}: {} samples, {:.1}s", recs.len(), t0.elapsed().as_secs_f64());
+    Ok(())
 }
