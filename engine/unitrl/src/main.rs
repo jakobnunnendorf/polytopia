@@ -53,6 +53,13 @@ static GAMMA: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
 fn gamma() -> f64 {
     *GAMMA.get().unwrap_or(&1.0)
 }
+/// TD(lambda) (--lambda; default 1 = Monte Carlo). The training target of a unit's sample is its lambda-return:
+/// the rewards until the unit's next sample plus lambda x the next sample's lambda-return + (1 - lambda) x V(next
+/// sample), V of the model that played the game. Needs gamma 1. The analysis keeps the Monte Carlo return as truth.
+static LAMBDA: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
+fn lambda() -> f64 {
+    *LAMBDA.get().unwrap_or(&1.0)
+}
 const EVAL0: i64 = 6_000_000_000;
 const TRAIN0: i64 = 7_000_000_000;
 const MAX_MOVES: i32 = 30_000;
@@ -852,10 +859,14 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
         apply_action(&mut s, &Action::EndTurn)?;
         moves += 1;
     }
-    // per-unit Monte Carlo returns
+    // per-unit returns: Monte Carlo (g, also the analysis' truth) and the training target (lambda-return)
     if collect {
+        let lam = lambda();
         for evs in ev.values() {
             let mut g = 0.0;
+            let mut acc = 0.0;
+            // (lambda-return, V) of the unit's next sample
+            let mut nxt: Option<(f64, f64)> = None;
             let mut cur: Option<i32> = None;
             for e in evs.iter().rev() {
                 let t = match e {
@@ -866,10 +877,18 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
                 }
                 cur = Some(t);
                 match e {
-                    Ev::Reward(r, _) => g += r,
+                    Ev::Reward(r, _) => {
+                        g += r;
+                        acc += r;
+                    }
                     Ev::Sample(f, t, kind, ty) => {
-                        out.samples.push((*f, g));
+                        let target = if lam >= 1.0 { g } else { acc + nxt.map(|(gl, v)| lam * gl + (1.0 - lam) * v).unwrap_or(0.0) };
+                        out.samples.push((*f, target));
                         out.recs.push(Rec { f: *f, g, kind: *kind, ty: *ty, turn: *t });
+                        if lam < 1.0 {
+                            nxt = Some((target, model.map(|m| m.value(f)).unwrap_or(0.0)));
+                            acc = 0.0;
+                        }
                     }
                 }
             }
@@ -1008,6 +1027,10 @@ fn main() {
 fn run() -> R<()> {
     let (cmd, m) = args();
     let _ = GAMMA.set(num(&m, "gamma", 1.0f64));
+    let _ = LAMBDA.set(num(&m, "lambda", 1.0f64));
+    if lambda() < 1.0 && gamma() != 1.0 {
+        return Err("--lambda below 1 needs --gamma 1".into());
+    }
     let champ = champion()?;
     let threads = num(&m, "threads", 10usize);
     let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().map_err(|e| e.to_string())?;
@@ -1055,7 +1078,7 @@ fn train(m: &HashMap<String, String>, pool: &rayon::ThreadPool, champ: &FullWeig
     };
     let started = Instant::now();
     line(json!({"type": "meta", "run": run, "title": format!("Experiment 24: unit value function ({kind})"),
-        "state": FEATURES.to_vec(), "method": format!("per-unit Monte Carlo, {}", if kind == "mlp" { "neural net (1 hidden layer, 32 tanh, Adam)" } else { "linear least squares, decay 0.98" }),
+        "state": FEATURES.to_vec(), "method": format!("per-unit {}, {}", if lambda() < 1.0 { format!("TD(lambda = {})", lambda()) } else { "Monte Carlo".to_string() }, if kind == "mlp" { "neural net (1 hidden layer, 32 tanh, Adam)" } else { "linear least squares, decay 0.98" }),
         "gamma": gamma(), "tieBreak": "random", "iterations": iters, "gamesPerIteration": games,
         "setup": format!("Perfection 16x16 continents, 4 players all human; learner seat rotated (seed % 4); units by V, economy by greedy-full-probe-perf; opponents 3x greedy-full-probe-perf; epsilon {eps0} -> {eps_min} over {eps_iters} iterations; evaluation {n_eval} greedy games on seeds {EVAL0}.."),
         "startedAt": now_iso()}))?;
