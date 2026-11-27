@@ -32,7 +32,9 @@ npm run rl:gate -- --candidate <learner> --base <learner> --out experiments/NN-r
 
 A **learner** is a bot model (id under `models/`, a model folder or `model.json`) or an **RL policy**,
 `rl-policy:<policy.tsv>` (David's track: a table from the six-integer state to a strategic action, written by
-`rl-value fit-vi`; the file's header names the base bot and the boost). An RL policy is played move by move
+`rl-value fit-vi`; the file's header names the base bot and the boost, and optionally the action set (`"actions"`:
+`strategic5`, the default, or `spend3`) and the features it keys on (`"features"`, default all six; a dropped
+feature is 0 in the table)). An RL policy is played move by move
 (`rl_value::strategic::play_game`, the same stop rule as `playGames`); opponents, seats, seeds and the rule are
 the same as for a bot. A policy with an empty table plays exactly like its base bot (test
 `rl_policy_with_an_empty_table_plays_like_its_base`). Opponents must be greedy-full models for an RL learner.
