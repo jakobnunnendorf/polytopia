@@ -151,9 +151,13 @@ not a bar the RL agents must clear (Jakob: "neither have to beat the greedy bots
 
 | Phase | Champion seat | Previous-champion seat | Anchor |
 | --- | --- | --- | --- |
-| RL weaker than greedy (from 26 Nov) | greedy-full-probe-perf | greedy-full-combo-perf | greedy-full-probe-perf |
-| RL vK first passes vs the greedy champion | RL vK | greedy-full-probe-perf | greedy-full-probe-perf |
+| RL weaker than greedy (26 Nov) | greedy-full-probe-perf | greedy-full-combo-perf | greedy-full-probe-perf |
+| RL weaker than greedy (from 27 Nov) | greedy-full-probe-perf-r15 | greedy-full-probe-perf | greedy-full-probe-perf |
+| RL vK first passes vs the greedy champion | RL vK | greedy-full-probe-perf-r15 | greedy-full-probe-perf |
 | Every RL version after that | newest RL | the RL before it | greedy-full-probe-perf |
+
+On 27 Nov 2026 `greedy-full-probe-perf-r15` (probe-perf with `type.research` ×1.5) passed the gate against probe-perf
+and was promoted (#166, #203); it is also the learner's base bot from then on.
 
 When the opponent list changes, the environment changes: scores before and after are not directly comparable.
 At each such switch, re-run the greedy baseline (`--candidate greedy-full-probe-perf`) on the new opponents and
