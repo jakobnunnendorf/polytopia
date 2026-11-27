@@ -85,6 +85,25 @@
   </section>
 
   <section>
+    <h2>2b · Watch a whole training game</h2>
+    <p class="sub">Pick an iteration (and a game, or leave it empty for a random one). The trainer replays that training game exactly as it was played, with the weights and exploration rate of that iteration, and the game's own viewer steps through every move of all four players. At each of the learner's unit decisions the acting unit's options show their gain; <b>Decision ▶</b> jumps to the next one, and the table below explains it.</p>
+    <div class="card">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label class="note">iteration <input id="gIter" type="number" min="1" style="width:80px"></label>
+        <label class="note">game <input id="gGame" type="number" min="0" placeholder="random" style="width:80px"></label>
+        <button id="gGo">Replay this game</button>
+        <span class="note">or open one already replayed:</span>
+        <select id="gPick"></select>
+        <span id="gInfo" class="note"></span>
+      </div>
+      <iframe id="gBoard" title="the whole game" style="display:block;width:100%;height:760px;margin-top:12px;border:1px solid var(--line);border-radius:8px;background:#16213a"></iframe>
+      <div id="gNow" class="note" style="margin-top:8px"></div>
+      <div id="gTable" style="margin-top:8px"></div>
+      <div id="gWhy" style="margin-top:14px"></div>
+    </div>
+  </section>
+
+  <section>
     <h2>3 · Is it getting better?</h2>
     <p class="lede">Evaluation games after each training iteration (greedy, same seeds every time). 0 = level with the three champions; the champion itself in the learner seat scores about −490 on these seeds.</p>
     <div class="row c2">
@@ -282,7 +301,11 @@ function drawExamples(a) {
 function drawExample(model, weights) {
   const e = EX[exSel];
   if (e) drawBoard((e.rows[rowSel ?? Math.max(0, e.rows.findIndex((x) => x.chosen))] || e.rows[0])?.uid);
-  if (!e) { $("exTable").innerHTML = '<p class="note">no examples yet</p>'; $("exWhy").innerHTML = ""; return; }
+  renderDecision(e, model, weights, "exTable", "exWhy", rowSel, (i) => { rowSel = i; drawExample(model, weights); });
+}
+/** the candidate table and the "why" bars of one recorded decision; onRow(i) when a row is clicked */
+function renderDecision(e, model, weights, tableId, whyId, rowSel, onRow) {
+  if (!e) { $(tableId).innerHTML = '<p class="note">no decision here</p>'; $(whyId).innerHTML = ""; return; }
   const gmax = Math.max(1e-9, ...e.rows.map((r) => Math.abs(r.gain)));
   let h = `<table><tr><th>Unit</th><th>Action</th><th class="num">Reward now</th><th class="num">V before</th><th class="num">V after</th><th class="num">Gain</th><th style="width:22%"></th><th></th></tr>`;
   e.rows.forEach((r, i) => {
@@ -292,8 +315,9 @@ function drawExample(model, weights) {
   });
   h += `</table>`;
   if (e.passed) h += `<p class="note">No candidate had a gain above 0, so the units passed (the rest of the turn goes back to the champion bot).</p>`;
-  $("exTable").innerHTML = h;
-  $("exTable").querySelectorAll("tr.cand").forEach((tr) => (tr.onclick = () => { rowSel = +tr.dataset.i; drawExample(model, weights); }));
+  if (e.explore) h += `<p class="note">This move was an exploration step: with probability ε the agent plays a random option instead of the best one.</p>`;
+  $(tableId).innerHTML = h;
+  $(tableId).querySelectorAll("tr.cand").forEach((tr) => (tr.onclick = () => onRow(+tr.dataset.i)));
   const r = e.rows[rowSel ?? Math.max(0, e.rows.findIndex((x) => x.chosen))] || e.rows[0];
   const cm = Math.max(1e-9, ...r.why.map((w) => Math.abs(w.contribution)));
   let wh = `<h3>Why: ${esc(r.unit)} → ${esc(r.action)}</h3>`;
@@ -306,8 +330,55 @@ function drawExample(model, weights) {
     wh += `<span>${esc(w.feature)}</span><span class="note">${fmt(w.before, 2)} → ${fmt(w.after, 2)}${wt != null ? ` · w ${sgn(wt, 2)}` : ""}</span><span><div class="b" style="width:${pct}%;background:${w.contribution >= 0 ? "rgb(232,137,58)" : "rgb(76,143,232)"}"></div></span><span class="num">${sgn(w.contribution, 2)}</span>`;
   });
   if (!r.why.length) wh += `<span class="note" style="grid-column:1/-1">no feature of this unit changed (the gain is the reward alone)</span>`;
-  $("exWhy").innerHTML = wh + "</div>";
+  $(whyId).innerHTML = wh + "</div>";
 }
+
+// ---- 2b. whole games
+const REPLAY = "http://localhost:8093/rl-replay";
+let G = null, gRow = null, gDec = null;
+async function listGames(select) {
+  const r = await (await fetch("/api/replays?run=" + encodeURIComponent(RUN))).json();
+  const pick = $("gPick");
+  pick.innerHTML = `<option value="">—</option>` + r.files.map((f) => `<option value="${f}">${f.replace("i", "iteration ").replace("-g", ", game ")}</option>`).join("");
+  if (select) pick.value = select;
+  pick.onchange = () => pick.value && openGame(pick.value);
+}
+async function openGame(file) {
+  gRow = null; gDec = null;
+  $("gInfo").textContent = "loading…";
+  G = await (await fetch(`/api/replay?run=${encodeURIComponent(RUN)}&file=${encodeURIComponent(file)}`)).json();
+  $("gInfo").textContent = `seed ${G.seed} · learner = player ${G.learner + 1} · ε ${G.epsilon.toFixed(2)} · learner ${Math.round(G.score)} vs champions' mean ${Math.round(G.champions)} · ${G.decisions.length} unit decisions${G.exact ? "" : " · NOTE: played with the current weights (the net runs keep no weights per iteration)"}`;
+  $("gBoard").setAttribute("src", `${REPLAY}?run=${encodeURIComponent(RUN)}&file=${encodeURIComponent(file)}`);
+  $("gNow").textContent = "Step through the game; the learner's decisions are explained here.";
+  $("gTable").innerHTML = ""; $("gWhy").innerHTML = "";
+}
+function drawGameDecision() {
+  const e = gDec == null ? null : G?.decisions[gDec];
+  if (!e) { $("gTable").innerHTML = ""; $("gWhy").innerHTML = ""; return; }
+  const ch = e.rows.find((r) => r.chosen);
+  $("gNow").innerHTML = `<b>Turn ${e.turn}</b> · decision ${gDec + 1} of ${G.decisions.length} · ${e.passed ? "the units passed" : "played: " + esc(ch?.unit || "") + " → " + esc(ch?.action || "")} · ${e.candidates} options for all units`;
+  renderDecision(e, G.weights?.model, G.weights, "gTable", "gWhy", gRow, (i) => {
+    gRow = i;
+    drawGameDecision();
+    $("gBoard").contentWindow?.postMessage({ type: "rl-unit", uid: e.rows[i].uid }, "*");
+  });
+}
+window.addEventListener("message", (m) => {
+  if (m.data?.type !== "rl-step" || !G) return;
+  gRow = null;
+  gDec = m.data.decision;
+  if (gDec == null) { $("gNow").textContent = "No learner decision at this move (another player, or the champion bot running the learner's economy). Use Decision ▶ to jump to the next one."; $("gTable").innerHTML = ""; $("gWhy").innerHTML = ""; return; }
+  drawGameDecision();
+});
+$("gGo").onclick = async () => {
+  const it = $("gIter").value, g = $("gGame").value;
+  $("gInfo").textContent = "replaying…";
+  const r = await fetch(`/api/replay-new?run=${encodeURIComponent(RUN)}&iter=${encodeURIComponent(it)}${g !== "" ? "&game=" + encodeURIComponent(g) : ""}`);
+  if (!r.ok) { $("gInfo").textContent = "failed: " + (await r.text()); return; }
+  const d = await r.json();
+  await listGames(d.name);
+  openGame(d.name);
+};
 
 // ---- render everything
 async function load() {
@@ -322,9 +393,16 @@ async function load() {
   render(a, hist, tr);
 }
 
+let gRun = null;
 function render(a, hist, tr) {
   const F = a.features, K = a.kinds, s = a.summary;
   const iters = tr.filter((l) => l.type === "iter");
+  if (gRun !== RUN) {
+    gRun = RUN; G = null;
+    $("gIter").max = iters.length; $("gIter").value = iters.length;
+    $("gBoard").removeAttribute("src"); $("gInfo").textContent = ""; $("gNow").textContent = ""; $("gTable").innerHTML = ""; $("gWhy").innerHTML = "";
+    listGames();
+  } else $("gIter").max = iters.length;
   const base = tr.find((l) => l.type === "baseline");
   $("meta").textContent = `${a.model === "mlp" ? "neural net" : "linear"} · analysis at iteration ${a.iteration} (training at ${iters.length}) · ${a.games} games, ${a.samples.toLocaleString()} unit samples · ${a.at}`;
   const tile = (k, v, sub) => `<div class="panel tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;

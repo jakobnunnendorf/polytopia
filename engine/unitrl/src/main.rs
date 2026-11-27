@@ -677,6 +677,10 @@ struct GameOut {
     kinds: [[u64; 2]; NK],
     decisions: u64,
     decided: u64,
+    /// with trace: every action of every player in order, {p, a}, and the learner's decisions keyed by step index
+    steps: Vec<Value>,
+    marks: Vec<Value>,
+    start: Value,
 }
 
 const NK: usize = 6;
@@ -694,7 +698,7 @@ fn kind_ix(a: &Action) -> usize {
     }
 }
 
-fn bot_phase(s: &mut GameState, w: &FullWeights, moves: &mut i32) -> R<()> {
+fn bot_phase(s: &mut GameState, w: &FullWeights, moves: &mut i32, steps: &mut Vec<Value>, trace: bool) -> R<()> {
     while !s.over && *moves < MAX_MOVES {
         let acts: Vec<Action> = legal_actions(s).into_iter().filter(|a| !is_unit_action(a)).collect();
         if acts.is_empty() {
@@ -704,13 +708,24 @@ fn bot_phase(s: &mut GameState, w: &FullWeights, moves: &mut i32) -> R<()> {
         if a == Action::EndTurn {
             break;
         }
+        if trace {
+            steps.push(step_json(s.current, &a));
+        }
         apply_action(s, &a)?;
         *moves += 1;
     }
     Ok(())
 }
 
+fn step_json(p: i32, a: &Action) -> Value {
+    json!({"p": p, "a": polycore::json::action_to_json(a)})
+}
+
 fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect: bool, ex: bool) -> R<GameOut> {
+    play_traced(seed, model, champ, eps, collect, ex, false)
+}
+
+fn play_traced(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect: bool, ex: bool, trace: bool) -> R<GameOut> {
     let me = (seed % 4) as i32;
     let mut s = new_game(seed)?;
     let mut rng = Rng::new(seed as u64 ^ 0xA5A5);
@@ -720,10 +735,16 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
     let mut owned: HashSet<Id> = HashSet::new();
     let mut types: HashMap<Id, u8> = HashMap::new();
     let mut moves = 0;
+    if trace {
+        out.start = polycore::json::state_to_json(&s);
+    }
     while !s.over && moves < MAX_MOVES {
         s.log.clear();
         let Some(model) = model.filter(|_| s.current == me) else {
             let a = full_bot_step(&s, champ);
+            if trace {
+                out.steps.push(step_json(s.current, &a));
+            }
             apply_action(&mut s, &a)?;
             moves += 1;
             continue;
@@ -745,7 +766,7 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
                 }
             }
         }
-        bot_phase(&mut s, champ, &mut moves)?;
+        bot_phase(&mut s, champ, &mut moves, &mut out.steps, trace)?;
         let mut tr = Travel::new(&s, me);
         let mut steps = 0;
         while !s.over && s.current == me && steps < 400 && moves < MAX_MOVES {
@@ -779,7 +800,8 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
             out.kinds[PASS][0] += 1;
             out.decisions += 1;
             // pick: epsilon-random among actions and pass, else the largest gain (pass = 0), ties at random
-            let pick: Option<usize> = if eps > 0.0 && rng.next() < eps {
+            let explore = eps > 0.0 && rng.next() < eps;
+            let pick: Option<usize> = if explore {
                 let k = rng.below(cands.len() + 1);
                 (k < cands.len()).then_some(k)
             } else {
@@ -793,6 +815,15 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
                 }
                 ties[rng.below(ties.len())]
             };
+            if trace && !cands.is_empty() {
+                let mut e = example(&s, me, &cands, pick, model, &mut tr);
+                if let Some(o) = e.as_object_mut() {
+                    o.remove("state");
+                    o.insert("at".into(), json!(out.steps.len()));
+                    o.insert("explore".into(), json!(explore));
+                }
+                out.marks.push(e);
+            }
             if ex && out.examples.len() < 12 && !cands.is_empty() {
                 let interesting = cands.iter().any(|c| kind_ix(&c.1) != 0) || pick.is_none() || s.turn % 5 == 0;
                 if interesting {
@@ -804,6 +835,9 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
                 break;
             };
             let (_, a, t, cr, hit, kind) = cands.swap_remove(k);
+            if trace {
+                out.steps.push(step_json(me, &a));
+            }
             out.kinds[kind_ix(&a)][1] += 1;
             if let Action::Attack { unit: by, target } = a {
                 if let (Some(au), Some(vu)) = (unit(&s, by), unit(&s, target)) {
@@ -842,7 +876,7 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
                 }
             }
         }
-        bot_phase(&mut s, champ, &mut moves)?;
+        bot_phase(&mut s, champ, &mut moves, &mut out.steps, trace)?;
         if s.over || s.current != me {
             continue;
         }
@@ -856,6 +890,9 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
             }
         }
         owned = s.cities.iter().filter(|c| c.owner == me).map(|c| c.id).collect();
+        if trace {
+            out.steps.push(step_json(me, &Action::EndTurn));
+        }
         apply_action(&mut s, &Action::EndTurn)?;
         moves += 1;
     }
@@ -1081,8 +1118,74 @@ fn run() -> R<()> {
             println!("{}", serde_json::to_string_pretty(&s).unwrap());
             Ok(())
         }
-        _ => Err("usage: unit-rl train|measure --run <id> [--model linear|mlp] [--iters N] [--games N] [--eval N]".into()),
+        "replay" => replay_game(&m, &pool, &champ, &run, &dir),
+        _ => Err("usage: unit-rl train|measure|analyse|replay --run <id> [--model linear|mlp] [--iters N] [--games N] [--eval N]".into()),
     }
+}
+
+/// Replays one training game of a run exactly as it was played: `--iter I --game G` (G from 0; omit G for a random one).
+/// Its seed is TRAIN0 + (I - 1) * gamesPerIteration + G, its epsilon the one logged for iteration I, and its weights
+/// the ones logged after iteration I - 1 (zeros for I = 1). The net runs log no weights per iteration: they use the
+/// current weights.json and say so. `--verify` replays the whole iteration and compares the mean score with the log.
+/// Writes models/<run>/replays/i<I>-g<G>.json: a game record for the app's replay viewer plus the learner's decisions.
+fn replay_game(m: &HashMap<String, String>, pool: &rayon::ThreadPool, champ: &FullWeights, run: &str, dir: &PathBuf) -> R<()> {
+    let log: Vec<Value> = std::fs::read_to_string(dir.join("rl.jsonl")).map_err(|e| e.to_string())?
+        .lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
+    let meta = log.iter().find(|l| l["type"] == "meta").ok_or("no meta line")?;
+    let per = meta["gamesPerIteration"].as_i64().ok_or("no gamesPerIteration")?;
+    let iters: Vec<&Value> = log.iter().filter(|l| l["type"] == "iter").collect();
+    let last = iters.last().and_then(|l| l["i"].as_i64()).ok_or("no iteration logged yet")?;
+    let it = num(m, "iter", last).clamp(1, last);
+    let line = |i: i64| iters.iter().find(|l| l["i"].as_i64() == Some(i)).copied();
+    let eps = line(it).and_then(|l| l["epsilon"].as_f64()).ok_or("iteration not in the log")?;
+    let linear = meta["method"].as_str().map(|t| t.contains("linear")).unwrap_or(true);
+    let (model, exact) = if linear {
+        let w: Vec<f64> = if it == 1 {
+            vec![0.0; NF]
+        } else {
+            let wl = &line(it - 1).ok_or("previous iteration not in the log")?["W"];
+            FEATURES.iter().map(|k| wl[*k].as_f64().unwrap_or(0.0)).collect()
+        };
+        (Model::Linear(w), true)
+    } else {
+        let v: Value = serde_json::from_str(&std::fs::read_to_string(dir.join("weights.json")).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        (Model::from_json(&v)?, false)
+    };
+    let base = TRAIN0 + (it - 1) * per;
+    if m.contains_key("verify") {
+        let seeds: Vec<i64> = (0..per).map(|g| base + g).collect();
+        let gs = run_games(pool, &seeds, Some(&model), champ, eps, false)?;
+        let mean = gs.iter().map(|g| g.score).sum::<f64>() / gs.len() as f64;
+        println!("iteration {it}: replayed mean learner score {mean:.3}; logged training summary: {}", line(it).map(|l| l["train"].to_string()).unwrap_or_default());
+        return Ok(());
+    }
+    let g = match m.get("game") {
+        Some(v) => v.parse::<i64>().map_err(|e| e.to_string())?.clamp(0, per - 1),
+        None => (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0) % per as u128) as i64,
+    };
+    let seed = base + g;
+    let out = play_traced(seed, Some(&model), champ, eps, false, false, true)?;
+    let me = seed % 4;
+    let start = &out.start;
+    let seats: Vec<Value> = (0..4).map(|p| if p == me { json!({"kind": "model", "modelId": run}) } else { json!({"kind": "model", "modelId": "greedy-full-probe-perf"}) }).collect();
+    let clans: Vec<Value> = start["players"].as_array().map(|a| a.iter().map(|p| p["clan"].clone()).collect()).unwrap_or_default();
+    let now = now_iso();
+    let rec = json!({
+        "version": 1, "id": format!("{run}-i{it}-g{g}"), "startedAt": now, "endedAt": now, "source": "arena",
+        "options": {"mapSize": start["mapSize"], "players": 4, "mode": start["mode"], "difficulty": start["difficulty"], "seed": seed,
+            "mapType": "continents", "clans": clans},
+        "seats": seats, "steps": out.steps, "turnStates": [start],
+        "result": {"over": true, "winner": Value::Null, "turns": out.turns, "scores": [], "alive": []},
+    });
+    let rdir = dir.join("replays");
+    std::fs::create_dir_all(&rdir).map_err(|e| e.to_string())?;
+    let file = rdir.join(format!("i{it}-g{g}.json"));
+    let doc = json!({"run": run, "iteration": it, "game": g, "seed": seed, "learner": me, "epsilon": eps, "exact": exact,
+        "score": out.score, "champions": out.champs, "weights": model.to_json(), "record": rec, "decisions": out.marks});
+    std::fs::write(&file, serde_json::to_string(&doc).unwrap()).map_err(|e| e.to_string())?;
+    println!("{}", json!({"file": file.to_string_lossy(), "iteration": it, "game": g, "seed": seed, "learner": me, "epsilon": eps,
+        "exact": exact, "steps": out.steps.len(), "decisions": out.marks.len(), "score": out.score, "champions": out.champs}));
+    Ok(())
 }
 
 fn train(m: &HashMap<String, String>, pool: &rayon::ThreadPool, champ: &FullWeights, run: &str, dir: &PathBuf) -> R<()> {

@@ -9,6 +9,7 @@
 import fs from "fs";
 import http from "http";
 import path from "path";
+import { execFile } from "child_process";
 
 function arg(name: string, dflt: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -75,6 +76,41 @@ http
       const k = Number(url.searchParams.get("k") ?? 0);
       res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", "access-control-allow-origin": "*" });
       return res.end(JSON.stringify({ iteration: d.iteration, example: d.examples[k], state: d.states[k] }));
+    }
+    if (url.pathname === "/api/replays") {
+      // games already replayed for this run, newest first
+      const d = path.join(MODELS, run, "replays");
+      const files = fs.existsSync(d)
+        ? fs.readdirSync(d).filter((f) => /^i\d+-g\d+\.json$/.test(f)).sort((a, b) => fs.statSync(path.join(d, b)).mtimeMs - fs.statSync(path.join(d, a)).mtimeMs).map((f) => f.slice(0, -5))
+        : [];
+      return json({ files });
+    }
+    if (url.pathname === "/api/replay") {
+      // one replayed game, for the app's /rl-replay route (another port: allow it)
+      const file = url.searchParams.get("file") ?? "";
+      const p = path.join(MODELS, run, "replays", `${file}.json`);
+      if (!/^i\d+-g\d+$/.test(file) || !fs.existsSync(p)) {
+        res.writeHead(404, { "access-control-allow-origin": "*" });
+        return res.end("no such replay");
+      }
+      res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", "access-control-allow-origin": "*" });
+      return res.end(fs.readFileSync(p));
+    }
+    if (url.pathname === "/api/replay-new") {
+      // replay a training game with the trainer: unit-rl replay --run R --iter I [--game G]
+      const iter = String(Math.max(1, Math.floor(Number(url.searchParams.get("iter")) || 1)));
+      const g = url.searchParams.get("game");
+      const args = ["replay", "--run", run, "--iter", iter, "--threads", "1"];
+      if (g !== null && g !== "") args.push("--game", String(Math.max(0, Math.floor(Number(g) || 0))));
+      execFile(path.join(ROOT, "engine", "target", "release", "unit-rl"), args, { cwd: path.join(ROOT, "engine"), timeout: 120000 }, (err, out, errOut) => {
+        if (err) {
+          res.writeHead(500);
+          return res.end(String(errOut || err.message));
+        }
+        const d = JSON.parse(out.trim().split("\n").pop() ?? "{}");
+        json({ ...d, name: `i${d.iteration}-g${d.game}` });
+      });
+      return;
     }
     if (url.pathname === "/api/history") return json(lines(path.join(MODELS, run, "analysis-history.jsonl")));
     if (url.pathname === "/api/training") return json(training(run));

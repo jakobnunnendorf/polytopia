@@ -2,13 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import Map from "@/components/Map/Map";
-import type { Highlight } from "@/components/Map/Tile";
 import { UI } from "@/components/game/theme";
+import { rlMarks, type RlDecision } from "@/components/game/rlOverlay";
 import type { GameState } from "@/logic/engine/types";
-
-/** One candidate of a recorded RL decision (experiment 24, `unit-rl analyse`). */
-type Cand = { uid: number; from: [number, number]; target: [number, number]; kind: string; gain: number; chosen: boolean };
-type Example = { turn: number; player: number; passed: boolean; all: Cand[]; rows: { uid: number; unit: string; chosen: boolean }[] };
 
 /**
  * /decision?run=<run>&k=<n>[&unit=<id>][&src=<analysis server>]: one decision of the experiment 24 unit agent on
@@ -19,7 +15,7 @@ type Example = { turn: number; player: number; passed: boolean; all: Cand[]; row
 export default function DecisionRoute() {
   const { run, k, unit, src } = useLocalSearchParams<{ run?: string; k?: string; unit?: string; src?: string }>();
   const base = src || "http://localhost:8100";
-  const [data, setData] = useState<{ state: GameState; example: Example } | null>(null);
+  const [data, setData] = useState<{ state: GameState; example: RlDecision } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [whole, setWhole] = useState(false);
   useEffect(() => {
@@ -31,29 +27,7 @@ export default function DecisionRoute() {
       .catch((e) => setError(`Could not load the decision (${e.message}). Is the analysis server running on ${base}?`));
   }, [base, run, k]);
 
-  const view = useMemo(() => {
-    if (!data) return null;
-    const ex = data.example;
-    const chosen = ex.all.find((c) => c.chosen);
-    const uid = unit !== undefined && unit !== "" ? Number(unit) : (chosen?.uid ?? ex.all[0]?.uid);
-    const mine = ex.all.filter((c) => c.uid === uid);
-    const highlights: Record<string, Highlight> = {};
-    const labels: Record<string, { text: string; color: string; ring?: boolean }> = {};
-    // best candidate per tile (a tile can hold several, e.g. capture and recover on the unit's own tile)
-    const best: Record<string, Cand> = {};
-    for (const c of mine) {
-      const key = `${c.target[0]},${c.target[1]}`;
-      if (!best[key] || c.gain > best[key].gain || c.chosen) best[key] = c;
-    }
-    for (const [key, c] of Object.entries(best)) {
-      highlights[key] = c.kind === "attack" ? "attack" : c.kind === "move" ? "move" : "action";
-      labels[key] = { text: `${c.gain > 0 ? "+" : ""}${c.gain.toFixed(2)}`, color: c.gain > 0 ? "#c96a1ee6" : "#2f6fcde6", ring: c.chosen };
-    }
-    const from = mine[0]?.from;
-    if (from) highlights[`${from[0]},${from[1]}`] = "selected";
-    const name = ex.rows.find((r) => r.uid === uid)?.unit ?? `unit #${uid}`;
-    return { highlights, labels, name, n: mine.length, chosen };
-  }, [data, unit]);
+  const view = useMemo(() => (data ? rlMarks(data.example, unit !== undefined && unit !== "" ? Number(unit) : null) : null), [data, unit]);
 
   if (!data || !view)
     return (
@@ -74,7 +48,7 @@ export default function DecisionRoute() {
           <Text style={{ color: UI.mist, fontSize: 12 }}>{whole ? "Learner's view (fog)" : "Whole map"}</Text>
         </Pressable>
       </View>
-      <Map state={data.state} viewer={ex.player} reveal={whole} highlights={view.highlights} tileLabels={view.labels} onTilePress={() => {}} />
+      <Map state={data.state} viewer={ex.player ?? 0} reveal={whole} highlights={view.highlights} tileLabels={view.labels} onTilePress={() => {}} />
     </View>
   );
 }

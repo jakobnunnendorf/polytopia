@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import Map from "@/components/Map/Map";
+import type { Highlight } from "@/components/Map/Tile";
 import { seatLabel } from "@/components/game/GameList";
 import { arena } from "@/components/game/arenaClient";
 import type { ModelSpec } from "@/logic/agents/types";
@@ -62,7 +63,17 @@ export type LocalGame = {
   footer?: string;
 };
 
-export default function WatchView({ rec, live, local }: { rec: GameRecord; live: boolean; local?: LocalGame }) {
+/** optional marks on a replay (the RL analysis): steps worth stopping at, and what to draw on the map there */
+export type Annotate = {
+  /** state indices with a recorded decision, ascending */
+  marks: number[];
+  /** highlights and small labels for the map at state k, or null */
+  at: (k: number) => { highlights: Record<string, Highlight>; labels: Record<string, { text: string; color: string; ring?: boolean }> } | null;
+  /** called whenever the shown state changes */
+  onStep?: (k: number) => void;
+};
+
+export default function WatchView({ rec, live, local, annotate }: { rec: GameRecord; live: boolean; local?: LocalGame; annotate?: Annotate }) {
   const router = useRouter();
   // live records grow move by move: extend the last replay instead of rebuilding the whole game
   const cache = useRef<{ id: string; r: ReturnType<typeof extendReplay> } | null>(null);
@@ -176,7 +187,13 @@ export default function WatchView({ rec, live, local }: { rec: GameRecord; live:
   const { width } = useWindowDimensions();
   const wide = width >= 1100;
   const [territory, setTerritory] = useState(false);
-  const [controlsOpen, setControlsOpen] = useState(false);
+  const [controlsOpen, setControlsOpen] = useState(!!annotate);
+  const marked = annotate?.at(k) ?? null;
+  const prevMark = annotate ? [...annotate.marks].reverse().find((i) => i < k) : undefined;
+  const nextMark = annotate?.marks.find((i) => i > k);
+  useEffect(() => {
+    annotate?.onStep?.(k);
+  }, [k]); // eslint-disable-line react-hooks/exhaustive-deps
   const [overlay, setOverlay] = useState<"board" | "feed" | null>(null);
 
   const status = (
@@ -254,6 +271,12 @@ export default function WatchView({ rec, live, local }: { rec: GameRecord; live:
         <Btn label="Move ▶" onPress={() => setK(Math.min(states.length - 1, k + 1))} disabled={k >= states.length - 1} testID="replay-next" />
         <Btn label="Turn ⏭" onPress={() => setK(nextTurn)} disabled={k >= states.length - 1} />
       </View>
+      {annotate && (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 4 }}>
+          <Btn label="◀ Decision" onPress={() => { setPlaying(false); if (prevMark !== undefined) setK(prevMark); }} disabled={prevMark === undefined} />
+          <Btn label="Decision ▶" onPress={() => { setPlaying(false); if (nextMark !== undefined) setK(nextMark); }} disabled={nextMark === undefined} />
+        </View>
+      )}
       <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 4 }}>
         <Btn label="Mover's view" on={view === "mover"} onPress={() => setView("mover")} />
         <Btn label="Whole map" on={view === "all"} onPress={() => setView("all")} />
@@ -270,7 +293,8 @@ export default function WatchView({ rec, live, local }: { rec: GameRecord; live:
       reveal={view === "all"}
       seenBy
       territoryFocus={territory}
-      highlights={{}}
+      highlights={marked?.highlights ?? {}}
+      tileLabels={marked?.labels}
       onTilePress={() => {}}
     />
   );
