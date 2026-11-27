@@ -48,29 +48,55 @@ iteration), but 300 iterations; the base is experiment 24's linear weights at it
 % WHEN: after the runs. The tables and plots below are generated from the measured data; add two to four sentences that read them.
 \ExpResults
 
-\todo{claude}{Read the tables: the best point, the size of the effect against the noise (about $\pm$1.2 points on a 6-model mean), the head-to-head.}
+On the 200 evaluation games (seeds 6e9.., the same for all), learner minus the champions' mean, at iteration 300:
+\begin{center}\begin{tabular}{lrrrrr}
+ & diff (95\% interval) & kills & units lost & cities & villages \\
+base (exp.\ 24 linear) & $-2322$ ($-2834$, $-1811$) & 11.9 & 14.9 & 0.63 & 2.19 \\
+$w = 0.25$ & $-2382$ ($-2903$, $-1860$) & 13.4 & 20.3 & 0.99 & 2.77 \\
+$w = 0.5$ & $-2796$ ($-3263$, $-2328$) & 13.3 & 21.2 & 0.85 & 2.91 \\
+$w = 1$ & $-2768$ ($-3259$, $-2277$) & 12.6 & 20.8 & 0.97 & 3.08 \\
+\end{tabular}\end{center}
+The best point, $w = 0.25$, is level with the base ($-60$, inside the noise); $w = 0.5$ and $w = 1$ are about 450 points
+worse. Every $w$ captures more (cities +0.22 to +0.36, villages +0.6 to +0.9 per game) and kills more, and every $w$
+loses 5--6 more units per game. Files: \texttt{base-measure-200.json} and \texttt{<run>-measure-200.json} here.
 
 \section{Behaviour}
 % WHEN: after the runs. WHO: both. One count the mechanism should change, plus what was seen in watched games.
-\todo{claude}{The behaviour metric: one count the mechanism should change, with base and new value.}
+Unit-turns that end idle although the unit still had options (12 replayed training games of $w = 0.25$ at
+iteration 300): 5\% in turns 1--10 (experiment 24 linear: 10\%) and 22\% in turns 11--30 (34\%). The units do move
+much more: the idling Jakob saw in the replays is largely gone.
 \todo{jakob}{What you saw in the live games, if you watched any.}
 
 \section{Interpretation}
 % WHEN: after the runs. WHO: both. Why it worked or did not; was the prediction right?
-\todo{claude}{Why the result came out this way, and whether the prediction held.}
+Half of the prediction held. The mechanism works: idle unit-turns fell from 34\% to 22\% (target under 20\%) and
+villages rose to 2.9 at $w = 0.5$ (target at least 3, reached at $w = 1$). The score did not improve (target +300).
+Exploring pays the units but sends them into the fog alone, and experiment 24's reward has no cost for a unit's
+death, while the game counts every living unit in the score: 5--6 extra units lost per game cost about what the
+extra captures bring. A larger $w$ moves the units further and loses the same units, so it is worse. The reward
+paid for one part of the score (exploration) while still ignoring another (living units), and the agent followed
+the reward, not the score.
 \todo{jakob}{Your reading: agree, disagree, what is missing?}
 
 \section{Threats to validity}
 % WHO: Claude. What could make this result wrong or narrow: panel, map sizes, sample size, interactions with other knobs.
-\todo{claude}{Two or three concrete threats.}
+(1) 300 iterations and one trainer seed per $w$; differences of a few hundred points between the three $w$ are
+inside the noise, only the gap to the base in units lost (+5 to +6, far outside it) is solid. (2) The idle count
+comes from 12 replayed games of one run. (3) The exploration reward credits the acting unit only; a unit that
+stays back to guard gets nothing, which may itself push units forward.
 
 \section{Verdict and next step}
 % WHO: Claude proposes by the keep rules (.claude/skills/model-experiment/SKILL.md); Jakob decides anything outside them.
-\todo{claude}{Kept or not, under which keep rule, the champion afterwards, and the next experiment this suggests.}
+Not kept: no run beats the base (best $w = 0.25$, $-60$, inside the noise). The code stays (off by default,
+\texttt{--explore 0}). Next: complete the reward instead of adding single parts: a per-unit reward built from the
+score's own parts (exploration 5 points per tile, the unit's own score value lost when it dies, kills and captures as
+now), with the exploration reward of this experiment as one of them.
 
 \section{Notes for the paper}
 % WHO: Jakob, with Claude's draft. What this experiment contributes: a claim, a figure, a negative result worth a line.
-\todo{claude}{Draft: the one-sentence claim and which figure or table would carry it.}
+Draft: ``Paying units for exploring made them move and capture more, but with no cost for dying the gains were
+spent in lost units: a partial reward is followed exactly, and the score is not.'' Carried by the table above
+(captures up, units lost up, score flat).
 \todo{jakob}{Is this worth a place in the paper? Where?}
 
 \end{document}

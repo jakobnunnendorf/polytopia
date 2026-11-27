@@ -6,10 +6,10 @@
   "issue": 166,
   "pr": 0,
   "date": "2026-11-27",
-  "status": "running",
-  "verdict": "pending",
+  "status": "done",
+  "verdict": "not kept",
   "base": "rl-unit-linear (experiment 24, linear, iteration 300)",
-  "result": null,
+  "result": "No gain: best w=0.25 -2382 vs base -2322 (200 games); captures up (+0.36 cities, +0.6 villages), idle unit-turns 34% -> 22%, but 5-6 more units lost per game.",
   "question": "Does paying each unit for the map tiles its actions reveal stop the units from wandering at random and idling under the fog, and does that raise the learner's score against the champions?",
   "change": "Every learner unit action earns w stars per tile its player newly explores, credited to the acting unit (the game itself scores 5 points per explored tile). Three values of w: 0.25, 0.5, 1. Features, other rewards, learning rule and seeds as in experiment 24.",
   "method": "Per-unit Monte Carlo, linear least squares (as experiment 24), 300 iterations of 128 training games",
@@ -18,18 +18,29 @@
   "setups": [
     "Perfection, 4 players, 16×16 continents, 30 turns, all seats human; economy and opponents greedy-full-probe-perf"
   ],
-  "knobs": ["explore"],
+  "knobs": [
+    "explore"
+  ],
   "headline": [
     {
       "label": "Learner minus champions' mean score, 200 games",
-      "base": null,
-      "new": null,
+      "base": -2322,
+      "new": -2382,
       "unit": "points"
     }
   ],
   "runs": [
-    { "id": "rl-unit-explore-025", "label": "w = 0.25 star per tile" },
-    { "id": "rl-unit-explore-05", "label": "w = 0.5 star per tile" },
-    { "id": "rl-unit-explore-1", "label": "w = 1 star per tile" }
+    {
+      "id": "rl-unit-explore-025",
+      "label": "w = 0.25 star per tile"
+    },
+    {
+      "id": "rl-unit-explore-05",
+      "label": "w = 0.5 star per tile"
+    },
+    {
+      "id": "rl-unit-explore-1",
+      "label": "w = 1 star per tile"
+    }
   ]
 }
