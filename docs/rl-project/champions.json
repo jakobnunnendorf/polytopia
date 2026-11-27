@@ -3,8 +3,34 @@
   "rule": "Jakob, 26 Nov 2026 (#166): two lists. rlLine = the RL versions, best last-promoted first: RL v1 enters by decision once it plays complete games; every later version must pass rl-gate with --base = rlLine[0]; greedy models never decide an RL pass. champions = the opponent list (entries 0 and 1 fill the champion and previous-champion seats): greedy until the first head of rlLine passes rl-gate with --base = champions[0]; from then on each new head of rlLine is promoted here too. The anchor greedy-full-probe-perf (engine/gate/src/main.rs) never changes. Details: docs/rl-project/README.md, 'RL versions and the opponent list'.",
   "seeded": "25 Nov 2026 with the three strongest greedy models by the Elo tournament of 25 Nov 2026 (elo/2026-11-25/README.md, in git history at bb6ed13: Bradley-Terry over 145,350 games), which are also the last three greedy champions in order of promotion: economy (experiment 10) -> combo (11) -> probe (12). Perfection ratings with 95% intervals: greedy-full-probe 1742 (1711 to 1772), greedy-full-combo 1635 (1612 to 1659), greedy-full-economy 1617 (1596 to 1637); the same three places overall (1902, 1791, 1767). Entry 1 (the previous champion, an opponent seat) is therefore greedy-full-combo: the champion probe was tuned from, and #2 in every mode. greedy-full-economy is listed for history only (not an opponent).",
   "iteration0": "26 Nov 2026 (Jakob, #166): before the first RL iteration the two Perfection-tuned greedy models of experiment 17 head the list, and the anchor in engine/gate/src/main.rs is greedy-full-probe-perf. greedy-full-probe-perf passed rl-gate against greedy-full-probe (mean +176, better on 53.5% of differing seeds). greedy-full-combo-perf is entry 1 by Jakob's decision, not by a gate PASS (it is even with probe: +16, gate FAIL, where untuned combo was -415): the previous-champion seat should be Perfection-tuned too. Entries below them are history. They stay the opponents until an RL version beats the greedy champion (see rule).",
+  "opponentSwitch20261127": "27 Nov 2026 (#166, Jakob's DECISION 13:46, David's go): greedy-full-probe-perf-r15 (probe-perf with type.research x1.5) passed rl-gate against greedy-full-probe-perf (+336, better on 62.5% of differing seeds) and heads the list; the opponents are now r15, probe-perf and the anchor probe-perf (until then probe-perf, combo-perf, anchor). Gate results from before 27 Nov were played against the old opponents and are not directly comparable with later ones. r15 is also the learner's base bot for every policy that acts through the base bot.",
   "rlLine": [],
   "champions": [
+    {
+      "id": "greedy-full-probe-perf-r15",
+      "path": "models/greedy-full-probe-perf-r15",
+      "kind": "greedy-model",
+      "date": "2026-11-27",
+      "experiment": null,
+      "pr": "203",
+      "gate": {
+        "file": "models/greedy-full-probe-perf-r15/gate-greedy-full-probe-perf-r15-vs-greedy-full-probe-perf-n10000.json",
+        "verdict": "PASS",
+        "base": "greedy-full-probe-perf",
+        "opponents": [
+          "greedy-full-probe-perf",
+          "greedy-full-combo-perf",
+          "greedy-full-probe-perf (anchor)"
+        ],
+        "n": 10000,
+        "betterShare": 0.6252437280644741,
+        "meanD": 336.025,
+        "candidateMedian": 8585.0,
+        "baseMedian": 8112.5
+      },
+      "evidence": "rl-gate PASS vs greedy-full-probe-perf on 10k evaluation seeds: mean 7175 vs 6839, 62.5% better, p10 1515 vs 1419.5; Elo 2026-11-27: Perfection 1638 (#1), overall 1859 (#1)",
+      "note": "opponent list switched 27 Nov 2026 (see opponentSwitch20261127)"
+    },
     {
       "id": "greedy-full-probe-perf",
       "path": "models/greedy-full-probe-perf",
