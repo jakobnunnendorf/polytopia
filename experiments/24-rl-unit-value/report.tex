@@ -33,9 +33,11 @@ kills with a lower score (the reward misses what the score needs).
 
 \section{Mechanism}
 % WHEN: before the first run. WHO: Claude.
-\textbf{Who acts.} In the learner's seat the base bot (\texttt{greedy-full-probe-perf}) plays every non-unit action
-(build, research, train, city rewards); every unit action (move, attack, capture) is chosen by the unit value
-function. The other three seats are the base bot.
+\textbf{Who acts} (decided with Jakob, 27 Nov: fighting actions to the value function, actions that spend or earn
+stars to the bot). The unit value function chooses move, attack, capture, recover, promote, heal others and the tribe
+combat abilities. The base bot (\texttt{greedy-full-probe-perf}) plays upgrade, disband, examine (ruins), harvest
+starfish and every city, tech and diplomacy action, with its own chooser (\texttt{full\_best\_of}) on the filtered list,
+once before and once after the unit phase. The other three seats are the base bot.
 
 \textbf{Choice.} For each legal unit action $a$ of unit $u$: $Q(a) = r(a) + V(\phi_u(s_a))$, where $s_a$ is the state
 after $a$ and $\phi_u$ the features of $u$ in it (afterstate values, as in the earlier RL runs). The highest $Q$ is
@@ -47,8 +49,10 @@ played; when no unit action beats leaving the units as they are, the turn passes
 \begin{itemize}
   \item capture of a city or village: the captured city's income times the turns left in the game;
   \item kill: the victim's cost;
-  \item credit for a kill or capture is split among the learner's units that damaged the target, by damage share;
-  \item own city lost: minus the same amount as a capture of it would bring, given to all the learner's units;
+  \item kill credit is split among the learner's units that damaged the victim in the last 3 turns, by damage;
+  \item capture credit: half to the capturer, half split by damage dealt within 3 tiles of the city in the last 3
+        turns (all to the capturer when nobody fought there);
+  \item own city lost: minus its income times the turns left, split evenly among the learner's units;
   \item no explicit death penalty: a dead unit's return ends, so V learns what dying costs from the rewards it loses.
 \end{itemize}
 Return: Monte Carlo, discounted per turn ($\gamma = 0.97$), per unit.
@@ -70,8 +74,11 @@ A unit on water has its own form (stats read from its current form) and an on-wa
 in its own stats and in the danger features. Embarking and disembarking are ordinary legal actions and are evaluated
 like any other move.
 
-\textbf{Two variants}, same features, rewards and seeds: linear ($V = w \cdot \phi$, least squares per iteration) and a
-small neural net (one hidden layer, trained by stochastic gradient descent on the same returns).
+\textbf{Two variants}, same features, rewards and seeds: linear ($V = w \cdot \phi$, least squares on all samples,
+older iterations decayed by 0.98, ridge 1) and a small neural net (one hidden layer of 32 tanh units, Adam, learning
+rate $10^{-3}$, 1{,}500 minibatches of 128 per iteration from a replay buffer of the last 400{,}000 samples).
+Exploration: $\varepsilon$-greedy over the unit actions and ``pass'', $\varepsilon$ from 0.3 to 0.05 over the first
+200 iterations; ties broken at random.
 
 Code: a new binary crate \texttt{engine/unitrl} (self-play loop on threads, both learners, run file for the RL dashboard).
 
@@ -83,6 +90,12 @@ bot; training seeds from 7{,}000{,}000{,}000. Measurement: 200 games per variant
 seeds of the 27 Nov comparison), the learner seat rotated; the champion in the learner seat on the same seeds is the
 reference. The official \texttt{rl-gate} needs a learner kind for this policy (see \#198); until then the 200-game
 comparison is the measure, and the gate follows once the policy is playable there.
+
+Runs: 1{,}000 iterations of 128 training games each, plus 64 greedy evaluation games per iteration on the fixed seeds
+6{,}000{,}000{,}000..; command \texttt{unit-rl train --run rl-unit-linear|rl-unit-mlp --model linear|mlp --iters 1000
+--games 128 --eval 64 --eps-iters 200 --threads 5}. Sanity check: the champion in the learner seat scores 7{,}436
+against 7{,}778 on 20 seeds, matching the 27 Nov comparison (7{,}460 against 7{,}956); in a 40-iteration smoke run the
+linear learner went from $-2{,}804$ to $-1{,}106$.
 
 Deferred to later iterations (decided 27 Nov): credit for damage absorbed (tanks shielding ranged units), skill flags,
 pair features.
