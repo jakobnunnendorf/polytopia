@@ -55,7 +55,11 @@ played; when no unit action beats leaving the units as they are, the turn passes
   \item own city lost: minus its income times the turns left, split evenly among the learner's units;
   \item no explicit death penalty: a dead unit's return ends, so V learns what dying costs from the rewards it loses.
 \end{itemize}
-Return: Monte Carlo, discounted per turn ($\gamma = 0.97$), per unit.
+Return: Monte Carlo per unit, undiscounted ($\gamma = 1$). Jakob, 27 Nov: ``Do we need gamma? Because there is already a
+turn limit'': the game ends at turn 30, so every return is finite, and the capture reward already counts the turns
+left; a discount would count that twice and make long marches (across water) look worse than they are. A first pair of
+runs with $\gamma = 0.97$ was stopped for this (linear at iteration 399: $-2{,}113$; net at 304: $-2{,}061$; kept as
+\texttt{rl-unit-linear-g097}, \texttt{rl-unit-mlp-g097}).
 
 \textbf{Features} of a unit, read after the action:
 own unit (attack, defence, range, movement, HP, HP share, cost);

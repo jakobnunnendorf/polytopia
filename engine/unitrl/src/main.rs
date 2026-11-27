@@ -13,7 +13,7 @@
 //!     3 tiles of the city in the last 3 turns (all to the capturer when nobody fought there);
 //!   * own city lost: minus its income x turns left, split evenly among the learner's units;
 //!   * no death penalty: a dead unit's return ends.
-//! Return: Monte Carlo per unit, discounted per turn by GAMMA.
+//! Return: Monte Carlo per unit, discounted per turn by --gamma (default 1, no discount).
 //!
 //! Distances are travel times in turns under the engine's own movement rules (`movement::reachable`, so water,
 //! ports, mountains, forests, roads and zones of control count), with a no-route flag.
@@ -48,7 +48,11 @@ const FEATURES: [&str; NF] = [
     "onOwnCity", "onEnemyCity",
 ];
 const TURNS: i32 = 30;
-const GAMMA: f64 = 0.97;
+/// discount per turn (--gamma; default 1: the game ends at turn 30 and capture rewards already count the turns left)
+static GAMMA: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
+fn gamma() -> f64 {
+    *GAMMA.get().unwrap_or(&1.0)
+}
 const EVAL0: i64 = 6_000_000_000;
 const TRAIN0: i64 = 7_000_000_000;
 const MAX_MOVES: i32 = 30_000;
@@ -858,7 +862,7 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
                     Ev::Sample(_, t, _, _) | Ev::Reward(_, t) => *t,
                 };
                 if let Some(c) = cur {
-                    g *= GAMMA.powi(c - t);
+                    g *= gamma().powi(c - t);
                 }
                 cur = Some(t);
                 match e {
@@ -1003,6 +1007,7 @@ fn main() {
 
 fn run() -> R<()> {
     let (cmd, m) = args();
+    let _ = GAMMA.set(num(&m, "gamma", 1.0f64));
     let champ = champion()?;
     let threads = num(&m, "threads", 10usize);
     let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().map_err(|e| e.to_string())?;
@@ -1051,7 +1056,7 @@ fn train(m: &HashMap<String, String>, pool: &rayon::ThreadPool, champ: &FullWeig
     let started = Instant::now();
     line(json!({"type": "meta", "run": run, "title": format!("Experiment 24: unit value function ({kind})"),
         "state": FEATURES.to_vec(), "method": format!("per-unit Monte Carlo, {}", if kind == "mlp" { "neural net (1 hidden layer, 32 tanh, Adam)" } else { "linear least squares, decay 0.98" }),
-        "gamma": GAMMA, "tieBreak": "random", "iterations": iters, "gamesPerIteration": games,
+        "gamma": gamma(), "tieBreak": "random", "iterations": iters, "gamesPerIteration": games,
         "setup": format!("Perfection 16x16 continents, 4 players all human; learner seat rotated (seed % 4); units by V, economy by greedy-full-probe-perf; opponents 3x greedy-full-probe-perf; epsilon {eps0} -> {eps_min} over {eps_iters} iterations; evaluation {n_eval} greedy games on seeds {EVAL0}.."),
         "startedAt": now_iso()}))?;
     let eval_seeds: Vec<i64> = (0..n_eval).map(|g| EVAL0 + g).collect();
