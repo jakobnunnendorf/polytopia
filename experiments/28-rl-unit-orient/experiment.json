@@ -1,0 +1,33 @@
+{
+  "n": 28,
+  "slug": "rl-unit-orient",
+  "title": "Map orientation features for the unit value function",
+  "kind": "method",
+  "issue": 166,
+  "pr": 0,
+  "date": "2026-11-27",
+  "status": "running",
+  "verdict": "pending",
+  "base": "rl-unit-linear (experiment 24, linear, iteration 300)",
+  "result": null,
+  "question": "Can a unit orient itself on the map if its state says whether it is limited by the fog of war or far from where an enemy city is or could be, and if every step toward a target changes its travel distance?",
+  "change": "Feature set 2: travel distances to the four targets of experiment 24 counted in single movement steps instead of whole turns, plus five orientation features: travel to the fog frontier (and a no-frontier flag), the share of fog within 2 tiles, the share of the map explored, and travel to the nearest place an enemy city is or could be (a known enemy city or the fog frontier). Rewards, learning rule and seeds as in experiment 24.",
+  "method": "Per-unit Monte Carlo, linear least squares (as experiment 24), 300 iterations of 128 training games",
+  "measured": "200 evaluation games on seeds 6e9.., learner seat rotated; base = experiment 24's linear weights at iteration 300 on the same seeds",
+  "metric": "learner score minus the champions' mean score (paired per game)",
+  "setups": [
+    "Perfection, 4 players, 16×16 continents, 30 turns, all seats human; economy and opponents greedy-full-probe-perf"
+  ],
+  "knobs": ["features"],
+  "headline": [
+    {
+      "label": "Learner minus champions' mean score, 200 games",
+      "base": null,
+      "new": null,
+      "unit": "points"
+    }
+  ],
+  "runs": [
+    { "id": "rl-unit-orient", "label": "Feature set 2 (orientation)" }
+  ]
+}

@@ -38,7 +38,7 @@ use std::time::Instant;
 
 type R<T> = Result<T, String>;
 
-const NF: usize = 36;
+const NF: usize = 41;
 const FEATURES: [&str; NF] = [
     "bias", "turnsLeft", "atk", "def", "range", "move", "hp", "hpShare", "cost", "onWater", "veteran",
     "squadN", "squadAtk", "squadHp", "squadRanged",
@@ -46,6 +46,8 @@ const FEATURES: [&str; NF] = [
     "dangerN", "dangerAtk", "defBonus",
     "tEnemyCity", "tVillage", "tEnemyUnit", "tThreatened", "noEnemyCity", "noVillage", "noEnemyUnit", "noThreatened",
     "onOwnCity", "onEnemyCity",
+    // feature set 2 (experiment 28, map orientation); 0 under feature set 1
+    "tFrontier", "noFrontier", "fogNear", "exploredShare", "tCityOrFog",
 ];
 const TURNS: i32 = 30;
 /// discount per turn (--gamma; default 1: the game ends at turn 30 and capture rewards already count the turns left)
@@ -60,6 +62,18 @@ static LAMBDA: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
 fn lambda() -> f64 {
     *LAMBDA.get().unwrap_or(&1.0)
 }
+/// stars per tile a unit's action newly explores (--explore; default 0; experiment 27)
+static EXPLORE: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
+fn explore_w() -> f64 {
+    *EXPLORE.get().unwrap_or(&0.0)
+}
+/// feature set (--features; 1 = experiment 24; 2 = travel in movement steps plus the orientation features, experiment 28)
+static FSET: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
+fn fset() -> u8 {
+    *FSET.get().unwrap_or(&1)
+}
+/// feature set 2: travel in single movement steps, normalised by this
+const STEP_CAP: f64 = 16.0;
 const EVAL0: i64 = 6_000_000_000;
 const TRAIN0: i64 = 7_000_000_000;
 const MAX_MOVES: i32 = 30_000;
@@ -170,7 +184,7 @@ fn explored(s: &GameState, p: i32, x: i32, y: i32) -> bool {
 struct Travel {
     snap: GameState,
     p: i32,
-    fields: HashMap<UnitType, [Vec<u8>; 4]>,
+    fields: HashMap<UnitType, [Vec<u8>; 6]>,
 }
 
 impl Travel {
@@ -180,7 +194,7 @@ impl Travel {
         Travel { snap, p, fields: HashMap::new() }
     }
 
-    fn get(&mut self, u: &Unit) -> &[Vec<u8>; 4] {
+    fn get(&mut self, u: &Unit) -> &[Vec<u8>; 6] {
         let key = land_type(u);
         if !self.fields.contains_key(&key) {
             let f = travel_fields(&self.snap, self.p, u);
@@ -191,10 +205,11 @@ impl Travel {
 }
 
 /// Target tiles: 0 next to or on an enemy city, 1 a village, 2 within the unit's range of a visible enemy unit,
-/// 3 on or next to an own city with a visible enemy within 3 tiles.
-fn targets(s: &GameState, p: i32, range: i32) -> [Vec<usize>; 4] {
+/// 3 on or next to an own city with a visible enemy within 3 tiles, 4 the fog frontier (an explored tile next to an
+/// unexplored one), 5 where an enemy city is or could be (0 and 4 together).
+fn targets(s: &GameState, p: i32, range: i32) -> [Vec<usize>; 6] {
     let n = s.map_size;
-    let mut t: [Vec<usize>; 4] = Default::default();
+    let mut t: [Vec<usize>; 6] = Default::default();
     let near = |cx: i32, cy: i32, r: i32, out: &mut Vec<usize>| {
         for y in (cy - r).max(0)..=(cy + r).min(n - 1) {
             for x in (cx - r).max(0)..=(cx + r).min(n - 1) {
@@ -221,12 +236,28 @@ fn targets(s: &GameState, p: i32, range: i32) -> [Vec<usize>; 4] {
     for e in &enemies {
         near(e.x, e.y, range.max(1), &mut t[2]);
     }
+    for y in 0..n {
+        for x in 0..n {
+            if !explored(s, p, x, y) {
+                continue;
+            }
+            let fog = (-1..=1).any(|dy: i32| (-1..=1).any(|dx: i32| {
+                let (a, b) = (x + dx, y + dy);
+                a >= 0 && b >= 0 && a < n && b < n && !explored(s, p, a, b)
+            }));
+            if fog {
+                t[4].push(idx(n, x, y));
+            }
+        }
+    }
+    t[5] = t[0].iter().chain(t[4].iter()).copied().collect();
     t
 }
 
 /// One-turn move graph of unit type `proto` (a copy placed on every tile, in the form it has there), then a
-/// reverse breadth-first search from each target set: turns needed from every tile.
-fn travel_fields(s: &GameState, p: i32, proto: &Unit) -> [Vec<u8>; 4] {
+/// reverse breadth-first search from each target set: turns needed from every tile (feature set 1), or single
+/// movement steps (feature set 2: only the graph's edges between neighbouring tiles, so every step counts).
+fn travel_fields(s: &GameState, p: i32, proto: &Unit) -> [Vec<u8>; 6] {
     let n = s.map_size;
     let nt = (n * n) as usize;
     let base = land_type(proto);
@@ -271,8 +302,9 @@ fn travel_fields(s: &GameState, p: i32, proto: &Unit) -> [Vec<u8>; 4] {
         }
     }
     let tg = targets(s, p, unit_def(base).range);
-    let mut out: [Vec<u8>; 4] = Default::default();
-    for k in 0..4 {
+    let steps = fset() >= 2;
+    let mut out: [Vec<u8>; 6] = Default::default();
+    for k in 0..6 {
         let mut d = vec![NO_ROUTE; nt];
         let mut q = VecDeque::new();
         for &t in &tg[k] {
@@ -284,6 +316,9 @@ fn travel_fields(s: &GameState, p: i32, proto: &Unit) -> [Vec<u8>; 4] {
         while let Some(v) = q.pop_front() {
             for &w in &rev[v] {
                 let w = w as usize;
+                if steps && dist((w as i32) % n, (w as i32) / n, (v as i32) % n, (v as i32) / n) != 1 {
+                    continue;
+                }
                 if d[w] == NO_ROUTE {
                     d[w] = d[v] + 1;
                     q.push_back(w);
@@ -358,12 +393,37 @@ fn features(s: &GameState, p: i32, uid: Id, tr: &mut Travel) -> Option<[f64; NF]
     let fields = tr.get(u);
     for k in 0..4 {
         let t = fields[k][i];
+        let cap = if fset() >= 2 { STEP_CAP } else { TRAVEL_CAP };
         if t == NO_ROUTE {
             f[26 + k] = 1.0;
             f[30 + k] = 1.0;
         } else {
-            f[26 + k] = (t as f64).min(TRAVEL_CAP) / TRAVEL_CAP;
+            f[26 + k] = (t as f64).min(cap) / cap;
         }
+    }
+    if fset() >= 2 {
+        // orientation: the fog frontier, where an enemy city is or could be, fog around the unit, map explored
+        let tf = fields[4][i];
+        if tf == NO_ROUTE {
+            f[36] = 1.0;
+            f[37] = 1.0;
+        } else {
+            f[36] = (tf as f64).min(STEP_CAP) / STEP_CAP;
+        }
+        let tc = fields[5][i];
+        f[40] = if tc == NO_ROUTE { 1.0 } else { (tc as f64).min(STEP_CAP) / STEP_CAP };
+        let (mut fog, mut all) = (0.0, 0.0);
+        for y in (u.y - 2).max(0)..=(u.y + 2).min(n - 1) {
+            for x in (u.x - 2).max(0)..=(u.x + 2).min(n - 1) {
+                all += 1.0;
+                if !explored(s, p, x, y) {
+                    fog += 1.0;
+                }
+            }
+        }
+        f[38] = fog / all;
+        let ex = &s.players[p as usize].explored;
+        f[39] = ex.iter().filter(|&&b| b != 0).count() as f64 / ex.len() as f64;
     }
     if let Some(ci) = st::city_by_id(s, tile_at(s, u.x, u.y).city_id) {
         if s.cities[ci].owner == p {
@@ -434,8 +494,31 @@ impl Model {
     fn from_json(v: &Value) -> R<Model> {
         let vec = |k: &str| -> Vec<f64> { v[k].as_array().map(|a| a.iter().filter_map(|x| x.as_f64()).collect()).unwrap_or_default() };
         match v["model"].as_str() {
-            Some("linear") => Ok(Model::Linear(vec("w"))),
-            Some("mlp") => Ok(Model::Mlp(Mlp { w1: vec("w1"), b1: vec("b1"), w2: vec("w2"), b2: v["b2"].as_f64().unwrap_or(0.0) })),
+            Some("linear") => {
+                let mut w = vec("w");
+                w.resize(NF, 0.0);
+                Ok(Model::Linear(w))
+            }
+            Some("mlp") => {
+                // weights saved with fewer features (experiment 24): place each column by its feature name
+                let names: Vec<String> = v["features"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
+                let old = vec("w1");
+                let nf = names.len().max(1);
+                let w1 = if nf == NF {
+                    old
+                } else {
+                    let mut w = vec![0.0; HIDDEN * NF];
+                    for j in 0..HIDDEN {
+                        for (c, name) in names.iter().enumerate() {
+                            if let Some(k) = FEATURES.iter().position(|f| f == name) {
+                                w[j * NF + k] = old.get(j * nf + c).copied().unwrap_or(0.0);
+                            }
+                        }
+                    }
+                    w
+                };
+                Ok(Model::Mlp(Mlp { w1, b1: vec("b1"), w2: vec("w2"), b2: v["b2"].as_f64().unwrap_or(0.0) }))
+            }
             _ => Err("unknown model".into()),
         }
     }
@@ -583,7 +666,28 @@ struct Hit {
 type HitLog = HashMap<Id, Vec<Hit>>;
 
 /// Reward credits of action `a` (state before -> after): (unit, stars), and the new hit to log.
+/// stars the exploration reward gives for this action: --explore x tiles its owner newly explored
+fn explore_gain(before: &GameState, after: &GameState, a: &Action) -> f64 {
+    let w = explore_w();
+    if w <= 0.0 {
+        return 0.0;
+    }
+    let Some(u) = unit(before, actor(a)) else { return 0.0 };
+    let p = u.owner as usize;
+    let count = |s: &GameState| s.players[p].explored.iter().filter(|&&b| b != 0).count();
+    w * count(after).saturating_sub(count(before)) as f64
+}
+
 fn credit(before: &GameState, after: &GameState, a: &Action, log: &HitLog) -> (Vec<(Id, f64)>, Option<(Id, Hit)>, u8) {
+    let ex = explore_gain(before, after, a);
+    let (mut out, hit, kind) = credit_fight(before, after, a, log);
+    if ex > 0.0 {
+        out.push((actor(a), ex));
+    }
+    (out, hit, kind)
+}
+
+fn credit_fight(before: &GameState, after: &GameState, a: &Action, log: &HitLog) -> (Vec<(Id, f64)>, Option<(Id, Hit)>, u8) {
     let mut out = Vec::new();
     match *a {
         Action::Attack { unit: by, target } => {
@@ -642,7 +746,7 @@ enum Ev {
 
 const END_SAMPLE: u8 = NK as u8;
 /// reward sources, for the analysis
-const SOURCES: [&str; 4] = ["kill", "capture city", "capture village", "own city lost"];
+const SOURCES: [&str; 5] = ["kill", "capture city", "capture village", "own city lost", "explore"];
 
 /// One recorded sample for the analysis: features, return, action kind (END_SAMPLE = end of turn), unit type, turn.
 #[derive(Clone)]
@@ -846,17 +950,26 @@ fn play_traced(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, 
                     out.attacks.push((at as u8, vt as u8, kind == 1));
                 }
             }
-            s = t;
+            let before_s = std::mem::replace(&mut s, t);
             moves += 1;
             for u in s.units.iter().filter(|u| u.owner == me) {
                 let t = land_type(u);
                 types.entry(u.id).or_insert(t as u8);
                 out.type_names.entry(t as u8).or_insert_with(|| format!("{t:?}"));
             }
+            let exr = explore_gain(&before_s, &s, &a);
+            if exr > 0.0 {
+                if let Some(&ty) = types.get(&actor(&a)) {
+                    out.rewards.push((ty, 4, exr));
+                }
+            }
             for (id, r) in cr {
                 ev.entry(id).or_default().push(Ev::Reward(r, s.turn));
                 if let (Some(&ty), 1..=3) = (types.get(&id), kind) {
-                    out.rewards.push((ty, kind - 1, r));
+                    let r = if id == actor(&a) { r - exr } else { r };
+                    if r != 0.0 {
+                        out.rewards.push((ty, kind - 1, r));
+                    }
                 }
             }
             if let Some((target, h)) = hit {
@@ -1086,8 +1199,20 @@ fn main() {
 
 fn run() -> R<()> {
     let (cmd, m) = args();
-    let _ = GAMMA.set(num(&m, "gamma", 1.0f64));
+    // measure, analyse and replay play with the run's own settings (its meta line), not the defaults
+    let meta: Value = if cmd == "train" {
+        Value::Null
+    } else {
+        let run = m.get("run").cloned().unwrap_or_default();
+        std::fs::read_to_string(repo_root().join("models").join(&run).join("rl.jsonl"))
+            .ok()
+            .and_then(|t| t.lines().next().and_then(|l| serde_json::from_str(l).ok()))
+            .unwrap_or(Value::Null)
+    };
+    let _ = GAMMA.set(num(&m, "gamma", meta["gamma"].as_f64().unwrap_or(1.0)));
     let _ = LAMBDA.set(num(&m, "lambda", 1.0f64));
+    let _ = EXPLORE.set(num(&m, "explore", meta["explore"].as_f64().unwrap_or(0.0)));
+    let _ = FSET.set(num(&m, "features", meta["featureSet"].as_u64().unwrap_or(1) as u8));
     if lambda() < 1.0 && gamma() != 1.0 {
         return Err("--lambda below 1 needs --gamma 1".into());
     }
@@ -1205,7 +1330,7 @@ fn train(m: &HashMap<String, String>, pool: &rayon::ThreadPool, champ: &FullWeig
     let started = Instant::now();
     line(json!({"type": "meta", "run": run, "title": format!("Experiment 24: unit value function ({kind})"),
         "state": FEATURES.to_vec(), "method": format!("per-unit {}, {}", if lambda() < 1.0 { format!("TD(lambda = {})", lambda()) } else { "Monte Carlo".to_string() }, if kind == "mlp" { "neural net (1 hidden layer, 32 tanh, Adam)" } else { "linear least squares, decay 0.98" }),
-        "gamma": gamma(), "tieBreak": "random", "iterations": iters, "gamesPerIteration": games,
+        "gamma": gamma(), "explore": explore_w(), "featureSet": fset(), "tieBreak": "random", "iterations": iters, "gamesPerIteration": games,
         "setup": format!("Perfection 16x16 continents, 4 players all human; learner seat rotated (seed % 4); units by V, economy by greedy-full-probe-perf; opponents 3x greedy-full-probe-perf; epsilon {eps0} -> {eps_min} over {eps_iters} iterations; evaluation {n_eval} greedy games on seeds {EVAL0}.."),
         "startedAt": now_iso()}))?;
     let eval_seeds: Vec<i64> = (0..n_eval).map(|g| EVAL0 + g).collect();
@@ -1406,10 +1531,10 @@ fn analyse(pool: &rayon::ThreadPool, champ: &FullWeights, run: &str, dir: &PathB
     let tyname = |t: &u8| tnames.get(t).cloned().unwrap_or_else(|| t.to_string());
 
     // 6. rewards by unit type x source (stars per game)
-    let mut rew: HashMap<u8, [f64; 4]> = HashMap::new();
+    let mut rew: HashMap<u8, [f64; 5]> = HashMap::new();
     for g in &gs {
         for (t, src, r) in &g.rewards {
-            rew.entry(*t).or_insert([0.0; 4])[*src as usize] += r / games as f64;
+            rew.entry(*t).or_insert([0.0; 5])[*src as usize] += r / games as f64;
         }
     }
     let mut rtys: Vec<u8> = rew.keys().copied().collect();

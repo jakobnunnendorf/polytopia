@@ -1,0 +1,82 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- TEMPLATE
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+Stepping through replayed training games of experiment 24 (27 Nov 2026), Jakob marked seven failure modes:
+``to the centre should score highest'' (all four first moves of a warrior scored the same, +3.61);
+``one of them randomly moved to the edge'';
+``a village was discovered by the last unit but stepping towards it now doesn't score higher'';
+``this unit stands idle for some reason''; ``does nothing''; ``moves back to the corner''.
+The replays show two causes. (1) Every feature describes what the unit can already see; under the fog all directions
+look the same, ties are broken at random (edge moves) and from turn 1 every move has gain exactly 0, so the units pass.
+(2) Travel distances count whole turns, so a single step toward a target often leaves the distance unchanged.
+
+Jakob: ``add a feature to orient itself on the map: it needs to know whether it's limited by fog of war or far away
+from where an enemy city could be.''
+
+\todo{jakob}{Confirm or change the prediction below.}
+Behaviour count as in experiment 27: unit-turns that end idle although the unit still had options (experiment 24
+linear: 10\% in turns 1--10, 34\% in turns 11--30).
+Prediction (Claude's proposal): with the orientation features idle unit-turns in turns 11--30 fall from 34\% to under
+20\%, \texttt{tCityOrFog} and \texttt{tFrontier} are among the five most important
+features, and the learner minus the champions' mean improves by at least 300 points over the base. If the new
+features get weight but play does not change, the missing piece is the reward (experiment 27), not the state.
+
+\section{Mechanism}
+Feature set 2 (\texttt{--features 2}, default 1 = experiment 24), in \texttt{features} and \texttt{travel\_fields},
+\texttt{engine/unitrl/src/main.rs}:
+\begin{itemize}
+\item travel to the four targets of experiment 24 (enemy city, village, enemy unit, threatened own city) counted in
+  single movement steps on the unit type's move graph (only edges between neighbouring tiles), capped at 16 steps,
+  instead of whole turns: every step toward a target changes it;
+\item \texttt{tFrontier}, \texttt{noFrontier}: steps to the nearest explored tile next to an unexplored one, and a
+  flag when there is none;
+\item \texttt{fogNear}: share of unexplored tiles within 2 tiles of the unit;
+\item \texttt{exploredShare}: share of the map the learner's player has explored;
+\item \texttt{tCityOrFog}: steps to the nearest place an enemy city is or could be: next to a known enemy city, or on
+  the fog frontier.
+\end{itemize}
+All targets are explored tiles, so the features use no hidden information (as in experiment 24, paths may cross
+fog). Under feature set 1 the five new features are 0, so experiment 24's runs replay unchanged (checked: iteration
+300 replays to the logged mean score, 5776.17).
+
+\section{Setup}
+One run, \texttt{rl-unit-orient}: feature set 2, no exploration reward, everything else as experiment 24's linear
+run, 300 iterations; base and measurement as in experiment 27. Smoke test (3 iterations): all five new features got
+non-zero weights (\texttt{fogNear} $+11.4$, \texttt{tCityOrFog} $-3.9$, \texttt{tFrontier} $-3.1$).
+The combination with the exploration reward is a later experiment.
+
+\section{Results}
+% WHEN: after the runs. The tables and plots below are generated from the measured data; add two to four sentences that read them.
+\ExpResults
+
+\todo{claude}{Read the tables: the best point, the size of the effect against the noise (about $\pm$1.2 points on a 6-model mean), the head-to-head.}
+
+\section{Behaviour}
+% WHEN: after the runs. WHO: both. One count the mechanism should change, plus what was seen in watched games.
+\todo{claude}{The behaviour metric: one count the mechanism should change, with base and new value.}
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\section{Interpretation}
+% WHEN: after the runs. WHO: both. Why it worked or did not; was the prediction right?
+\todo{claude}{Why the result came out this way, and whether the prediction held.}
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+% WHO: Claude. What could make this result wrong or narrow: panel, map sizes, sample size, interactions with other knobs.
+\todo{claude}{Two or three concrete threats.}
+
+\section{Verdict and next step}
+% WHO: Claude proposes by the keep rules (.claude/skills/model-experiment/SKILL.md); Jakob decides anything outside them.
+\todo{claude}{Kept or not, under which keep rule, the champion afterwards, and the next experiment this suggests.}
+
+\section{Notes for the paper}
+% WHO: Jakob, with Claude's draft. What this experiment contributes: a claim, a figure, a negative result worth a line.
+\todo{claude}{Draft: the one-sentence claim and which figure or table would carry it.}
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

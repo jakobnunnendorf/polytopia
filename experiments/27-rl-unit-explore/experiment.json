@@ -1,0 +1,35 @@
+{
+  "n": 27,
+  "slug": "rl-unit-explore",
+  "title": "Exploration reward for the unit value function",
+  "kind": "method",
+  "issue": 166,
+  "pr": 0,
+  "date": "2026-11-27",
+  "status": "running",
+  "verdict": "pending",
+  "base": "rl-unit-linear (experiment 24, linear, iteration 300)",
+  "result": null,
+  "question": "Does paying each unit for the map tiles its actions reveal stop the units from wandering at random and idling under the fog, and does that raise the learner's score against the champions?",
+  "change": "Every learner unit action earns w stars per tile its player newly explores, credited to the acting unit (the game itself scores 5 points per explored tile). Three values of w: 0.25, 0.5, 1. Features, other rewards, learning rule and seeds as in experiment 24.",
+  "method": "Per-unit Monte Carlo, linear least squares (as experiment 24), 300 iterations of 128 training games",
+  "measured": "200 evaluation games per run on seeds 6e9.., learner seat rotated; base = experiment 24's linear weights at iteration 300 on the same seeds",
+  "metric": "learner score minus the champions' mean score (paired per game)",
+  "setups": [
+    "Perfection, 4 players, 16×16 continents, 30 turns, all seats human; economy and opponents greedy-full-probe-perf"
+  ],
+  "knobs": ["explore"],
+  "headline": [
+    {
+      "label": "Learner minus champions' mean score, 200 games",
+      "base": null,
+      "new": null,
+      "unit": "points"
+    }
+  ],
+  "runs": [
+    { "id": "rl-unit-explore-025", "label": "w = 0.25 star per tile" },
+    { "id": "rl-unit-explore-05", "label": "w = 0.5 star per tile" },
+    { "id": "rl-unit-explore-1", "label": "w = 1 star per tile" }
+  ]
+}

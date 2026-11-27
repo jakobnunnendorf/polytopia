@@ -1,0 +1,76 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- TEMPLATE
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+Stepping through replayed training games of experiment 24 (27 Nov 2026), Jakob marked seven failure modes:
+``to the centre should score highest'' (all four first moves of a warrior scored the same, +3.61);
+``one of them randomly moved to the edge'';
+``a village was discovered by the last unit but stepping towards it now doesn't score higher'';
+``this unit stands idle for some reason''; ``does nothing''; ``moves back to the corner''.
+The replays show two causes. (1) Every feature describes what the unit can already see; under the fog all directions
+look the same, ties are broken at random (edge moves) and from turn 1 every move has gain exactly 0, so the units pass.
+(2) Travel distances count whole turns, so a single step toward a target often leaves the distance unchanged.
+
+Jakob: ``I think we need to reward it for discovering the map\ldots'' The game already pays for this: the score gives
+5 points per explored tile (\texttt{score\_of}, \texttt{core/src/state.rs}), but experiment 24's unit reward leaves the
+score out.
+
+\todo{jakob}{Confirm or change the prediction below.}
+Behaviour count: the share of unit-turns that end idle although the unit still had options. In 12 replayed games of
+experiment 24's linear run (iteration 800) it is 10\% in turns 1--10 and 34\% in turns 11--30.
+Prediction (Claude's proposal): with $w = 0.5$ idle unit-turns in turns 11--30 fall from 34\% to under 20\%, villages
+captured per game rise from 2.2 to at least 3, and the learner minus the champions'
+mean improves by at least 300 points over the base (experiment 24 linear at iteration 300). $w = 1$ explores more but
+captures fewer cities than $w = 0.5$. No improvement at any $w$ would count against the idea.
+
+\section{Mechanism}
+Every action of a learner unit earns
+\[ r_{\text{explore}} = w \times (\text{tiles the learner's player has explored after the action} - \text{before}), \]
+credited to the acting unit, on top of experiment 24's kill, capture and city-lost rewards. Because the greedy choice
+adds each candidate's immediate reward to its gain, a move into the fog now beats a move back home. Knob
+\texttt{--explore} (stars per tile, default 0 = experiment 24), \texttt{explore\_gain} and \texttt{credit} in
+\texttt{engine/unitrl/src/main.rs}; the analysis shows it as the reward source ``explore''.
+
+\section{Setup}
+Three runs, $w \in \{0.25, 0.5, 1\}$ star per tile, sized against the other rewards: a village is worth its income
+times the turns left (about 20--40 stars early), so at $w = 0.5$ revealing a typical move's 3--5 tiles is worth
+1.5--2.5 stars, less than heading for a known village. In a 3-iteration smoke test at $w = 0.5$ warriors earned about
+22 stars per game from exploring against about 40 from villages. Everything else as experiment 24's linear run
+(feature set 1, $\gamma = 1$, Monte Carlo, $\varepsilon$ 0.3 $\to$ 0.05 over 200 iterations, 128 games per
+iteration), but 300 iterations; the base is experiment 24's linear weights at iteration 300, measured on the same
+200 evaluation seeds. Runs: \texttt{rl-unit-explore-025}, \texttt{rl-unit-explore-05}, \texttt{rl-unit-explore-1}.
+
+\section{Results}
+% WHEN: after the runs. The tables and plots below are generated from the measured data; add two to four sentences that read them.
+\ExpResults
+
+\todo{claude}{Read the tables: the best point, the size of the effect against the noise (about $\pm$1.2 points on a 6-model mean), the head-to-head.}
+
+\section{Behaviour}
+% WHEN: after the runs. WHO: both. One count the mechanism should change, plus what was seen in watched games.
+\todo{claude}{The behaviour metric: one count the mechanism should change, with base and new value.}
+\todo{jakob}{What you saw in the live games, if you watched any.}
+
+\section{Interpretation}
+% WHEN: after the runs. WHO: both. Why it worked or did not; was the prediction right?
+\todo{claude}{Why the result came out this way, and whether the prediction held.}
+\todo{jakob}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+% WHO: Claude. What could make this result wrong or narrow: panel, map sizes, sample size, interactions with other knobs.
+\todo{claude}{Two or three concrete threats.}
+
+\section{Verdict and next step}
+% WHO: Claude proposes by the keep rules (.claude/skills/model-experiment/SKILL.md); Jakob decides anything outside them.
+\todo{claude}{Kept or not, under which keep rule, the champion afterwards, and the next experiment this suggests.}
+
+\section{Notes for the paper}
+% WHO: Jakob, with Claude's draft. What this experiment contributes: a claim, a figure, a negative result worth a line.
+\todo{claude}{Draft: the one-sentence claim and which figure or table would carry it.}
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}
