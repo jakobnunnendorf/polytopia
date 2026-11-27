@@ -21,7 +21,10 @@ export default function Map({
   seenBy,
   territoryFocus = false,
   activeUnits,
+  tileLabels,
 }: {
+  /** optional small labels drawn above the units, keyed "x,y" (the RL analysis marks each candidate's gain) */
+  tileLabels?: Record<string, { text: string; color: string; ring?: boolean }>;
   /** on a human's turn: ids of the current player's units that still have a unit action;
    *  their other units are drawn as spent even if a move or attack flag is still set */
   activeUnits?: Set<number>;
@@ -215,6 +218,35 @@ export default function Map({
               ))}
           </View>
           <FxLayer fx={fx} TILE={TILE} clans={Object.fromEntries(state.players.map((p) => [p.id, p.clan]))} />
+          {tileLabels && (
+            <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 3 }}>
+              {Object.entries(tileLabels).map(([key, l]) => {
+                const [x, y] = key.split(",").map(Number);
+                return (
+                  <View
+                    key={key}
+                    style={{ position: "absolute", left: x * TILE, top: y * TILE + TILE * 0.62, width: TILE, alignItems: "center" }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: Math.max(9, TILE * 0.2),
+                        fontWeight: "700",
+                        color: "#fff",
+                        backgroundColor: l.color,
+                        paddingHorizontal: 4,
+                        borderRadius: 6,
+                        borderWidth: l.ring ? 2 : 0,
+                        borderColor: "#fff",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {l.text}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
       </ScrollView>
     </ScrollView>

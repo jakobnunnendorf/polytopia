@@ -906,6 +906,15 @@ fn play(seed: i64, model: Option<&Model>, champ: &FullWeights, eps: f64, collect
     Ok(out)
 }
 
+/// The tile a candidate action points at: its destination, its target's tile, or the acting unit's own tile.
+fn target_tile(s: &GameState, a: &Action) -> (i32, i32) {
+    match a {
+        Action::Move { to, .. } => (to.x, to.y),
+        Action::Attack { target, .. } => unit(s, *target).map(|v| (v.x, v.y)).unwrap_or((-1, -1)),
+        _ => unit(s, actor(a)).map(|u| (u.x, u.y)).unwrap_or((-1, -1)),
+    }
+}
+
 /// One decision for the analysis page: the acting units' situation, the best candidates (by gain) with their reward,
 /// V before and after, and the features that moved V most (the change of each feature's contribution between
 /// standing still and the afterstate: w_j * delta f_j for the linear model, the change in V when the feature alone is
@@ -953,7 +962,9 @@ fn example(s: &GameState, me: i32, cands: &[(f64, Action, GameState, Vec<(Id, f6
                 Action::Attack { target, .. } => format!("attack {}", unit(s, *target).map(|v| format!("{:?} ({} hp)", land_type(v), v.hp)).unwrap_or_default()),
                 other => format!("{:?}", other).split_whitespace().next().unwrap_or("").to_lowercase(),
             };
+            let (tx, ty) = target_tile(s, a);
             json!({
+                "uid": uid, "target": [tx, ty],
                 "unit": u.map(|u| format!("{:?} #{} at ({},{}), {} hp", land_type(u), u.id, u.x, u.y, u.hp)).unwrap_or_default(),
                 "action": what, "kind": KIND_NAMES[kind_ix(a)], "chosen": pick == Some(i),
                 "reward": r, "vBefore": vb, "vAfter": va, "gain": gain,
@@ -961,7 +972,19 @@ fn example(s: &GameState, me: i32, cands: &[(f64, Action, GameState, Vec<(Id, f6
             })
         })
         .collect();
-    json!({"turn": s.turn, "candidates": cands.len(), "passed": pick.is_none(), "rows": rows})
+    // every candidate on the board: acting unit, its tile, target tile, kind, gain, played
+    let all: Vec<Value> = cands
+        .iter()
+        .enumerate()
+        .map(|(i, (gain, a, ..))| {
+            let uid = actor(a);
+            let from = unit(s, uid).map(|u| (u.x, u.y)).unwrap_or((-1, -1));
+            let (tx, ty) = target_tile(s, a);
+            json!({"uid": uid, "from": [from.0, from.1], "target": [tx, ty], "kind": KIND_NAMES[kind_ix(a)], "gain": gain, "chosen": pick == Some(i)})
+        })
+        .collect();
+    json!({"turn": s.turn, "player": me, "candidates": cands.len(), "passed": pick.is_none(), "rows": rows, "all": all,
+        "state": polycore::json::state_to_json(s)})
 }
 
 // ---------------------------------------------------------------- statistics and output
@@ -1183,7 +1206,9 @@ fn analyse(pool: &rayon::ThreadPool, champ: &FullWeights, run: &str, dir: &PathB
         .unwrap_or(0);
     let seeds: Vec<i64> = (0..games).map(|g| EVAL0 + g).collect();
     let gs: Vec<GameOut> = pool.install(|| seeds.par_iter().enumerate().map(|(i, &sd)| play(sd, Some(&model), champ, 0.0, true, i < 4)).collect::<R<Vec<_>>>())?;
-    let examples: Vec<Value> = gs.iter().take(4).enumerate().flat_map(|(g, o)| o.examples.iter().map(move |e| { let mut e = e.clone(); e["game"] = json!(g + 1); e })).collect();
+    let mut examples: Vec<Value> = gs.iter().take(4).enumerate().flat_map(|(g, o)| o.examples.iter().map(move |e| { let mut e = e.clone(); e["game"] = json!(g + 1); e })).collect();
+    let boards: Vec<Value> = examples.iter_mut().map(|e| e.as_object_mut().and_then(|o| o.remove("state")).unwrap_or(Value::Null)).collect();
+    std::fs::write(dir.join("decisions.json"), serde_json::to_string(&json!({"iteration": iteration, "examples": examples, "states": boards})).unwrap()).map_err(|e| e.to_string())?;
     let recs: Vec<Rec> = gs.iter().flat_map(|g| g.recs.iter().cloned()).collect();
     let mut tnames: HashMap<u8, String> = HashMap::new();
     for g in &gs {

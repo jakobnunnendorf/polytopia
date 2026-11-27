@@ -77,6 +77,8 @@
     <p class="lede">Decisions recorded in the analysis games with the current weights. Each row is one candidate action: the reward it earns now, V of the unit before and after it, and the gain = reward + V after − V before. The highest gain is played if it is above 0, otherwise the units pass. Click a row to see which features moved V.</p>
     <div class="panel">
       <select id="exPick"></select>
+      <iframe id="board" title="the board at this decision" style="display:block;width:100%;height:640px;margin-top:12px;border:1px solid var(--line);border-radius:8px;background:#16213a"></iframe>
+      <p class="note">The real board at this decision, drawn by the game itself (app route /decision on port 8093). The acting unit is selected; each tile it could move to or attack shows that action's gain. Click a row below to switch to that row's unit.</p>
       <div id="exTable" style="margin-top:12px"></div>
       <div id="exWhy" style="margin-top:14px"></div>
     </div>
@@ -251,9 +253,16 @@ function drawFlow(model) {
 }
 
 // ---- 2. example decisions
-let EX = [], exSel = 0, rowSel = null;
+let EX = [], exSel = 0, rowSel = null, ITER = 0;
+const BOARD = "http://localhost:8093/decision";
+function drawBoard(uid) {
+  const src = `${BOARD}?run=${encodeURIComponent(RUN)}&k=${exSel}${uid != null ? "&unit=" + uid : ""}&it=${ITER}`;
+  const f = $("board");
+  if (f.getAttribute("src") !== src) f.setAttribute("src", src);
+}
 function drawExamples(a) {
   EX = a.examples || [];
+  ITER = a.iteration;
   const pick = $("exPick");
   const prev = pick.value;
   pick.innerHTML = EX.map((e, i) => {
@@ -272,6 +281,7 @@ function drawExamples(a) {
 }
 function drawExample(model, weights) {
   const e = EX[exSel];
+  if (e) drawBoard((e.rows[rowSel ?? Math.max(0, e.rows.findIndex((x) => x.chosen))] || e.rows[0])?.uid);
   if (!e) { $("exTable").innerHTML = '<p class="note">no examples yet</p>'; $("exWhy").innerHTML = ""; return; }
   const gmax = Math.max(1e-9, ...e.rows.map((r) => Math.abs(r.gain)));
   let h = `<table><tr><th>Unit</th><th>Action</th><th class="num">Reward now</th><th class="num">V before</th><th class="num">V after</th><th class="num">Gain</th><th style="width:22%"></th><th></th></tr>`;

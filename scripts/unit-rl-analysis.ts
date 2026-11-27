@@ -69,6 +69,13 @@ http
     if (url.pathname === "/api/runs") return json({ root: ROOT, runs: runs() });
     if (url.pathname === "/api/analysis")
       return json(JSON.parse(fs.readFileSync(path.join(MODELS, run, "analysis.json"), "utf8")));
+    if (url.pathname === "/api/decision") {
+      // one recorded decision with its board, for the app's /decision route (another port: allow it)
+      const d = JSON.parse(fs.readFileSync(path.join(MODELS, run, "decisions.json"), "utf8"));
+      const k = Number(url.searchParams.get("k") ?? 0);
+      res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store", "access-control-allow-origin": "*" });
+      return res.end(JSON.stringify({ iteration: d.iteration, example: d.examples[k], state: d.states[k] }));
+    }
     if (url.pathname === "/api/history") return json(lines(path.join(MODELS, run, "analysis-history.jsonl")));
     if (url.pathname === "/api/training") return json(training(run));
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
