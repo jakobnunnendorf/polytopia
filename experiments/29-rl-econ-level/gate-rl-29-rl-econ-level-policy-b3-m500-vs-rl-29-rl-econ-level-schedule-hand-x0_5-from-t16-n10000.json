@@ -1,0 +1,113 @@
+{
+  "verdict": "FAIL",
+  "pass": false,
+  "rule": "paired sign test on d = seat-0 Perfection score (candidate - base) per seed, ties dropped: PASS iff the exact one-sided binomial test of P(better) = 0.5 rejects at alpha AND guard (a) the one-sided (1 - alpha) upper bound mean(d) + z * sd(d) / sqrt(N) >= 0 AND guard (b) candidate 10th-percentile score >= base 10th-percentile score (linear-interpolation quantile, Hyndman-Fan type 7)",
+  "failReasons": [
+    "sign test not rejected: 4148 better vs 4074 worse (ties dropped: 1778), exact one-sided p = 2.104e-1 >= alpha 0.01"
+  ],
+  "opp": [
+    "greedy-full-probe-perf-r15",
+    "greedy-full-probe-perf",
+    "greedy-full-probe-perf (anchor)"
+  ],
+  "setup": {
+    "mode": "perfection",
+    "mapSize": 16,
+    "mapType": "continents",
+    "difficulty": "crazy",
+    "players": 4,
+    "learnerSeat": 0,
+    "humans": [
+      0
+    ],
+    "learnerTribe": "xinxi",
+    "maxTurn": 60,
+    "opponents": [
+      "greedy-full-probe-perf-r15",
+      "greedy-full-probe-perf",
+      "greedy-full-probe-perf (anchor)"
+    ],
+    "seatAssignment": "opponent list repeated to fill seats 1..players-1, shuffled per seed by a Fisher-Yates permutation from splitmix64(seed ^ SEAT_STREAM); identical for candidate and base"
+  },
+  "n": 10000,
+  "alpha": 0.01,
+  "seedStart": 1000000000,
+  "seedEnd": 1000009999,
+  "signTest": {
+    "test": "exact one-sided binomial, H0 P(better) = 0.5, ties dropped",
+    "better": 4148,
+    "worse": 4074,
+    "ties": 1778,
+    "nEffective": 8222,
+    "betterShare": 0.5045001216249088,
+    "betterShareLowerBound": 0.4916122769626605,
+    "pValue": 0.21039021506705277,
+    "reject": false
+  },
+  "guards": {
+    "meanNotWorse": {
+      "rule": "mean(d) + z * se >= 0",
+      "upperBound": 51.10485952142122,
+      "ok": true
+    },
+    "lowerTailNotWorse": {
+      "rule": "candidate p10 >= base p10 (type 7 quantile)",
+      "candidateP10": 1515.0,
+      "baseP10": 1495.0,
+      "ok": true
+    }
+  },
+  "candidateStats": {
+    "mean": 7418.127,
+    "sd": 3573.967728785996,
+    "median": 9140.0,
+    "p10": 1515.0,
+    "p90": 10750.0,
+    "best": 16320.0,
+    "bestOfK": {
+      "1": 7418.127000000003,
+      "10": 11301.562325345152,
+      "100": 13170.175865067036
+    }
+  },
+  "baseStats": {
+    "mean": 7403.1395,
+    "sd": 3595.145262431742,
+    "median": 9105.0,
+    "p10": 1495.0,
+    "p90": 10815.0,
+    "best": 18360.0,
+    "bestOfK": {
+      "1": 7403.139500000023,
+      "10": 11381.377231970368,
+      "100": 13270.221446787073
+    }
+  },
+  "meanCandidate": 7418.127,
+  "meanBase": 7403.1395,
+  "sdCandidate": 3573.967728785996,
+  "sdBase": 3595.145262431742,
+  "meanD": 14.9875,
+  "sdD": 1552.5347657182313,
+  "seD": 15.525347657182312,
+  "correlation": 0.9062211748232119,
+  "z": 2.326347874388028,
+  "lowerBound": -21.12985952142122,
+  "upperBound": 51.10485952142122,
+  "t": 2.3267208763227267,
+  "lowerBoundT": -21.135650506134223,
+  "upperBoundT": 51.11065050613422,
+  "seedsBetter": 4148,
+  "seedsWorse": 4074,
+  "seedsEqual": 1778,
+  "winRateCandidate": 0.0326,
+  "winRateBase": 0.0345,
+  "wallSeconds": 96.399149375,
+  "perSeed": null,
+  "tool": "rl-gate",
+  "candidate": "rl-policy:experiments/29-rl-econ-level/policy-b3-m500.tsv",
+  "base": "rl-policy:experiments/29-rl-econ-level/schedule-hand-x0.5-from-t16.tsv",
+  "opponentSource": "champions registry /Users/davidwunsch/VSCode/polytopia-ai-research/.claude/worktrees/rl-full-state-vi/docs/rl-project/champions.json (top 2) + anchor greedy-full-probe-perf",
+  "threads": 10,
+  "perSeedNote": "per-seed rows dropped to keep the repo small; the run is deterministic, re-run it with the same seeds to get them"
+}

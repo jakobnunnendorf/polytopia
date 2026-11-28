@@ -6,10 +6,10 @@
   "issue": 166,
   "pr": 0,
   "date": "2026-11-28",
-  "status": "running",
+  "status": "done",
   "verdict": "pending",
   "base": "greedy-full-probe-perf-r15",
-  "result": null,
+  "result": "rl-gate vs greedy-full-probe-perf-r15: (turn, level) PASS +195, with income PASS +219 (not significantly different); both match a static economy cut x0.5 (+237) and the hand schedule; RL-line decision pending (David, Jakob)",
   "question": "With the economy weight as a lasting level in the state (one step down / stay / up per turn), does value iteration find when to invest less in economy, and does that beat r15?",
   "change": "Action set econ5: the base bot's build factor at x0.25, x0.5, x0.75, x1 or x1.5, held between turns and moved one step at most per turn, from x1; value iteration over (turn, level) and (turn, level, income bucket).",
   "method": "300k games with a random walk over the levels; value iteration for both state versions and min-count 20, 100, 500; min-count chosen per version on 2,000 validation seeds; both chosen policies on the 10,000 evaluation seeds against r15 and against a hand schedule (x0.5 from turn 16)",
@@ -25,7 +25,7 @@
         "turn,level",
         "turn,level,income/3"
       ],
-      "chosen": null
+      "chosen": "turn,level,income/3"
     },
     {
       "name": "minCount",
@@ -34,9 +34,28 @@
         100,
         500
       ],
-      "chosen": null
+      "chosen": 500
     }
   ],
-  "headline": [],
+  "headline": [
+    {
+      "label": "Mean final score, 10,000 evaluation seeds: r15 vs econ-level policy (turn, level, income)",
+      "base": 7199,
+      "new": 7418,
+      "unit": "points"
+    },
+    {
+      "label": "Same seeds: r15 vs econ-level policy (turn, level)",
+      "base": 7199,
+      "new": 7394,
+      "unit": "points"
+    },
+    {
+      "label": "Same seeds: static economy x0.5 vs econ-level policy (turn, level, income)",
+      "base": 7436,
+      "new": 7418,
+      "unit": "points"
+    }
+  ],
   "runs": []
 }

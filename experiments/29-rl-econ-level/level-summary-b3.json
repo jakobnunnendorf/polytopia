@@ -1,0 +1,92 @@
+{
+  "tool": "rl-value fit-level",
+  "actions": "econ5",
+  "actionNames": [
+    "x0.25",
+    "x0.5",
+    "x0.75",
+    "x1",
+    "x1.5"
+  ],
+  "incomeBucket": 3,
+  "trainSetup": {
+    "model": "greedy-full-probe-perf-r15",
+    "opp": "greedy-full-probe-perf-r15,greedy-full-probe-perf,greedy-full-probe-perf",
+    "players": 4,
+    "tribe": "xinxi",
+    "difficulty": "crazy",
+    "humanLearner": true,
+    "mode": "perfection",
+    "mapSize": 16,
+    "mapType": "continents",
+    "seedStart": 1,
+    "games": 300000,
+    "driver": "walk",
+    "actions": [
+      "x0.25",
+      "x0.5",
+      "x0.75",
+      "x1",
+      "x1.5"
+    ],
+    "actionSet": "econ5",
+    "boost": 2.0
+  },
+  "trainFiles": [
+    "target/rl-value/econ5-walk.tsv"
+  ],
+  "trainGames": 300000,
+  "runs": [
+    {
+      "minCount": 20,
+      "states": 1714,
+      "visits": 8206054,
+      "vStart": 7338.22474579138,
+      "vKeepDefaultStart": 6626.573569821686,
+      "predictedGain": 711.6511759696941,
+      "chosenShareByVisits": {
+        "x0.25": 0.07238119563921953,
+        "x0.5": 0.2647906045950953,
+        "x0.75": 0.27794321119505183,
+        "x1": 0.3041029220621751,
+        "x1.5": 0.08078206650845826
+      },
+      "path": [],
+      "policy": "target/rl-value/level/policy-b3-m20.tsv"
+    },
+    {
+      "minCount": 100,
+      "states": 1714,
+      "visits": 8206054,
+      "vStart": 7335.129136744386,
+      "vKeepDefaultStart": 6626.573569821686,
+      "predictedGain": 708.5555669227006,
+      "chosenShareByVisits": {
+        "x0.25": 0.07259067512838692,
+        "x0.5": 0.26434910128546557,
+        "x0.75": 0.2779599061863351,
+        "x1": 0.3034156246108056,
+        "x1.5": 0.08168469278900675
+      },
+      "path": [],
+      "policy": "target/rl-value/level/policy-b3-m100.tsv"
+    },
+    {
+      "minCount": 500,
+      "states": 1714,
+      "visits": 8206054,
+      "vStart": 7305.764654944738,
+      "vKeepDefaultStart": 6626.573569821686,
+      "predictedGain": 679.1910851230523,
+      "chosenShareByVisits": {
+        "x0.25": 0.07598329233514671,
+        "x0.5": 0.2594836690082712,
+        "x0.75": 0.27764428554820625,
+        "x1": 0.300032634442815,
+        "x1.5": 0.08685611866556081
+      },
+      "path": [],
+      "policy": "target/rl-value/level/policy-b3-m500.tsv"
+    }
+  ]
+}
