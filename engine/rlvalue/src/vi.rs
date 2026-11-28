@@ -13,7 +13,7 @@
 //! with the turn, one backward sweep from the last turn is exact; without it, the sweeps repeat until the values
 //! settle, at most HORIZON times (the game's length in learner turns).
 use crate::{get, play, read, setup, splitmix64, State, Traj, EVAL_SEED_START, R, TERM};
-use rl_value::strategic::{read_table, ActionSet, FeatureMask, NA};
+use rl_value::strategic::{level_bucket, level_key, read_table, ActionSet, FeatureMask, NA};
 use rayon::prelude::*;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -33,6 +33,8 @@ pub struct Table {
     pub path: String,
     pub features: FeatureMask,
     pub actions: &'static ActionSet,
+    /// a level policy (experiment 29): the income bucket of its key (`level_key`)
+    pub level: Option<i32>,
 }
 
 impl Table {
@@ -43,7 +45,11 @@ impl Table {
         if let Some((_, a)) = t.iter().find(|(_, a)| **a as usize >= actions.len()) {
             return Err(format!("{path}: action {a} out of range for {}", actions.id));
         }
-        Ok(Table { t, path: path.to_string(), features, actions })
+        let level = level_bucket(&meta).map_err(|e| format!("{path}: {e}"))?;
+        if level.is_some() != actions.is_level() {
+            return Err(format!("{path}: a levelKey goes with a level action set and only with one"));
+        }
+        Ok(Table { t, path: path.to_string(), features, actions, level })
     }
     pub fn has(&self, f: &State) -> bool {
         self.t.contains_key(&self.features.project(f))
@@ -64,13 +70,20 @@ pub enum Driver {
     /// the policy's action, but with probability eps a uniformly random action instead (fixed by seed and turn, a
     /// stream separate from `Random`): the data of a round of play and refit (experiment 22)
     EpsPolicy(Table, f64),
+    /// a level set's random walk (experiment 29): from the default level, each turn one step down, stay or one step
+    /// up with probability 1/3 each (fixed by seed and turn), held at the ends
+    Walk,
 }
+
+/// the random walk's stream (separate from Random's and EpsPolicy's)
+const WALK_STREAM: u64 = 0x57A1_4000_0000_0029;
 
 impl Driver {
     pub fn parse(s: &str) -> R<Driver> {
         Ok(match s {
             "bot" => Driver::Bot,
             "random" => Driver::Random,
+            "walk" => Driver::Walk,
             _ if s.starts_with("fixed:") => Driver::Fixed(s[6..].parse().map_err(|_| format!("--driver {s:?}"))?),
             _ if s.starts_with("policy:") => Driver::Policy(Table::load(&s[7..])?),
             _ if s.starts_with("eps:") => {
@@ -82,7 +95,7 @@ impl Driver {
                 }
                 Driver::EpsPolicy(Table::load(f)?, eps)
             }
-            _ => return Err(format!("--driver {s:?}: bot, random, fixed:K, policy:<file> or eps:<eps>:<file>")),
+            _ => return Err(format!("--driver {s:?}: bot, random, walk, fixed:K, policy:<file> or eps:<eps>:<file>")),
         })
     }
     /// the driver fits the action set it plays with
@@ -92,6 +105,8 @@ impl Driver {
             Driver::Policy(t) | Driver::EpsPolicy(t, _) if t.actions.id != set.id => {
                 Err(format!("{}: a {} policy, but the setup plays {} (--actions)", t.path, t.actions.id, set.id))
             }
+            Driver::Walk if !set.is_level() => Err(format!("walk: {} is not a level action set", set.id)),
+            Driver::EpsPolicy(t, _) if t.level.is_some() => Err(format!("{}: eps: is not defined for a level policy", t.path)),
             _ => Ok(()),
         }
     }
@@ -102,7 +117,33 @@ impl Driver {
             Driver::Fixed(k) => format!("fixed:{}", set.names.get(*k).unwrap_or(&"?")),
             Driver::Policy(t) => format!("policy:{}", t.path),
             Driver::EpsPolicy(t, e) => format!("eps:{e}:{}", t.path),
+            Driver::Walk => "walk".into(),
         }
+    }
+    /// A fresh chooser for one game. Walk and level policies keep the level between turns, from the set's default;
+    /// every other driver picks each turn on its own (`pick`).
+    pub fn picker<'a>(&'a self, seed: i64, set: &'a ActionSet) -> Box<dyn FnMut(&State) -> Option<usize> + 'a> {
+        let level = match self {
+            Driver::Walk => true,
+            Driver::Policy(t) => t.level.is_some(),
+            _ => false,
+        };
+        if !level {
+            return Box::new(move |f: &State| self.pick(seed, f, set));
+        }
+        let mut prev = set.default.expect("a level set has a default level");
+        Box::new(move |f: &State| {
+            let want = match self {
+                Driver::Walk => {
+                    let h = splitmix64((seed as u64).wrapping_mul(64) ^ (f[0] as u64 + 1).wrapping_mul(0x9E37_79B9) ^ WALK_STREAM);
+                    (prev + (h % 3) as usize).saturating_sub(1)
+                }
+                Driver::Policy(t) => t.t.get(&level_key(f, prev, t.level.unwrap())).map_or(prev, |a| *a as usize),
+                _ => unreachable!(),
+            };
+            prev = set.step(prev, want);
+            Some(prev)
+        })
     }
     pub fn pick(&self, seed: i64, f: &State, set: &ActionSet) -> Option<usize> {
         let na = set.len() as u64;
@@ -110,6 +151,7 @@ impl Driver {
             Driver::Bot => set.default,
             Driver::Random => Some((splitmix64((seed as u64).wrapping_mul(64) ^ (f[0] as u64 + 1).wrapping_mul(0x9E37_79B9)) % na) as usize),
             Driver::Fixed(k) => Some(*k),
+            Driver::Walk => unreachable!("walk keeps a level: use picker"),
             Driver::Policy(t) => t.get(f),
             Driver::EpsPolicy(t, eps) => {
                 let h = splitmix64((seed as u64).wrapping_mul(64) ^ (f[0] as u64 + 1).wrapping_mul(0x9E37_79B9) ^ 0xE95E_0000_0000_0022);
@@ -480,7 +522,7 @@ pub fn eval(m: &HashMap<String, String>) -> R<()> {
     let na = set.len();
     let t0 = Instant::now();
     // per seed: candidate and base final score, the candidate's actions (index na: the default) and turns in a policy state
-    let res: Vec<(i64, f64, f64, [u32; NA + 1], u32)> = (seed_start..seed_start + n)
+    let res: Vec<(i64, f64, f64, [u32; NA + 1], u32, Vec<(i32, usize)>)> = (seed_start..seed_start + n)
         .into_par_iter()
         .map(|seed| {
             let c = play(seed, &su, &cand)?;
@@ -488,13 +530,21 @@ pub fn eval(m: &HashMap<String, String>) -> R<()> {
             let mut used = [0u32; NA + 1];
             let mut known = 0;
             let Driver::Policy(t) = &cand else { unreachable!() };
+            // a level policy keys on the level before the turn: the previous row's action, the default at first
+            let mut prev = set.default.unwrap_or(0);
+            let mut levels = Vec::new();
             for r in &c[..c.len() - 1] {
                 used[if r[8] < 0 { na } else { r[8] as usize }] += 1;
-                if t.has(&[r[0], r[1], r[2], r[3], r[4], r[5]]) {
+                let f = [r[0], r[1], r[2], r[3], r[4], r[5]];
+                if match t.level { Some(b) => t.t.contains_key(&level_key(&f, prev, b)), None => t.has(&f) } {
                     known += 1;
                 }
+                if r[8] >= 0 {
+                    prev = r[8] as usize;
+                    levels.push((r[0], prev));
+                }
             }
-            Ok((seed, c.last().unwrap()[6] as f64, b.last().unwrap()[6] as f64, used, known))
+            Ok((seed, c.last().unwrap()[6] as f64, b.last().unwrap()[6] as f64, used, known, levels))
         })
         .collect::<R<_>>()?;
     let cs: Vec<f64> = res.iter().map(|r| r.1).collect();
@@ -518,13 +568,27 @@ pub fn eval(m: &HashMap<String, String>) -> R<()> {
     println!("score  policy mean {:.0} median {:.0} p10 {:.0} | base mean {:.0} median {:.0} p10 {:.0}", mean(&cs), quantile(&cs, 0.5), quantile(&cs, 0.1), mean(&bs), quantile(&bs, 0.5), quantile(&bs, 0.1));
     println!("seeds  better {} worse {} ties {}, sign p {:.3e}, mean d {:.1} (upper {:.1})", g["better"], g["worse"], g["ties"], g["signP"].as_f64().unwrap_or(f64::NAN), g["meanD"].as_f64().unwrap_or(0.0), g["meanDUpper"].as_f64().unwrap_or(0.0));
     println!("turns  in a policy state {:.1}%; actions {}", 100.0 * known as f64 / turns as f64, (0..shown).map(|a| format!("{} {:.1}%", names[a], 100.0 * used[a] as f64 / turns as f64)).collect::<Vec<_>>().join(", "));
+    // a level set: the mean factor the candidate played, by turn
+    let mut by_turn = serde_json::Map::new();
+    if let Some(sc) = set.scale {
+        let mut acc: std::collections::BTreeMap<i32, (f64, u32)> = Default::default();
+        for r in &res {
+            for &(t, l) in &r.5 {
+                let e = acc.entry(t).or_default();
+                e.0 += sc[l];
+                e.1 += 1;
+            }
+        }
+        println!("level  mean factor by turn: {}", acc.iter().map(|(t, (s, c))| format!("{t}:{:.2}", s / *c as f64)).collect::<Vec<_>>().join(" "));
+        by_turn = acc.iter().map(|(t, (s, c))| (t.to_string(), json!(s / *c as f64))).collect();
+    }
     println!("rule   {} ({:.1} s)", g["verdict"], t0.elapsed().as_secs_f64());
     let per: Vec<Value> = res.iter().map(|r| json!({"seed": r.0, "candidate": r.1, "base": r.2, "d": r.1 - r.2})).collect();
     let summary = json!({"tool": "rl-value eval", "policy": pol, "baseDriver": based.label(set), "model": model, "opp": opp, "players": su.players, "difficulty": su.difficulty,
                          "humanLearner": su.human, "boost": get(m, "boost", 2.0)?, "actionSet": set.id, "n": n, "seedStart": seed_start,
                          "candidate": stats(&cs), "base": stats(&bs), "gate": g, "policyStateShare": known as f64 / turns as f64,
                          "actionShare": (0..shown).map(|a| (names[a].clone(), json!(used[a] as f64 / turns as f64))).collect::<serde_json::Map<_, _>>(),
-                         "wallSeconds": t0.elapsed().as_secs_f64(), "perSeed": per});
+                         "levelFactorByTurn": by_turn, "wallSeconds": t0.elapsed().as_secs_f64(), "perSeed": per});
     if let Some(d) = out.parent() {
         std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
     }
@@ -584,7 +648,34 @@ mod tests {
     }
 
     fn table(t: HashMap<State, u8>, set: &'static ActionSet, features: FeatureMask) -> Table {
-        Table { t, path: "t".into(), features, actions: set }
+        Table { t, path: "t".into(), features, actions: set, level: None }
+    }
+
+    #[test]
+    fn walk_moves_one_step_and_level_policies_keep_their_level() {
+        use rl_value::strategic::ECON5;
+        let f = |turn: i32| [turn, 1, 5, 1, 1, 1];
+        let mut seen = std::collections::HashSet::new();
+        for seed in 0..200 {
+            let mut p = Driver::Walk.picker(seed, &ECON5);
+            let mut prev = 3;
+            let path: Vec<usize> = (0..30).map(|t| p(&f(t)).unwrap()).collect();
+            for &l in &path {
+                assert!(l.abs_diff(prev) <= 1 && l < 5, "seed {seed}: {prev} -> {l}");
+                prev = l;
+                seen.insert(l);
+            }
+            let mut again = Driver::Walk.picker(seed, &ECON5);
+            assert_eq!(path, (0..30).map(|t| again(&f(t)).unwrap()).collect::<Vec<_>>(), "reproducible");
+        }
+        assert_eq!(seen.len(), 5, "the walk reaches every level");
+        assert!(Driver::Walk.check(&rl_value::strategic::SPEND4).is_err());
+        // a level policy: turn 0 at x1 wants x0.25 (two steps away): one step to x0.75; turn 1 at x0.75 has no entry:
+        // keep x0.75; turn 2 at x0.75 -> x0.5
+        let t: HashMap<State, u8> = [([0, 3, 0, 0, 0, 0], 0u8), ([2, 2, 0, 0, 0, 0], 1u8)].into_iter().collect();
+        let d = Driver::Policy(Table { level: Some(0), ..table(t, &ECON5, FeatureMask::ALL) });
+        let mut p = d.picker(1, &ECON5);
+        assert_eq!((0..4).map(|t| p(&f(t)).unwrap()).collect::<Vec<_>>(), vec![2, 2, 1, 1]);
     }
 
     #[test]

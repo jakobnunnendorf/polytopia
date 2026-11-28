@@ -22,6 +22,7 @@ use std::io::{BufRead, BufWriter, Write};
 use std::path::PathBuf;
 use std::time::Instant;
 
+mod level;
 mod vi;
 
 type R<T> = Result<T, String>;
@@ -174,8 +175,8 @@ pub(crate) fn play(seed: i64, su: &Setup, drive: &vi::Driver) -> R<Vec<[i32; 9]>
     let opts = sg::game_opts(seed, su.players, &su.difficulty, &tribes, su.human, MODE, MAP_SIZE, MAP_TYPE);
     let assign = seat_assignment(seed, su.opps.len(), su.players - 1);
     let opps: Vec<&FullWeights> = assign.iter().map(|&i| &su.opps[i]).collect();
-    let mut pick = |f: &State| drive.pick(seed, f, su.actions);
-    Ok(sg::play_game(&opts, &su.learner, &su.base, &mut pick, &opps, MAX_TURN, MAX_MOVES)?.rows)
+    let mut pick = drive.picker(seed, su.actions);
+    Ok(sg::play_game(&opts, &su.learner, &su.base, &mut *pick, &opps, MAX_TURN, MAX_MOVES)?.rows)
 }
 
 fn collect(m: &HashMap<String, String>) -> R<()> {
@@ -547,11 +548,13 @@ const USAGE: &str = "usage:
   rl-value check --games 2000 --seed-start 600000000 --out <file.json>     (each action played every turn)
   rl-value fit-vi --train <file.tsv>[,<file.tsv>...] --out <dir> [--min-count 1,5,20] [--features turn,cities,...]
                                                                           (value iteration -> policy-mN.tsv)
+  rl-value fit-level --train <file.tsv>[,...] --out <dir> [--income-bucket 0] [--min-count 20,100,500]
+                                 (level sets: value iteration over (turn, level[, income / bucket]) -> policy-bB-mM.tsv)
   rl-value eval --policy <policy.tsv> [--n 10000] [--seed-start 1000000000] --out <file.json>
 collect, check and eval take the setup flags; --driver bot|random|fixed:K|policy:<file> picks the strategic
 action of the learner each turn; --boost 2 is the weight multiplier of an action; --actions strategic5|spend3|spend4
 the action set (spend3: economy, army, research; states without a policy entry play the bot unchanged;
-spend4: bot, economy, army, research).
+spend4: bot, economy, army, research; econ5: a lasting economy level x0.25..x1.5, data with --driver walk).
 Seeds must stay below 1,000,000,000 (the gate's evaluation seeds).";
 
 fn main() {
@@ -561,6 +564,7 @@ fn main() {
         "fit" => fit_cmd(&m),
         "check" => vi::check(&m),
         "fit-vi" => vi::fit_vi_cmd(&m),
+        "fit-level" => level::fit_level_cmd(&m),
         "eval" => vi::eval(&m),
         _ => {
             println!("{USAGE}");

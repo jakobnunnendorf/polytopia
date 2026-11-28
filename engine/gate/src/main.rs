@@ -442,8 +442,8 @@ fn play_seed(l: &Learner, seed: i64, tribes: &[String], assign: &[usize], s: &Se
                 })
                 .collect::<R<Vec<FullWeights>>>()?;
             let refs: Vec<&FullWeights> = ws.iter().collect();
-            let mut pick = |f: &sg::State| policy.action(f);
-            let o = sg::play_game(&game_opts(seed, tribes, s), &policy.weights, &policy.base, &mut pick, &refs, MAX_TURN as i32, MAX_MOVES)?;
+            let mut pick = policy.picker();
+            let o = sg::play_game(&game_opts(seed, tribes, s), &policy.weights, &policy.base, &mut *pick, &refs, MAX_TURN as i32, MAX_MOVES)?;
             Ok(Game { score: o.score as i64, won: o.winner == Some(LEARNER_SEAT as i32) })
         }
     }
