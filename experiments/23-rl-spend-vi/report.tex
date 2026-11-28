@@ -1,0 +1,199 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 23-rl-spend-vi
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+\textbf{The idea (David, 27 Nov 2026, issue \#166).} Simplify both the state and the actions. State: (cities, income,
+units, techs) instead of (turn, cities, income, units, levels, techs). Actions: only the ways to spend stars,
+0 economy, 1 army, 2 research; expansion stays the bot's default. Background (experiments 21, 22): one turn's boost
+moves the outcome by about 15 points against a spread of about 1{,}500, and with 3--4 visits per state and action the
+$Q$ values differ mostly by chance. On the 300{,}000 random-action games of experiment 21, the four features give
+57{,}029 states (144 visits per state, about 48 per action with three actions) instead of 506{,}245 (16 per state).
+Dropping the turn merges situations several turns apart (4.5 turns between a state's first and last turn, on
+average), so David's choice is to run both versions, with and without the turn, on the same data.
+
+\textbf{Prediction} (before any run of this experiment):
+\begin{enumerate}
+  \item \emph{Few, well-visited states.} Without the turn about 60{,}000 states, with it about 280{,}000; at min-count
+        5 the policy has an entry for more than 97\% of visits without the turn, more than 90\% with it.
+  \item \emph{The policy researches more.} Both chosen policies play research on more than 50\% of learner turns
+        (21: 29.5\%; research is the only one of the three actions that helps when played every turn).
+  \item \emph{The smaller state is the better one.} Without the turn the policy scores higher on the validation
+        seeds than with it (more visits outweigh the lost information).
+  \item \emph{Final test.} The better version passes the \#171 rule against \texttt{greedy-full-probe-perf} on the
+        evaluation seeds with a mean gain of 200--450 points (21: +104), is better than 21's policy seed by seed, and
+        comes within 150 points of research every turn (21: 352 behind).
+  \item \emph{Known risk without the turn.} The model then has loops (a state can lead back to itself with a
+        positive reward), so the values are only bounded by the cap of 30 sweeps where a loop is certain; the
+        sweeps settle (last change below 1 point) at min-count 5 or more.
+\end{enumerate}
+\textbf{Against the idea:} if neither version beats 21's policy on the evaluation seeds, simplifying the state and
+the actions does not help value iteration here.
+
+\section{Mechanism}
+\textbf{Actions} (\texttt{spend3} in \texttt{rl\_value::strategic}): 0 economy (build), 1 army (train, attack),
+2 research; each multiplies the base bot's move-type factors of its types by 2 for one learner turn (the same
+boosts as these three actions in experiments 15--22). There is no ``bot unchanged'' action: a state without a policy
+entry plays the base bot unchanged (David's choice). Army keeps train and attack (David's choice).
+
+\textbf{State} (\texttt{--features}): (cities, income, units, techs), and (turn, cities, income, units, techs).
+Dropped features are 0 in the policy table and in the lookup.
+
+\textbf{Value iteration} as in experiment 21 ($Q(s,a) = $ mean of $r + V(s')$, $V(s) = \max_{a: n(s,a) \ge m}
+Q(s,a)$, fallback to the mean over all transitions, $\gamma = 1$). With the turn, one backward sweep from the last
+turn is exact. Without it, the same projected state occurs at different turns and can lead back to itself, so the
+sweeps repeat (Jacobi, from $V = 0$) until the largest change is below $10^{-6}$, at most 30 times (the game's length
+in learner turns); the tool reports the number of sweeps and the last change.
+
+\section{Setup}
+As experiment 21 (decided gate setup on \texttt{dev} at da04376; learner base bot \texttt{greedy-full-probe-perf};
+opponents probe-perf, combo-perf and the anchor probe-perf, shuffled per seed). Seeds: training $1\dots300{,}000$
+(new games: the actions differ from 21's); action check $600{,}000{,}000\dots$ (2{,}000; the same seeds and boosts
+as 21's check, so its numbers must repeat); validation $700{,}000{,}000\dots$ (2{,}000); evaluation $10^9\dots$
+(10{,}000). The min-count is chosen per state version by the share of better validation seeds; both chosen policies
+play the evaluation seeds, with \texttt{rl-gate} against the bot and with \texttt{rl-value eval} against research
+every turn (\texttt{fixed:2}).
+
+Sanity checks before the run: unit tests (spend3 weights; feature projection; an empty spend3 table ties its base bot
+in \texttt{rl-gate}; value iteration without the turn reaches the fixed point of a self-loop; turns played by the
+default count only in the fallback); \texttt{rl-value}'s bot games and 21's policy are unchanged by the new code
+(500 seeds row for row; the policy file identical).
+
+Commands (from \texttt{engine/}):
+\begin{verbatim}
+B=./target/release/rl-value; R=target/rl-value; E=../experiments/23-rl-spend-vi
+$B check --actions spend3 --games 2000 --seed-start 600000000 --out $E/check.json
+$B collect --actions spend3 --driver random --games 300000 --seed-start 1 --out $R/s3-train-random.tsv
+$B fit-vi --train $R/s3-train-random.tsv --features cities,income,units,techs \
+  --min-count 1,5,20,50 --out $R/vi-s3-noturn
+$B fit-vi --train $R/s3-train-random.tsv --features turn,cities,income,units,techs \
+  --min-count 1,5,20,50 --out $R/vi-s3-turn
+$B eval --actions spend3 --policy $R/vi-s3-<v>/policy-mM.tsv --n 2000 --seed-start 700000000 --out ...
+rl-gate --candidate rl-policy:experiments/23-rl-spend-vi/policy-<v>.tsv --base greedy-full-probe-perf
+$B eval --actions spend3 --policy $E/policy-<v>.tsv --n 10000 --base-driver fixed:2 --out ...
+\end{verbatim}
+
+\section{Results}
+\ExpResults
+
+All numbers are copied from \texttt{check.json}, \texttt{vi-summary-*.json}, \texttt{val-*.json},
+\texttt{eval-*-vs-research.json} and the two \texttt{rl-gate} JSONs in this folder (27 Nov 2026). Data: 300{,}000
+games with a random spend3 action per turn, 8{,}482{,}759 rows, collected in 1{,}520\,s on 10 threads.
+
+\paragraph{Action check} (2{,}000 seeds; the same numbers as experiment 21's check, as they must be): bot 6{,}871;
+economy every turn 6{,}654 (760 better / 886 worse); army 6{,}861 (404 / 426); research 7{,}276 (1{,}098 / 731).
+
+\paragraph{Value iteration and validation} (2{,}000 validation seeds, policy against the bot, which scores 6{,}840
+there; optimism = $V$(start) minus the policy's real mean remaining score, start score 515):
+
+\begin{center}\small
+\begin{tabular}{lrrrrrrrr}
+\toprule
+state & $m$ & states & covered & sweeps (last change) & optimism & policy mean & gain & better share \\
+\midrule
+no turn   & 1  & 56{,}426  & 100.0\% & 30 (800.0) & $+488$   & 6{,}806 & $-34$  & 50.12\% \\
+no turn   & 5  & 56{,}426  & 98.9\%  & 30 (208.6) & $+337$   & 6{,}799 & $-41$  & 50.24\% \\
+no turn   & 20 & 56{,}426  & 95.6\%  & 30 (196.2) & $+200$   & 6{,}812 & $-28$  & \textbf{50.24\%} \\
+no turn   & 50 & 56{,}426  & 91.0\%  & 30 (189.6) & $+124$   & 6{,}799 & $-41$  & 49.75\% \\
+with turn & 1  & 271{,}447 & 100.0\% & 1          & $+2{,}154$ & 6{,}980 & $+140$ & 54.82\% \\
+with turn & 5  & 271{,}447 & 93.7\%  & 1          & $+1{,}194$ & 7{,}040 & $+200$ & \textbf{56.55\%} \\
+with turn & 20 & 271{,}447 & 81.0\%  & 1          & $+698$   & 7{,}036 & $+196$ & 56.26\% \\
+with turn & 50 & 271{,}447 & 68.0\%  & 1          & $+424$   & 7{,}023 & $+183$ & 55.21\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+Chosen by the share of better seeds: $m = 20$ without the turn (833/1{,}658 at $m=5$ and 832/1{,}656 at $m=20$
+differ in the fifth digit), $m = 5$ with it. Without the turn the sweeps never settle: after 30 sweeps the values
+still change by 190--800 points per sweep.
+
+\paragraph{Final test} (10{,}000 evaluation seeds $10^9\dots$; \texttt{rl-gate} with the \texttt{rl-policy:} learner of
+PR \#198; ``vs 21'' and ``vs 22'' compare the candidates of the three gate runs seed by seed, all against the same bot
+on the same seeds):
+
+\begin{center}\small
+\begin{tabular}{llrrrl}
+\toprule
+policy & against & mean / p10 (other) & better / worse & mean $d$ (99\% bounds) & rule \\
+\midrule
+with turn & probe-perf          & 7004 / 1439.5 (6839 / 1419.5) & 4825 / 3804 & $+165$ ($+115$, $+216$) & PASS \\
+with turn & research every turn & 7004 / 1440 (7295 / 1485)     & 3478 / 5258 & $-291$ (upper $-250$)    & FAIL \\
+with turn & exp.\ 21 policy     & --                            & 4238 / 3922 & $+61$ ($+23$, $+99$), $p = 2.4\cdot10^{-4}$ & -- \\
+with turn & exp.\ 22 policy     & --                            & 4212 / 3939 & $+47$ ($+9$, $+85$), $p = 0.0013$ & -- \\
+no turn   & probe-perf          & 6753 / 1400 (6839 / 1419.5)   & 4058 / 4268 & $-86$ ($-136$, $-35$)    & FAIL \\
+no turn   & research every turn & 6753 / 1400 (7295 / 1485)     & 3196 / 5825 & $-542$                   & FAIL \\
+\bottomrule
+\end{tabular}
+\end{center}
+With the turn: 55.92\% of 8{,}629 differing seeds better than the bot (99\% lower bound 54.66\%, $p = 2.1\cdot10^{-28}$),
+both guards hold; win rate 3.6\% against 3.1\%. The 15-opponent information run shows no gain (mean $d = -101$;
+1{,}499 better, 1{,}477 worse). Without the turn the rule fails on all three counts.
+
+\section{Behaviour}
+With the turn, the policy plays economy 21.2\%, army 36.3\% and research 35.9\% of learner turns on the evaluation
+seeds; 6.6\% of turns are in a state without an entry and play the base bot. Without the turn it plays economy
+37.9\%, army 41.3\%, research 16.2\% (4.6\% base bot): it mostly picks the two actions that leave the state unchanged
+more often, and researches least, although research is the only action that helps when played every turn.
+
+\section{Interpretation}
+\textbf{Prediction 1 (about 60{,}000 and 280{,}000 states, coverage above 97\% and 90\% at $m=5$): right} (56{,}426
+and 271{,}447; 98.9\% and 93.7\%).
+
+\textbf{Prediction 2 (research on more than half the turns): wrong} for both (35.9\% with the turn, 16.2\% without).
+
+\textbf{Prediction 3 (the smaller state is the better one): wrong, clearly.} Without the turn the policy is worse
+than the bot; with it, it is the best policy of the track.
+
+\textbf{Prediction 4 (passes against probe-perf with +200 to +450, better than 21, within 150 of research every
+turn): mostly right.} With the turn it passes (+165, slightly below the range), is significantly better than 21's
+policy (+61, $p = 2.4\cdot10^{-4}$) and 22's (+47, $p = 0.0013$), but stays 291 points behind research every turn.
+
+\textbf{Prediction 5 (without the turn the sweeps settle at $m \ge 5$): wrong.} They never settle.
+
+\textbf{Why dropping the turn fails.} Without the turn the problem is no longer finite: a state can lead back to
+itself, and the learned model lets a loop collect its reward again on every sweep. An action that leaves (cities,
+income, units, techs) unchanged keeps the learner in such a loop; research always leaves it (techs go up by one).
+So the turn-free values overrate staying in place and underrate research, which is exactly how the policy plays. The
+turn is not just one more feature: it is the time index of the 30-turn horizon, which makes every state passed
+through at most once and the backward sweep exact.
+
+\textbf{Why the spending actions with the turn help.} Against 21 the state lost only levels, and the actions lost
+bot and expand (expand was neutral in every check). Three actions instead of five split the data three ways (about
+10 visits per state and action instead of 3--4), and the max is over fewer noisy estimates: the optimism of
+$V$(start) at $m=5$ falls from +1{,}793 (21) to +1{,}194. The gain over 21 (+61) is significant but modest, and the
+gap to research every turn remains: the policy still spreads its choices (army on 36\% of turns, although army every
+turn equals the bot).
+
+\todo{david}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\begin{itemize}
+  \item \emph{Two changes at once.} State and actions changed together; the gain over 21 cannot be split between
+        dropping levels and dropping bot and expand.
+  \item \emph{The turn-free values are not converged.} They are 30-sweep values; a different cap would give
+        different numbers, though the failure (loops overrate unchanged states) does not depend on the cap.
+  \item \emph{Gate code not on \texttt{dev} yet} (PR \#198); the policy files name their action set and features, so
+        the runs repeat once it is merged.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Adopted for David's track} (with the turn): \texttt{policy-turn-m5.tsv} passes \texttt{rl-gate} against
+\texttt{greedy-full-probe-perf} (+165; information under the pass rule) and is significantly better than the
+policies of experiments 21 and 22 seed by seed. It replaces them as David's RL v2 candidate, to be gated against RL
+v1 (experiment 14). \textbf{Not kept}: the state without the turn.
+
+Next step ideas (one per experiment): (a) actions held for several turns (larger effect per decision); (b) only two
+actions, research and the bot; (c) data from research-heavy play.
+
+\section{Notes for the paper}
+Claim: the turn is what makes value iteration work on this state: dropping it turns the 30-turn problem into one
+with loops, the learned values overrate actions that leave the state unchanged, and the policy loses to the bot
+(-86). With the turn, three spending actions and five features give the best policy of the track (+165 against the
+bot, 55.9\% of seeds better, significantly better than the five-action policy), still 291 points behind ``research
+every turn''.
+
+\todo{david}{Is this worth a place in the talk or report? Where?}
+
+\end{document}

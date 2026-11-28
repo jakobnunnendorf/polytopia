@@ -1,0 +1,46 @@
+{
+  "n": 20,
+  "slug": "rl-full-state-value-perf",
+  "title": "Full integer state value function on the Perfection-tuned base bot",
+  "kind": "method",
+  "issue": 166,
+  "pr": 0,
+  "date": "2026-11-26",
+  "status": "done",
+  "verdict": "adopted",
+  "base": "greedy-full-probe-perf",
+  "result": null,
+  "question": "Does the result of experiments 13 and 16 hold when the learner and the opponents are the Perfection-tuned bots of experiment 17: how well does a value function over the exact integer state predict the remaining score, and does the learned model or Monte Carlo predict better?",
+  "change": "Experiment 16 unchanged except the bots: learner greedy-full-probe-perf, opponents greedy-full-probe-perf, greedy-full-combo-perf and the anchor greedy-full-probe-perf (rl-gate defaults on dev da04376).",
+  "method": "Training-set sizes 1k to 300k games (seeds 1..), 10,000 held-out games (seeds 500,000,000..), RMSE of the predicted remaining score",
+  "measured": "Held-out RMSE, 10,000 games",
+  "metric": "RMSE of predicted remaining score",
+  "setups": [
+    "Perfection, 16×16 continents, 4 players, Crazy, seat 0 Xin-Xi (human seat), learner greedy-full-probe-perf; opponents greedy-full-probe-perf, greedy-full-combo-perf, greedy-full-probe-perf (anchor), seats shuffled per seed (rl-gate defaults)"
+  ],
+  "knobs": [],
+  "headline": [
+    {
+      "label": "Held-out RMSE of remaining score, 300k training games: turn baseline vs model-based V",
+      "base": 2896.4,
+      "new": 2543.0,
+      "unit": "points",
+      "better": "lower"
+    },
+    {
+      "label": "Same, turn baseline vs Monte Carlo table",
+      "base": 2896.4,
+      "new": 2500.5,
+      "unit": "points",
+      "better": "lower"
+    },
+    {
+      "label": "Turn 20 only: turn baseline vs model-based V",
+      "base": 2284.9,
+      "new": 1663.0,
+      "unit": "points",
+      "better": "lower"
+    }
+  ],
+  "runs": []
+}

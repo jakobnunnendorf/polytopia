@@ -1,0 +1,62 @@
+{
+  "n": 23,
+  "slug": "rl-spend-vi",
+  "title": "Spending actions and a smaller state for value iteration",
+  "kind": "method",
+  "issue": 166,
+  "pr": 0,
+  "date": "2026-11-27",
+  "status": "done",
+  "verdict": "adopted",
+  "base": "greedy-full-probe-perf",
+  "result": "with the turn: rl-gate vs greedy-full-probe-perf PASS (+165, 55.9% better); vs exp 21 +61 (p = 2.4e-4), vs exp 22 +47 (p = 0.0013); vs research every turn -291. Without the turn: FAIL (-86).",
+  "question": "With three spending actions (economy, army, research) and a smaller state (cities, income, units, techs; with and without the turn), does value iteration give a policy that beats the bot and comes closer to research every turn than experiment 21's policy?",
+  "change": "Actions: spend3 (economy = build, army = train and attack, research; each x2 for one turn; no 'bot' action, states without a policy entry play the bot unchanged). State: (cities, income, units, techs) and (turn, cities, income, units, techs) on the same data; without the turn, value iteration sweeps until the values settle (at most 30 sweeps).",
+  "method": "300k games with a random spend3 action per turn; value iteration for both state versions and min-count 1, 5, 20, 50; min-count chosen per version on 2,000 validation seeds; both chosen policies on the 10,000 evaluation seeds",
+  "measured": "Paired, 10,000 evaluation seeds",
+  "metric": "final raw score, #171 rule",
+  "setups": [
+    "Perfection, 16×16 continents, 4 players, Crazy, seat 0 Xin-Xi (human seat), learner base greedy-full-probe-perf; opponents greedy-full-probe-perf, greedy-full-combo-perf, greedy-full-probe-perf (anchor), seats shuffled per seed (rl-gate defaults)"
+  ],
+  "knobs": [
+    {
+      "name": "state",
+      "tested": [
+        "cities,income,units,techs",
+        "turn,cities,income,units,techs"
+      ],
+      "chosen": "turn,cities,income,units,techs"
+    },
+    {
+      "name": "minCount",
+      "tested": [
+        1,
+        5,
+        20,
+        50
+      ],
+      "chosen": 5
+    }
+  ],
+  "headline": [
+    {
+      "label": "Mean final score, 10,000 evaluation seeds: probe-perf vs spend3 policy (with turn)",
+      "base": 6839,
+      "new": 7004,
+      "unit": "points"
+    },
+    {
+      "label": "Same seeds: experiment 21 policy vs spend3 policy (with turn)",
+      "base": 6943,
+      "new": 7004,
+      "unit": "points"
+    },
+    {
+      "label": "Same seeds: probe-perf vs spend3 policy without the turn",
+      "base": 6839,
+      "new": 6753,
+      "unit": "points"
+    }
+  ],
+  "runs": []
+}

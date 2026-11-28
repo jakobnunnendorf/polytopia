@@ -22,6 +22,7 @@ use std::io::{BufRead, BufWriter, Write};
 use std::path::PathBuf;
 use std::time::Instant;
 
+mod level;
 mod vi;
 
 type R<T> = Result<T, String>;
@@ -91,8 +92,12 @@ pub(crate) struct Setup {
     pub tribe: String,
     pub difficulty: String,
     pub human: bool,
-    /// the learner's weights under each strategic action (vi::ACTIONS); index 0 is the model unchanged
+    /// the action set (--actions, default strategic5)
+    pub actions: &'static sg::ActionSet,
+    /// the learner's weights under each action of the set
     pub learner: Vec<FullWeights>,
+    /// the base bot's weights (what the set's default None plays)
+    pub base: FullWeights,
     /// the opponent list (rl-gate's default: champions registry entries 0 and 1, then the anchor); seat i (1..)
     /// plays opps[seat_assignment(seed, opps.len(), players - 1)[i - 1]]
     pub opps: Vec<FullWeights>,
@@ -139,19 +144,22 @@ fn default_opponents() -> R<Vec<String>> {
 
 /// the setup from the command line (shared by collect, check and eval)
 pub(crate) fn setup(m: &HashMap<String, String>) -> R<(Setup, String, String)> {
-    let model = m.get("model").cloned().unwrap_or("greedy-full-probe-perf".into());
+    let model = m.get("model").cloned().unwrap_or("greedy-full-probe-perf-r15".into());
     let opp_ids: Vec<String> = match m.get("opp") {
         Some(l) => l.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect(),
         None => default_opponents()?,
     };
     let opp = opp_ids.join(",");
     let base = model_weights(&model)?;
+    let actions = sg::ActionSet::by_id(m.get("actions").map(|x| x.as_str()))?;
     let su = Setup {
         players: get(m, "players", 4)?,
         tribe: m.get("tribe").cloned().unwrap_or("xinxi".into()),
         difficulty: m.get("difficulty").cloned().unwrap_or("crazy".into()),
         human: get::<i32>(m, "human", 1)? != 0,
-        learner: sg::action_weights(&base, get(m, "boost", 2.0)?),
+        actions,
+        learner: actions.weights(&base, get(m, "boost", 2.0)?),
+        base: base.clone(),
         opps: opp_ids.iter().map(|id| model_weights(id)).collect::<R<_>>()?,
     };
     if su.opps.is_empty() || su.opps.len() > su.players - 1 {
@@ -167,8 +175,8 @@ pub(crate) fn play(seed: i64, su: &Setup, drive: &vi::Driver) -> R<Vec<[i32; 9]>
     let opts = sg::game_opts(seed, su.players, &su.difficulty, &tribes, su.human, MODE, MAP_SIZE, MAP_TYPE);
     let assign = seat_assignment(seed, su.opps.len(), su.players - 1);
     let opps: Vec<&FullWeights> = assign.iter().map(|&i| &su.opps[i]).collect();
-    let mut pick = |f: &State| Some(drive.pick(seed, f));
-    Ok(sg::play_game(&opts, &su.learner, &su.learner[0], &mut pick, &opps, MAX_TURN, MAX_MOVES)?.rows)
+    let mut pick = drive.picker(seed, su.actions);
+    Ok(sg::play_game(&opts, &su.learner, &su.base, &mut *pick, &opps, MAX_TURN, MAX_MOVES)?.rows)
 }
 
 fn collect(m: &HashMap<String, String>) -> R<()> {
@@ -179,12 +187,13 @@ fn collect(m: &HashMap<String, String>) -> R<()> {
     }
     let (su, model, opp) = setup(m)?;
     let drive = vi::Driver::parse(m.get("driver").map(|x| x.as_str()).unwrap_or("bot"))?;
+    drive.check(su.actions)?;
     let out = PathBuf::from(m.get("out").ok_or("--out <file.tsv> is required")?);
     let threads: usize = get(m, "threads", 0)?;
     let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().map_err(|e| e.to_string())?;
     eprintln!(
         "rl-value collect: {games} games from seed {seed_start}, {model} ({}) vs {opp}, {} players, {}, human learner {}, {} threads",
-        drive.label(),
+        drive.label(su.actions),
         su.players,
         su.difficulty,
         su.human,
@@ -204,7 +213,7 @@ fn collect(m: &HashMap<String, String>) -> R<()> {
     let mut w = BufWriter::new(std::fs::File::create(&out).map_err(|e| format!("{}: {e}", out.display()))?);
     let meta = json!({"model": model, "opp": opp, "players": su.players, "tribe": su.tribe, "difficulty": su.difficulty,
                       "humanLearner": su.human, "mode": MODE, "mapSize": MAP_SIZE, "mapType": MAP_TYPE,
-                      "seedStart": seed_start, "games": games, "driver": drive.label(), "actions": sg::ACTION_NAMES,
+                      "seedStart": seed_start, "games": games, "driver": drive.label(su.actions), "actions": su.actions.names, "actionSet": su.actions.id,
                       "boost": get(m, "boost", 2.0)?});
     writeln!(w, "# {meta}").unwrap();
     writeln!(w, "seed\tturn\tcities\tincome\tunits\tlevels\ttechs\tscore\tterminal\taction").unwrap();
@@ -260,7 +269,8 @@ pub(crate) fn read(path: &str) -> R<(Value, Vec<Traj>)> {
         } else {
             t.1.states.push([v[1] as i32, v[2] as i32, v[3] as i32, v[4] as i32, v[5] as i32, v[6] as i32]);
             t.1.scores.push(v[7] as i32);
-            t.1.actions.push(v.get(9).copied().unwrap_or(0) as u8);
+            // -1: a turn played by the base bot as the action set's default
+            t.1.actions.push(match v.get(9).copied().unwrap_or(0) { -1 => vi::DEFAULT_ACTION, a => a as u8 });
         }
     }
     Ok((meta, out))
@@ -532,14 +542,19 @@ fn fit_cmd(m: &HashMap<String, String>) -> R<()> {
 }
 
 const USAGE: &str = "usage:
-  rl-value collect --out <file.tsv> [--games 1000] [--seed-start 1] [--driver bot] [--model greedy-full-probe-perf] [--opp a,b,c]
+  rl-value collect --out <file.tsv> [--games 1000] [--seed-start 1] [--driver bot] [--model greedy-full-probe-perf-r15] [--opp a,b,c]
                    [--players 4] [--difficulty crazy] [--tribe xinxi] [--human 1] [--threads 0]
   rl-value fit --train <file.tsv> --test <file.tsv> --out <dir> [--sizes 1000,10000,...]
   rl-value check --games 2000 --seed-start 600000000 --out <file.json>     (each action played every turn)
-  rl-value fit-vi --train <file.tsv> --out <dir> [--min-count 1,5,20]     (value iteration -> policy-mN.tsv)
+  rl-value fit-vi --train <file.tsv>[,<file.tsv>...] --out <dir> [--min-count 1,5,20] [--features turn,cities,...]
+                                                                          (value iteration -> policy-mN.tsv)
+  rl-value fit-level --train <file.tsv>[,...] --out <dir> [--income-bucket 0] [--min-count 20,100,500]
+                                 (level sets: value iteration over (turn, level[, income / bucket]) -> policy-bB-mM.tsv)
   rl-value eval --policy <policy.tsv> [--n 10000] [--seed-start 1000000000] --out <file.json>
 collect, check and eval take the setup flags; --driver bot|random|fixed:K|policy:<file> picks the strategic
-action of the learner each turn; --boost 2 is the weight multiplier of an action.
+action of the learner each turn; --boost 2 is the weight multiplier of an action; --actions strategic5|spend3|spend4
+the action set (spend3: economy, army, research; states without a policy entry play the bot unchanged;
+spend4: bot, economy, army, research; econ5: a lasting economy level x0.25..x1.5, data with --driver walk).
 Seeds must stay below 1,000,000,000 (the gate's evaluation seeds).";
 
 fn main() {
@@ -549,6 +564,7 @@ fn main() {
         "fit" => fit_cmd(&m),
         "check" => vi::check(&m),
         "fit-vi" => vi::fit_vi_cmd(&m),
+        "fit-level" => level::fit_level_cmd(&m),
         "eval" => vi::eval(&m),
         _ => {
             println!("{USAGE}");

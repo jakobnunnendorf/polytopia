@@ -5,7 +5,8 @@
 //! Action: one action of an action set (`ActionSet`), chosen at the start of a learner turn and held for that turn.
 //! An action multiplies the base bot's move-type factors (`FullWeights::ty`) of its move types by the boost.
 //! `strategic5` (experiments 15, 21, 22): bot, expand, economy, army, research, where action 0 is the base bot
-//! unchanged; `spend3` (experiment 23): economy, army, research.
+//! unchanged; `spend3` (experiment 23): economy, army, research; `spend4` (experiment 26): bot, economy, army,
+//! research; `econ5` (experiment 29): a lasting economy level (build factor x0.25 .. x1.5), one step per turn.
 //! Policy: a table state -> action (`rl-value fit-vi` writes it), keyed on a subset of the six features
 //! (`FeatureMask`; dropped features are 0 in the table). A state without an entry plays the action set's default:
 //! action 0 for strategic5, the base bot unchanged for spend3.
@@ -43,13 +44,29 @@ pub struct ActionSet {
     pub names: &'static [&'static str],
     pub boosted: &'static [&'static [usize]],
     pub default: Option<usize>,
+    /// a level set (experiment 29): action i multiplies the boosted types by `scale[i]` instead of the boost, and the
+    /// action is a lasting level: the policy keys on the level before the turn and moves it one step at most
+    pub scale: Option<&'static [f64]>,
 }
 
 /// The five strategic actions of experiments 15, 21 and 22; action 0 is the base bot unchanged.
-pub const STRATEGIC5: ActionSet = ActionSet { id: "strategic5", names: &ACTION_NAMES, boosted: &BOOSTED, default: Some(0) };
+pub const STRATEGIC5: ActionSet = ActionSet { id: "strategic5", names: &ACTION_NAMES, boosted: &BOOSTED, default: Some(0), scale: None };
 /// Spending only (experiment 23, David): build, train and attack, research; expansion stays at the base weights.
-pub const SPEND3: ActionSet = ActionSet { id: "spend3", names: &["economy", "army", "research"], boosted: &[&[13], &[12, 2], &[0]], default: None };
-pub const ACTION_SETS: [&ActionSet; 2] = [&STRATEGIC5, &SPEND3];
+pub const SPEND3: ActionSet = ActionSet { id: "spend3", names: &["economy", "army", "research"], boosted: &[&[13], &[12, 2], &[0]], default: None, scale: None };
+/// Spending with the bot unchanged as an action (experiment 26, David): bot, build, train and attack, research;
+/// action 0 is also the default, so a state without an entry plays the bot unchanged.
+pub const SPEND4: ActionSet =
+    ActionSet { id: "spend4", names: &["bot", "economy", "army", "research"], boosted: &[&[], &[13], &[12, 2], &[0]], default: Some(0), scale: None };
+/// The economy level (experiment 29, David): the base bot's build factor times 0.25, 0.5, 0.75, 1 or 1.5, held
+/// from turn to turn; it starts at x1 (the default, the base bot unchanged) and moves one step per turn at most.
+pub const ECON5: ActionSet = ActionSet {
+    id: "econ5",
+    names: &["x0.25", "x0.5", "x0.75", "x1", "x1.5"],
+    boosted: &[&[13], &[13], &[13], &[13], &[13]],
+    default: Some(3),
+    scale: Some(&[0.25, 0.5, 0.75, 1.0, 1.5]),
+};
+pub const ACTION_SETS: [&ActionSet; 4] = [&STRATEGIC5, &SPEND3, &SPEND4, &ECON5];
 
 impl ActionSet {
     pub fn len(&self) -> usize {
@@ -64,14 +81,24 @@ impl ActionSet {
     pub fn weights(&self, base: &FullWeights, boost: f64) -> Vec<FullWeights> {
         self.boosted
             .iter()
-            .map(|types| {
+            .enumerate()
+            .map(|(i, types)| {
+                let f = self.scale.map_or(boost, |s| s[i]);
                 let mut w = base.clone();
                 for &t in *types {
-                    w.ty[t] *= boost;
+                    w.ty[t] *= f;
                 }
                 w
             })
             .collect()
+    }
+    /// a level set: the action is a lasting level (see `scale`)
+    pub fn is_level(&self) -> bool {
+        self.scale.is_some()
+    }
+    /// the next level from `prev` for a wanted level `want`: at most one step
+    pub fn step(&self, prev: usize, want: usize) -> usize {
+        want.clamp(prev.saturating_sub(1), (prev + 1).min(self.len() - 1))
     }
 }
 
@@ -199,6 +226,20 @@ pub fn read_table(path: &str) -> R<(Value, HashMap<State, u8>)> {
     Ok((meta, t))
 }
 
+/// The table key of a level policy (experiment 29): turn, the level before this turn, and the income bucket
+/// (income / `bucket`, 0 when `bucket` is 0, i.e. no income in the state); the other three columns are 0.
+pub fn level_key(s: &State, prev: usize, bucket: i32) -> State {
+    [s[0], prev as i32, if bucket > 0 { s[2] / bucket } else { 0 }, 0, 0, 0]
+}
+
+/// `"levelKey": {"incomeBucket": B}` in a policy header: the table is a level policy keyed by `level_key`
+pub fn level_bucket(meta: &Value) -> R<Option<i32>> {
+    match &meta["levelKey"] {
+        Value::Null => Ok(None),
+        k => k["incomeBucket"].as_i64().map(|b| Some(b as i32)).ok_or("levelKey: expected {\"incomeBucket\": B}".into()),
+    }
+}
+
 /// A value-iteration policy ready to play: the table, the base bot and its weights under each action.
 #[derive(Clone)]
 pub struct StrategicPolicy {
@@ -212,6 +253,8 @@ pub struct StrategicPolicy {
     pub base: FullWeights,
     /// the base weights under each action of the set
     pub weights: Vec<FullWeights>,
+    /// a level policy: the income bucket of its key (`level_key`); None for a policy keyed on the features
+    pub level: Option<i32>,
 }
 
 impl std::fmt::Debug for StrategicPolicy {
@@ -234,7 +277,7 @@ impl StrategicPolicy {
         }
         let base = model_weights(model)?;
         let weights = actions.weights(&base, boost);
-        Ok(StrategicPolicy { path: path.to_string(), model: model.to_string(), boost, table, actions, features, base, weights })
+        Ok(StrategicPolicy { path: path.to_string(), model: model.to_string(), boost, table, actions, features, base, weights, level: None })
     }
     /// Load a policy file. Its header must name the base model ("model") and the boost ("boost"); "actions" (the
     /// action set's id) and "features" (the feature names it keys on) default to strategic5 and all six.
@@ -244,7 +287,26 @@ impl StrategicPolicy {
         let boost = meta["boost"].as_f64().ok_or(format!("{path}: no boost in the header"))?;
         let actions = ActionSet::by_id(meta["actions"].as_str()).map_err(|e| format!("{path}: {e}"))?;
         let features = FeatureMask::from_json(&meta["features"]).map_err(|e| format!("{path}: {e}"))?;
-        Self::with(path, model, boost, table, actions, features)
+        let level = level_bucket(&meta).map_err(|e| format!("{path}: {e}"))?;
+        if level.is_some() != actions.is_level() {
+            return Err(format!("{path}: a levelKey goes with a level action set and only with one ({} is {})", actions.id, if actions.is_level() { "one" } else { "not" }));
+        }
+        Ok(StrategicPolicy { level, ..Self::with(path, model, boost, table, actions, features)? })
+    }
+    /// A fresh chooser for one game. A level policy keeps the level between turns (starting at the set's default);
+    /// a state without an entry keeps the level. Any other policy looks up each state on its own (`action`).
+    pub fn picker(&self) -> Box<dyn FnMut(&State) -> Option<usize> + '_> {
+        match self.level {
+            None => Box::new(move |s: &State| self.action(s)),
+            Some(b) => {
+                let mut prev = self.actions.default.expect("a level set has a default level");
+                Box::new(move |s: &State| {
+                    let want = self.table.get(&level_key(s, prev, b)).map_or(prev, |a| *a as usize);
+                    prev = self.actions.step(prev, want);
+                    Some(prev)
+                })
+            }
+        }
     }
     /// The action in state `s` (looked up on the policy's features), or the set's default.
     pub fn action(&self, s: &State) -> Option<usize> {
@@ -339,6 +401,37 @@ mod tests {
         std::fs::write(&f, "# {\"model\": \"greedy-full-probe-perf\", \"boost\": 2, \"actions\": \"spend3\"}\n0\t1\t4\t2\t0\t3\t3\n").unwrap();
         assert!(StrategicPolicy::load(f.to_str().unwrap()).unwrap_err().contains("out of range for spend3"));
         assert!(FeatureMask::from_names(&["cities", "gold"]).is_err());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn spend4_is_the_bot_plus_spend3() {
+        let base = model_weights("greedy-full-probe-perf-r15").unwrap();
+        let (w4, w3) = (SPEND4.weights(&base, 2.0), SPEND3.weights(&base, 2.0));
+        assert_eq!(w4[0], base, "action 0 is the base bot unchanged");
+        assert_eq!(&w4[1..], &w3[..], "actions 1-3 are spend3's");
+        assert_eq!((SPEND4.default, ActionSet::by_id(Some("spend4")).unwrap().len()), (Some(0), 4));
+    }
+
+    #[test]
+    fn econ5_levels_and_level_policy_files() {
+        let base = model_weights("greedy-full-probe-perf-r15").unwrap();
+        let w = ECON5.weights(&base, 2.0);
+        assert_eq!(w[3], base, "x1 is the base bot unchanged");
+        assert_eq!(w[1].ty[13], base.ty[13] * 0.5);
+        assert_eq!((ECON5.step(3, 0), ECON5.step(0, 4), ECON5.step(4, 4), ECON5.step(2, 1)), (2, 1, 4, 1));
+        let dir = std::env::temp_dir().join(format!("rl-level-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("p.tsv");
+        std::fs::write(&f, "# {\"model\": \"greedy-full-probe-perf-r15\", \"boost\": 1, \"actions\": \"econ5\", \"levelKey\": {\"incomeBucket\": 3}}\n0\t3\t1\t0\t0\t0\t2\n1\t2\t1\t0\t0\t0\t1\n").unwrap();
+        let p = StrategicPolicy::load(f.to_str().unwrap()).unwrap();
+        assert_eq!(p.level, Some(3));
+        let mut pick = p.picker();
+        // income 4 -> bucket 1: x1 -> x0.75 -> x0.5; income 9 -> bucket 3: no entry, keep x0.5
+        assert_eq!([pick(&[0, 1, 4, 1, 1, 1]), pick(&[1, 1, 5, 1, 1, 1]), pick(&[2, 1, 9, 1, 1, 1])], [Some(2), Some(1), Some(1)]);
+        // a levelKey only with a level set
+        std::fs::write(&f, "# {\"model\": \"greedy-full-probe-perf-r15\", \"boost\": 2, \"actions\": \"spend4\", \"levelKey\": {\"incomeBucket\": 0}}\n").unwrap();
+        assert!(StrategicPolicy::load(f.to_str().unwrap()).is_err());
         std::fs::remove_dir_all(&dir).ok();
     }
 }

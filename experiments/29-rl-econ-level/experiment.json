@@ -1,0 +1,61 @@
+{
+  "n": 29,
+  "slug": "rl-econ-level",
+  "title": "A lasting economy level in the state, value iteration on r15",
+  "kind": "method",
+  "issue": 166,
+  "pr": 0,
+  "date": "2026-11-28",
+  "status": "done",
+  "verdict": "pending",
+  "base": "greedy-full-probe-perf-r15",
+  "result": "rl-gate vs greedy-full-probe-perf-r15: (turn, level) PASS +195, with income PASS +219 (not significantly different); both match a static economy cut x0.5 (+237) and the hand schedule; RL-line decision pending (David, Jakob)",
+  "question": "With the economy weight as a lasting level in the state (one step down / stay / up per turn), does value iteration find when to invest less in economy, and does that beat r15?",
+  "change": "Action set econ5: the base bot's build factor at x0.25, x0.5, x0.75, x1 or x1.5, held between turns and moved one step at most per turn, from x1; value iteration over (turn, level) and (turn, level, income bucket).",
+  "method": "300k games with a random walk over the levels; value iteration for both state versions and min-count 20, 100, 500; min-count chosen per version on 2,000 validation seeds; both chosen policies on the 10,000 evaluation seeds against r15 and against a hand schedule (x0.5 from turn 16)",
+  "measured": "Paired, 10,000 evaluation seeds",
+  "metric": "final raw score, #171 rule",
+  "setups": [
+    "Perfection, 16×16 continents, 4 players, Crazy, seat 0 Xin-Xi (human seat), learner base greedy-full-probe-perf-r15; opponents greedy-full-probe-perf-r15, greedy-full-probe-perf, greedy-full-probe-perf (anchor), seats shuffled per seed (rl-gate defaults from 27 Nov)"
+  ],
+  "knobs": [
+    {
+      "name": "state",
+      "tested": [
+        "turn,level",
+        "turn,level,income/3"
+      ],
+      "chosen": "turn,level,income/3"
+    },
+    {
+      "name": "minCount",
+      "tested": [
+        20,
+        100,
+        500
+      ],
+      "chosen": 500
+    }
+  ],
+  "headline": [
+    {
+      "label": "Mean final score, 10,000 evaluation seeds: r15 vs econ-level policy (turn, level, income)",
+      "base": 7199,
+      "new": 7418,
+      "unit": "points"
+    },
+    {
+      "label": "Same seeds: r15 vs econ-level policy (turn, level)",
+      "base": 7199,
+      "new": 7394,
+      "unit": "points"
+    },
+    {
+      "label": "Same seeds: static economy x0.5 vs econ-level policy (turn, level, income)",
+      "base": 7436,
+      "new": 7418,
+      "unit": "points"
+    }
+  ],
+  "runs": []
+}

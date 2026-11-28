@@ -1,0 +1,3 @@
+# {"model": "greedy-full-probe-perf-r15", "boost": 1, "actions": "econ5", "levelKey": {"incomeBucket": 0}, "note": "x0.5 from turn 1 (x0.75 at turn 0): the static cut as a level policy"}
+0	3	0	0	0	0	2
+1	2	0	0	0	0	1

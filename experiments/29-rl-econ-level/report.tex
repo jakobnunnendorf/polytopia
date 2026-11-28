@@ -1,0 +1,223 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 29-rl-econ-level
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+\textbf{The idea (David, 27--28 Nov 2026, issue \#166).} Keep the boost factor variable and put it in the state,
+starting with economy. Instead of a one-turn boost (experiments 21--26), the economy weight becomes a lasting level
+that the policy moves one step per turn. The level is in the state because it carries over: without it, the state
+would not be Markov.
+
+\textbf{Why economy, and why now.} Fixed schedules on the 2{,}000 check seeds ($600{,}000{,}000\dots$, before this
+experiment; \texttt{rl-value eval} with turn-only policy files) show that r15 invests too much in economy late in the
+game:
+
+\begin{center}\small
+\begin{tabular}{lrrr}
+\toprule
+economy factor (of r15's) & mean $d$ & better / worse & sign $p$ \\
+\midrule
+$\times0.5$ every turn          & $+309$ & 1{,}066 / 786   & $4\cdot10^{-11}$ \\
+$\times1.5$ every turn          & $-313$ & 575 / 964       & 1.0 \\
+$\times0.5$ in turns 0--9 only  & $+44$  & 552 / 545       & 0.43 \\
+$\times2$ in turns 0--9 only    & $-129$ & 243 / 353       & 1.0 \\
+$\times0.5$ from turn 15        & $+257$ & 1{,}024 / 616   & $3\cdot10^{-24}$ \\
+$\times0.25$ from turn 15       & $+253$ & 1{,}066 / 638   & $1\cdot10^{-25}$ \\
+$\times0.5$ from turn 25        & $+41$  & 258 / 127       & $1\cdot10^{-11}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+An economy investment pays back over the turns that are left, so late investments cannot pay back before turn 30. The
+schedules were picked from 15 tried on the same seeds, so their best values are somewhat optimistic.
+
+\textbf{Prediction} (before any run of this experiment):
+\begin{enumerate}
+  \item \emph{The learned schedule.} Without income in the state, the policy is one path of levels. It stays at
+        $\times1$ or within one step of it through turn 9, and is at $\times0.5$ or lower from turn 20 on.
+  \item \emph{It passes.} With the better state version, the chosen policy beats r15 on the evaluation seeds by
+        $+150$ to $+350$ and passes the \#171 rule.
+  \item \emph{As good as the hand schedule.} Against the hand schedule ($\times0.5$ from turn 16, written before the
+        run), the policy is not significantly worse (mean $d \ge -50$).
+  \item \emph{The model is roughly calibrated.} Its own predicted gain ($V(\text{start})$ minus the model's value of
+        keeping $\times1$) is within 150 points of the measured gain. Each $Q$ value rests on thousands of games, and
+        the successor of a transition is known up to income, so the maximisation bias of 25 and 26 is small.
+  \item \emph{Income adds little.} The version with income is within $\pm 60$ points of the one without (paired),
+        not significantly different.
+\end{enumerate}
+\textbf{Against the prediction:} if value iteration cuts economy early, or stays at $\times1$, while the fixed
+schedules gain $+250$, the model is misled. The likely cause would be that the state lacks what an early investment
+builds up, so later rewards are credited to the later levels.
+
+\section{Mechanism}
+\textbf{Action set \texttt{econ5}} (\texttt{rl\_value::strategic}): the base bot's build factor (\texttt{type.build},
+move type 13) times 0.25, 0.5, 0.75, 1 or 1.5; at $\times1$ the weights are r15's, bit for bit (a test checks). The
+level starts at $\times1$ and moves at most one step per learner turn; the action is the level played this turn. A
+state without a policy entry keeps the level.
+
+\textbf{State} (\texttt{level\_key}): (turn, level before the turn) and, as a second version, (turn, level, income
+/ 3). Without income the next state is fixed by the action. With income, the next income bucket is random.
+
+\textbf{Value iteration} (\texttt{rl-value fit-level}, new): certainty-equivalence model as in 21--26, $Q(s,a) =$
+mean over observed transitions of $r + V(s')$, with $r$ the score gained during the turn and $\gamma = 1$. $V(s) =
+\max_a Q(s,a)$ over the actions with at least $m$ samples; otherwise the mean over all of $s$'s transitions, and
+the level is kept. The turn is in the state, so one backward sweep is exact. The same model also evaluates ``keep
+$\times1$ all game'' (r15) for the predicted gain.
+
+\textbf{Data} (\texttt{--driver walk}): a random walk over the levels from $\times1$, each turn one step down, stay
+or one step up with probability $1/3$ each (fixed by seed and turn), held at the ends.
+
+\textbf{Playing a level policy} keeps the level between turns (\texttt{StrategicPolicy::picker},
+\texttt{Driver::picker}); \texttt{rl-gate}'s \texttt{rl-policy:} learner uses the same picker. On 300 evaluation seeds
+($10^9\dots$), \texttt{rl-value eval} and \texttt{rl-gate} give identical scores for a hand-written level policy
+(\texttt{schedule-hand-x0.5-from-t16.tsv}: $\times0.75$ at turn 15, $\times0.5$ from turn 16): candidate mean
+7{,}346.2, base 7{,}047.7, $d = 298.483$ in both. That check used 300 of the evaluation seeds; the hand schedule was
+written from the check-seed table above, not tuned on them.
+
+\section{Setup}
+As experiments 25 and 26: learner base \texttt{greedy-full-probe-perf-r15}; opponents r15, probe-perf and the anchor
+probe-perf (\texttt{rl-gate} defaults after PR \#204), shuffled per seed. Perfection, 16$\times$16 Continents,
+4 players, Crazy, learner Xin-xi in the human seat. Seeds: training $1\dots300{,}000$ (random walk), action check
+$600{,}000{,}000\dots$ (2{,}000; each level every turn), validation $700{,}000{,}000\dots$ (2{,}000), evaluation
+$10^9\dots$ (10{,}000).
+
+Commands (from \texttt{engine/}):
+\begin{verbatim}
+B=./target/release/rl-value; R=target/rl-value; E=../experiments/29-rl-econ-level
+$B check --actions econ5 --games 2000 --seed-start 600000000 --out $E/check.json
+$B collect --actions econ5 --driver walk --games 300000 --seed-start 1 --out $R/econ5-walk.tsv
+$B fit-level --train $R/econ5-walk.tsv --income-bucket 0 --min-count 20,100,500 --out $R/level
+$B fit-level --train $R/econ5-walk.tsv --income-bucket 3 --min-count 20,100,500 --out $R/level
+$B eval --actions econ5 --policy $R/level/policy-bB-mM.tsv --n 2000 --seed-start 700000000 --out $E/val-bB-mM.json
+rl-gate --candidate rl-policy:experiments/29-rl-econ-level/policy-bB-mM.tsv --base greedy-full-probe-perf-r15
+rl-gate --candidate rl-policy:experiments/29-rl-econ-level/policy-bB-mM.tsv \
+  --base rl-policy:experiments/29-rl-econ-level/schedule-hand-x0.5-from-t16.tsv --no-info15
+\end{verbatim}
+
+\section{Results}
+\ExpResults
+
+All numbers are copied from \texttt{check.json}, \texttt{level-summary-b*.json}, \texttt{val-*.json},
+\texttt{eval-*.json} and the \texttt{rl-gate} JSONs in this folder (28 Nov 2026; per-seed rows dropped, the runs are
+deterministic). Data: 300{,}000 games with a random walk over the levels on r15, 8{,}506{,}054 rows, 1{,}497\,s on
+10 threads. States: 143 without income, 1{,}714 with income / 3.
+
+\paragraph{Action check} (2{,}000 check seeds, each level every turn; r15 7{,}148): $\times0.25$ 7{,}208 ($+60$),
+$\times0.5$ 7{,}457 ($+309$), $\times0.75$ 7{,}335 ($+187$), $\times1.5$ 6{,}835 ($-313$). The same games as the
+schedules in the question.
+
+\paragraph{Value iteration and validation} (2{,}000 validation seeds against r15, base mean 7{,}282).
+$V(\text{start})$ and ``keep $\times1$'' are the model's own values; the predicted gain is their difference.
+
+\begin{center}\small
+\begin{tabular}{lrrrrrr}
+\toprule
+version & $m$ & $V(\text{start})$ & keep $\times1$ & predicted gain & validation mean $d$ & better / worse \\
+\midrule
+(turn, level)          & 20, 100, 500 & 7{,}114 & 6{,}481 & $+633$ & $+212$ & 1{,}070 / 759 \\
+(turn, level, income)  & 20           & 7{,}338 & 6{,}627 & $+712$ & $+205$ & 1{,}026 / 738 \\
+                       & 100          & 7{,}335 & 6{,}627 & $+709$ & $+209$ & 1{,}025 / 739 \\
+                       & 500          & 7{,}306 & 6{,}627 & $+679$ & $+222$ & 1{,}022 / 741 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Without income every state has far more than 500 samples per action, so the three min-counts give the same policy.
+Chosen: $m = 500$ for both versions.
+
+\paragraph{Evaluation seeds} (10{,}000, \texttt{rl-gate}; r15 7{,}199, median 8{,}655, p10 1{,}480):
+
+\begin{center}\small
+\begin{tabular}{llrrrrl}
+\toprule
+candidate & base & mean & mean $d$ (99\% bounds) & better / worse & sign $p$ & verdict \\
+\midrule
+(turn, level)         & r15 & 7{,}394 & $+195$ ($+153$, $+237$) & 5{,}317 / 3{,}848 & $10^{-53}$ & \textbf{PASS} \\
+(turn, level, income) & r15 & 7{,}418 & $+219$ ($+180$, $+259$) & 5{,}149 / 3{,}642 & $10^{-58}$ & \textbf{PASS} \\
+(turn, level)         & hand schedule & & $-9$ ($-49$, $+31$) & 4{,}452 / 4{,}508 & 0.73 & no difference \\
+(turn, level, income) & hand schedule & & $+15$ ($-21$, $+51$) & 4{,}148 / 4{,}074 & 0.21 & no difference \\
+(turn, level, income) & (turn, level)  & & $+24$ ($-12$, $+61$) & 4{,}352 / 4{,}310 & 0.33 & no difference \\
+(turn, level, income) & static $\times0.5$ & & $-18$ ($-55$, $+19$) & 4{,}153 / 4{,}290 & -- & no difference \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+p10: 1{,}535 (turn, level) and 1{,}515 (with income), against r15's 1{,}480. 15 opponents (information only):
+$+93$ and $+41$, both pass there too. The hand schedule ($\times0.5$ from turn 16) scores 7{,}403 and the static cut
+($\times0.75$ at turn 0, $\times0.5$ from turn 1, \texttt{schedule-static-x0.5.tsv}, added after the gates) 7{,}436,
+$+237$ against r15 (\texttt{rl-value eval}: 5{,}397 better, 3{,}925 worse, p10 1{,}510).
+
+\section{Behaviour}
+Mean economy factor by turn on the evaluation seeds (\texttt{eval-b*-m500.json}):
+
+\begin{center}\small
+\begin{tabular}{lcccccc}
+\toprule
+version & turns 0--4 & 5--9 & 10--14 & 15--19 & 20--24 & 25--29 \\
+\midrule
+(turn, level)         & 0.80 & 0.75 & 0.50 & 0.30 & 0.35 & 0.35 \\
+(turn, level, income) & 0.78 & 0.85 & 0.60 & 0.46 & 0.39 & 0.54 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Over the whole game the policies play $\times0.25$ / $\times0.5$ / $\times0.75$ / $\times1$ on 34 / 29 / 29 / 7\% of
+turns (turn, level) and 19 / 34 / 33 / 14\% (with income; $\times1.5$ 1\%), a mean factor of 0.52 and 0.62. The path
+without income zigzags (turn 4 at $\times1$, turn 6 at $\times0.5$, turn 8 at $\times1$), a sign that neighbouring
+levels are close in value there.
+
+\section{Interpretation}
+\textbf{Prediction 1 (near $\times1$ through turn 9, $\le\times0.5$ from turn 20): half right.} From turn 20 the
+path is at $\times0.25$ or $\times0.5$ throughout, but it starts at $\times0.75$ and is at $\times0.5$ at turn 6.
+\textbf{Prediction 2 ($+150$ to $+350$, PASS): right} ($+195$ and $+219$, both PASS).
+\textbf{Prediction 3 (not worse than the hand schedule by more than 50): right} ($-9$ and $+15$).
+\textbf{Prediction 4 (predicted gain within 150 of the measured): wrong.} The model predicts $+633$ to $+712$, the
+policies gain about $+200$. The model's value of ``keep $\times1$'' (6{,}481 and 6{,}627) is far below r15's real score
+(about 7{,}200).
+\textbf{Prediction 5 (income adds little): right} ($+24$, $p = 0.33$).
+
+\textbf{Value iteration found the improvement, but the improvement is ``less economy'', not its timing.} Both
+policies pass against r15, and by the same margin as two simple schedules: the hand schedule and the static cut
+$\times0.5$ from turn 1 are within 25 points of them, not significantly different. Like research in r15, the bot's
+economy weight is off for Perfection, and value iteration found that from the random-walk data alone. That the
+best time to cut matters is not shown on the evaluation seeds: the static cut ($+237$) and the late cut of the hand
+schedule (7{,}403, about $+204$) are about equal there, although on the check seeds the late cut looked more reliable.
+
+\textbf{Why the model's own numbers are wrong but its choices are right.} The state (turn, level) does not record
+what earlier levels built up. Each $Q$ value averages the reward of a turn over the random walk's histories, which
+on average ran at lower levels than $\times1$. So ``keep $\times1$'' is valued as if the game before had been played
+at random levels, and it comes out about 700 points too low. That bias is similar for neighbouring levels, so the
+comparison between them, which is what the policy needs, is far less affected than the absolute values. Income in
+the state removes part of it but not the bias in the predicted gain ($+679$).
+
+\section{Threats to validity}
+\begin{itemize}
+  \item \emph{The gain is a tuning gap, like r15's.} A greedy model ``r15 with build $\times0.5$'' would likely
+        gain as much. The RL contribution here is that value iteration found the direction and size from data,
+        not a timing a fixed weight cannot express.
+  \item \emph{Model bias from the random walk} (see Interpretation): the model's values cannot be read as
+        expected scores; only the gate measures the policy.
+  \item \emph{Seeds:} the equivalence check before the run used 300 of the evaluation seeds with the hand schedule;
+        the static cut was added after the gates. Neither was tuned on the evaluation seeds.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{PASS against r15} for both versions ($+195$, $+219$); the version with income is not significantly better.
+Whether a policy enters the RL line (empty on \texttt{dev}; experiment 14 is RL v1 by decision but was never
+promoted) is for David and Jakob to decide. So is whether the simpler finding, r15's build weight halved, becomes a
+greedy model.
+
+Next step (one idea): put the cut into the base bot (r15 with build $\times0.5$, as r15 did for research), and
+re-run this experiment on it. Then a gain would have to come from timing.
+
+\section{Notes for the paper}
+Draft claim: a lasting weight level in the state turns the noisy one-turn decisions of experiments 21--26 into a
+well-estimated problem. Value iteration over (turn, economy level) passes the gate against r15 ($+195$, 58\% of seeds
+better), but it matches a static halving of the economy weight, and the model's own value estimates are biased by
+about 700 points. Carried by the evaluation table and the factor-by-turn table.
+\todo{jakob}{Is this worth a place in the paper? Where?}
+
+\end{document}

@@ -1,0 +1,175 @@
+{
+  "tool": "rl-value fit-vi",
+  "actions": [
+    "bot",
+    "expand",
+    "economy",
+    "army",
+    "research"
+  ],
+  "trainSetup": {
+    "model": "greedy-full-probe-perf",
+    "opp": "greedy-full-probe-perf,greedy-full-combo-perf,greedy-full-probe-perf",
+    "players": 4,
+    "tribe": "xinxi",
+    "difficulty": "crazy",
+    "humanLearner": true,
+    "mode": "perfection",
+    "mapSize": 16,
+    "mapType": "continents",
+    "seedStart": 1,
+    "games": 300000,
+    "driver": "random",
+    "actions": [
+      "bot",
+      "expand",
+      "economy",
+      "army",
+      "research"
+    ],
+    "boost": 2.0
+  },
+  "trainGames": 300000,
+  "runs": [
+    {
+      "minCount": 1,
+      "states": 506245,
+      "visits": 8193078,
+      "policyCoverage": 1.0,
+      "actionShareByVisits": {
+        "bot": 0.16890746066374565,
+        "expand": 0.17993896799224907,
+        "economy": 0.1693218348464399,
+        "army": 0.16675100615421945,
+        "research": 0.31508073034334594
+      },
+      "start": {
+        "state": [
+          0,
+          1,
+          2,
+          1,
+          1,
+          1
+        ],
+        "visits": 300000,
+        "v": 10880.529802767605,
+        "q": [
+          10826.292591993695,
+          10825.676248621736,
+          10826.115111620948,
+          10825.587030943623,
+          10880.529802767605
+        ],
+        "action": "research"
+      },
+      "seconds": 0.980493333,
+      "policy": "target/rl-value/vi-perf/policy-m1.tsv"
+    },
+    {
+      "minCount": 5,
+      "states": 506245,
+      "visits": 8193078,
+      "policyCoverage": 0.8685703956437373,
+      "actionShareByVisits": {
+        "bot": 0.14570690038591114,
+        "expand": 0.14722134953432642,
+        "economy": 0.11743632856906769,
+        "army": 0.1536036883818267,
+        "research": 0.30460212877260534
+      },
+      "start": {
+        "state": [
+          0,
+          1,
+          2,
+          1,
+          1,
+          1
+        ],
+        "visits": 300000,
+        "v": 8272.4900634122,
+        "q": [
+          8223.016435114407,
+          8222.456901979782,
+          8222.852889973394,
+          8222.376090724088,
+          8272.4900634122
+        ],
+        "action": "research"
+      },
+      "seconds": 0.519549459,
+      "policy": "target/rl-value/vi-perf/policy-m5.tsv"
+    },
+    {
+      "minCount": 20,
+      "states": 506245,
+      "visits": 8193078,
+      "policyCoverage": 0.7191381554038665,
+      "actionShareByVisits": {
+        "bot": 0.11905757518724953,
+        "expand": 0.12074936916260287,
+        "economy": 0.09572922410844861,
+        "army": 0.11920245358337855,
+        "research": 0.26439953336218697
+      },
+      "start": {
+        "state": [
+          0,
+          1,
+          2,
+          1,
+          1,
+          1
+        ],
+        "visits": 300000,
+        "v": 7421.331866483135,
+        "q": [
+          7369.0794531202055,
+          7368.490267391183,
+          7368.909822034026,
+          7368.408111056345,
+          7421.331866483135
+        ],
+        "action": "research"
+      },
+      "seconds": 0.475591875,
+      "policy": "target/rl-value/vi-perf/policy-m20.tsv"
+    },
+    {
+      "minCount": 50,
+      "states": 506245,
+      "visits": 8193078,
+      "policyCoverage": 0.5846906376333778,
+      "actionShareByVisits": {
+        "bot": 0.0895487629923699,
+        "expand": 0.0937806279886509,
+        "economy": 0.07675076448680215,
+        "army": 0.09437808354808778,
+        "research": 0.23023239861746708
+      },
+      "start": {
+        "state": [
+          0,
+          1,
+          2,
+          1,
+          1,
+          1
+        ],
+        "visits": 300000,
+        "v": 7016.122032406162,
+        "q": [
+          6962.475201159794,
+          6961.870828228007,
+          6962.302313908873,
+          6961.787608815476,
+          7016.122032406162
+        ],
+        "action": "research"
+      },
+      "seconds": 0.453346541,
+      "policy": "target/rl-value/vi-perf/policy-m50.tsv"
+    }
+  ]
+}

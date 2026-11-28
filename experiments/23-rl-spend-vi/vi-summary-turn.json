@@ -1,0 +1,175 @@
+{
+  "tool": "rl-value fit-vi",
+  "actions": "spend3",
+  "actionNames": [
+    "economy",
+    "army",
+    "research"
+  ],
+  "features": [
+    "turn",
+    "cities",
+    "income",
+    "units",
+    "techs"
+  ],
+  "trainSetup": {
+    "model": "greedy-full-probe-perf",
+    "opp": "greedy-full-probe-perf,greedy-full-combo-perf,greedy-full-probe-perf",
+    "players": 4,
+    "tribe": "xinxi",
+    "difficulty": "crazy",
+    "humanLearner": true,
+    "mode": "perfection",
+    "mapSize": 16,
+    "mapType": "continents",
+    "seedStart": 1,
+    "games": 300000,
+    "driver": "random",
+    "actions": [
+      "economy",
+      "army",
+      "research"
+    ],
+    "actionSet": "spend3",
+    "boost": 2.0
+  },
+  "trainFiles": [
+    "target/rl-value/s3-train-random.tsv"
+  ],
+  "trainGames": 300000,
+  "runs": [
+    {
+      "minCount": 1,
+      "states": 271447,
+      "visits": 8182759,
+      "policyCoverage": 1.0,
+      "actionShareByVisits": {
+        "economy": 0.2526294615300292,
+        "army": 0.3751619716528374,
+        "research": 0.37220856681713343
+      },
+      "start": {
+        "state": [
+          0,
+          1,
+          2,
+          1,
+          0,
+          1
+        ],
+        "visits": 300000,
+        "v": 8619.056949216003,
+        "q": [
+          8547.239512034344,
+          8548.153792845256,
+          8619.056949216003
+        ],
+        "action": "research"
+      },
+      "sweeps": 1,
+      "lastChange": 0.0,
+      "seconds": 0.68926275,
+      "policy": "target/rl-value/vi-s3-turn/policy-m1.tsv"
+    },
+    {
+      "minCount": 5,
+      "states": 271447,
+      "visits": 8182759,
+      "policyCoverage": 0.9369073438433174,
+      "actionShareByVisits": {
+        "economy": 0.21127763875240613,
+        "army": 0.3594483229922817,
+        "research": 0.36618138209862955
+      },
+      "start": {
+        "state": [
+          0,
+          1,
+          2,
+          1,
+          0,
+          1
+        ],
+        "visits": 300000,
+        "v": 7718.908164627162,
+        "q": [
+          7652.137395019153,
+          7652.982054035727,
+          7718.908164627162
+        ],
+        "action": "research"
+      },
+      "sweeps": 1,
+      "lastChange": 0.0,
+      "seconds": 0.500158375,
+      "policy": "target/rl-value/vi-s3-turn/policy-m5.tsv"
+    },
+    {
+      "minCount": 20,
+      "states": 271447,
+      "visits": 8182759,
+      "policyCoverage": 0.8101227226660348,
+      "actionShareByVisits": {
+        "economy": 0.16854889652744265,
+        "army": 0.3234809921690227,
+        "research": 0.31809283396956944
+      },
+      "start": {
+        "state": [
+          0,
+          1,
+          2,
+          1,
+          0,
+          1
+        ],
+        "visits": 300000,
+        "v": 7219.417469647266,
+        "q": [
+          7152.27771935486,
+          7153.124384079682,
+          7219.417469647266
+        ],
+        "action": "research"
+      },
+      "sweeps": 1,
+      "lastChange": 0.0,
+      "seconds": 0.482107875,
+      "policy": "target/rl-value/vi-s3-turn/policy-m20.tsv"
+    },
+    {
+      "minCount": 50,
+      "states": 271447,
+      "visits": 8182759,
+      "policyCoverage": 0.6796694122361419,
+      "actionShareByVisits": {
+        "economy": 0.1265896991467059,
+        "army": 0.2819926628659111,
+        "research": 0.27108705022352486
+      },
+      "start": {
+        "state": [
+          0,
+          1,
+          2,
+          1,
+          0,
+          1
+        ],
+        "visits": 300000,
+        "v": 6931.596751065829,
+        "q": [
+          6863.741741377276,
+          6864.597611511196,
+          6931.596751065829
+        ],
+        "action": "research"
+      },
+      "sweeps": 1,
+      "lastChange": 0.0,
+      "seconds": 0.463733709,
+      "policy": "target/rl-value/vi-s3-turn/policy-m50.tsv"
+    }
+  ]
+}

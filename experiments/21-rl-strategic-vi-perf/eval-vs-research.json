@@ -1,0 +1,56 @@
+{
+  "tool": "rl-value eval",
+  "policy": "../experiments/21-rl-strategic-vi-perf/policy-m5.tsv",
+  "baseDriver": "fixed:research",
+  "model": "greedy-full-probe-perf",
+  "opp": "greedy-full-probe-perf,greedy-full-combo-perf,greedy-full-probe-perf",
+  "players": 4,
+  "difficulty": "crazy",
+  "humanLearner": true,
+  "boost": 2.0,
+  "n": 10000,
+  "seedStart": 1000000000,
+  "candidate": {
+    "mean": 6943.404,
+    "sd": 3609.9188161466936,
+    "p10": 1415.0,
+    "median": 8350.0,
+    "p90": 10655.0
+  },
+  "base": {
+    "mean": 7295.1365,
+    "sd": 3595.054677703986,
+    "p10": 1484.5000000000005,
+    "median": 8885.0,
+    "p90": 10815.0
+  },
+  "gate": {
+    "rule": "#171: sign test (one-sided exact, ties dropped) at alpha, mean(d) upper bound >= 0, p10(candidate) >= p10(base); computed by rl-value, not rl-gate",
+    "pass": false,
+    "verdict": "FAIL",
+    "better": 3380,
+    "worse": 5430,
+    "ties": 1190,
+    "betterShare": 0.3836549375709421,
+    "signP": 0.999999999898745,
+    "signPass": false,
+    "meanD": -351.7325,
+    "sdD": 1724.795704704226,
+    "meanDUpper": -311.60775179276993,
+    "guardMean": false,
+    "p10Candidate": 1415.0,
+    "p10Base": 1484.5000000000005,
+    "guardP10": false
+  },
+  "policyStateShare": 0.866545601291364,
+  "actionShare": {
+    "bot": 0.2806001907696823,
+    "expand": 0.15099787218431288,
+    "economy": 0.12187981510015408,
+    "army": 0.15184899845916794,
+    "research": 0.2946731234866828
+  },
+  "wallSeconds": 104.186550083,
+  "perSeed": null,
+  "perSeedNote": "per-seed rows dropped to keep the repo small; the run is deterministic, re-run it with the same seeds to get them"
+}

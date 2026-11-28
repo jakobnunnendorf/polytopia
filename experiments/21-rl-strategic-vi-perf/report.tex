@@ -1,0 +1,214 @@
+% Experiment report. Fixed sections: see experiments/TEMPLATE/report.tex and experiments/README.md.
+% Build: npm run experiment:report -- 21-rl-strategic-vi-perf
+\documentclass{../polyexp}
+\begin{document}
+\input{generated}
+\ExpHeader
+
+\section{Question and hypothesis}
+\textbf{The idea (David, 26 Nov 2026, issue \#166).} Repeat experiment 15 on the Perfection-tuned bot of experiment
+17. In 15 the base bot was tuned for Domination, and most of the policy's gain came from ``research more'', which
+looks like fixing a mode mismatch rather than strategy. With \texttt{greedy-full-probe-perf} as the base bot, the
+question is whether value iteration over the six integers (turn, cities, income, units, sum of city levels, techs)
+still finds something the tuned bot misses, for example playing differently early and late.
+
+\textbf{Prediction} (written before any run of this experiment, including the action check):
+\begin{enumerate}
+  \item \emph{Less to gain from a fixed action.} In the action check (2{,}000 seeds) the best action played every
+        turn gains less than half of 15's research gain against the bot: under 225 points in the mean
+        (15: +450).
+  \item \emph{The policy still beats the bot, by less.} On the 10{,}000 evaluation seeds the policy passes the
+        \#171 rule against \texttt{greedy-full-probe-perf}, with a mean gain of 30--200 points (15: +118 against the
+        untuned bot).
+  \item \emph{Values are optimistic.} $V$(start) at min-count 1 exceeds the policy's real mean final score minus
+        the start score by more than 500 points; the gap shrinks with a higher min-count (15: +4{,}202 at $m=1$).
+  \item \emph{No better than the best fixed action.} Against the best action of the check played every turn, the
+        policy does not pass the \#171 rule (as in 15).
+\end{enumerate}
+\textbf{Against the idea:} if the policy fails against the tuned bot, strategic boosts over this state add nothing
+once the bot is tuned for the mode; experiment 15's gain was the mode mismatch.
+
+\section{Mechanism}
+\textbf{Strategic actions.} At the start of each learner turn one action $a \in \{0,\dots,4\}$ is chosen and holds
+for the whole turn: it multiplies the bot's move-type weights (\texttt{FullWeights::ty}, the factor on the score of
+every move of that type) by the boost 2. 0 \emph{bot}: no change; 1 \emph{expand}: capture, examine;
+2 \emph{economy}: build; 3 \emph{army}: train, attack; 4 \emph{research}: research
+(\texttt{engine/rlvalue/src/vi.rs}, \texttt{BOOSTED}).
+
+\textbf{Data.} 300{,}000 games in which the learner picks a uniformly random action each turn (fixed by seed and
+turn); each row records the state, the score and the action.
+
+\textbf{Value iteration.} For each state $s$ and action $a$ the observed transitions $(r, s')$ form $\hat P(s'\mid
+s,a)$ and $\hat r$. Backwards from the last turn: $Q(s,a) = \frac{1}{n(s,a)}\sum \bigl(r + V(s')\bigr)$,
+$V(s) = \max_{a:\,n(s,a) \ge m} Q(s,a)$, $V(\text{terminal}) = 0$; the policy is the argmax. A state where no action
+has $m$ visits keeps the mean over all its transitions and has no policy entry. When playing, a state without an
+entry gets action 0 (the bot).
+
+\textbf{Choice of $m$.} $m \in \{1, 5, 20, 50\}$; each policy plays 2{,}000 validation games (seeds
+$700{,}000{,}000\dots$) against the bot on the same seeds; the $m$ with the highest share of better seeds is kept.
+Only that one is evaluated on the evaluation seeds.
+
+\section{Setup}
+As experiment 15 except the setup, which is now the decided gate setup on \texttt{dev} at da04376: Perfection,
+16$\times$16 Continents, 4 players, Crazy, seat 0 Xin-Xi as the human seat; the learner's base bot
+\texttt{greedy-full-probe-perf}; opponents \texttt{greedy-full-probe-perf}, \texttt{greedy-full-combo-perf} and the
+anchor \texttt{greedy-full-probe-perf}, shuffled over the seats per seed by the gate's \texttt{seat\_assignment}.
+Seeds: training $1\dots300{,}000$; action check $600{,}000{,}000\dots$ (2{,}000); validation
+$700{,}000{,}000\dots$ (2{,}000); evaluation $10^9\dots$ (10{,}000).
+
+\textbf{Verdict tool.} \texttt{rl-gate} cannot play a policy yet; the learner seam is being added (DECISION of 26 Nov
+on \#166, own PR). Until it is merged, \texttt{rl-value eval} plays the policy and the base on the same seeds and
+applies the \#171 rule itself (labelled as such); \texttt{rl-value}'s games are identical to \texttt{rl-gate}'s
+(500 of 500 seeds, experiment 20). By the pass rule of 26 Nov an RL version is judged against the previous RL
+version, so the comparison with \texttt{greedy-full-probe-perf} here is the baseline comparison, and this is the
+candidate for RL v1 of David's track.
+
+\textbf{Action check} (each action every turn, 2{,}000 seeds $600{,}000{,}000\dots$, \texttt{check-boost2.json},
+\texttt{check-boost4.json}; run after the predictions above were written):
+
+\begin{center}\small
+\begin{tabular}{lrrrrr}
+\toprule
+action (boost 2) & mean score & median & 10th pct & techs at end & better / worse vs bot \\
+\midrule
+bot      & 6871 & 8080 & 1420 & 18.49 & -- \\
+expand   & 6887 & 8128 & 1420 & 18.50 & 84 / 61 \\
+economy  & 6654 & 7852 & 1380 & 18.27 & 760 / 886 \\
+army     & 6861 & 8068 & 1400 & 18.55 & 404 / 426 \\
+research & 7276 & 8845 & 1464 & 19.78 & 1{,}098 / 731 \\
+\bottomrule
+\end{tabular}
+\end{center}
+With boost 4, research gains less (6{,}929) and costs cities (2.19 against 2.61) and income, economy loses more
+(6{,}377), expand and army change little; boost 2 is kept, as in 15. The best fixed action is research
+(\texttt{fixed:4}), so the final comparison against a fixed action is against ``research every turn''.
+
+Commands (from \texttt{engine/}):
+\begin{verbatim}
+B=./target/release/rl-value
+$B check --games 2000 --seed-start 600000000 --boost 2 --out ../experiments/21-rl-strategic-vi-perf/check-boost2.json
+$B check --games 2000 --seed-start 600000000 --boost 4 --out ../experiments/21-rl-strategic-vi-perf/check-boost4.json
+$B collect --driver random --games 300000 --seed-start 1 --out target/rl-value/p4-train-random.tsv
+$B fit-vi --train target/rl-value/p4-train-random.tsv --min-count 1,5,20,50 --out target/rl-value/vi-perf
+$B eval --policy target/rl-value/vi-perf/policy-mM.tsv --n 2000 --seed-start 700000000 --out .../val-mM.json
+$B eval --policy <chosen> --n 10000 --out .../eval-vs-bot.json
+$B eval --policy <chosen> --n 10000 --base-driver fixed:K --out .../eval-vs-research.json   # K = 4, research
+../engine/target/release/rl-gate --candidate rl-policy:experiments/21-rl-strategic-vi-perf/policy-m5.tsv \
+  --base greedy-full-probe-perf --out ../experiments/21-rl-strategic-vi-perf
+\end{verbatim}
+
+\section{Results}
+\ExpResults
+
+All numbers are copied from \texttt{check-boost*.json}, \texttt{vi-summary.json}, \texttt{val-m*.json},
+\texttt{eval-vs-bot.json}, \texttt{eval-vs-research.json} and the \texttt{rl-gate} JSON in this folder (26 Nov
+2026). Data: 300{,}000 random-action games, 8{,}493{,}078 rows, 506{,}245 distinct states; collection 1{,}544\,s on 10
+threads. The chosen policy is \texttt{policy-m5.tsv} (its header names the base bot and the boost).
+
+\paragraph{Value iteration and validation} (2{,}000 validation seeds, policy against the bot on the same seeds;
+the bot scores 6{,}840 there; optimism = $V$(start) minus the policy's real mean remaining score, start score 515):
+
+\begin{center}\small
+\begin{tabular}{rrrrrrr}
+\toprule
+min-count & policy covers & $V$(start) & optimism & policy mean & better / worse & better share \\
+\midrule
+1  & 100.0\% & 10{,}881 & $+4{,}427$ & 6{,}969 & 867 / 733 & 54.2\% \\
+5  & 86.9\%  & 8{,}272  & $+1{,}793$ & 6{,}994 & 853 / 701 & \textbf{54.9\%} \\
+20 & 71.9\%  & 7{,}421  & $+968$     & 6{,}968 & 785 / 668 & 54.0\% \\
+50 & 58.5\%  & 7{,}016  & $+581$     & 6{,}950 & 715 / 614 & 53.8\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+Min-count 5 is kept (the highest share of better seeds). On validation all four fail the \#171 rule only on the
+10th-percentile guard (1{,}410--1{,}420 against 1{,}440); the sign test rejects for all four ($p \le 0.003$).
+
+\paragraph{Final test} (10{,}000 evaluation seeds $10^9\dots$; \texttt{rl-gate} with
+\texttt{--candidate rl-policy:\dots/policy-m5.tsv}, from PR \#198, not yet on \texttt{dev}; \texttt{rl-value eval}
+gives the same numbers seed for seed):
+
+\begin{center}\small
+\begin{tabular}{lrrrrrrl}
+\toprule
+against & policy mean / median / p10 & other mean / median / p10 & better / worse / ties & mean $d$ (99\% bounds) & rule \\
+\midrule
+bot (probe-perf) & 6943 / 8350 / 1415 & 6839 / 8112 / 1419.5 & 4277 / 3536 / 2187 & $+104$ ($+57$, $+152$) & FAIL (p10) \\
+research every turn & 6943 / 8350 / 1415 & 7295 / 8885 / 1485 & 3380 / 5430 / 1190 & $-352$ (upper $-312$) & FAIL \\
+\bottomrule
+\end{tabular}
+\end{center}
+Against the bot the sign test rejects clearly (54.74\% of 7{,}813 differing seeds better, 99\% lower bound 53.42\%,
+$p = 2.7\cdot10^{-17}$) and the mean guard holds, but the 10th percentile is 4.5 points lower (1{,}415 against
+1{,}419.5), so the rule says FAIL. Win rate 3.3\% against 3.1\%. The information-only run with 15 opponents (5{,}000
+seeds) shows no gain: mean 2{,}579 against 2{,}679, better on 1{,}408 seeds and worse on 1{,}430.
+
+\section{Behaviour}
+On the evaluation seeds 86.7\% of learner turns are in a state with a policy entry. Actions over all learner turns:
+bot 28.1\%, expand 15.1\%, economy 12.2\%, army 15.2\%, research 29.5\%. The policy picks research most, but only on
+three turns in ten, and picks economy on one turn in eight although economy every turn costs 217 points in the
+check; expand and army, which change almost nothing when played every turn, take 30\% of turns together.
+
+\section{Interpretation}
+\textbf{Prediction 1 (best fixed action gains under 225 points): wrong.} Research every turn gains 405 points in
+the check and 456 on the evaluation seeds (7{,}295 against 6{,}839), about as much as against the untuned bot in 15
+(+450). The Perfection fine-tune of experiment 17 lowered the bot's research factor further (to 0.417); doubling it
+still pays. So the tuned bot still researches too little for this setup. One untested guess why: the trainer's
+games have no human seat and two sides on alternating seats.
+
+\textbf{Prediction 2 (passes the \#171 rule against the bot, gain 30--200): half right.} The gain is in the
+predicted range (+104 in the mean, 54.7\% of differing seeds better, very significant), but the policy fails the
+rule on the 10th-percentile guard by 4.5 points: the policy does not protect the bad games (eliminations), where
+its actions make no difference or slightly hurt.
+
+\textbf{Prediction 3 (values optimistic, the gap shrinks with min-count): right} (+4{,}427 at $m=1$ down to +581 at
+$m=50$).
+
+\textbf{Prediction 4 (not better than the best fixed action): right}, and by a lot: research every turn beats the
+policy on 5{,}430 seeds against 3{,}380, by 352 points in the mean.
+
+\textbf{Why value iteration does not find ``research every turn''.} A policy that always researches is in the
+policy class (one action per state), and it is clearly better, yet value iteration picks research on only 30\% of
+turns. The Behaviour section points to noise, not to a real trade-off: the policy spreads its choices over expand,
+army and economy, which played every turn are no better or worse than the bot. With five actions and about 17
+visits per state, each $Q(s,a)$ rests on a handful of transitions; taking the maximum over five noisy estimates
+picks whichever action was lucky in that state (the same bias that makes $V$(start) optimistic), and the backups
+spread that bias to earlier turns. The state is also not Markov (experiment 20), so successor values pool games
+that differ in what the six integers do not show. Experiment 15's conclusion carries over to the tuned bot: on this
+state the learned policy beats the bot it steers on most seeds, but a fixed rule found by a five-action check beats
+it.
+
+\todo{david}{Your reading: agree, disagree, what is missing?}
+
+\section{Threats to validity}
+\begin{itemize}
+  \item \emph{Random-action data.} The model is learned from uniformly random actions; the states a policy that
+        researches more visits are rarer in the data than in its own play (86.7\% of its turns have an entry).
+  \item \emph{The p10 guard decides by 4.5 points.} The 10th percentile sits in the elimination games; a slightly
+        different seed set could flip the verdict either way. The sign test and the mean are far from the edge.
+  \item \emph{Gate code not on \texttt{dev} yet.} The \texttt{rl-gate} run uses the learner seam of PR \#198; it agrees
+        seed for seed with \texttt{rl-value eval}, and an empty policy ties its base bot on all seeds tested.
+  \item \emph{One boost, one action set.} Boost 2 and these five actions; other action designs (spending decisions,
+        asked on \#166) are not tested.
+\end{itemize}
+
+\section{Verdict and next step}
+\textbf{Against the greedy baseline: FAIL} (information under the pass rule of 26 Nov: greedy models do not decide
+an RL pass). The policy is better than \texttt{greedy-full-probe-perf} on significantly more seeds (+104 in the
+mean) but fails the 10th-percentile guard by 4.5 points, and research every turn beats it by 352 points.
+Whether \texttt{policy-m5} becomes RL v1 of David's track (v1 enters by decision once it plays complete games) is
+David's call.
+
+Next step ideas (one per experiment): (a) fewer actions (bot and research only), so each $Q$ rests on more
+transitions; (b) double estimation against the maximisation bias (choose the action on one half of the games,
+value it on the other); (c) research as the default action in states without a policy entry; (d) collect the data
+with the policy itself instead of random actions.
+
+\section{Notes for the paper}
+Claim: on the Perfection-tuned bot, value iteration over the six-integer state gives a policy that is better than
+the bot on 54.7\% of the differing seeds (+104 points), but a fixed rule (research every turn, +456) is far better,
+because the maximum over noisy $Q$ estimates picks lucky actions. A clean example of the maximisation bias, with the
+optimism of $V$(start) as the measured symptom (+4{,}427 at min-count 1, +581 at 50).
+
+\todo{david}{Is this worth a place in the talk or report? Where?}
+
+\end{document}

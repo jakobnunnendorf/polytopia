@@ -1,0 +1,70 @@
+{
+  "tool": "rl-value fit-vi",
+  "actions": [
+    "bot",
+    "expand",
+    "economy",
+    "army",
+    "research"
+  ],
+  "trainSetup": {
+    "model": "greedy-full-probe-perf",
+    "opp": "greedy-full-probe-perf,greedy-full-combo-perf,greedy-full-probe-perf",
+    "players": 4,
+    "tribe": "xinxi",
+    "difficulty": "crazy",
+    "humanLearner": true,
+    "mode": "perfection",
+    "mapSize": 16,
+    "mapType": "continents",
+    "seedStart": 1,
+    "games": 300000,
+    "driver": "random",
+    "actions": [
+      "bot",
+      "expand",
+      "economy",
+      "army",
+      "research"
+    ],
+    "boost": 2.0
+  },
+  "trainGames": 400000,
+  "runs": [
+    {
+      "minCount": 5,
+      "states": 582400,
+      "visits": 10923954,
+      "policyCoverage": 0.8923197589444262,
+      "actionShareByVisits": {
+        "bot": 0.21481123043908826,
+        "expand": 0.16226020358562476,
+        "economy": 0.11918697204327297,
+        "army": 0.1406880695396557,
+        "research": 0.25537328333678444
+      },
+      "start": {
+        "state": [
+          0,
+          1,
+          2,
+          1,
+          1,
+          1
+        ],
+        "visits": 400000,
+        "v": 7751.600538849663,
+        "q": [
+          7693.328776450797,
+          7692.652918495466,
+          7693.597052382322,
+          7693.023553868841,
+          7751.600538849663
+        ],
+        "action": "research"
+      },
+      "seconds": 0.8087095,
+      "policy": "target/rl-value/vi-round1/policy-m5.tsv"
+    }
+  ]
+}
